@@ -93,8 +93,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -990,7 +988,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         };
 
-        final Semaphore requestCompleted = new Semaphore(0);
         TransportResponseHandler<StringMessageResponse> noopResponseHandler = new TransportResponseHandler<StringMessageResponse>() {
 
             @Override
@@ -1000,12 +997,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleResponse(StringMessageResponse response) {
-                requestCompleted.release();
             }
 
             @Override
             public void handleException(TransportException exp) {
-                requestCompleted.release();
             }
 
             @Override
@@ -1065,7 +1060,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             StringMessageRequest request = new StringMessageRequest("", 10);
             serviceA.sendRequest(nodeB, "internal:test", request, TransportRequestOptions.EMPTY, noopResponseHandler);
-            requestCompleted.acquire();
 
             assertBusy(appender::assertAllExpectationsMatched);
 
@@ -1083,11 +1077,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(errorResponseReceivedExpectation);
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
-            requestCompleted.acquire();
 
             assertBusy(appender::assertAllExpectationsMatched);
 
-            final String notSeenSent = ".*\\[internal:testNotSeen].*sent to.*";
+            final String notSeenSent = "*[internal:testNotSeen]*sent to*";
             final MockLogAppender.LoggingExpectation notSeenSentExpectation =
                 new MockLogAppender.UnseenEventExpectation(
                     "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
@@ -1099,8 +1092,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             appender.addExpectation(notSeenSentExpectation);
             appender.addExpectation(notSeenReceivedExpectation);
 
-            serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler);
-            requestCompleted.acquire();
+            PlainTransportFuture<StringMessageResponse> future = new PlainTransportFuture<>(noopResponseHandler);
+            serviceA.sendRequest(nodeB, "internal:testNotSeen", new StringMessageRequest(""), future);
+            future.txGet();
 
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {

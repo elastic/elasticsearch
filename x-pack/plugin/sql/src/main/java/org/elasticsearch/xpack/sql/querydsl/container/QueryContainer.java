@@ -398,7 +398,7 @@ public class QueryContainer {
     //
 
     public QueryContainer addAggCount(GroupByKey group, ExpressionId functionId) {
-        FieldExtraction ref = group == null ? GlobalCountRef.INSTANCE : new GroupByRef(group.id(), Property.COUNT, null);
+        FieldExtraction ref = group == null ? GlobalCountRef.INSTANCE : new GroupByRef(group.id(), Property.COUNT, false);
         Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(this.pseudoFunctions);
         pseudoFunctions.put(functionId.toString(), group);
         return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, functionId)),

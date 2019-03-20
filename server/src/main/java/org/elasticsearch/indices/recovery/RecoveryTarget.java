@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -75,7 +74,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final MultiFileWriter multiFileWriter;
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
-    private final LongConsumer ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -93,14 +91,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @param indexShard                        local shard where we want to recover to
      * @param sourceNode                        source node of the recovery where we recover from
      * @param listener                          called when recovery is completed/failed
-     * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
-     *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
-     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    public RecoveryTarget(final IndexShard indexShard,
-                   final DiscoveryNode sourceNode,
-                   final PeerRecoveryTargetService.RecoveryListener listener,
-                   final LongConsumer ensureClusterStateVersionCallback) {
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -113,7 +105,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), indexShard.recoveryState().getIndex(), tempFilePrefix, logger,
             this::ensureRefCount);
         this.store = indexShard.store();
-        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
@@ -125,7 +116,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
+        return new RecoveryTarget(indexShard, sourceNode, listener);
     }
 
     public long recoveryId() {
@@ -312,11 +303,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             indexShard.finalizeRecovery();
             return null;
         });
-    }
-
-    @Override
-    public void ensureClusterStateVersion(long clusterStateVersion) {
-        ensureClusterStateVersionCallback.accept(clusterStateVersion);
     }
 
     @Override

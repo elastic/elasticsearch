@@ -148,7 +148,7 @@
   search or for any condition that requires scoring, and use filters for everything else.
 
 [[glossary-recovery]] recovery ::
-  The process of updating a shard copy and making it available for queries.
+  The process of syncing a shard copy from a source shard. Upon completion, the recovery process makes the shard copy available for queries.
   +
   Recovery automatically occurs anytime a shard moves to a different node in the same cluster, including:
 

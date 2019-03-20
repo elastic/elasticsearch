@@ -33,18 +33,18 @@ public class DataFrameTransformStateTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser,
-                this::createTestInstance,
+                DataFrameTransformStateTests::randomDataFrameTransformState,
                 DataFrameTransformStateTests::toXContent,
                 DataFrameTransformState::fromXContent)
                 .supportsUnknownFields(false)
                 .test();
     }
 
-    public DataFrameTransformState createTestInstance() {
+    public static DataFrameTransformState randomDataFrameTransformState() {
         return new DataFrameTransformState(randomFrom(IndexerState.values()), randomPositionMap(), randomLongBetween(0,10));
     }
 
-    private static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
+    public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("transform_state", state.getIndexerState().value());
         if (state.getPosition() != null) {

@@ -32,20 +32,20 @@ public class DataFrameIndexerTransformStatsTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         xContentTester(
                 this::createParser,
-                this::randomStats,
-                this::toXContent,
+                DataFrameIndexerTransformStatsTests::randomStats,
+                DataFrameIndexerTransformStatsTests::toXContent,
                 DataFrameIndexerTransformStats::fromXContent)
                 .supportsUnknownFields(true)
                 .test();
     }
 
-    private DataFrameIndexerTransformStats randomStats() {
+    public static DataFrameIndexerTransformStats randomStats() {
         return new DataFrameIndexerTransformStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    private void toXContent(DataFrameIndexerTransformStats stats, XContentBuilder builder) throws IOException {
+    public static void toXContent(DataFrameIndexerTransformStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(IndexerJobStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
         builder.field(IndexerJobStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());

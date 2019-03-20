@@ -161,7 +161,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeTo);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
@@ -177,18 +176,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                     // to the other nodes that should have a copy according to cluster state.
                     receivedShardExistsRequestLatch.countDown();
                     logger.info("received: {}, relocation done", action);
-                } else if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
-                    logger.info("received: {}, waiting on cluster state", action);
-                    // ensure that relocation target node is on the same cluster state as relocation source before proceeding with
-                    // this request. If the target does not have the relocating cluster state exposed through ClusterService.state(),
-                    // then waitForClusterState will have to register a ClusterObserver with the ClusterService, which can cause
-                    // a race with the BlockClusterStateProcessing block that is added below.
-                    try {
-                        assertBusy(() -> assertTrue(
-                            clusterService.state().routingTable().index(index).shard(shard).primaryShard().relocating()));
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
                 }
             }
         });

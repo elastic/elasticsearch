@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-import com.google.common.primitives.Ints;
-
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -311,7 +310,7 @@ public class IPFilterTests extends ESTestCase {
         int noOfRetries = 0;
         do {
             noOfRetries++;
-            final InetAddress address = InetAddress.getByAddress(Ints.toByteArray(randomInt()));
+            final InetAddress address = InetAddress.getByAddress(Numbers.intToBytes(randomInt()));
             if (address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null) {
                 continue;
             } else {

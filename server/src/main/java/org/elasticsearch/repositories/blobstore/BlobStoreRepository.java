@@ -472,7 +472,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             for (final IndexId indexId : indicesToCleanUp) {
-                IOException deleteException = null;
+                boolean deleteSuccess = true;
                 try {
                     indicesBlobContainer.deleteBlob(indexId.getId());
                 } catch (DirectoryNotEmptyException dnee) {
@@ -482,14 +482,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // snapshotting indices of the same name
                     logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
-                    deleteException = dnee;
+                    deleteSuccess = false;
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
                     logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
-                    deleteException = ioe;
+                    deleteSuccess = false;
                 }
-                if (deleteException == null) {
+                if (deleteSuccess) {
                     indicesBlobContainer.deleteBlob(tombstoneBlob(indexId));
                 }
             }

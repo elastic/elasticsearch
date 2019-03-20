@@ -10,6 +10,6 @@
 * <<preview-data-frame-transform,Preview {dataframe-transforms}>>
 
 //CREATE
-include::put-data-frame-transform.asciidoc[]
+include::put-transform.asciidoc[]
 //PREVIEW
 include::preview-data-frame-transform.asciidoc[]

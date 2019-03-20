@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Collections;
@@ -140,7 +141,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
-    static UserToken fromSourceMap(Map<String, Object> source) {
+    static UserToken fromSourceMap(Map<String, Object> source) throws IllegalStateException, DateTimeException {
         final String id = (String) source.get("id");
         if (id == null) {
             throw new IllegalStateException("user token source document does not have the \"id\" field");

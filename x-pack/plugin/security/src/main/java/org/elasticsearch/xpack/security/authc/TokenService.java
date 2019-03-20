@@ -790,12 +790,12 @@ public final class TokenService {
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
         try {
             checkRefreshResult = checkTokenDocumentForRefresh(clock.instant(), clientAuth, source);
-            if (checkRefreshResult.v2().isPresent()) {
-                onFailure.accept(checkRefreshResult.v2().get());
-                return;
-            }
         } catch (DateTimeException | IllegalStateException e) {
             onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
+            return;
+        }
+        if (checkRefreshResult.v2().isPresent()) {
+            onFailure.accept(checkRefreshResult.v2().get());
             return;
         }
         final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
@@ -967,7 +967,7 @@ public final class TokenService {
      * when and by who a token can be refreshed.
      */
     private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant now,
-            Authentication clientAuth, Map<String, Object> source) {
+            Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(now, source).orElseGet(() -> {
@@ -1151,8 +1151,8 @@ public final class TokenService {
         };
     }
 
-
-    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter) {
+    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+            throws IllegalStateException, DateTimeException {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
@@ -1168,7 +1168,8 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter) {
+    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
+            throws IllegalStateException, DateTimeException {
         final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");

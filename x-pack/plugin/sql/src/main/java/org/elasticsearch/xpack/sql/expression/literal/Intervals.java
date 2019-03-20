@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.sql.expression.literal;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -23,7 +20,6 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -411,15 +407,5 @@ public final class Intervals {
 
     public static TemporalAmount parseInterval(Source source, String value, DataType intervalType) {
         return PARSERS.get(intervalType).parse(source, value);
-    }
-
-    public static Collection<? extends Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-
-        entries.add(new Entry(IntervalDayTime.class, IntervalDayTime.NAME, IntervalDayTime::new));
-        entries.add(new Entry(IntervalYearMonth.class, IntervalYearMonth.NAME, IntervalYearMonth::new));
-        entries.add(new Entry(GeoShape.class, GeoShape.NAME, GeoShape::new));
-
-        return entries;
     }
 }

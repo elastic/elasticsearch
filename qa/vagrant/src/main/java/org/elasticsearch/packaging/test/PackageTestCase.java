@@ -61,29 +61,27 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10InstallPackage() {
+    public void test10InstallPackage() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
-        final Shell sh = new Shell();
-        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
+        assertThat(newShell().run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
     public void test30InstallDoesNotStartServer() {
         assumeThat(installation, is(notNullValue()));
 
-        final Shell sh = new Shell();
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(newShell().run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
     public void assertRunsWithJavaHome() throws IOException {
-        Shell sh = new Shell();
+        Shell sh = newShell();
 
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
@@ -103,12 +101,15 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
     public void test31JavaHomeOverride() throws IOException {
         assumeThat(installation, is(notNullValue()));
+        // we always run with java home when no bundled jdk is included, so this test would be repetitive
+        assumeThat(distribution().hasJdk, is(true));
 
         assertRunsWithJavaHome();
     }
 
     public void test42BundledJdkRemoved() throws IOException {
         assumeThat(installation, is(notNullValue()));
+        assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
@@ -124,7 +125,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
         startElasticsearch();
         runElasticsearchTests();
-        verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
+        verifyPackageInstallation(installation, distribution(), newShell()); // check startup script didn't change permissions
     }
 
     public void test50Remove() {
@@ -133,7 +134,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
@@ -178,12 +179,12 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertFalse(Files.exists(SYSTEMD_SERVICE));
     }
 
-    public void test60Reinstall() {
+    public void test60Reinstall() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         remove(distribution());
         assertRemoved(distribution());

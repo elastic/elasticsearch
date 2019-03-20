@@ -1,0 +1,25 @@
+--
+:api: delete-data-frame-transform
+:request: DeleteDataFrameTransformRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Delete Data Frame Transform API
+
+[id="{upid}-{api}-request"]
+==== Delete Data Frame Transform Request
+
+A +{request}+ object requires a non-null `id`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing {dataframe-transform}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the Data Frame Transform deletion.

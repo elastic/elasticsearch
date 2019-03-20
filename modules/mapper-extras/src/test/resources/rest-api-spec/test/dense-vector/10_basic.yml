@@ -98,3 +98,64 @@ setup:
   - match: {hits.hits.2._id: "1"}
   - gte: {hits.hits.2._score: 0.78}
   - lte: {hits.hits.2._score: 0.791}
+
+
+---
+"L1 norm":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "l1norm(params.query_vector, doc['my_dense_vector'])"
+                params:
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+  - match: {hits.hits.0._id: "1"}
+  - gte: {hits.hits.0._score: 485.18}
+  - lte: {hits.hits.0._score: 485.19}
+
+  - match: {hits.hits.1._id: "2"}
+  - gte: {hits.hits.1._score: 12.25}
+  - lte: {hits.hits.1._score: 12.35}
+
+  - match: {hits.hits.2._id: "3"}
+  - gte: {hits.hits.2._score: 0.00}
+  - lte: {hits.hits.2._score: 0.01}
+
+---
+"L2 norm":
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "l2norm(params.query_vector, doc['my_dense_vector'])"
+              params:
+                query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+- match: {hits.total: 3}
+
+- match: {hits.hits.0._id: "1"}
+- gte: {hits.hits.0._score: 301.36}
+- lte: {hits.hits.0._score: 301.37}
+
+- match: {hits.hits.1._id: "2"}
+- gte: {hits.hits.1._score: 11.34}
+- lte: {hits.hits.1._score: 11.35}
+
+- match: {hits.hits.2._id: "3"}
+- gte: {hits.hits.2._score: 0.00}
+- lte: {hits.hits.2._score: 0.01}

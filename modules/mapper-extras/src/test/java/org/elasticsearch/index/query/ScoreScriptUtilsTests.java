@@ -25,6 +25,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.index.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.index.query.ScoreScriptUtils.DotProductSparse;
 import org.elasticsearch.index.query.ScoreScriptUtils.CosineSimilaritySparse;
+import org.elasticsearch.index.query.ScoreScriptUtils.L1NormSparse;
+import org.elasticsearch.index.query.ScoreScriptUtils.L2NormSparse;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -33,6 +35,9 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.VectorEncoderDecoderTests.mockEncodeDenseVector;
 import static org.elasticsearch.index.query.ScoreScriptUtils.dotProduct;
+import static org.elasticsearch.index.query.ScoreScriptUtils.l1norm;
+import static org.elasticsearch.index.query.ScoreScriptUtils.l2norm;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +58,14 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         CosineSimilarity cosineSimilarity = new CosineSimilarity(queryVector);
         double result2 = cosineSimilarity.cosineSimilarity(dvs);
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.78, result2, 0.1);
+
+        // test l1Norm
+        double result3 = l1norm(queryVector, dvs);
+        assertEquals("l1norm result is not equal to the expected value!", 485.18, result3, 0.1);
+
+        // test l2norm
+        double result4 = l2norm(queryVector, dvs);
+        assertEquals("l2norm result is not equal to the expected value!", 301.36, result4, 0.1);
     }
 
     public void testSparseVectorFunctions() {
@@ -78,5 +91,15 @@ public class ScoreScriptUtilsTests extends ESTestCase {
         CosineSimilaritySparse cosineSimilaritySparse = new CosineSimilaritySparse(queryVector);
         double result2 = cosineSimilaritySparse.cosineSimilaritySparse(dvs);
         assertEquals("cosineSimilaritySparse result is not equal to the expected value!", 0.78, result2, 0.1);
+
+        // test l1norm
+        L1NormSparse l1Norm = new L1NormSparse(queryVector);
+        double result3 = l1Norm.l1normSparse(dvs);
+        assertEquals("l1normSparse result is not equal to the expected value!", 485.18, result3, 0.1);
+
+        // test l2norm
+        L2NormSparse l2Norm = new L2NormSparse(queryVector);
+        double result4 = l2Norm.l2normSparse(dvs);
+        assertEquals("l2normSparse result is not equal to the expected value!", 301.36, result4, 0.1);
     }
 }

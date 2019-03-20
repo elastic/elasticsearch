@@ -23,6 +23,7 @@ directly to configure and access {xpack} features.
 
 include::info.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
+include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices/apis/freeze.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]

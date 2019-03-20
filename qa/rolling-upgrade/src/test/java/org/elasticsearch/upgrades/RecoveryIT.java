@@ -205,6 +205,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return null;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34950")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {

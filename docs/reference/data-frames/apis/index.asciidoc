@@ -6,10 +6,13 @@
 [float]
 [[data-frame-transform-apis]]
 === {dataframe-transforms-cap}
-* <<put-data-frame-transform,Create {dataframe-transforms}>>
+* <<put-data-frame-transform,Create {dataframe-transforms}>>,
+<<delete-data-frame-transform,delete {dataframe-transforms}>>
 * <<preview-data-frame-transform,Preview {dataframe-transforms}>>
 
 //CREATE
 include::put-transform.asciidoc[]
+//DELETE
+include::delete-transform.asciidoc[]
 //PREVIEW
 include::preview-data-frame-transform.asciidoc[]

@@ -36,33 +36,15 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<PutDataFrameTransformRequest> {
-
-    public void testValidate() {
-        assertFalse(createTestInstance().validate().isPresent());
-
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
-
-        Optional<ValidationException> error = new PutDataFrameTransformRequest(config).validate();
-        assertTrue(error.isPresent());
-        assertThat(error.get().getMessage(), containsString("data frame transform id cannot be null"));
-        assertThat(error.get().getMessage(), containsString("data frame transform source cannot be null"));
-        assertThat(error.get().getMessage(), containsString("data frame transform destination cannot be null"));
-
-        error = new PutDataFrameTransformRequest(null).validate();
-        assertTrue(error.isPresent());
-        assertThat(error.get().getMessage(), containsString("put requires a non-null data frame config"));
+public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestCase<PreviewDataFrameTransformRequest> {
+    @Override
+    protected PreviewDataFrameTransformRequest createTestInstance() {
+        return new PreviewDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
     }
 
     @Override
-    protected PutDataFrameTransformRequest createTestInstance() {
-        return new PutDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
-    }
-
-    @Override
-    protected PutDataFrameTransformRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PutDataFrameTransformRequest(DataFrameTransformConfig.fromXContent(parser));
+    protected PreviewDataFrameTransformRequest doParseInstance(XContentParser parser) throws IOException {
+        return new PreviewDataFrameTransformRequest(DataFrameTransformConfig.fromXContent(parser));
     }
 
     @Override
@@ -74,5 +56,26 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    public void testValidate() {
+        assertFalse(new PreviewDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig())
+                .validate().isPresent());
+        assertThat(new PreviewDataFrameTransformRequest(null).validate().get().getMessage(),
+                containsString("preview requires a non-null data frame config"));
+
+        // null id and destination is valid
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, "source", null,
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+
+        assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
+
+        // null source is not valid
+        config = new DataFrameTransformConfig(null, null, null,
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+
+        Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
+        assertTrue(error.isPresent());
+        assertThat(error.get().getMessage(), containsString("data frame transform source cannot be null"));
     }
 }

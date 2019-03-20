@@ -1961,7 +1961,7 @@ public abstract class Engine implements Closeable {
      * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
      * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
-     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
+     * @see #reinitializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
     public final long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -1969,10 +1969,10 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
+     * A primary shard calls this method to re-initialize the max_seq_no_of_updates marker using the
      * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
      */
-    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+    public abstract void reinitializeMaxSeqNoOfUpdatesOrDeletes();
 
     /**
      * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method

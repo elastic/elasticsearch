@@ -68,6 +68,6 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     protected void masterOperation(final DeleteSnapshotRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         snapshotsService.deleteSnapshot(request.repository(), request.snapshot(),
-            ActionListener.wrap(v -> listener.onResponse(new AcknowledgedResponse(true)), listener::onFailure), false);
+            ActionListener.map(listener, v -> new AcknowledgedResponse(true)), false);
     }
 }

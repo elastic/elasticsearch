@@ -352,7 +352,7 @@ public class ExecutionService {
             .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
             .endObject();
 
-        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, watch.id());
         updateRequest.doc(source);
         updateRequest.setIfSeqNo(watch.getSourceSeqNo());
         updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
@@ -501,7 +501,7 @@ public class ExecutionService {
      */
     private GetResponse getWatch(String id) {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+            GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);
             return future.actionGet();
@@ -534,12 +534,12 @@ public class ExecutionService {
     // the watch execution task takes another runnable as parameter
     // the best solution would be to move the whole execute() method, which is handed over as ctor parameter
     // over into this class, this is the quicker way though
-    static final class WatchExecutionTask implements Runnable {
+    public static final class WatchExecutionTask implements Runnable {
 
         private final WatchExecutionContext ctx;
         private final Runnable runnable;
 
-        WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
+        public WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
             this.ctx = ctx;
             this.runnable = runnable;
         }

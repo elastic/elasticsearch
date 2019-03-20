@@ -500,10 +500,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    private InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
-                                        @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-                                        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
-                                        EngineConfig config) throws IOException {
+    protected InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
+                                          @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+                                          @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+                                          EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
@@ -696,6 +696,27 @@ public abstract class EngineTestCase extends ESTestCase {
                 retentionLeasesSupplier,
                 primaryTerm,
                 tombstoneDocSupplier());
+    }
+
+    protected EngineConfig config(EngineConfig config, Store store, EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test",
+            Settings.builder().put(config.getIndexSettings().getSettings())
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            config.getTranslogConfig(), config.getFlushMergesAfter(), config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(), tombstoneDocSupplier);
+    }
+
+    protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
+        return noOpConfig(indexSettings, store, translogPath, null);
+    }
+
+    protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
+        return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[]{1});

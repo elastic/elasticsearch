@@ -69,6 +69,8 @@ import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_LONG_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_EXPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_TO_P_SHORT_IMPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_EXPLICIT;
+import static org.elasticsearch.painless.WriterConstants.DEF_TO_STRING_IMPLICIT;
 import static org.elasticsearch.painless.WriterConstants.DEF_UTIL_TYPE;
 import static org.elasticsearch.painless.WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE;
 import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
@@ -188,6 +190,7 @@ public final class MethodWriter extends GeneratorAdapter {
                     else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
                     else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
                     else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
+                    else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
                     else {
                         writeCast(cast.originalType, cast.targetType);
                     }
@@ -208,6 +211,7 @@ public final class MethodWriter extends GeneratorAdapter {
                     else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
                     else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
                     else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
+                    else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
                     else {
                         writeCast(cast.originalType, cast.targetType);
                     }

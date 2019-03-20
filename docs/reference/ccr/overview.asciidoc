@@ -3,9 +3,8 @@
 [[ccr-overview]]
 == Overview
 
-beta[]
 
-Cross-cluster replication is done on an index-by-index basis. Replication is
+{ccr-cap} is done on an index-by-index basis. Replication is
 configured at the index level. For each configured replication there is a
 replication source index called the _leader index_ and a replication target
 index called the _follower index_.

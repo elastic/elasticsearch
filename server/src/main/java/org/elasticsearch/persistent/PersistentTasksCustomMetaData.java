@@ -347,11 +347,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             id = in.readString();
             allocationId = in.readLong();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                params = (P) in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = (P) in.readNamedWriteable(PersistentTaskParams.class);
             state = in.readOptionalNamedWriteable(PersistentTaskState.class);
             assignment = new Assignment(in.readOptionalString(), in.readString());
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
@@ -362,11 +358,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             out.writeString(id);
             out.writeLong(allocationId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
             out.writeOptionalNamedWriteable(state);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);

@@ -1,8 +1,8 @@
 [role="xpack"]
 [[notification-settings]]
-=== {watcher} Settings in Elasticsearch
+=== {watcher} settings in Elasticsearch
 ++++
-<titleabbrev>{watcher} Settings</titleabbrev>
+<titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
 You configure {watcher} settings to set up {watcher} and send notifications via

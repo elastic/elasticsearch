@@ -59,24 +59,21 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
-        // We are reading the cluster metadata and indices - so we need to check both blocks
+        // We only check metadata block, as we want to snapshot closed indices (which have a read block)
         ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return null;
     }
 
     @Override
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
         final ActionListener<CreateSnapshotResponse> listener) {
         if (request.waitForCompletion()) {
-            snapshotsService.executeSnapshot(request,
-                ActionListener.wrap(snapshotInfo-> listener.onResponse(new CreateSnapshotResponse(snapshotInfo)), listener::onFailure));
+            snapshotsService.executeSnapshot(request, ActionListener.map(listener, CreateSnapshotResponse::new));
         } else {
-            snapshotsService.createSnapshot(request,
-                ActionListener.wrap(snapshot -> listener.onResponse(new CreateSnapshotResponse()), listener::onFailure));
+            snapshotsService.createSnapshot(request, ActionListener.map(listener, snapshot -> new CreateSnapshotResponse()));
         }
     }
 }

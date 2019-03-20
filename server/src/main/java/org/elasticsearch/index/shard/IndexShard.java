@@ -48,7 +48,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedRunnable;
@@ -1032,8 +1031,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -1466,8 +1465,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        updateRetentionLeasesOnReplica(
-            recoveryState.getRecoverySource().getType() == Type.EXISTING_STORE ? loadRetentionLeases() : RetentionLeases.EMPTY);
+        updateRetentionLeasesOnReplica(loadRetentionLeases());
+        assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
+            : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
+            + "] but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1956,6 +1957,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
+    private void ensureSoftDeletesEnabled(String feature) {
+        if (indexSettings.isSoftDeleteEnabled() == false) {
+            String message = feature + " requires soft deletes but " + indexSettings.getIndex() + " does not have soft deletes enabled";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
      * Get all retention leases tracked on this shard.
      *
@@ -2002,6 +2011,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         try (Closeable ignore = acquireRetentionLock()) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -2023,6 +2033,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         try (Closeable ignore = acquireRetentionLock()) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -2042,6 +2053,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         replicationTracker.removeRetentionLease(id, listener);
     }
 
@@ -2077,12 +2089,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
+    public boolean assertRetentionLeasesPersisted() throws IOException {
+        return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
+    }
+
     /**
      * Syncs the current retention leases to all replicas.
      */
     public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
@@ -3049,6 +3066,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
+        verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
@@ -3063,8 +3081,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 setRefreshPending(engine);
                 return false;
             } else {
-                refresh("schedule");
-                return true;
+                if (logger.isTraceEnabled()) {
+                    logger.trace("refresh with source [schedule]");
+                }
+                return getEngine().maybeRefresh("schedule");
             }
         }
         final Engine engine = getEngine();

@@ -411,6 +411,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
         final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+
+        // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
+        assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";
         if (retentionLeases == null) {
             return RetentionLeases.EMPTY;
         }
@@ -479,7 +482,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 return;
             }
         }
-        onSyncRetentionLeases.accept(updatedLeases, ActionListener.wrap(() -> {}));
+        onSyncRetentionLeases.accept(updatedLeases, ActionListener.wrap(() -> {
+        }));
+    }
+
+    public boolean assertRetentionLeasesPersisted(final Path path) throws IOException {
+        assert RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path) != null;
+        return true;
     }
 
     public static class CheckpointState implements Writeable {
@@ -528,16 +537,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 this.localCheckpointOfSafeCommit = SequenceNumbers.UNASSIGNED_SEQ_NO;
             }
             this.inSync = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                this.tracked = in.readBoolean();
-            } else {
-                // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier ES versions.
-                // Non in-sync shard copies might be tracked or not. As this information here is only serialized during relocation hand-off,
-                // after which replica recoveries cannot complete anymore (i.e. they cannot move from in-sync == false to in-sync == true),
-                // we can treat non in-sync replica shard copies as untracked. They will go through a fresh recovery against the new
-                // primary and will become tracked again under this primary before they are marked as in-sync.
-                this.tracked = inSync;
-            }
+            this.tracked = in.readBoolean();
         }
 
         @Override
@@ -548,9 +548,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 out.writeZLong(this.localCheckpointOfSafeCommit);
             }
             out.writeBoolean(inSync);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeBoolean(tracked);
-            }
+            out.writeBoolean(tracked);
         }
 
         /**

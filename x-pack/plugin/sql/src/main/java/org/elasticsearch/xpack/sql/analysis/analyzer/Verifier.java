@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.sql.stats.FeatureMetric;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -294,7 +295,8 @@ public final class Verifier {
      */
     private static boolean checkGroupBy(LogicalPlan p, Set<Failure> localFailures,
             Map<String, Function> resolvedFunctions, Set<LogicalPlan> groupingFailures) {
-        return checkGroupByAgg(p, localFailures, resolvedFunctions)
+        return checkGroupByInexactField(p, localFailures)
+                && checkGroupByAgg(p, localFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures)
                 && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
     }
@@ -463,6 +465,21 @@ public final class Verifier {
         return false;
     }
 
+    private static boolean checkGroupByInexactField(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Aggregate) {
+            Aggregate a = (Aggregate) p;
+
+            // The grouping can not be an aggregate function or an inexact field (e.g. text without a keyword)
+            a.groupings().forEach(e -> e.forEachUp(c -> {
+                EsField.Exact exact = c.getExactInfo();
+                if (exact.hasExact() == false) {
+                    localFailures.add(fail(c, "Field of data type [" + c.dataType().typeName + "] cannot be used for grouping; " +
+                        exact.errorMsg()));
+                }
+            }, FieldAttribute.class));
+        }
+        return true;
+    }
 
     // check whether plain columns specified in an agg are mentioned in the group-by
     private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, Map<String, Function> functions) {

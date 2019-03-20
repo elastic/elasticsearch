@@ -20,6 +20,8 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.ElasticsearchNode
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -55,7 +57,19 @@ public class RestIntegTestTask extends DefaultTask {
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
-        clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+        boolean usesTestclusters = project.plugins.hasPlugin(TestClustersPlugin.class)
+        if (usesTestclusters == false) {
+            clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+        } else {
+            project.testClusters {
+                integTestCluster {
+                    distribution = 'INTEG_TEST'
+                    version = project.version
+                    javaHome = project.file(project.ext.runtimeJavaHome)
+                }
+            }
+            runner.useCluster project.testClusters.integTestCluster
+        }
 
         // override/add more for rest tests
         runner.parallelism = '1'
@@ -66,31 +80,38 @@ public class RestIntegTestTask extends DefaultTask {
             if (System.getProperty("tests.cluster") != null) {
                 throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
             }
-            // we pass all nodes to the rest cluster to allow the clients to round-robin between them
-            // this is more realistic than just talking to a single node
-            runner.systemProperty('tests.rest.cluster', "${-> nodes.collect{it.httpUri()}.join(",")}")
-            runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
-            // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
-            // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
-            // both as separate sysprops
-            runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+            if (usesTestclusters == true) {
+                ElasticsearchNode node = project.testClusters.integTestCluster
+                runner.systemProperty('tests.rest.cluster', {node.allHttpSocketURI.join(",") })
+                runner.systemProperty('tests.config.dir', {node.getConfigDir()})
+                runner.systemProperty('tests.cluster', {node.transportPortURI})
+            } else {
+                // we pass all nodes to the rest cluster to allow the clients to round-robin between them
+                // this is more realistic than just talking to a single node
+                runner.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
+                runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
+                // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
+                // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
+                // both as separate sysprops
+                runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
 
-            // dump errors and warnings from cluster log on failure
-            TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
-                @Override
-                void afterExecute(Task task, TaskState state) {
-                    if (state.failure != null) {
-                        for (NodeInfo nodeInfo : nodes) {
-                            printLogExcerpt(nodeInfo)
+                // dump errors and warnings from cluster log on failure
+                TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
+                    @Override
+                    void afterExecute(Task task, TaskState state) {
+                        if (state.failure != null) {
+                            for (NodeInfo nodeInfo : nodes) {
+                                printLogExcerpt(nodeInfo)
+                            }
                         }
                     }
                 }
-            }
-            runner.doFirst {
-                project.gradle.addListener(logDumpListener)
-            }
-            runner.doLast {
-                project.gradle.removeListener(logDumpListener)
+                runner.doFirst {
+                    project.gradle.addListener(logDumpListener)
+                }
+                runner.doLast {
+                    project.gradle.removeListener(logDumpListener)
+                }
             }
         } else {
             if (System.getProperty("tests.cluster") == null) {
@@ -113,11 +134,13 @@ public class RestIntegTestTask extends DefaultTask {
                 clusterInit.enabled = false
                 return // no need to add cluster formation tasks if the task won't run!
             }
-            // only create the cluster if needed as otherwise an external cluster to use was specified
-            if (System.getProperty("tests.rest.cluster") == null) {
-                nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+            if (usesTestclusters == false) {
+                // only create the cluster if needed as otherwise an external cluster to use was specified
+                if (System.getProperty("tests.rest.cluster") == null) {
+                    nodes = ClusterFormationTasks.setup(project, "${name}Cluster", runner, clusterConfig)
+                }
+                super.dependsOn(runner.finalizedBy)
             }
-            super.dependsOn(runner.finalizedBy)
         }
     }
 

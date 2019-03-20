@@ -942,7 +942,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(4L));
             assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
 
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();

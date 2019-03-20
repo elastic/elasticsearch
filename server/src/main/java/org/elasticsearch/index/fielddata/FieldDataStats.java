@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,20 +32,26 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldDataStats implements Streamable, ToXContentFragment {
+public class FieldDataStats implements Streamable, Writeable, ToXContentFragment {
 
     private static final String FIELDDATA = "fielddata";
     private static final String MEMORY_SIZE = "memory_size";
     private static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
     private static final String EVICTIONS = "evictions";
     private static final String FIELDS = "fields";
-    long memorySize;
-    long evictions;
+    private long memorySize;
+    private long evictions;
     @Nullable
-    FieldMemoryStats fields;
+    private FieldMemoryStats fields;
 
     public FieldDataStats() {
 
+    }
+
+    public FieldDataStats(StreamInput in) throws IOException {
+        memorySize = in.readVLong();
+        evictions = in.readVLong();
+        fields = in.readOptionalWriteable(FieldMemoryStats::new);
     }
 
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
@@ -84,9 +91,7 @@ public class FieldDataStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        memorySize = in.readVLong();
-        evictions = in.readVLong();
-        fields = in.readOptionalWriteable(FieldMemoryStats::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

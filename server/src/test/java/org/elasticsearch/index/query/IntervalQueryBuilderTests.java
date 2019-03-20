@@ -70,12 +70,17 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     private static final String MASKED_FIELD = "masked_field";
+    private static final String NO_POSITIONS_FIELD = "no_positions_field";
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject(MASKED_FIELD)
             .field("type", "text")
+            .endObject()
+            .startObject(NO_POSITIONS_FIELD)
+            .field("type", "text")
+            .field("index_options", "freqs")
             .endObject()
             .endObject().endObject().endObject();
 
@@ -297,14 +302,14 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field [" + INT_FIELD_NAME + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Can only use interval queries on text fields - not on [" + INT_FIELD_NAME + "] which is of type [integer]"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            IntervalQueryBuilder builder = new IntervalQueryBuilder(STRING_FIELD_NAME_2, provider);
+            IntervalQueryBuilder builder = new IntervalQueryBuilder(NO_POSITIONS_FIELD, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field ["
-            + STRING_FIELD_NAME_2 + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field ["
+            + NO_POSITIONS_FIELD + "] with no positions indexed"));
 
         String json = "{ \"intervals\" : " +
             "{ \"" + STRING_FIELD_NAME + "\" : { " +
@@ -312,15 +317,15 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "           \"query\" : \"Hello world\"," +
             "           \"max_gaps\" : 10," +
             "           \"analyzer\" : \"whitespace\"," +
-            "           \"use_field\" : \"" + STRING_FIELD_NAME_2 + "\"," +
+            "           \"use_field\" : \"" + NO_POSITIONS_FIELD + "\"," +
             "           \"ordered\" : true } } } }";
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field ["
-            + STRING_FIELD_NAME_2 + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field ["
+            + NO_POSITIONS_FIELD + "] with no positions indexed"));
     }
 
     public void testMultipleProviders() {

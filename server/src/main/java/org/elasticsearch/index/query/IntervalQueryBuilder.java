@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
@@ -130,21 +129,13 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             // Be lenient with unmapped fields so that cross-index search will work nicely
             return new MatchNoDocsQuery();
         }
-        if (fieldType.tokenized() == false ||
-            fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-            throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + field + "] with no indexed positions");
-        }
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
         for (String maskedField : maskedFields) {
             MappedFieldType ft = context.fieldMapper(maskedField);
             if (ft == null) {
+                // Be lenient with unmapped fields so that cross-index search will work nicely
                 return new MatchNoDocsQuery();
-            }
-            if (ft.tokenized() == false ||
-                ft.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create IntervalQuery over field ["
-                    + maskedField + "] with no indexed positions");
             }
         }
         return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));

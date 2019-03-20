@@ -23,6 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -112,6 +116,87 @@ public final class DataFrameClient {
                 DataFrameRequestConverters::deleteDataFrameTransform,
                 options,
                 AcknowledgedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+
+    /**
+     * Start a data frame transform
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Start Data Frame transform documentation</a>
+     *
+     * @param request The start data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return A response object indicating request success
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public StartDataFrameTransformResponse startDataFrameTransform(StartDataFrameTransformRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                DataFrameRequestConverters::startDataFrameTransform,
+                options,
+                StartDataFrameTransformResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Start a data frame transform asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Start Data Frame transform documentation</a>
+     *
+     * @param request The start data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void startDataFrameTransformAsync(StartDataFrameTransformRequest request, RequestOptions options,
+                                            ActionListener<StartDataFrameTransformResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                DataFrameRequestConverters::startDataFrameTransform,
+                options,
+                StartDataFrameTransformResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Stop a data frame transform
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Stop Data Frame transform documentation</a>
+     *
+     * @param request The stop data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return A response object indicating request success
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public StopDataFrameTransformResponse stopDataFrameTransform(StopDataFrameTransformRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                DataFrameRequestConverters::stopDataFrameTransform,
+                options,
+                StopDataFrameTransformResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Stop a data frame transform asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Stop Data Frame transform documentation</a>
+     *
+     * @param request The stop data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void stopDataFrameTransformAsync(StopDataFrameTransformRequest request, RequestOptions options,
+                                              ActionListener<StopDataFrameTransformResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                DataFrameRequestConverters::stopDataFrameTransform,
+                options,
+                StopDataFrameTransformResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

@@ -49,6 +49,7 @@ public final class ECallLocal extends AExpression {
     private LocalMethod localMethod = null;
     private PainlessMethod importedMethod = null;
     private PainlessClassBinding classBinding = null;
+    private int classBindingOffset = 0;
     private PainlessInstanceBinding instanceBinding = null;
 
     public ECallLocal(Location location, String name, List<AExpression> arguments) {
@@ -76,11 +77,16 @@ public final class ECallLocal extends AExpression {
                 classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
                 if (classBinding == null) {
-                    instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+                    // check for a possible class binding using an implicit this reference
+                    classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
 
-                    if (instanceBinding == null) {
-                        throw createError(
-                                new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                    if (classBinding == null) {
+                        instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
+
+                        if (instanceBinding == null) {
+                            throw createError(new IllegalArgumentException(
+                                    "Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+                        }
                     }
                 }
             }
@@ -95,6 +101,11 @@ public final class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             actual = importedMethod.returnType;
         } else if (classBinding != null) {
+            // set the argument offset to 1 if the class binding is using an implicit this reference
+            if (classBinding.typeParameters.isEmpty() == false && classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                classBindingOffset = 1;
+            }
+
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             actual = classBinding.returnType;
         } else if (instanceBinding != null) {
@@ -104,10 +115,13 @@ public final class ECallLocal extends AExpression {
             throw new IllegalStateException("Illegal tree structure.");
         }
 
+        // if the class binding is using an implicit this reference then the arguments counted must
+        // be incremented by 1 as the this reference will not be part of the arguments passed into
+        // the class binding call
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = typeParameters.get(argument);
+            expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
@@ -136,7 +150,7 @@ public final class ECallLocal extends AExpression {
         } else if (classBinding != null) {
             String name = globals.addClassBinding(classBinding.javaConstructor.getDeclaringClass());
             Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
-            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount();
+            int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
 
             Label nonNull = new Label();
 
@@ -146,6 +160,10 @@ public final class ECallLocal extends AExpression {
             writer.loadThis();
             writer.newInstance(type);
             writer.dup();
+
+            if (classBindingOffset == 1) {
+                writer.loadThis();
+            }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
                 arguments.get(argument).write(writer, globals);

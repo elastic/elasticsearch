@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 
 import java.util.ArrayList;
@@ -29,6 +30,32 @@ import java.util.List;
 import java.util.Map;
 
 public class BindingsTests extends ScriptTestCase {
+
+    public static class ThisBindingTestClass {
+        private BindingsTestScript bindingsTestScript;
+        private int state;
+
+        public ThisBindingTestClass(BindingsTestScript bindingsTestScript, int state0, int state1) {
+            this.bindingsTestScript = bindingsTestScript;
+            this.state = state0 + state1;
+        }
+
+        public int testAddThisWithState(int istateless, double dstateless) {
+            return istateless + state + (int)dstateless + bindingsTestScript.getTestValue();
+        }
+    }
+
+    public static class EmptyThisBindingTestClass {
+        private BindingsTestScript bindingsTestScript;
+
+        public EmptyThisBindingTestClass(BindingsTestScript bindingsTestScript) {
+            this.bindingsTestScript = bindingsTestScript;
+        }
+
+        public int testAddEmptyThisWithState(int istateless) {
+            return istateless + bindingsTestScript.getTestValue();
+        }
+    }
 
     public static class InstanceBindingTestClass {
         private int value;
@@ -48,6 +75,7 @@ public class BindingsTests extends ScriptTestCase {
 
     public abstract static class BindingsTestScript {
         public static final String[] PARAMETERS = { "test", "bound" };
+        public int getTestValue() {return 7;}
         public abstract int execute(int test, int bound);
         public interface Factory {
             BindingsTestScript newInstance();
@@ -59,6 +87,7 @@ public class BindingsTests extends ScriptTestCase {
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
         List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
         WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
@@ -97,6 +126,26 @@ public class BindingsTests extends ScriptTestCase {
 
         assertEquals(10, executableScript.execute(5, 1));
         assertEquals(9, executableScript.execute(4, 2));
+    }
+
+    public void testThisClassBinding() {
+        String script = "testAddThisWithState(4, bound, test, 0.0)";
+
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+
+        assertEquals(17, executableScript.execute(5, 1));
+        assertEquals(16, executableScript.execute(4, 2));
+    }
+
+    public void testEmptyThisClassBinding() {
+        String script = "testAddEmptyThisWithState(test)";
+
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+
+        assertEquals(8, executableScript.execute(1, 0));
+        assertEquals(9, executableScript.execute(2, 0));
     }
 
     public void testInstanceBinding() {

@@ -17,15 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline;
+package org.apache.lucene.search;
 
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.apache.lucene.index.LeafReaderContext;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
- * Represents the common interface that all moving average models share. Moving
- * average models are used by the MovAvg aggregation
+ * A wrapper for {@link IndexSearcher} that makes {@link IndexSearcher#search(List, Weight, Collector)}
+ * visible by sub-classes.
  */
-public interface MovAvgModelBuilder extends ToXContentFragment {
+public class XIndexSearcher extends IndexSearcher {
+    private final IndexSearcher in;
 
-    MovAvgModel build();
+    public XIndexSearcher(IndexSearcher in) {
+        super(in.getIndexReader());
+        this.in = in;
+        setSimilarity(in.getSimilarity());
+        setQueryCache(in.getQueryCache());
+        setQueryCachingPolicy(in.getQueryCachingPolicy());
+    }
+
+    @Override
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        in.search(leaves, weight, collector);
+    }
 }

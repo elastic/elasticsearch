@@ -84,9 +84,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
                                     final QueryConfig queryConfig,
                                     final PivotConfig pivotConfig,
                                     final Map<String, String> mappingOverride) {
-        this.id = Objects.requireNonNull(id);
-        this.source = Objects.requireNonNull(source);
-        this.dest = Objects.requireNonNull(dest);
+        this.id = id;
+        this.source = source;
+        this.dest = dest;
         this.queryConfig = queryConfig;
         this.pivotConfig = pivotConfig;
         this.mappingOverride = mappingOverride == null ? null : Collections.unmodifiableMap(mappingOverride);
@@ -112,28 +112,20 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return queryConfig;
     }
 
-    public Map<String, String> getMappingOverrides() {
+    public Map<String, String> getMappingOverride() {
         return mappingOverride;
-    }
-
-    public boolean isValid() {
-        if (queryConfig != null && queryConfig.isValid() == false) {
-            return false;
-        }
-
-        if (pivotConfig == null || pivotConfig.isValid() == false) {
-            return false;
-        }
-
-        return true;
     }
 
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(ID.getPreferredName(), id);
+        if (id != null) {
+            builder.field(ID.getPreferredName(), id);
+        }
         builder.field(SOURCE.getPreferredName(), source);
-        builder.field(DEST.getPreferredName(), dest);
+        if (dest != null) {
+            builder.field(DEST.getPreferredName(), dest);
+        }
         if (queryConfig != null) {
             builder.field(QUERY.getPreferredName(), queryConfig);
         }

@@ -14,14 +14,6 @@
 FROM centos:7 AS builder
 
 ENV PATH /usr/share/elasticsearch/bin:$PATH
-ENV JAVA_HOME /opt/jdk-${jdkVersion}
-
-RUN curl --retry 8 -s ${jdkUrl} | tar -C /opt -zxf -
-
-# Replace OpenJDK's built-in CA certificate keystore with the one from the OS
-# vendor. The latter is superior in several ways.
-# REF: https://github.com/elastic/elasticsearch-docker/issues/171
-RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /opt/jdk-${jdkVersion}/lib/security/cacerts
 
 RUN groupadd -g 1000 elasticsearch && \
     adduser -u 1000 -g 1000 -d /usr/share/elasticsearch elasticsearch
@@ -46,9 +38,6 @@ COPY config/elasticsearch.yml config/log4j2.properties config/
 FROM centos:7
 
 ENV ELASTIC_CONTAINER true
-ENV JAVA_HOME /opt/jdk-${jdkVersion}
-
-COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
 RUN yum update -y && \
     yum install -y nc && \
@@ -61,6 +50,12 @@ RUN groupadd -g 1000 elasticsearch && \
 
 WORKDIR /usr/share/elasticsearch
 COPY --from=builder --chown=1000:0 /usr/share/elasticsearch /usr/share/elasticsearch
+
+# Replace OpenJDK's built-in CA certificate keystore with the one from the OS
+# vendor. The latter is superior in several ways.
+# REF: https://github.com/elastic/elasticsearch-docker/issues/171
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+
 ENV PATH /usr/share/elasticsearch/bin:$PATH
 
 COPY --chown=1000:0 bin/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

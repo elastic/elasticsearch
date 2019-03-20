@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,6 +60,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -102,6 +105,21 @@ public class FlushIT extends ESIntegTestCase {
             latch.await();
             assertThat(errors, emptyIterable());
         }
+    }
+
+    public void testRejectIllegalFlushParameters() {
+        createIndex("test");
+        int numDocs = randomIntBetween(0, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "_doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertThat(expectThrows(ValidationException.class,
+            () -> client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(false)).actionGet()).getMessage(),
+            containsString("wait_if_ongoing must be true for a force flush"));
+        assertThat(client().admin().indices().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet()
+            .getShardFailures(), emptyArray());
+        assertThat(client().admin().indices().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean()))
+            .actionGet().getShardFailures(), emptyArray());
     }
 
     public void testSyncedFlush() throws Exception {

@@ -22,6 +22,7 @@ package org.elasticsearch.client.dataframe;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -29,11 +30,11 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
-public class PutDataFrameTransformRequest implements ToXContentObject, Validatable {
+public class PreviewDataFrameTransformRequest implements ToXContentObject, Validatable {
 
     private final DataFrameTransformConfig config;
 
-    public PutDataFrameTransformRequest(DataFrameTransformConfig config) {
+    public PreviewDataFrameTransformRequest(DataFrameTransformConfig config) {
         this.config = config;
     }
 
@@ -42,20 +43,19 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
     }
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        return config.toXContent(builder, params);
+    }
+
+    @Override
     public Optional<ValidationException> validate() {
         ValidationException validationException = new ValidationException();
         if (config == null) {
-            validationException.addValidationError("put requires a non-null data frame config");
+            validationException.addValidationError("preview requires a non-null data frame config");
             return Optional.of(validationException);
         } else {
-            if (config.getId() == null) {
-                validationException.addValidationError("data frame transform id cannot be null");
-            }
             if (config.getSource() == null) {
                 validationException.addValidationError("data frame transform source cannot be null");
-            }
-            if (config.getDestination() == null) {
-                validationException.addValidationError("data frame transform destination cannot be null");
             }
         }
 
@@ -64,11 +64,6 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
         } else {
             return Optional.of(validationException);
         }
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return config.toXContent(builder, params);
     }
 
     @Override
@@ -84,7 +79,7 @@ public class PutDataFrameTransformRequest implements ToXContentObject, Validatab
         if (getClass() != obj.getClass()) {
             return false;
         }
-        PutDataFrameTransformRequest other = (PutDataFrameTransformRequest) obj;
+        PreviewDataFrameTransformRequest other = (PreviewDataFrameTransformRequest) obj;
         return Objects.equals(config, other.config);
     }
 }

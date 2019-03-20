@@ -6,11 +6,9 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 
 import java.io.IOException;
@@ -82,15 +80,6 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
             String currentState = getDataFrameTaskState(transformId);
             assertThat(state.value(), equalTo(currentState));
         });
-    }
-
-    private void stopDataFrameTransform(String transformId, boolean force) throws Exception {
-        // start the transform
-        final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_stop", null);
-        startTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
-        startTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

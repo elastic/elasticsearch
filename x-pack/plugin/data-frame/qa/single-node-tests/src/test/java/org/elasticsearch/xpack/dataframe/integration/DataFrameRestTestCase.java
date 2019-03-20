@@ -180,6 +180,15 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
     }
 
+    protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
+        // start the transform
+        final Request stopTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_stop", null);
+        stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
+        stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
+        Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
+        assertThat(stopTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
+    }
+
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
         startAndWaitForTransform(transformId, dataFrameIndex, null);
     }

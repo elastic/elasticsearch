@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app metadata-complete="true"
+         version="3.0"
+         xmlns="http://java.sun.com/xml/ns/javaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
+
+    <display-name>LdapAuth 3.4</display-name>
+
+    <description>
+        LdapAuth is a JSON-RPC 2.0 web service for authenticating users with an
+        LDAP v3 - compatible directory, either directly or through a Json2Ldap
+        gateway / proxy.
+
+        Copyright (c) Connect2id Ltd., 2011 - 2016
+    </description>
+
+
+    <!-- The LdapAuth JSON-RPC 2.0 endpoint -->
+    <servlet>
+        <servlet-name>AuthServlet</servlet-name>
+        <servlet-class>com.nimbusds.ldapauth.LdapAuthServlet</servlet-class>
+        <load-on-startup>0</load-on-startup>
+    </servlet>
+
+    <servlet-mapping>
+        <servlet-name>AuthServlet</servlet-name>
+        <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <context-param>
+        <description>
+            The location of the LdapAuth configuration file, relative to the
+            web application root directory.
+        </description>
+        <param-name>ldapAuth.configurationFile</param-name>
+        <param-value>/WEB-INF/ldapAuth.properties</param-value>
+    </context-param>
+
+
+    <!-- Log4j logging -->
+    <context-param>
+        <description>
+            The location of the Log4j configuration file. Must be relative to
+            the web application root directory.
+        </description>
+        <param-name>log4jConfiguration</param-name>
+        <param-value>/WEB-INF/log4j.xml</param-value>
+    </context-param>
+
+
+    <!-- Example directory server for demo and testing purposes -->
+    <listener>
+        <listener-class>com.nimbusds.common.ldap.ExampleDirectory</listener-class>
+    </listener>
+
+    <context-param>
+        <description>
+            The location of the example directory server configuration file,
+            relative to the web application root directory.
+        </description>
+        <param-name>exampleDirectory.configurationFile</param-name>
+        <param-value>/WEB-INF/exampleDirectory.properties</param-value>
+    </context-param>
+
+
+    <!-- Cross-Origin Resource Sharing (CORS) support -->
+    <filter>
+        <description>
+            Provides transparent Cross-Origin Resource Sharing (CORS) to
+            supporting web browsers.
+
+            See http://software.dzhuvinov.com/cors-filter.html
+        </description>
+        <filter-name>CORSFilter</filter-name>
+        <filter-class>com.thetransactioncompany.cors.CORSFilter</filter-class>
+        <init-param>
+            <description>
+                The location of the CORS Filter configuration file. Must be
+                relative to the web application root directory.
+            </description>
+            <param-name>cors.configurationFile</param-name>
+            <param-value>/WEB-INF/cors.properties</param-value>
+        </init-param>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>CORSFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+</web-app>

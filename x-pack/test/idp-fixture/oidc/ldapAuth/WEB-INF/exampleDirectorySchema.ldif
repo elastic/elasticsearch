@@ -1,0 +1,1335 @@
+# In-memory directory server schema
+#
+# Added by Connect2id, 2011-11-24: Schema for SRP-6a credentials storage
+#
+# This file contains a set of standard schema definitions from various RFCs and
+# Internet Drafts.  It is not intended to be a complete comprehensive schema
+# for all purposes, but it may be used by the LDAP SDK for cases in which
+# schema information may be required and no other definitions are available.
+#
+# Definitions in this class come from the following sources:
+# * RFC 2798:
+#   Definition of the inetOrgPerson LDAP Object Class
+# * RFC 3045:
+#   Storing Vendor Information in the LDAP Root DSE
+# * RFC 3112:
+#   LDAP Authentication Password Schema
+# * RFC 3296:
+#   Named Subordinate References in LDAP Directories
+# * RFC 4512:
+#   LDAP Directory Information Models
+# * RFC 4519:
+#   LDAP Schema for User Applications
+# * RFC 4523:
+#   LDAP Schema Definitions for X.509 Certificates
+# * RFC 4524:
+#   COSINE LDAP/X.500 Schema
+# * RFC 4530:
+#   LDAP entryUUID Operational Attribute
+# * RFC 5020:
+#   The LDAP entryDN Operational Attribute
+# * draft-good-ldap-changelog:
+#   Definition of an Object Class to Hold LDAP Change Records
+# * draft-howard-namedobject:
+#   A Structural Object Class for Arbitrary Auxiliary Object Classes
+# * draft-ietf-boreham-numsubordinates:
+#   numSubordinates LDAP Operational Attribute
+# * draft-ietf-ldup-subentry:
+#   LDAP Subentry Schema
+
+dn: cn=schema
+objectClass: top
+objectClass: ldapSubEntry
+objectClass: subschema
+cn: schema
+attributeTypes: ( 2.5.4.0
+  NAME 'objectClass'
+  EQUALITY objectIdentifierMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.38
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.4.1
+  NAME 'aliasedObjectName'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.18.3
+  NAME 'creatorsName'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.18.1
+  NAME 'createTimestamp'
+  EQUALITY generalizedTimeMatch
+  ORDERING generalizedTimeOrderingMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.24
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.18.4
+  NAME 'modifiersName'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.18.2
+  NAME 'modifyTimestamp'
+  EQUALITY generalizedTimeMatch
+  ORDERING generalizedTimeOrderingMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.24
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.9
+  NAME 'structuralObjectClass'
+  EQUALITY objectIdentifierMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.38
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.10
+  NAME 'governingStructureRule'
+  EQUALITY integerMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.18.10
+  NAME 'subschemaSubentry'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.6
+  NAME 'objectClasses'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.37
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.5
+  NAME 'attributeTypes'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.3
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.4
+  NAME 'matchingRules'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.30
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.8
+  NAME 'matchingRuleUse'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.31
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.16
+  NAME 'ldapSyntaxes'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.54
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.2
+  NAME 'dITContentRules'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.16
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.1
+  NAME 'dITStructureRules'
+  EQUALITY integerFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.17
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.21.7
+  NAME 'nameForms'
+  EQUALITY objectIdentifierFirstComponentMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.35
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.6
+  NAME 'altServer'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.5
+  NAME 'namingContexts'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.13
+  NAME 'supportedControl'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.38
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.7
+  NAME 'supportedExtension'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.38
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.4203.1.3.5
+  NAME 'supportedFeatures'
+  EQUALITY objectIdentifierMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.38
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.15
+  NAME 'supportedLDAPVersion'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 1.3.6.1.4.1.1466.101.120.14
+  NAME 'supportedSASLMechanisms'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 4512' )
+attributeTypes: ( 2.5.4.41
+  NAME 'name'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.15
+  NAME 'businessCategory'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.6
+  NAME 'c'
+  SUP name
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.11
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.3
+  NAME 'cn'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 0.9.2342.19200300.100.1.25
+  NAME 'dc'
+  EQUALITY caseIgnoreIA5Match
+  SUBSTR caseIgnoreIA5SubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.13
+  NAME 'description'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.27
+  NAME 'destinationIndicator'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.44
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.49
+  NAME 'distinguishedName'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.46
+  NAME 'dnQualifier'
+  EQUALITY caseIgnoreMatch
+  ORDERING caseIgnoreOrderingMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.44
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.47
+  NAME 'enhancedSearchGuide'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.21
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.23
+  NAME 'facsimileTelephoneNumber'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.22
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.44
+  NAME 'generationQualifier'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.42
+  NAME 'givenName'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.51
+  NAME 'houseIdentifier'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.43
+  NAME 'initials'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.25
+  NAME 'internationalISDNNumber'
+  EQUALITY numericStringMatch
+  SUBSTR numericStringSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.36
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.7
+  NAME 'l'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.31
+  NAME 'member'
+  SUP distinguishedName
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.10
+  NAME 'o'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.11
+  NAME 'ou'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.32
+  NAME 'owner'
+  SUP distinguishedName
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.19
+  NAME 'physicalDeliveryOfficeName'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.16
+  NAME 'postalAddress'
+  EQUALITY caseIgnoreListMatch
+  SUBSTR caseIgnoreListSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.41
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.17
+  NAME 'postalCode'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.18
+  NAME 'postOfficeBox'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.28
+  NAME 'preferredDeliveryMethod'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.14
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.26
+  NAME 'registeredAddress'
+  SUP postalAddress
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.41
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.33
+  NAME 'roleOccupant'
+  SUP distinguishedName
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.14
+  NAME 'searchGuide'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.25
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.34
+  NAME 'seeAlso'
+  SUP distinguishedName
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.5
+  NAME 'serialNumber'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.44
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.4
+  NAME 'sn'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.8
+  NAME 'st'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.9
+  NAME 'street'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.20
+  NAME 'telephoneNumber'
+  EQUALITY telephoneNumberMatch
+  SUBSTR telephoneNumberSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.50
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.22
+  NAME 'teletexTerminalIdentifier'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.51
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.21
+  NAME 'telexNumber'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.52
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.12
+  NAME 'title'
+  SUP name
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 0.9.2342.19200300.100.1.1
+  NAME 'uid'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.50
+  NAME 'uniqueMember'
+  EQUALITY uniqueMemberMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.34
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.35
+  NAME 'userPassword'
+  EQUALITY octetStringMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.24
+  NAME 'x121Address'
+  EQUALITY numericStringMatch
+  SUBSTR numericStringSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.36
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.5.4.45
+  NAME 'x500UniqueIdentifier'
+  EQUALITY bitStringMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.6
+  X-ORIGIN 'RFC 4519' )
+attributeTypes: ( 2.16.840.1.113730.3.1.1
+  NAME 'carLicense'
+  DESC 'vehicle license or registration plate'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.2
+  NAME 'departmentNumber'
+  DESC 'identifies a department within an organization'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.241
+  NAME 'displayName'
+  DESC 'preferred name of a person to be used when displaying entries'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.3
+  NAME 'employeeNumber'
+  DESC 'numerically identifies an employee within an organization'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.4
+  NAME 'employeeType'
+  DESC 'type of employment for a person'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 0.9.2342.19200300.100.1.60
+  NAME 'jpegPhoto'
+  DESC 'a JPEG image'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.28
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.39
+  NAME 'preferredLanguage'
+  DESC 'preferred written or spoken language for a person'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.40
+  NAME 'userSMIMECertificate'
+  DESC 'PKCS#7 SignedData used to support S/MIME'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.5
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.16.840.1.113730.3.1.216
+  NAME 'userPKCS12'
+  DESC 'PKCS #12 PFX PDU for exchange of personal identity information'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.5
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 2.5.4.36
+  NAME 'userCertificate'
+  DESC 'X.509 user certificate'
+  EQUALITY certificateExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.8
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.37
+  NAME 'cACertificate'
+  DESC 'X.509 CA certificate'
+  EQUALITY certificateExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.8
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.40
+  NAME 'crossCertificatePair'
+  DESC 'X.509 cross certificate pair'
+  EQUALITY certificatePairExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.10
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.39
+  NAME 'certificateRevocationList'
+  DESC 'X.509 certificate revocation list'
+  EQUALITY certificateListExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.9
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.38
+  NAME 'authorityRevocationList'
+  DESC 'X.509 authority revocation list'
+  EQUALITY certificateListExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.9
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.53
+  NAME 'deltaRevocationList'
+  DESC 'X.509 delta revocation list'
+  EQUALITY certificateListExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.9
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 2.5.4.52
+  NAME 'supportedAlgorithms'
+  DESC 'X.509 supported algorithms'
+  EQUALITY algorithmIdentifierMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.49
+  X-ORIGIN 'RFC 4523' )
+attributeTypes: ( 0.9.2342.19200300.100.1.37
+  NAME 'associatedDomain'
+  EQUALITY caseIgnoreIA5Match
+  SUBSTR caseIgnoreIA5SubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.38
+  NAME 'associatedName'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.48
+  NAME 'buildingName'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.43
+  NAME 'co'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.14
+  NAME 'documentAuthor'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.11
+  NAME 'documentIdentifier'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.15
+  NAME 'documentLocation'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.56
+  NAME 'documentPublisher'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.12
+  NAME 'documentTitle'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.13
+  NAME 'documentVersion'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.5
+  NAME 'drink'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.20
+  NAME 'homePhone'
+  EQUALITY telephoneNumberMatch
+  SUBSTR telephoneNumberSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.50
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.39
+  NAME 'homePostalAddress'
+  EQUALITY caseIgnoreListMatch
+  SUBSTR caseIgnoreListSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.41
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.9
+  NAME 'host'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.4
+  NAME 'info'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{2048}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.3
+  NAME 'mail'
+  EQUALITY caseIgnoreIA5Match
+  SUBSTR caseIgnoreIA5SubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.10
+  NAME 'manager'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.41
+  NAME 'mobile'
+  EQUALITY telephoneNumberMatch
+  SUBSTR telephoneNumberSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.50
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.45
+  NAME 'organizationalStatus'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.42
+  NAME 'pager'
+  EQUALITY telephoneNumberMatch
+  SUBSTR telephoneNumberSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.50
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.40
+  NAME 'personalTitle'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.6
+  NAME 'roomNumber'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.21
+  NAME 'secretary'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.44
+  NAME 'uniqueIdentifier'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.8
+  NAME 'userClass'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15{256}
+  X-ORIGIN 'RFC 4524' )
+attributeTypes: ( 0.9.2342.19200300.100.1.55
+  NAME 'audio'
+  EQUALITY octetStringMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.40{250000}
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 0.9.2342.19200300.100.1.7
+  NAME 'photo'
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 1.3.6.1.4.1.250.1.57
+  NAME 'labeledURI'
+  EQUALITY caseExactMatch
+  SUBSTR caseExactSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  X-ORIGIN 'RFC 2798' )
+attributeTypes: ( 1.3.6.1.1.20
+  NAME 'entryDN'
+  DESC 'DN of the entry'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 5020' )
+attributeTypes: ( 2.16.840.1.113730.3.1.34
+  NAME 'ref'
+  DESC 'named reference - a labeledURI'
+  EQUALITY caseExactMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  USAGE distributedOperation
+  X-ORIGIN 'RFC 3296' )
+attributeTypes: ( 1.3.6.1.1.4
+  NAME 'vendorName'
+  EQUALITY 1.3.6.1.4.1.1466.109.114.1
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 3045' )
+attributeTypes: ( 1.3.6.1.1.5
+  NAME 'vendorVersion'
+  EQUALITY 1.3.6.1.4.1.1466.109.114.1
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 3045' )
+attributeTypes: ( 1.3.6.1.1.16.4
+  NAME 'entryUUID'
+  DESC 'UUID of the entry'
+  EQUALITY uuidMatch
+  ORDERING uuidOrderingMatch
+  SYNTAX 1.3.6.1.1.16.1
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'RFC 4530' )
+attributeTypes: ( 1.3.6.1.4.1.453.16.2.103
+  NAME 'numSubordinates'
+  DESC 'count of immediate subordinates'
+  EQUALITY integerMatch
+  ORDERING integerOrderingMatch
+  SYNTAX 1.3.6.1.4.1.453.16.2.103
+  SINGLE-VALUE
+   NO-USER-MODIFICATION
+  USAGE directoryOperation
+  X-ORIGIN 'draft-ietf-boreham-numsubordinates' )
+attributeTypes: ( 1.3.6.1.4.1.7628.5.4.1
+  NAME 'inheritable'
+  SYNTAX BOOLEAN
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE dSAOperation
+  X-ORIGIN 'draft-ietf-ldup-subentry' )
+attributeTypes: ( 1.3.6.1.4.1.7628.5.4.2
+  NAME 'blockInheritance' 
+  SYNTAX BOOLEAN 
+  SINGLE-VALUE
+  NO-USER-MODIFICATION
+  USAGE dSAOperation
+  X-ORIGIN 'draft-ietf-ldup-subentry' )
+attributeTypes: ( 2.16.840.1.113730.3.1.5
+  NAME 'changeNumber'
+  DESC 'a number which uniquely identifies a change made to a directory entry'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.27
+  EQUALITY integerMatch
+  ORDERING integerOrderingMatch
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.6
+  NAME 'targetDN'
+  DESC 'the DN of the entry which was modified'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.7
+  NAME 'changeType'
+  DESC 'the type of change made to an entry'
+  EQUALITY caseIgnoreMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.8
+  NAME 'changes'
+  DESC 'a set of changes to apply to an entry'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.40
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.9
+  NAME 'newRDN'
+  DESC 'the new RDN of an entry which is the target of a modrdn operation'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.10
+  NAME 'deleteOldRDN'
+  DESC 'a flag which indicates if the old RDN should be retained as an
+        attribute of the entry'
+  EQUALITY booleanMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.7
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.11
+  NAME 'newSuperior'
+  DESC 'the new parent of an entry which is the target of a moddn operation'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  SINGLE-VALUE
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 2.16.840.1.113730.3.1.35
+  NAME 'changelog'
+  DESC 'the distinguished name of the entry which contains the set of entries
+        comprising the server changelog'
+  EQUALITY distinguishedNameMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.12
+  X-ORIGIN 'draft-good-ldap-changelog' )
+attributeTypes: ( 1.3.6.1.4.1.4203.1.3.3
+  NAME 'supportedAuthPasswordSchemes'
+  DESC 'supported password storage schemes'
+  EQUALITY caseExactIA5Match
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.26{32}
+  USAGE dSAOperation
+  X-ORIGIN 'RFC 3112' )
+attributeTypes: ( 1.3.6.1.4.1.4203.1.3.4
+  NAME 'authPassword'
+  DESC 'password authentication information'
+  EQUALITY 1.3.6.1.4.1.4203.1.2.2
+  SYNTAX 1.3.6.1.4.1.4203.1.1.2
+  X-ORIGIN 'RFC 3112' )
+attributeTypes: ( 2.16.840.1.113730.3.1.55
+  NAME 'aci'
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  USAGE directoryOperation
+  X-ORIGIN 'De facto standard' )
+objectClasses: ( 2.5.6.0
+  NAME 'top'
+  ABSTRACT
+  MUST objectClass
+  X-ORIGIN 'RFC 4512' )
+objectClasses: ( 2.5.6.1
+  NAME 'alias'
+  SUP top
+  STRUCTURAL
+  MUST aliasedObjectName
+  X-ORIGIN 'RFC 4512' )
+objectClasses: ( 1.3.6.1.4.1.1466.101.120.111
+  NAME 'extensibleObject'
+  SUP top
+  AUXILIARY
+  X-ORIGIN 'RFC 4512' )
+objectClasses: ( 2.5.20.1
+  NAME 'subschema'
+  AUXILIARY
+  MAY ( dITStructureRules $
+        nameForms $
+        ditContentRules $
+        objectClasses $
+        attributeTypes $
+        matchingRules $
+        matchingRuleUse ) )
+objectClasses: ( 2.5.6.11
+  NAME 'applicationProcess'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( seeAlso $
+        ou $
+        l $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.2
+  NAME 'country'
+  SUP top
+  STRUCTURAL
+  MUST c
+  MAY ( searchGuide $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 1.3.6.1.4.1.1466.344
+  NAME 'dcObject'
+  SUP top
+  AUXILIARY
+  MUST dc
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.14
+  NAME 'device'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( serialNumber $
+        seeAlso $
+        owner $
+        ou $
+        o $
+        l $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.9
+  NAME 'groupOfNames'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( member $
+        businessCategory $
+        seeAlso $
+        owner $
+        ou $
+        o $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.17
+  NAME 'groupOfUniqueNames'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( uniqueMember $
+        businessCategory $
+        seeAlso $
+        owner $
+        ou $
+        o $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.3
+  NAME 'locality'
+  SUP top
+  STRUCTURAL
+  MAY ( street $
+        seeAlso $
+        searchGuide $
+        st $
+        l $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.4
+  NAME 'organization'
+  SUP top
+  STRUCTURAL
+  MUST o
+  MAY ( userPassword $
+        searchGuide $
+        seeAlso $
+        businessCategory $
+        x121Address $
+        registeredAddress $
+        destinationIndicator $
+        preferredDeliveryMethod $
+        telexNumber $
+        teletexTerminalIdentifier $
+        telephoneNumber $
+        internationalISDNNumber $
+        facsimileTelephoneNumber $
+        street $
+        postOfficeBox $
+        postalCode $
+        postalAddress $
+        physicalDeliveryOfficeName $
+        st $
+        l $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.6
+  NAME 'person'
+  SUP top
+  STRUCTURAL
+  MUST ( sn $
+         cn )
+  MAY ( userPassword $
+        telephoneNumber $
+        seeAlso $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.7
+  NAME 'organizationalPerson'
+  SUP person
+  STRUCTURAL
+  MAY ( title $
+        x121Address $
+        registeredAddress $
+        destinationIndicator $
+        preferredDeliveryMethod $
+        telexNumber $
+        teletexTerminalIdentifier $
+        telephoneNumber $
+        internationalISDNNumber $
+        facsimileTelephoneNumber $
+        street $
+        postOfficeBox $
+        postalCode $
+        postalAddress $
+        physicalDeliveryOfficeName $
+        ou $
+        st $
+        l )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.8
+  NAME 'organizationalRole'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( x121Address $
+        registeredAddress $
+        destinationIndicator $
+        preferredDeliveryMethod $
+        telexNumber $
+        teletexTerminalIdentifier $
+        telephoneNumber $
+        internationalISDNNumber $
+        facsimileTelephoneNumber $
+        seeAlso $
+        roleOccupant $
+        preferredDeliveryMethod $
+        street $
+        postOfficeBox $
+        postalCode $
+        postalAddress $
+        physicalDeliveryOfficeName $
+        ou $
+        st $
+        l $
+        description )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.5
+  NAME 'organizationalUnit'
+  SUP top
+  STRUCTURAL
+  MUST ou
+  MAY ( businessCategory $
+        description $
+        destinationIndicator $
+        facsimileTelephoneNumber $
+        internationalISDNNumber $
+        l $
+        physicalDeliveryOfficeName $
+        postalAddress $
+        postalCode $
+        postOfficeBox $
+        preferredDeliveryMethod $
+        registeredAddress $
+        searchGuide $
+        seeAlso $
+        st $
+        street $
+        telephoneNumber $
+        teletexTerminalIdentifier $
+        telexNumber $
+        userPassword $
+        x121Address )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.5.6.10
+  NAME 'residentialPerson'
+  SUP person
+  STRUCTURAL
+  MUST l
+  MAY ( businessCategory $
+        x121Address $
+        registeredAddress $
+        destinationIndicator $
+        preferredDeliveryMethod $
+        telexNumber $
+        teletexTerminalIdentifier $
+        telephoneNumber $
+        internationalISDNNumber $
+        facsimileTelephoneNumber $
+        preferredDeliveryMethod $
+        street $
+        postOfficeBox $
+        postalCode $
+        postalAddress $
+        physicalDeliveryOfficeName $
+        st $
+        l )
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 1.3.6.1.1.3.1
+  NAME 'uidObject'
+  SUP top
+  AUXILIARY
+  MUST uid
+  X-ORIGIN 'RFC 4519' )
+objectClasses: ( 2.16.840.1.113730.3.2.2
+  NAME 'inetOrgPerson'
+  SUP organizationalPerson
+  STRUCTURAL
+  MAY ( audio $
+        businessCategory $
+        carLicense $
+        departmentNumber $
+        displayName $
+        employeeNumber $
+        employeeType $
+        givenName $
+        homePhone $
+        homePostalAddress $
+        initials $
+        jpegPhoto $
+        labeledURI $
+        mail $
+        manager $
+        mobile $
+        o $
+        pager $
+        photo $
+        roomNumber $
+        secretary $
+        uid $
+        userCertificate $
+        x500uniqueIdentifier $
+        preferredLanguage $
+        userSMIMECertificate $
+        userPKCS12 )
+  X-ORIGIN 'RFC 2798' )
+objectClasses: ( 2.5.6.21
+  NAME 'pkiUser'
+  DESC 'X.509 PKI User'
+  SUP top AUXILIARY
+  MAY userCertificate
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.22
+  NAME 'pkiCA'
+  DESC 'X.509 PKI Certificate Authority'
+  SUP top
+  AUXILIARY
+  MAY ( cACertificate $
+        certificateRevocationList $
+        authorityRevocationList $
+        crossCertificatePair )
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.19
+  NAME 'cRLDistributionPoint'
+  DESC 'X.509 CRL distribution point'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( certificateRevocationList $
+        authorityRevocationList $
+        deltaRevocationList )
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.23
+  NAME 'deltaCRL'
+  DESC 'X.509 delta CRL'
+  SUP top
+  AUXILIARY
+  MAY deltaRevocationList
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.15
+  NAME 'strongAuthenticationUser'
+  DESC 'X.521 strong authentication user'
+  SUP top
+  AUXILIARY
+  MUST userCertificate
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.18
+  NAME 'userSecurityInformation'
+  DESC 'X.521 user security information'
+  SUP top
+  AUXILIARY
+  MAY ( supportedAlgorithms )
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.16
+  NAME 'certificationAuthority'
+  DESC 'X.509 certificate authority'
+  SUP top
+  AUXILIARY
+  MUST ( authorityRevocationList $
+         certificateRevocationList $
+         cACertificate )
+  MAY crossCertificatePair
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 2.5.6.16.2
+  NAME 'certificationAuthority-V2'
+  DESC 'X.509 certificate authority, version 2'
+  SUP certificationAuthority
+  AUXILIARY
+  MAY deltaRevocationList
+  X-ORIGIN 'RFC 4523' )
+objectClasses: ( 0.9.2342.19200300.100.4.5
+  NAME 'account'
+  SUP top STRUCTURAL
+  MUST uid
+  MAY ( description $
+        seeAlso $
+        l $
+        o $
+        ou $
+        host )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.6
+  NAME 'document'
+  SUP top STRUCTURAL
+  MUST documentIdentifier
+  MAY ( cn $
+        description $
+        seeAlso $
+        l $
+        o $
+        ou $
+        documentTitle $
+        documentVersion $
+        documentAuthor $
+        documentLocation $
+        documentPublisher )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.9
+  NAME 'documentSeries'
+  SUP top STRUCTURAL
+  MUST cn
+  MAY ( description $
+        l $
+        o $
+        ou $
+        seeAlso $
+        telephonenumber )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.13
+  NAME 'domain'
+  SUP top
+  STRUCTURAL
+  MUST dc
+  MAY ( userPassword $
+        searchGuide $
+        seeAlso $
+        businessCategory $
+        x121Address $
+        registeredAddress $
+        destinationIndicator $
+        preferredDeliveryMethod $
+        telexNumber $
+        teletexTerminalIdentifier $
+        telephoneNumber $
+        internationaliSDNNumber $
+        facsimileTelephoneNumber $
+        street $
+        postOfficeBox $
+        postalCode $
+        postalAddress $
+        physicalDeliveryOfficeName $
+        st $
+        l $
+        description $
+        o $
+        associatedName )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.17
+  NAME 'domainRelatedObject'
+  SUP top
+  AUXILIARY
+  MUST associatedDomain
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.18
+  NAME 'friendlyCountry'
+  SUP country
+  STRUCTURAL
+  MUST co
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.14
+  NAME 'rFC822localPart'
+  SUP domain
+  STRUCTURAL
+  MAY ( cn $
+        description $
+        destinationIndicator $
+        facsimileTelephoneNumber $
+        internationaliSDNNumber $
+        physicalDeliveryOfficeName $
+        postalAddress $
+        postalCode $
+        postOfficeBox $
+        preferredDeliveryMethod $
+        registeredAddress $
+        seeAlso $
+        sn $
+        street $
+        telephoneNumber $
+        teletexTerminalIdentifier $
+        telexNumber $
+        x121Address )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.7
+  NAME 'room'
+  SUP top
+  STRUCTURAL
+  MUST cn
+  MAY ( roomNumber $
+        description $
+        seeAlso $
+        telephoneNumber )
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 0.9.2342.19200300.100.4.19
+  NAME 'simpleSecurityObject'
+  SUP top
+  AUXILIARY
+  MUST userPassword
+  X-ORIGIN 'RFC 4524' )
+objectClasses: ( 2.16.840.1.113730.3.2.6
+  NAME 'referral'
+  DESC 'named subordinate reference object'
+  STRUCTURAL
+  MUST ref
+  X-ORIGIN 'RFC 3296' )
+objectClasses: ( 1.3.6.1.4.1.5322.13.1.1
+  NAME 'namedObject'
+  SUP top
+  STRUCTURAL MAY cn
+  X-ORIGIN 'draft-howard-namedobject' )
+objectClasses: ( 2.16.840.1.113719.2.142.6.1.1
+  NAME 'ldapSubEntry'
+  DESC 'LDAP Subentry class, version 1'
+  SUP top
+  STRUCTURAL
+  MAY ( cn )
+  X-ORIGIN 'draft-ietf-ldup-subentry' )
+objectClasses: ( 1.3.6.1.4.1.7628.5.6.1.1
+  NAME 'inheritableLDAPSubEntry'
+  DESC 'Inheritable LDAP Subentry class, version 1'
+  SUP ldapSubEntry
+  STRUCTURAL
+  MUST ( inheritable )
+  MAY  ( blockInheritance )
+  X-ORIGIN 'draft-ietf-ldup-subentry' )
+objectClasses: ( 2.16.840.1.113730.3.2.1
+  NAME 'changeLogEntry'
+  SUP top
+  STRUCTURAL
+  MUST ( changeNumber $
+         targetDN $
+         changeType )
+  MAY ( changes $
+        newRDN $
+        deleteOldRDN $
+        newSuperior )
+  X-ORIGIN 'draft-good-ldap-changelog' )
+objectClasses: ( 1.3.6.1.4.1.4203.1.4.7
+  NAME 'authPasswordObject'
+  DESC 'authentication password mix in class'
+  AUXILIARY
+  MAY authPassword
+  X-ORIGIN 'RFC 3112' )
+attributeTypes: ( 1.3.6.1.4.1.31487.3.1 
+  NAME 'srp6Verifier' 
+  DESC 'Stores SRP6 salt and verifier, in hex and delimited by semicolon' 
+  EQUALITY caseIgnoreMatch 
+  ORDERING caseIgnoreOrderingMatch 
+  SUBSTR caseIgnoreSubstringsMatch 
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 
+  SINGLE-VALUE 
+  USAGE userApplications 
+  X-ORIGIN 'connect2id.com' )
+objectClasses: ( 1.3.6.1.4.1.31487.3.2 
+  NAME 'srp6account' 
+  DESC 'Account with SRP-6a authentication support' 
+  SUP top 
+  AUXILIARY 
+  MAY srp6Verifier 
+  X-ORIGIN 'connect2id.com' )

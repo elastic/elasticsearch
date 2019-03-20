@@ -199,7 +199,7 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         tokenService.createUserToken(authentication, authentication, future, tokenMetadata, true);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, false, client);
-        final String tokenString = tokenService.getUserTokenString(userToken);
+        final String tokenString = tokenService.getAccessTokenAsString(userToken);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(tokenString);

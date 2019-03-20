@@ -429,20 +429,20 @@ public final class TokenService {
                 final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
                 if (keyAndCache != null) {
                     getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
-                        if (decodeKey == null) {
+                        if (decodeKey != null) {
+                            try {
+                                final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
+                                final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
+                                getUserTokenFromId(tokenId, listener);
+                            } catch (IOException | GeneralSecurityException e) {
+                                // could happen with a token that is not ours
+                                logger.warn("invalid token", e);
+                                listener.onResponse(null);
+                            }
+                        } else {
                             // could happen with a token that is not ours
-                            logger.warn("invalid token");
                             listener.onResponse(null);
                             return;
-                        }
-                        try {
-                            final Cipher cipher = getDecryptionCipher(iv, decodeKey, version, decodedSalt);
-                            final String tokenId = decryptTokenId(encryptedTokenId, cipher, version);
-                            getUserTokenFromId(tokenId, listener);
-                        } catch (IOException | GeneralSecurityException e) {
-                            // could happen with a token that is not ours
-                            logger.warn("invalid token", e);
-                            listener.onResponse(null);
                         }
                     }, listener::onFailure));
                 } else {

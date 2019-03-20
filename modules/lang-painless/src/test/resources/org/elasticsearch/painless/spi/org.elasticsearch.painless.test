@@ -3,6 +3,7 @@ class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
 }
 
 static_import {
-  int testAddThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$ThisBindingTestClass
-  int testAddEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.elasticsearch.painless.BindingsTests$EmptyThisBindingTestClass
+  int addWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$BindingTestClass
+  int addThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$ThisBindingTestClass
+  int addEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.elasticsearch.painless.BindingsTests$EmptyThisBindingTestClass
 }

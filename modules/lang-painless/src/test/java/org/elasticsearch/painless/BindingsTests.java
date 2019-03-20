@@ -31,6 +31,18 @@ import java.util.Map;
 
 public class BindingsTests extends ScriptTestCase {
 
+    public static class BindingTestClass {
+        public int state;
+
+        public BindingTestClass(int state0, int state1) {
+            this.state = state0 + state1;
+        }
+
+        public int addWithState(int istateless, double dstateless) {
+            return istateless + state + (int)dstateless;
+        }
+    }
+
     public static class ThisBindingTestClass {
         private BindingsTestScript bindingsTestScript;
         private int state;
@@ -40,7 +52,7 @@ public class BindingsTests extends ScriptTestCase {
             this.state = state0 + state1;
         }
 
-        public int testAddThisWithState(int istateless, double dstateless) {
+        public int addThisWithState(int istateless, double dstateless) {
             return istateless + state + (int)dstateless + bindingsTestScript.getTestValue();
         }
     }
@@ -52,7 +64,7 @@ public class BindingsTests extends ScriptTestCase {
             this.bindingsTestScript = bindingsTestScript;
         }
 
-        public int testAddEmptyThisWithState(int istateless) {
+        public int addEmptyThisWithState(int istateless) {
             return istateless + bindingsTestScript.getTestValue();
         }
     }
@@ -106,11 +118,15 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public void testBasicClassBinding() {
-        assertEquals(15, exec("testAddWithState(4, 5, 6, 0.0)"));
+        String script = "addWithState(4, 5, 6, 0.0)";
+        BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
+        BindingsTestScript executableScript = factory.newInstance();
+
+        assertEquals(15, executableScript.execute(0, 0));
     }
 
     public void testRepeatedClassBinding() {
-        String script = "testAddWithState(4, 5, test, 0.0)";
+        String script = "addWithState(4, 5, test, 0.0)";
         BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
         BindingsTestScript executableScript = factory.newInstance();
 
@@ -120,7 +136,7 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public void testBoundClassBinding() {
-        String script = "testAddWithState(4, bound, test, 0.0)";
+        String script = "addWithState(4, bound, test, 0.0)";
         BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
         BindingsTestScript executableScript = factory.newInstance();
 
@@ -129,7 +145,7 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public void testThisClassBinding() {
-        String script = "testAddThisWithState(4, bound, test, 0.0)";
+        String script = "addThisWithState(4, bound, test, 0.0)";
 
         BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
         BindingsTestScript executableScript = factory.newInstance();
@@ -139,7 +155,7 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public void testEmptyThisClassBinding() {
-        String script = "testAddEmptyThisWithState(test)";
+        String script = "addEmptyThisWithState(test)";
 
         BindingsTestScript.Factory factory = scriptEngine.compile(null, script, BindingsTestScript.CONTEXT, Collections.emptyMap());
         BindingsTestScript executableScript = factory.newInstance();

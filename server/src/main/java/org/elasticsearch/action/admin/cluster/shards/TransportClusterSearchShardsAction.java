@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class TransportClusterSearchShardsAction extends
         TransportMasterNodeReadAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse> {
@@ -88,10 +89,12 @@ public class TransportClusterSearchShardsAction extends
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        for (String index : concreteIndices) {
-            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, request.indices());
-            final String[] aliases = indexNameExpressionResolver.indexAliases(clusterState, index, aliasMetadata -> true, true,
+        Function<String, AliasFilter> indexToAliasFilter = indicesService.buildAliasFilter(clusterState, request.indices());
+        Function<String, String[]> indexToAliases = indexNameExpressionResolver.indexAliases(clusterState, aliasMetadata -> true, true,
                 request.indices());
+        for (String index : concreteIndices) {
+            final AliasFilter aliasFilter = indexToAliasFilter.apply(index);
+            final String[] aliases = indexToAliases.apply(index);
             indicesAndFilters.put(index, new AliasFilter(aliasFilter.getQueryBuilder(), aliases));
         }
 

@@ -83,8 +83,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(),
-            request.request().index());
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.request().index()).apply(request.concreteIndex());
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {

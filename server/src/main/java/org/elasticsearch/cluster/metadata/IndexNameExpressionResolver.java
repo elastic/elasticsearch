@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -49,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -314,8 +317,8 @@ public class IndexNameExpressionResolver {
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
      */
-    public String[] filteringAliases(ClusterState state, String index, String... expressions) {
-        return indexAliases(state, index, AliasMetaData::filteringRequired, false, expressions);
+    public Function<String, String[]> filteringAliases(ClusterState state, String... expressions) {
+        return indexAliases(state, AliasMetaData::filteringRequired, false, expressions);
     }
 
     /**
@@ -323,8 +326,8 @@ public class IndexNameExpressionResolver {
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
      */
-    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
-                                 String... expressions) {
+    public Function<String, String[]> indexAliases(ClusterState state, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
+            String... expressions) {
         // expand the aliases wildcard
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
         Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
@@ -333,48 +336,42 @@ public class IndexNameExpressionResolver {
         }
 
         if (isAllIndices(resolvedExpressions)) {
-            return null;
+            return index -> null;
         }
+
+        final Set<String> resolvedExpressionsSet = new HashSet<>(resolvedExpressions);
+        return index -> indexAliases(state, index, requiredAlias, skipIdentity, resolvedExpressionsSet);
+    }
+
+    private String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
+            Set<String> resolvedExpressions) {
         final IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
         if (indexMetaData == null) {
             // Shouldn't happen
             throw new IndexNotFoundException(index);
         }
-        // optimize for the most common single index/alias scenario
-        if (resolvedExpressions.size() == 1) {
-            String alias = resolvedExpressions.get(0);
 
-            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
-            if (aliasMetaData == null || requiredAlias.test(aliasMetaData) == false) {
-                return null;
-            }
-            return new String[]{alias};
+        if (skipIdentity == false && resolvedExpressions.contains(index)) {
+            return null;
         }
+
         List<String> aliases = null;
-        for (String alias : resolvedExpressions) {
-            if (alias.equals(index)) {
-                if (skipIdentity) {
-                    continue;
-                } else {
-                    return null;
-                }
-            }
-            AliasMetaData aliasMetaData = indexMetaData.getAliases().get(alias);
-            // Check that this is an alias for the current index
-            // Otherwise - skip it
-            if (aliasMetaData != null) {
+        for (ObjectCursor<AliasMetaData> aliasMetaDataCursor : indexMetaData.getAliases().values()) {
+            AliasMetaData aliasMetaData = aliasMetaDataCursor.value;
+            if (resolvedExpressions.contains(aliasMetaData.alias())) {
                 if (requiredAlias.test(aliasMetaData)) {
                     // If required - add it to the list of aliases
                     if (aliases == null) {
                         aliases = new ArrayList<>();
                     }
-                    aliases.add(alias);
+                    aliases.add(aliasMetaData.alias());
                 } else {
                     // If not, we have a non required alias for this index - no further checking needed
                     return null;
                 }
             }
         }
+
         if (aliases == null) {
             return null;
         }
@@ -584,7 +581,7 @@ public class IndexNameExpressionResolver {
         /**
          * This is used to prevent resolving aliases to concrete indices but this also means
          * that we might return aliases that point to a closed index. This is currently only used
-         * by {@link #filteringAliases(ClusterState, String, String...)} since it's the only one that needs aliases
+         * by {@link #filteringAliases(ClusterState, String...)} since it's the only one that needs aliases
          */
         boolean isPreserveAliases() {
             return preserveAliases;

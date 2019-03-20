@@ -113,6 +113,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -1004,8 +1005,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
-        return indicesService.buildAliasFilter(state, index, expressions);
+    public Function<String, AliasFilter> buildAliasFilter(ClusterState state, String... expressions) {
+        return indicesService.buildAliasFilter(state, expressions);
     }
 
     /**

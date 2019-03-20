@@ -433,11 +433,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
             indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
             final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            final BytesReference tombstoneBytes = new BytesArray(" ");
-            for (final IndexId indexId : indicesToCleanUp) {
-                indicesBlobContainer.writeBlobAtomic(
-                    indexId.getId() + ".tombstone", tombstoneBytes.streamInput(), tombstoneBytes.length(), false);
-            }
+            writeTombstones(repositoryStateId, indicesToCleanUp, indicesBlobContainer);
             writeIndexGen(updatedRepositoryData, repositoryStateId);
 
             // delete the snapshot file
@@ -494,12 +490,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     deleteException = ioe;
                 }
                 if (deleteException == null) {
-                    indicesBlobContainer.deleteBlob(indexId.getId() + ".tombstone");
+                    indicesBlobContainer.deleteBlob(tombstoneBlob(indexId));
                 }
             }
         } catch (IOException | ResourceNotFoundException ex) {
             throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
         }
+    }
+
+    private static void writeTombstones(long repositoryStateId, Collection<IndexId> indicesToCleanUp, BlobContainer indicesBlobContainer)
+            throws IOException {
+        final BytesReference tombstoneBytes;
+        try (BytesStreamOutput bStream = new BytesStreamOutput()) {
+            bStream.writeLong(repositoryStateId);
+            tombstoneBytes = bStream.bytes();
+        }
+        for (final IndexId indexId : indicesToCleanUp) {
+            indicesBlobContainer.writeBlobAtomic(tombstoneBlob(indexId), tombstoneBytes.streamInput(), tombstoneBytes.length(), false);
+        }
+    }
+
+    private static String tombstoneBlob(IndexId indexId) {
+        return indexId.getId() + ".tombstone";
     }
 
     private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {

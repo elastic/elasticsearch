@@ -76,7 +76,6 @@ public class MonitoringBulkRequestTests extends ESTestCase {
 
     public void testAddRequestContent() throws IOException {
         final XContentType xContentType = XContentType.JSON;
-        final String defaultType = rarely() ? randomAlphaOfLength(4) : null;
 
         final int nbDocs = randomIntBetween(1, 20);
         final String[] types = new String[nbDocs];
@@ -93,10 +92,10 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                         if (rarely()) {
                             builder.field("_index", "");
                         }
-                        if (defaultType == null || randomBoolean()) {
-                            types[i] = randomAlphaOfLength(5);
-                            builder.field("_type", types[i]);
-                        }
+
+                        types[i] = randomAlphaOfLength(5);
+                        builder.field("_type", types[i]);
+
                         if (randomBoolean()) {
                             ids[i] = randomAlphaOfLength(10);
                             builder.field("_id", ids[i]);
@@ -133,7 +132,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         int count = 0;
         for (final MonitoringBulkDoc bulkDoc : bulkDocs) {
             assertThat(bulkDoc.getSystem(), equalTo(system));
-            assertThat(bulkDoc.getType(), equalTo(types[count] != null ? types[count] : defaultType));
+            assertThat(bulkDoc.getType(), equalTo(types[count]));
             assertThat(bulkDoc.getId(), equalTo(ids[count]));
             assertThat(bulkDoc.getTimestamp(), equalTo(timestamp));
             assertThat(bulkDoc.getIntervalMillis(), equalTo(interval));

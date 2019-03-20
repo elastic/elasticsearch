@@ -1259,4 +1259,68 @@ public class OptimizerTests extends ESTestCase {
         assertSame(last, aggregates.get(0));
         assertEquals(max2, aggregates.get(1));
     }
+    
+    public void testSortAggregateOnOrderByWithTwoFields() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
+                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+        Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
+        Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
+        Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
+        Order secondOrderBy = new Order(EMPTY, secondField, OrderDirection.ASC, Order.NullsPosition.LAST);
+        
+        OrderBy orderByPlan = new OrderBy(EMPTY, 
+                new Aggregate(EMPTY, FROM(), Arrays.asList(secondField, firstField), Arrays.asList(secondAlias, firstAlias)),
+                Arrays.asList(firstOrderBy, secondOrderBy));
+        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertTrue(order.get(0).child() instanceof FieldAttribute);
+        assertTrue(order.get(1).child() instanceof FieldAttribute);
+        assertEquals("first_field", ((FieldAttribute) order.get(0).child()).name());
+        assertEquals("second_field", ((FieldAttribute) order.get(1).child()).name());
+        
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        Aggregate agg = (Aggregate) ((OrderBy) result).child();
+        List<?> groupings = agg.groupings();
+        assertEquals(2, groupings.size());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        assertTrue(groupings.get(1) instanceof FieldAttribute);
+        assertEquals(firstField, ((FieldAttribute) groupings.get(0)));
+        assertEquals(secondField, ((FieldAttribute) groupings.get(1)));
+    }
+    
+    public void testSortAggregateOnOrderByOnlyAliases() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
+                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+        Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
+        Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
+        Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
+        Order secondOrderBy = new Order(EMPTY, secondAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
+        
+        OrderBy orderByPlan = new OrderBy(EMPTY, 
+                new Aggregate(EMPTY, FROM(), Arrays.asList(secondAlias, firstAlias), Arrays.asList(secondAlias, firstAlias)),
+                Arrays.asList(firstOrderBy, secondOrderBy));
+        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertTrue(order.get(0).child() instanceof Alias);
+        assertTrue(order.get(1).child() instanceof Alias);
+        assertEquals("first_alias", ((Alias) order.get(0).child()).name());
+        assertEquals("second_alias", ((Alias) order.get(1).child()).name());
+        
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        Aggregate agg = (Aggregate) ((OrderBy) result).child();
+        List<?> groupings = agg.groupings();
+        assertEquals(2, groupings.size());
+        assertTrue(groupings.get(0) instanceof Alias);
+        assertTrue(groupings.get(1) instanceof Alias);
+        assertEquals(firstAlias, ((Alias) groupings.get(0)));
+        assertEquals(secondAlias, ((Alias) groupings.get(1)));
+    }
 }

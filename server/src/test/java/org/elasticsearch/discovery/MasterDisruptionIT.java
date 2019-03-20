@@ -19,26 +19,19 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
-import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -46,21 +39,13 @@ import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests relating to the loss of the master.
@@ -68,107 +53,6 @@ import static org.hamcrest.Matchers.nullValue;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
-
-    /**
-     * Tests that emulates a frozen elected master node that unfreezes and pushes his cluster state to other nodes
-     * that already are following another elected master node. These nodes should reject this cluster state and prevent
-     * them from following the stale master.
-     */
-    @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
-    public void testStaleMasterNotHijackingMajority() throws Exception {
-        final List<String> nodes = startCluster(3);
-
-        // Save the current master node as old master node, because that node will get frozen
-        final String oldMasterNode = internalCluster().getMasterName();
-        for (String node : nodes) {
-            ensureStableCluster(3, node);
-        }
-        assertMaster(oldMasterNode, nodes);
-
-        // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(random(), oldMasterNode);
-
-        // Save the majority side
-        final List<String> majoritySide = new ArrayList<>(nodes);
-        majoritySide.remove(oldMasterNode);
-
-        // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
-        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<>());
-        for (final String node : majoritySide) {
-            masters.put(node, new ArrayList<>());
-            internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
-                DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-                DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-                if (!Objects.equals(previousMaster, currentMaster)) {
-                    logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                            event.previousState());
-                    String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
-                    String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
-                    masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
-                }
-            });
-        }
-
-        final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).addListener(event -> {
-            if (event.state().nodes().getMasterNodeId() == null) {
-                oldMasterNodeSteppedDown.countDown();
-            }
-        });
-
-        internalCluster().setDisruptionScheme(masterNodeDisruption);
-        logger.info("freezing node [{}]", oldMasterNode);
-        masterNodeDisruption.startDisrupting();
-
-        // Wait for the majority side to get stable
-        assertDifferentMaster(majoritySide.get(0), oldMasterNode);
-        assertDifferentMaster(majoritySide.get(1), oldMasterNode);
-
-        // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
-        // but will be queued and once the old master node un-freezes it gets executed.
-        // The old master node will send this update + the cluster state where he is flagged as master to the other
-        // nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new
-                ClusterStateUpdateTask(Priority.IMMEDIATE) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return ClusterState.builder(currentState).build();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
-                    }
-                });
-
-        // Save the new elected master node
-        final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
-        logger.info("new detected master node [{}]", newMasterNode);
-
-        // Stop disruption
-        logger.info("Unfreeze node [{}]", oldMasterNode);
-        masterNodeDisruption.stopDisrupting();
-
-        oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
-        // Make sure that the end state is consistent on all nodes:
-        assertMaster(newMasterNode, nodes);
-
-        assertThat(masters.size(), equalTo(2));
-        for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
-            String nodeName = entry.getKey();
-            List<Tuple<String, String>> recordedMasterTransition = entry.getValue();
-            assertThat("[" + nodeName + "] Each node should only record two master node transitions",
-                recordedMasterTransition, hasSize(2));
-            assertThat("[" + nodeName + "] First transition's previous master should be [" + oldMasterNode + "]",
-                recordedMasterTransition.get(0).v1(), equalTo(oldMasterNode));
-            assertThat("[" + nodeName + "] First transition's current master should be [null]",
-                recordedMasterTransition.get(0).v2(), nullValue());
-            assertThat("[" + nodeName + "] Second transition's previous master should be [null]",
-                recordedMasterTransition.get(1).v1(), nullValue());
-            assertThat("[" + nodeName + "] Second transition's current master should be [" + newMasterNode + "]",
-                recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
-        }
-    }
 
     /**
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one

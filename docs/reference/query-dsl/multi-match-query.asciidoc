@@ -91,6 +91,9 @@ parameter, which can be set to:
 `phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and
                     combines the `_score` from each field.  See <<type-phrase>>.
 
+`boolean_prefix`::  Creates a `bool_prefix` query on each field and uses the
+                    `_score` from the best field. See <<type-bool-prefix>>.
+
 [[type-best-fields]]
 ==== `best_fields`
 
@@ -516,3 +519,46 @@ per-term `blended` queries. It accepts:
 ===================================================
 The `fuzziness` parameter cannot be used with the `cross_fields` type.
 ===================================================
+
+[[type-bool-prefix]]
+==== `bool_prefix`
+
+The `bool_prefix` type's scoring behaves like <<type-best-fields>>, but using a
+<<query-dsl-bool-prefix-query,`bool_prefix` query>> instead of a `match` query.
+
+For example, the query
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "multi_match" : {
+      "query":      "quick brown f",
+      "type":       "bool_prefix",
+      "fields":     [ "subject", "message" ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+would be roughly equivalent to the query
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "dis_max": {
+      "queries": [
+        { "bool_prefix": { "subject": "quick brown f" }},
+        { "bool_prefix": { "message": "quick brown f" }}
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+// todo fuzziness and other params support

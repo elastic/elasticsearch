@@ -398,8 +398,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::preview-data-frame-transform-execute
             PreviewDataFrameTransformResponse response =
-                    client.dataFrame()
-                            .previewDataFrameTransform(request, RequestOptions.DEFAULT);
+                client.dataFrame()
+                    .previewDataFrameTransform(request, RequestOptions.DEFAULT);
             // end::preview-data-frame-transform-execute
 
             assertNotNull(response.getDocs());
@@ -407,17 +407,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::preview-data-frame-transform-execute-listener
             ActionListener<PreviewDataFrameTransformResponse> listener =
-                    new ActionListener<PreviewDataFrameTransformResponse>() {
-                        @Override
-                        public void onResponse(PreviewDataFrameTransformResponse response) {
-                            // <1>
-                        }
+                new ActionListener<PreviewDataFrameTransformResponse>() {
+                    @Override
+                    public void onResponse(PreviewDataFrameTransformResponse response) {
+                        // <1>
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // <2>
-                        }
-                    };
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
             // end::preview-data-frame-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -508,7 +508,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
 
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
-
+        createIndex("source-data");
+        
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -518,10 +519,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         
         DataFrameTransformConfig putTransformConfig = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
 
         RestHighLevelClient client = highLevelClient();
-
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(putTransformConfig.getId());
 

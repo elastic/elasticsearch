@@ -22,17 +22,16 @@ that {ccr} does not interfere with indexing on the leader index.
 
 Replication can be configured in two ways:
 
-* Manually using the
-  {ref}/ccr-put-follow.html[create follower API]
+* Manually creating specific follower indices (in {kib} or by using the
+{ref}/ccr-put-follow.html[create follower API])
 
-* Automatically using
-  <<ccr-auto-follow,auto-follow patterns>>
+* Automatically creating follower indices from auto-follow patterns (in {kib} or
+by using the {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API])
+
+For more information about managing {ccr} in {kib}, see
+{kibana-ref}/working-remote-clusters.html[Working with remote clusters].
 
 NOTE: You must also <<ccr-requirements,configure the leader index>>.
-
-NOTE: You can also
-{kibana-ref}/working-remote-clusters.html#managing-cross-cluster-replication[manage {ccr}]
-using Kibana.
 
 When you initiate replication either manually or through an auto-follow pattern, the
 follower index is created on the local cluster. Once the follower index is created,

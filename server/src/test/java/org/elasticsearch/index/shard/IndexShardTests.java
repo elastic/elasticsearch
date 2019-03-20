@@ -2819,7 +2819,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
                 final FlushRequest flushRequest2 = new FlushRequest();
                 flushRequest2.force(true);
-                flushRequest2.waitIfOngoing(false);
+                flushRequest2.waitIfOngoing(true);
                 indexShard.flush(flushRequest2);
             }
 

@@ -1009,6 +1009,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     final class AsyncPeerRecoveryRetentionLeaseRenewalTask extends BaseAsyncTask {
 
+        // TODO perhaps we can just piggyback on the synced flush that happens after 5 minutes of inactivity instead?
+
         AsyncPeerRecoveryRetentionLeaseRenewalTask(final IndexService indexService) {
             super(indexService, RETENTION_LEASE_PEER_RECOVERY_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
         }

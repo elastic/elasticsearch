@@ -182,14 +182,13 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                             equalTo(retainingSequenceNumbers));
                 }, Version.CURRENT);
         reference.set(replicationTracker);
-        final IndexShardRoutingTable routingTable = routingTable(Collections.emptySet(), allocationId);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
-                routingTable,
+                routingTable(Collections.emptySet(), allocationId),
                 Collections.emptySet());
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
-        retainingSequenceNumbers.put(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard()), 0L);
+        retainingSequenceNumbers.put(getPeerRecoveryRetentionLeaseId(nodeIdFromAllocationId(allocationId)), 0L);
 
         final int length = randomIntBetween(0, 8);
         for (int i = 0; i < length; i++) {
@@ -309,14 +308,13 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                             equalTo(retainingSequenceNumbers));
                 }, Version.CURRENT);
         reference.set(replicationTracker);
-        final IndexShardRoutingTable routingTable = routingTable(Collections.emptySet(), allocationId);
         replicationTracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(allocationId.getId()),
-                routingTable,
+                routingTable(Collections.emptySet(), allocationId),
                 Collections.emptySet());
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
-        retainingSequenceNumbers.put(getPeerRecoveryRetentionLeaseId(routingTable.primaryShard()), 0L);
+        retainingSequenceNumbers.put(getPeerRecoveryRetentionLeaseId(nodeIdFromAllocationId(allocationId)), 0L);
 
         final int length = randomIntBetween(0, 8);
         for (int i = 0; i < length; i++) {

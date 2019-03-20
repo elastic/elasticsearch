@@ -395,7 +395,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                      * shard copy. These missing leases are created lazily if they're found to be missing during a
                      * TransportReplicationAction, such as the peer recovery retention lease sync, so let's trigger a sync.
                      */
-                    assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_0_0 in backport
+                    assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_1_0 in backport
                     return true;
                 }
                 return retentionLease.retainingSequenceNumber() < localCheckpointOfSafeCommit + 1;
@@ -446,10 +446,14 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             final ShardRouting shardRouting = routingTable.getByAllocationId(entry.getKey());
             final CheckpointState cps = entry.getValue();
             if (cps.tracked) {
-                renewRetentionLease(
-                    getPeerRecoveryRetentionLeaseId(shardRouting),
-                    cps.localCheckpointOfSafeCommit + 1,
-                    PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                if (getRetentionLeases().contains(getPeerRecoveryRetentionLeaseId(shardRouting))) {
+                    renewRetentionLease(
+                        getPeerRecoveryRetentionLeaseId(shardRouting),
+                        cps.localCheckpointOfSafeCommit + 1,
+                        PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+                } else {
+                    assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_1_0 in backport
+                }
             }
         }
     }
@@ -471,7 +475,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
              * copy. But the replica we're dealing with now has been upgraded and is retaining history while we asynchronously make it a
              * retention lease.
              */
-            assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_0_0 in backport
+            assert indexCreatedVersion.before(Version.V_8_0_0) : indexCreatedVersion; // TODO V_7_1_0 in backport
             try {
                 innerAddRetentionLease(getPeerRecoveryRetentionLeaseId(replicaShardRouting.currentNodeId()), startingSeqNo,
                     PEER_RECOVERY_RETENTION_LEASE_SOURCE);
@@ -744,7 +748,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert checkpoints.get(aId) != null : "aId [" + aId + "] is pending in sync but isn't tracked";
         }
 
-        if (primaryMode && indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 after backporting
+        if (primaryMode && indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_1_0 after backporting
             for (final ShardRouting shardRouting : routingTable.assignedShards()) {
                 assert checkpoints.get(shardRouting.allocationId().getId()).tracked == false
                     || retentionLeases.contains(getPeerRecoveryRetentionLeaseId(shardRouting)) :
@@ -944,7 +948,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
              * We might have got here here via a rolling upgrade from an older version that doesn't create peer recovery retention leases
              * for every shard copy. The missing leases are created in a more relaxed fashion, and offer weaker guarantees.
              */
-            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_0_0 in backport
+            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) { // TODO V_7_1_0 in backport
                 // We are starting up the whole replication group from scratch: if we were not (i.e. this is a replica promotion) then
                 // this copy must already be in-sync and active and therefore holds a retention lease for itself.
                 assert routingTable.activeShards().equals(singletonList(primaryShard)) : routingTable.activeShards();

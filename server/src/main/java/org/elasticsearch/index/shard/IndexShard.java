@@ -2532,9 +2532,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         if (replicationTracker.peerRetentionLeasesNeedRenewal(getLocalCheckpointOfSafeCommit())) {
             peerRecoveryRetentionLeaseRenewer.accept(ActionListener.wrap(v -> {
-                    replicationTracker.updatePeerRecoveryRetentionLeasesFromCheckpointState();
-                    plainActionFuture.onResponse(null);
-                }, plainActionFuture::onFailure));
+                runUnderPrimaryPermit(replicationTracker::updatePeerRecoveryRetentionLeasesFromCheckpointState,
+                    e -> logger.debug("exception updating peer-recovery retention leases", e), Names.SAME, "");
+                plainActionFuture.onResponse(null);
+            }, plainActionFuture::onFailure));
         } else {
             plainActionFuture.onResponse(null);
         }

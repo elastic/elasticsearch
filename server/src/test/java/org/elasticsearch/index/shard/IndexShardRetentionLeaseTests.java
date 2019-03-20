@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -279,8 +280,10 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
             try {
                 recoverShardFromStore(forceRecoveredShard);
                 final RetentionLeases recoveredRetentionLeases = forceRecoveredShard.getEngine().config().retentionLeasesSupplier().get();
-                assertThat(recoveredRetentionLeases.leases(), empty());
-                assertThat(recoveredRetentionLeases.version(), equalTo(0L));
+                assertThat(recoveredRetentionLeases.version(), equalTo(1L));
+                assertThat(recoveredRetentionLeases.leases(), hasSize(1));
+                assertThat(recoveredRetentionLeases.leases().iterator().next().id(),
+                    equalTo(ReplicationTracker.getPeerRecoveryRetentionLeaseId(indexShard.shardRouting)));
             } finally {
                 closeShards(forceRecoveredShard);
             }

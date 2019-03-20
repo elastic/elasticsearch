@@ -385,7 +385,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 "source-data",
                 null,                               // <2>
                 queryConfig,
-                pivotConfig);
+                pivotConfig,
+                Collections.emptyMap());
 
         PreviewDataFrameTransformRequest request =
             new PreviewDataFrameTransformRequest(transformConfig); // <3>

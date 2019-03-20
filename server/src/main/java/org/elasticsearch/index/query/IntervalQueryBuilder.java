@@ -143,7 +143,8 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             }
             if (ft.tokenized() == false ||
                 ft.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                throw new IllegalArgumentException("Cannot create IntervalQuery over field [" + maskedField + "] with no indexed positions");
+                throw new IllegalArgumentException("Cannot create IntervalQuery over field ["
+                    + maskedField + "] with no indexed positions");
             }
         }
         return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));

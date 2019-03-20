@@ -1909,7 +1909,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals((((Literal) limit.limit()).fold()))) {
+                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
                     return new LocalRelation(limit.source(), new EmptyExecutable(limit.output()));
                 }
             }
@@ -1920,21 +1920,30 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Project) {
-                Project p = (Project) plan;
+            Holder<LocalRelation> optimizedPlan = new Holder<>();
+            plan.forEachDown(p -> {
                 List<Object> values = extractConstants(p.projections());
                 if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    return new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
+            }, Project.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
-            if (plan instanceof Aggregate) {
-                Aggregate a = (Aggregate) plan;
+
+            plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
                 if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    return new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
+            }, Aggregate.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
+
             return plan;
         }
 

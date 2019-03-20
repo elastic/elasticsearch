@@ -1832,14 +1832,16 @@ public final class TokenService {
         private final boolean invalidated;
         private final String associatedUser;
         private final String associatedRealm;
+        private final boolean refreshed;
         @Nullable private final Instant refreshInstant;
         @Nullable private final String supersededByDocId;
 
-        private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, Instant refreshInstant,
-                                   String supersededByDocId) {
+        private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
+                                   Instant refreshInstant, String supersededByDocId) {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
+            this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
             this.supersededByDocId = supersededByDocId;
         }
@@ -1857,7 +1859,7 @@ public final class TokenService {
         }
 
         boolean isRefreshed() {
-            return refreshInstant != null;
+            return refreshed;
         }
 
         @Nullable Instant getRefreshInstant() {
@@ -1890,15 +1892,9 @@ public final class TokenService {
                 throw new IllegalStateException("token document is missing the \"refreshed\" field");
             }
             final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
-            if (refreshed && null == refreshEpochMilli) {
-                throw new IllegalStateException("token document is missing the \"refresh_time\" field");
-            }
             final Instant refreshInstant = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
             final String supersededBy = (String) refreshTokenSource.get("superseded_by");
-            if (refreshed && null == supersededBy) {
-                throw new IllegalStateException("token document is missing the \"superseded_by\" field");
-            }
-            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshInstant, supersededBy);
+            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshed, refreshInstant, supersededBy);
         }
     }
 

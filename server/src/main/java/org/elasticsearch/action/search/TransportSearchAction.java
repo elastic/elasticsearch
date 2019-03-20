@@ -80,6 +80,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
@@ -248,6 +249,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.scroll() != null) {
             return false;
         }
+        if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+            return false;
+        }
         SearchSourceBuilder source = searchRequest.source();
         return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
             source.collapse().getInnerHits().isEmpty();
@@ -311,8 +315,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
-                //here we provide the empty string a cluster alias, which means no prefix in index name,
-                //but the coord node will perform non final reduce as it's not null.
                 SearchRequest ccsLocalSearchRequest = SearchRequest.crossClusterSearch(searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);

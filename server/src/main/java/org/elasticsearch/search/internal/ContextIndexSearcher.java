@@ -35,6 +35,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XIndexSearcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -56,7 +57,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** The wrapped {@link IndexSearcher}. The reason why we sometimes prefer delegating to this searcher instead of {@code super} is that
      *  this instance may have more assertions, for example if it comes from MockInternalEngine which wraps the IndexSearcher into an
      *  AssertingIndexSearcher. */
-    private final IndexSearcher in;
+    private final XIndexSearcher in;
 
     private AggregatedDfs aggregatedDfs;
 
@@ -67,11 +68,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Runnable checkCancelled;
 
-    public ContextIndexSearcher(Engine.Searcher searcher,
-            QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
+    public ContextIndexSearcher(Engine.Searcher searcher, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
         super(searcher.reader());
-        in = searcher.searcher();
         engineSearcher = searcher;
+        in = new XIndexSearcher(searcher.searcher());
         setSimilarity(searcher.searcher().getSimilarity());
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -174,7 +174,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             cancellableWeight = weight;
         }
-        super.search(leaves, cancellableWeight, collector);
+        in.search(leaves, cancellableWeight, collector);
     }
 
     @Override

@@ -54,6 +54,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -161,13 +162,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeTo);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.addTracer(new MockTransportService.Tracer() {
+        transportService.transport().addMessageListener(new TransportMessageListener() {
             @Override
-            public void receivedRequest(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                     logger.info("received: {}, relocation starts", action);
                     beginRelocationLatch.countDown();
@@ -177,18 +177,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                     // to the other nodes that should have a copy according to cluster state.
                     receivedShardExistsRequestLatch.countDown();
                     logger.info("received: {}, relocation done", action);
-                } else if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
-                    logger.info("received: {}, waiting on cluster state", action);
-                    // ensure that relocation target node is on the same cluster state as relocation source before proceeding with
-                    // this request. If the target does not have the relocating cluster state exposed through ClusterService.state(),
-                    // then waitForClusterState will have to register a ClusterObserver with the ClusterService, which can cause
-                    // a race with the BlockClusterStateProcessing block that is added below.
-                    try {
-                        assertBusy(() -> assertTrue(
-                            clusterService.state().routingTable().index(index).shard(shard).primaryShard().relocating()));
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
                 }
             }
         });

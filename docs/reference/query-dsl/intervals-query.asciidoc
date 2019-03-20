@@ -76,6 +76,12 @@ Which analyzer should be used to analyze terms in the `query`.  By
 default, the search analyzer of the top-level field will be used.
 `filter`::
 An optional <<interval_filter,interval filter>>
+`use_field`::
+If specified, then match intervals from this field rather than the top-level field.
+Terms will be analyzed using the search analyzer from this field.  This allows you
+to search across multiple fields as if they were all the same field; for example,
+you could index the same text into stemmed and unstemmed fields, and search for
+stemmed tokens near unstemmed ones.
 
 [[intervals-all_of]]
 ==== `all_of`

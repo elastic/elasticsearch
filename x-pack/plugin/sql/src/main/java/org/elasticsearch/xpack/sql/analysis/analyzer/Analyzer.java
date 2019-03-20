@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -850,7 +851,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
-                        if (seenFunction instanceof Count) {
+                        if (seenFunction instanceof Count || seenFunction instanceof Like) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;
                             }

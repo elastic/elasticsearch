@@ -23,6 +23,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
@@ -41,6 +45,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
@@ -95,6 +100,42 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 () -> execute(new DeleteDataFrameTransformRequest(transform.getId()), client::deleteDataFrameTransform,
                         client::deleteDataFrameTransformAsync));
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
+    }
+
+    public void testStartStop() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        String id = "test-stop-start";
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
+
+        DataFrameClient client = highLevelClient().dataFrame();
+        AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
+                client::putDataFrameTransformAsync);
+        assertTrue(ack.isAcknowledged());
+
+        StartDataFrameTransformRequest startRequest = new StartDataFrameTransformRequest(id);
+        StartDataFrameTransformResponse startResponse =
+                execute(startRequest, client::startDataFrameTransform, client::startDataFrameTransformAsync);
+        assertTrue(startResponse.isStarted());
+        assertThat(startResponse.getNodeFailures(), empty());
+        assertThat(startResponse.getTaskFailures(), empty());
+
+        // TODO once get df stats is implemented assert the df has started
+
+        StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
+        StopDataFrameTransformResponse stopResponse =
+                execute(stopRequest, client::stopDataFrameTransform, client::stopDataFrameTransformAsync);
+        assertTrue(stopResponse.isStopped());
+        assertThat(stopResponse.getNodeFailures(), empty());
+        assertThat(stopResponse.getTaskFailures(), empty());
     }
 }
 

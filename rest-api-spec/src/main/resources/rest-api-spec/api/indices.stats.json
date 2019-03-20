@@ -57,6 +57,17 @@
           "type": "boolean",
           "description": "If set to true segment stats will include stats for segments that are not currently loaded into memory",
           "default": false
+        },
+        "expand_wildcards": {
+          "type" : "enum",
+          "options" : ["open","closed","none","all"],
+          "default" : "open",
+          "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "forbid_closed_indices": {
+          "type": "boolean",
+          "description": "If set to false stats will also collected from closed indices if explicitly specified or if expand_wildcards expands to closed indices",
+          "default": true
         }
       }
     },

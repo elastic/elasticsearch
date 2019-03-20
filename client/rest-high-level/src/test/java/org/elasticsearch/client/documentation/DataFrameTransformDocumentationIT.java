@@ -26,6 +26,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
@@ -356,6 +358,67 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
 
+    public void testPreview() throws IOException, InterruptedException {
+        createIndex("source-data");
+
+        RestHighLevelClient client = highLevelClient();
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        // tag::preview-data-frame-transform-request
+        DataFrameTransformConfig transformConfig =
+                new DataFrameTransformConfig(null,  // <1>
+                "source-data",
+                null,                               // <2>
+                queryConfig,
+                pivotConfig);
+
+        PreviewDataFrameTransformRequest request =
+            new PreviewDataFrameTransformRequest(transformConfig); // <3>
+        // end::preview-data-frame-transform-request
+
+        {
+            // tag::preview-data-frame-transform-execute
+            PreviewDataFrameTransformResponse response =
+                    client.dataFrame()
+                            .previewDataFrameTransform(request, RequestOptions.DEFAULT);
+            // end::preview-data-frame-transform-execute
+
+            assertNotNull(response.getDocs());
+        }
+        {
+            // tag::preview-data-frame-transform-execute-listener
+            ActionListener<PreviewDataFrameTransformResponse> listener =
+                new ActionListener<PreviewDataFrameTransformResponse>() {
+                    @Override
+                    public void onResponse(PreviewDataFrameTransformResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::preview-data-frame-transform-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::preview-data-frame-transform-execute-async
+            client.dataFrame().previewDataFrameTransformAsync(
+                    request, RequestOptions.DEFAULT, listener);  // <1>
+            // end::preview-data-frame-transform-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

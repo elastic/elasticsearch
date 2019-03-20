@@ -54,6 +54,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -164,9 +165,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.addTracer(new MockTransportService.Tracer() {
+        transportService.transport().addMessageListener(new TransportMessageListener() {
             @Override
-            public void receivedRequest(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                     logger.info("received: {}, relocation starts", action);
                     beginRelocationLatch.countDown();

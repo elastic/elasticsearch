@@ -200,6 +200,23 @@ ROUND(SQRT(CAST(EXP(languages) AS SMALLINT)),2):d|  COUNT(*):l
 null                                             |10
 ;
 
+groupByRoundWithTwoParams
+SELECT ROUND(YEAR("birth_date"), -2) FROM test_emp GROUP BY ROUND(YEAR("birth_date"), -2);
+
+ROUND(YEAR("birth_date"), -2)
+-----------------------------
+null
+2000
+;
+
+groupByTruncateWithTwoParams
+SELECT TRUNCATE(YEAR("birth_date"), -2) FROM test_emp GROUP BY TRUNCATE(YEAR("birth_date"), -2);
+
+TRUNCATE(YEAR("birth_date"), -2)
+--------------------------------
+null
+1900
+;
 
 //
 // Grouping functions

@@ -64,8 +64,12 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def div(Object, Object)
   def mod(Object, Object)
   def mul(Object, Object)
+  Number atan2(Number, Number)
   Number neg(Number)
+  Number power(Number, Number)
+  Number round(Number)
   Number round(Number, Number)
+  Number truncate(Number)
   Number truncate(Number, Number)
   
   Double abs(Number)

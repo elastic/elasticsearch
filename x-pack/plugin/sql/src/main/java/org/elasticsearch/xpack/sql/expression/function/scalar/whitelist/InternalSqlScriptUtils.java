@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDate
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
@@ -196,12 +197,20 @@ public final class InternalSqlScriptUtils {
         return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
-    public static Number round(Number v, Number s) {
-        return BinaryMathOperation.ROUND.apply(v, s);
+    public static Number round(Number v) {
+        return round(v, null);
     }
 
+    public static Number round(Number v, Number s) {
+        return BinaryOptionalMathOperation.ROUND.apply(v, s);
+    }
+
+    public static Number truncate(Number v) {
+        return truncate(v, null);
+    }
+    
     public static Number truncate(Number v, Number s) {
-        return BinaryMathOperation.TRUNCATE.apply(v, s);
+        return BinaryOptionalMathOperation.TRUNCATE.apply(v, s);
     }
 
     public static Double abs(Number value) {
@@ -218,6 +227,10 @@ public final class InternalSqlScriptUtils {
 
     public static Double atan(Number value) {
         return MathOperation.ATAN.apply(value);
+    }
+    
+    public static Number atan2(Number left, Number right) {
+        return BinaryMathOperation.ATAN2.apply(left, right);
     }
 
     public static Double cbrt(Number value) {
@@ -270,6 +283,10 @@ public final class InternalSqlScriptUtils {
 
     public static Double pi(Number value) {
         return MathOperation.PI.apply(value);
+    }
+    
+    public static Number power(Number left, Number right) {
+        return BinaryMathOperation.POWER.apply(left, right);
     }
 
     public static Double radians(Number value) {

@@ -462,7 +462,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * truncating the certificate file that is being monitored
      */
     public void testPEMTrustReloadException() throws Exception {
-        assumeFalse("Broken on BC-FIPS -- https://github.com/elastic/elasticsearch/issues/39580", inFipsJvm());
         Path tempDir = createTempDir();
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);

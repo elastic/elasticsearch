@@ -1,6 +1,6 @@
 [role="xpack"]
 [[monitoring-settings]]
-===  Monitoring settings in Elasticsearch
+=== Monitoring settings in Elasticsearch
 ++++
 <titleabbrev>Monitoring settings</titleabbrev>
 ++++
@@ -71,6 +71,10 @@ to pass through this cluster.
 `xpack.monitoring.collection.cluster.stats.timeout`::
 
 Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
+
+`xpack.monitoring.collection.node.stats.timeout`::
+
+Sets the timeout for collecting the node statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
 

@@ -48,6 +48,14 @@ public class TopHitsAggExtractor implements BucketExtractor {
         return name;
     }
 
+    DataType fieldDataType() {
+        return fieldDataType;
+    }
+
+    ZoneId zoneId() {
+        return zoneId;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

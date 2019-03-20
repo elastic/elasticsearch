@@ -224,6 +224,10 @@ public class FieldHitExtractor implements HitExtractor {
         return zoneId;
     }
 
+    DataType dataType() {
+        return dataType;
+    }
+
     @Override
     public String toString() {
         return fieldName + "@" + hitName + "@" + zoneId;

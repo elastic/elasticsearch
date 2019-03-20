@@ -54,7 +54,13 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     @Override
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
-        return new FieldHitExtractor(instance.fieldName() + "mutated", null, instance.zoneId(), true, instance.hitName(), false);
+        return new FieldHitExtractor(
+            instance.fieldName() + "mutated",
+            randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
+            randomBoolean(),
+            instance.hitName() + "mutated",
+            randomBoolean());
     }
 
     public void testGetDottedValueWithDocValues() {

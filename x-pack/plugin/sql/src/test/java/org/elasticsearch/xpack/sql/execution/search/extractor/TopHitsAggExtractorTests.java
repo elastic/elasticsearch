@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -45,7 +46,10 @@ public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<To
 
     @Override
     protected TopHitsAggExtractor mutateInstance(TopHitsAggExtractor instance) {
-        return new TopHitsAggExtractor(instance.name() + "mutated", randomFrom(DataType.values()), randomZone());
+        return new TopHitsAggExtractor(
+            instance.name() + "mutated",
+            randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(DataType.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
     public void testNoAggs() {

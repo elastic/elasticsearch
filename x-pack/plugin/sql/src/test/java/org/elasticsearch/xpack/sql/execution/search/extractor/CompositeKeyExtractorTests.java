@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -39,7 +40,11 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CompositeKeyExtractor mutateInstance(CompositeKeyExtractor instance) {
-        return new CompositeKeyExtractor(instance.key() + "mutated", instance.property(), instance.zoneId(), instance.isDateTimeBased());
+        return new CompositeKeyExtractor(
+            instance.key() + "mutated",
+            randomValueOtherThan(instance.property(), () -> randomFrom(Property.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
+            !instance.isDateTimeBased());
     }
 
     public void testExtractBucketCount() {

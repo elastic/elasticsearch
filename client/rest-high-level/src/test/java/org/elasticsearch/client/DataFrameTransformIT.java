@@ -26,6 +26,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -201,7 +203,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(startResponse.getNodeFailures(), empty());
         assertThat(startResponse.getTaskFailures(), empty());
 
-        // TODO once get df stats is implemented assert the df has started
+        GetDataFrameTransformStatsResponse statsResponse = execute(new GetDataFrameTransformStatsRequest(id),
+                client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
+        assertThat(statsResponse.getTransformsStateAndStats(), hasSize(1));
+
 
         StopDataFrameTransformRequest stopRequest = new StopDataFrameTransformRequest(id);
         StopDataFrameTransformResponse stopResponse =

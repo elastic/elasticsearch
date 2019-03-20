@@ -38,13 +38,13 @@ public class DataFrameTransformStateAndStatsTests extends ESTestCase {
                 .test();
     }
 
-    private static DataFrameTransformStateAndStats randomInstance() {
-        return new DataFrameTransformStateAndStats(randomAlphaOfLengthBetween(1, 10),
+    public static DataFrameTransformStateAndStats randomInstance() {
+        return new DataFrameTransformStateAndStats(randomAlphaOfLength(10),
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats());
     }
 
-    private static void toXContent(DataFrameTransformStateAndStats stateAndStats, XContentBuilder builder) throws IOException {
+    public static void toXContent(DataFrameTransformStateAndStats stateAndStats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(DataFrameTransformStateAndStats.ID.getPreferredName(), stateAndStats.getId());
         builder.field(DataFrameTransformStateAndStats.STATE_FIELD.getPreferredName());

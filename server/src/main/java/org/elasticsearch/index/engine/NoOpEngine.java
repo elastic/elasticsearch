@@ -23,9 +23,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -36,8 +40,20 @@ import java.util.function.Function;
  */
 public final class NoOpEngine extends ReadOnlyEngine {
 
+    private final SegmentsStats stats;
+
     public NoOpEngine(EngineConfig config) {
         super(config, null, null, true, Function.identity());
+        this.stats = new SegmentsStats();
+        Directory directory = store.directory();
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            for (LeafReaderContext ctx : reader.getContext().leaves()) {
+                SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
+                fillSegmentStats(segmentReader, true, stats);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -47,17 +63,17 @@ public final class NoOpEngine extends ReadOnlyEngine {
         final IndexCommit indexCommit = indexCommits.get(indexCommits.size() - 1);
         return new DirectoryReader(directory, new LeafReader[0]) {
             @Override
-            protected DirectoryReader doOpenIfChanged() throws IOException {
+            protected DirectoryReader doOpenIfChanged() {
                 return null;
             }
 
             @Override
-            protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
-            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
                 return null;
             }
 
@@ -67,17 +83,17 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
 
             @Override
-            public boolean isCurrent() throws IOException {
+            public boolean isCurrent() {
                 return true;
             }
 
             @Override
-            public IndexCommit getIndexCommit() throws IOException {
+            public IndexCommit getIndexCommit()  {
                 return indexCommit;
             }
 
             @Override
-            protected void doClose() throws IOException {
+            protected void doClose() {
             }
 
             @Override
@@ -85,5 +101,19 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 return null;
             }
         };
+    }
+
+    @Override
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        if (includeUnloadedSegments) {
+            final SegmentsStats stats = new SegmentsStats();
+            stats.add(this.stats);
+            if (includeSegmentFileSizes == false) {
+                stats.clearFileSizes();
+            }
+            return stats;
+        } else {
+            return super.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+        }
     }
 }

@@ -140,20 +140,31 @@ public final class UserToken implements Writeable, ToXContentObject {
         return builder.endObject();
     }
 
-    static UserToken fromSourceMap(Map<String, Object> source) throws IOException {
+    static UserToken fromSourceMap(Map<String, Object> source) {
         final String id = (String) source.get("id");
+        if (id == null) {
+            throw new IllegalStateException("user token source document does not have the \"id\" field");
+        }
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
+        if (expirationEpochMilli == null) {
+            throw new IllegalStateException("user token source document does not have the \"expiration_time\" field");
+        }
         final Integer versionId = (Integer) source.get("version");
         if (versionId == null) {
             throw new IllegalStateException("user token source document does not have the \"version\" field");
         }
         final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
         final String authString = (String) source.get("authentication");
+        if (authString == null) {
+            throw new IllegalStateException("user token source document does not have the \"authentication\" field");
+        }
         final Version version = Version.fromId(versionId);
         try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(authString))) {
             in.setVersion(version);
             Authentication authentication = new Authentication(in);
             return new UserToken(id, version, authentication, Instant.ofEpochMilli(expirationEpochMilli), metadata);
+        } catch (IOException e) {
+            throw new IllegalStateException("user token source document contains malformed \"authentication\" field", e);
         }
     }
 }

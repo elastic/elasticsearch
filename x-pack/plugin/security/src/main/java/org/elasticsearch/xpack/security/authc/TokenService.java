@@ -794,7 +794,7 @@ public final class TokenService {
                 onFailure.accept(checkRefreshResult.v2().get());
                 return;
             }
-        } catch (IOException | DateTimeException | IllegalStateException e) {
+        } catch (DateTimeException | IllegalStateException e) {
             onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
             return;
         }
@@ -824,9 +824,9 @@ public final class TokenService {
                         final Tuple<UserToken, String> parsedTokens;
                         try {
                             parsedTokens = parseTokensFromDocument(response.getSource(), null);
-                        } catch (IOException e) {
+                        } catch (IllegalStateException | DateTimeException e) {
                             logger.error("unable to decode existing user token", e);
-                            listener.onFailure(invalidGrantException("could not refresh the requested token"));
+                            listener.onFailure(new ElasticsearchSecurityException("could not refresh the requested token", e));
                             return;
                         }
                         listener.onResponse(parsedTokens);
@@ -870,14 +870,7 @@ public final class TokenService {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(() -> new ParameterizedMessage("updated the original token document to {}",
                                     updateResponse.getGetResult().sourceAsMap()));
-                            final Tuple<UserToken, String> parsedTokens;
-                            try {
-                                parsedTokens = parseTokensFromDocument(source, null);
-                            } catch (IOException e) {
-                                logger.error("unable to decode the tokens from document [{}]", tokenDocId);
-                                listener.onFailure(invalidGrantException("could not refresh the requested token"));
-                                return;
-                            }
+                            final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
                             createOAuth2Tokens(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
                                     toRefreshUserToken.getMetadata(), true, listener);
@@ -974,7 +967,7 @@ public final class TokenService {
      * when and by who a token can be refreshed.
      */
     private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant now,
-            Authentication clientAuth, Map<String, Object> source) throws IOException {
+            Authentication clientAuth, Map<String, Object> source) {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(now, source).orElseGet(() -> {
@@ -1164,11 +1157,7 @@ public final class TokenService {
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
         }
-        try {
-            return parseTokensFromDocument(source, filter);
-        } catch (IOException e) {
-            throw invalidGrantException("cannot read token from document");
-        }
+        return parseTokensFromDocument(source, filter);
     }
 
     /**
@@ -1179,8 +1168,7 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
-        throws IOException {
+    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter) {
         final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");

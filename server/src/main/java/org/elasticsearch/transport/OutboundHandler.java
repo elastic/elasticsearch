@@ -77,6 +77,10 @@ final class OutboundHandler {
         }
     }
 
+    /**
+     * Sends the request to the given channel. This method should be used to send {@link TransportRequest}
+     * objects back to the caller.
+     */
     public void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                             final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
                             final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
@@ -94,9 +98,9 @@ final class OutboundHandler {
      *
      * @see #sendErrorResponse(Version, Set, TcpChannel, Exception, long, String) for sending error responses
      */
-    public void sendResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel,
-                             final TransportResponse response, final long requestId, final String action,
-                             final boolean compress, final boolean isHandshake) throws IOException {
+    void sendResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel,
+                      final TransportResponse response, final long requestId, final String action,
+                      final boolean compress, final boolean isHandshake) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), features, response, version,
             requestId, isHandshake, compress);
@@ -107,8 +111,8 @@ final class OutboundHandler {
     /**
      * Sends back an error response to the caller via the given channel
      */
-    public void sendErrorResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel, final Exception error,
-                                  final long requestId, final String action) throws IOException {
+    void sendErrorResponse(final Version nodeVersion, final Set<String> features, final TcpChannel channel, final Exception error,
+                           final long requestId, final String action) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
         TransportAddress address = new TransportAddress(channel.getLocalAddress());
         RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
@@ -145,11 +149,11 @@ final class OutboundHandler {
         return transmittedBytesMetric;
     }
 
-    public void addMessageListener(TransportMessageListener listener) {
+    void addMessageListener(TransportMessageListener listener) {
         messageListener.addListener(listener);
     }
 
-    public void removeMessageListener(TransportMessageListener listener) {
+    void removeMessageListener(TransportMessageListener listener) {
         messageListener.removeListener(listener);
     }
 

@@ -101,17 +101,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
-
     // This is the number of bytes necessary to read the message size
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
 
-    private final String[] features;
-
     protected final Settings settings;
     private final CircuitBreakerService circuitBreakerService;
-    private final Version version;
     protected final ThreadPool threadPool;
     protected final BigArrays bigArrays;
     protected final PageCacheRecycler pageCacheRecycler;
@@ -137,24 +133,23 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportKeepAlive keepAlive;
     private final InboundMessage.Reader reader;
     private final OutboundHandler outboundHandler;
-    private final String nodeName;
 
     public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
-        this.version = version;
         this.threadPool = threadPool;
         this.bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
         this.transportLogger = new TransportLogger();
-        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final Settings defaultFeatures = TransportSettings.DEFAULT_FEATURES_SETTING.get(settings);
+        String[] features;
         if (defaultFeatures == null) {
-            this.features = new String[0];
+            features = new String[0];
         } else {
             defaultFeatures.names().forEach(key -> {
                 if (Booleans.parseBoolean(defaultFeatures.get(key)) == false) {
@@ -162,15 +157,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 }
             });
             // use a sorted set to present the features in a consistent order
-            this.features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
+            features = new TreeSet<>(defaultFeatures.names()).toArray(new String[defaultFeatures.names().size()]);
         }
-        this.outboundHandler = new OutboundHandler(nodeName, version, this.features, threadPool, bigArrays, transportLogger);
+        this.outboundHandler = new OutboundHandler(nodeName, version, features, threadPool, bigArrays, transportLogger);
 
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY, v, false, true),
-            (v, features, channel, response, requestId) -> outboundHandler.sendResponse(v, features, channel, response, requestId,
+            (v, features1, channel, response, requestId) -> outboundHandler.sendResponse(v, features1, channel, response, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, false, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
@@ -663,42 +658,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * Called to tear down internal resources
      */
     protected abstract void stopInternal();
-
-    /**
-     * Sends back an error response to the caller via the given channel
-     *
-     * @param nodeVersion the caller node version
-     * @param features    the caller features
-     * @param channel     the channel to send the response to
-     * @param error       the error to return
-     * @param requestId   the request ID this response replies to
-     * @param action      the action this response replies to
-     */
-    public void sendErrorResponse(
-        final Version nodeVersion,
-        final Set<String> features,
-        final TcpChannel channel,
-        final Exception error,
-        final long requestId,
-        final String action) throws IOException {
-        outboundHandler.sendErrorResponse(nodeVersion, features, channel, error, requestId, action);
-    }
-
-    /**
-     * Sends the response to the given channel. This method should be used to send {@link TransportResponse} objects back to the caller.
-     *
-     * @see #sendErrorResponse(Version, Set, TcpChannel, Exception, long, String) for sending back errors to the caller
-     */
-    public void sendResponse(
-        final Version nodeVersion,
-        final Set<String> features,
-        final TcpChannel channel,
-        final TransportResponse response,
-        final long requestId,
-        final String action,
-        final boolean compress) throws IOException {
-        outboundHandler.sendResponse(nodeVersion, features, channel, response, requestId, action, compress, false);
-    }
 
     /**
      * Handles inbound message that has been decoded.

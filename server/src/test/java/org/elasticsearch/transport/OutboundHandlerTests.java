@@ -89,6 +89,69 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(bytesArray, reference);
     }
 
+    public void testSendRequest() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Version version = Version.CURRENT;
+        String actionName = "handshake";
+        long requestId = randomLongBetween(0, 300);
+        boolean isHandshake = randomBoolean();
+        boolean compress = randomBoolean();
+        String value = "message";
+        threadContext.putHeader("header", "header_value");
+        Writeable writeable = new Message(value);
+
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
+            compress);
+
+        AtomicBoolean isSuccess = new AtomicBoolean(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
+        handler.sendMessage(fakeTcpChannel, message, listener);
+
+        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+            assertTrue(isSuccess.get());
+            assertNull(exception.get());
+        } else {
+            IOException e = new IOException("failed");
+            sendListener.onFailure(e);
+            assertFalse(isSuccess.get());
+            assertSame(e, exception.get());
+        }
+
+        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool.getThreadContext());
+        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6))) {
+            assertEquals(version, inboundMessage.getVersion());
+            assertEquals(requestId, inboundMessage.getRequestId());
+            assertTrue(inboundMessage.isRequest());
+            assertFalse(inboundMessage.isResponse());
+            if (isHandshake) {
+                assertTrue(inboundMessage.isHandshake());
+            } else {
+                assertFalse(inboundMessage.isHandshake());
+            }
+            if (compress) {
+                assertTrue(inboundMessage.isCompress());
+            } else {
+                assertFalse(inboundMessage.isCompress());
+            }
+            Message readMessage = new Message();
+            readMessage.readFrom(inboundMessage.getStreamInput());
+            assertEquals(value, readMessage.value);
+
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                ThreadContext.StoredContext storedContext = inboundMessage.getStoredContext();
+                assertNull(threadContext.getHeader("header"));
+                storedContext.restore();
+                assertEquals("header_value", threadContext.getHeader("header"));
+            }
+        }
+    }
+
+
+
     public void testSendMessage() throws IOException {
         OutboundMessage message;
         ThreadContext threadContext = threadPool.getThreadContext();

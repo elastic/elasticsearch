@@ -536,6 +536,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
+                                // in case we previously reset engine, we need to forward MSU before replaying translog.
+                                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
@@ -1394,7 +1396,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         innerOpenEngineAndTranslog();
         final Engine engine = getEngine();
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 

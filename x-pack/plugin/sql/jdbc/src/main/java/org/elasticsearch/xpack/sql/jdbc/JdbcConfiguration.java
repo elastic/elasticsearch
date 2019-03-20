@@ -47,7 +47,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    static final String TIME_ZONE = "timezone";
+    public static final String TIME_ZONE = "timezone";
     // follow the JDBC spec and use the JVM default...
     // to avoid inconsistency, the default is picked up once at startup and reused across connections
     // to cater to the principle of least surprise

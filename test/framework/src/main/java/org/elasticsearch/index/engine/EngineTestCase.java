@@ -697,14 +697,16 @@ public abstract class EngineTestCase extends ESTestCase {
                 tombstoneDocSupplier());
     }
 
-    protected EngineConfig config(EngineConfig config, Store store, EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
+    protected EngineConfig config(EngineConfig config, Store store, Path translogPath,
+                                  EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test",
             Settings.builder().put(config.getIndexSettings().getSettings())
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
             indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
             new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
-            config.getTranslogConfig(), config.getFlushMergesAfter(), config.getExternalRefreshListener(),
+            translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
             config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
             config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
             config.getPrimaryTermSupplier(), tombstoneDocSupplier);

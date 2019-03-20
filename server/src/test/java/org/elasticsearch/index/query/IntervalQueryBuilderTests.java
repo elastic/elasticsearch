@@ -302,7 +302,8 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Can only use interval queries on text fields - not on [" + INT_FIELD_NAME + "] which is of type [integer]"));
+        assertThat(e.getMessage(), equalTo("Can only use interval queries on text fields - not on ["
+            + INT_FIELD_NAME + "] which is of type [integer]"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
             IntervalQueryBuilder builder = new IntervalQueryBuilder(NO_POSITIONS_FIELD, provider);

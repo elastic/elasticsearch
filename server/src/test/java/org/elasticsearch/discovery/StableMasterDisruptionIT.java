@@ -177,8 +177,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     public void testStaleMasterNotHijackingMajority() throws Exception {
         final List<String> nodes = internalCluster().startNodes(3, Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-            .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1)
-            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "3s")
+            .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
             .build());
         ensureStableCluster(3);
 

@@ -185,7 +185,7 @@ Keys stored in PEM format are password protected only if the
 `--pass` parameter is specified. If you do not supply an argument for the
 `--pass` parameter, you are prompted for a password.
 Encrypted PEM files do not support blank passwords (if you do not
-wish to password-protected your PEM keys, then do not specify
+wish to password-protect your PEM keys, then do not specify
 `--pass`).
 
 

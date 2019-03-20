@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -64,9 +63,7 @@ import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -292,7 +289,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                         Processor action = null;
-                                        ZoneId zi = exp.dataType().isDateBased() ? DateUtils.UTC : null;
+                                        boolean isDateBased = exp.dataType().isDateBased();
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -300,9 +297,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryPipe) p).action();
-                                            zi = ((DateTimeFunction) exp).zoneId();
+                                            isDateBased = true;
                                         }
-                                        return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
+                                        return new AggPathInput(exp.source(), exp,
+                                            new GroupByRef(matchingGroup.id(), null, isDateBased), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -340,15 +338,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // attributes can only refer to declared groups
                             if (child instanceof Attribute) {
                                 Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(child));
-                                // check if the field is a date - if so mark it as such to interpret the long as a date
-                                // UTC is used since that's what the server uses and there's no conversion applied
-                                // (like for date histograms)
-                                ZoneId zi = child.dataType().isDateBased() ? DateUtils.UTC : null;
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi), ((Attribute) child));
+                                queryC = queryC.addColumn(
+                                    new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()), ((Attribute) child));
                             }
                             // handle histogram
                             else if (child instanceof GroupingFunction) {
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null),
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()),
                                         ((GroupingFunction) child).toAttribute());
                             }
                             // fallback to regular agg functions
@@ -369,8 +364,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            ZoneId zi = ne.dataType().isDateBased() ? DateUtils.UTC : null;
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi), ne.toAttribute());
+                            queryC = queryC.addColumn(
+                                new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
                         }
                     }
                 }
@@ -400,7 +395,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // if the count points to the total track hits, enable accurate count retrieval
                         queryC = queryC.withTrackHits();
                     } else {
-                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, false);
                     }
 
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());

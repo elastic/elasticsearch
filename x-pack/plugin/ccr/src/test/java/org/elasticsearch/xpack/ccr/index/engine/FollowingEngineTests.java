@@ -290,7 +290,7 @@ public class FollowingEngineTests extends ESTestCase {
         store.associateIndexWithNewTranslog(translogUuid);
         FollowingEngine followingEngine = new FollowingEngine(config);
         TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-        followingEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        followingEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         followingEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return followingEngine;
     }
@@ -497,7 +497,7 @@ public class FollowingEngineTests extends ESTestCase {
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
-                leaderEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                leaderEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 leaderEngine.skipTranslogRecovery();
                 Settings followerSettings = Settings.builder()
                     .put("index.number_of_shards", 1).put("index.number_of_replicas", 0)

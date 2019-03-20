@@ -13,6 +13,12 @@ import java.io.IOException;
 
 public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
 
+    public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
+        return new DataFrameTransformStateAndStats(id,
+                DataFrameTransformStateTests.randomDataFrameTransformState(),
+                DataFrameIndexerTransformStatsTests.randomStats());
+    }
+
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {
         return new DataFrameTransformStateAndStats(randomAlphaOfLengthBetween(1, 10),
                 DataFrameTransformStateTests.randomDataFrameTransformState(),

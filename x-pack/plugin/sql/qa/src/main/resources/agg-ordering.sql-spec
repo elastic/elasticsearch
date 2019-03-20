@@ -85,3 +85,36 @@ SELECT emp_no, MIN(languages) AS min FROM test_emp GROUP BY emp_no ORDER BY MAX(
 
 aggWithMixOfOrdinals
 SELECT gender AS g, MAX(salary) AS m FROM test_emp GROUP BY gender ORDER BY 2 DESC LIMIT 3;
+
+multipleGroupingsAndOrderingByGroups_1
+SELECT gender AS g, first_name, last_name AS l FROM test_emp GROUP BY first_name, g, last_name ORDER BY gender, first_name, last_name;
+
+multipleGroupingsAndOrderingByGroups_2
+SELECT gender AS g, first_name, last_name AS l FROM test_emp GROUP BY first_name, g, last_name ORDER BY gender DESC, first_name DESC, last_name ASC;
+
+multipleGroupingsAndOrderingByGroups_3
+SELECT gender AS g, first_name AS f, last_name AS l FROM test_emp GROUP BY f, g, l ORDER BY l, g, f;
+
+multipleGroupingsAndOrderingByGroups_4
+SELECT gender AS g, first_name, last_name FROM test_emp GROUP BY g, last_name, first_name ORDER BY gender, first_name, last_name;
+
+multipleGroupingsAndOrderingByGroups_5
+SELECT gender AS g, first_name, last_name AS l FROM test_emp GROUP BY first_name, g, last_name ORDER BY gender DESC, first_name, last_name;
+
+multipleGroupingsAndOrderingByGroups_6
+SELECT gender AS g, first_name, last_name AS l FROM test_emp GROUP BY first_name, g, last_name ORDER BY gender, first_name DESC, last_name;
+
+multipleGroupingsAndOrderingByGroups_7
+SELECT gender AS g, first_name AS f, last_name AS l FROM test_emp GROUP BY f, gender, l ORDER BY l, g DESC, f DESC;
+
+multipleGroupingsAndOrderingByGroups_8
+SELECT gender AS g, first_name, last_name FROM test_emp GROUP BY g, last_name, first_name ORDER BY gender ASC, first_name DESC, last_name ASC;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_1
+SELECT first_name f, last_name l, gender g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY gender, l, f, c ORDER BY c DESC, first_name, l ASC, g;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_2
+SELECT first_name f, last_name l, gender g, CONCAT(first_name, last_name) c FROM test_emp GROUP BY gender, l, f, c ORDER BY gender, c DESC, first_name, last_name ASC;
+
+multipleGroupingsAndOrderingByGroupsWithFunctions_3
+SELECT first_name f, last_name l, LCASE(gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY f, LCASE(gender), l, c ORDER BY c DESC, first_name, l ASC, g;

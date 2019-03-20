@@ -147,6 +147,16 @@
   and their query results are not cacheable. As a general rule, use query clauses for full-text 
   search or for any condition that requires scoring, and use filters for everything else.
 
+[[glossary-recovery]] recovery ::
+  The process of updating a shard copy and making it available for queries.
+  +
+  Recovery automatically occurs anytime a shard moves to a different node in the same cluster, including:
+
+  * Node startup
+  * Node failure
+  * Index shard replication
+  * Snapshot restoration
+
  [[glossary-replica-shard]] replica shard ::
 
   Each <<glossary-primary-shard,primary shard>> can have zero or more

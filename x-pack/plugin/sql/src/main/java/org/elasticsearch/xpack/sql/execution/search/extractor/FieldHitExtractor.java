@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -48,16 +49,18 @@ public class FieldHitExtractor implements HitExtractor {
 
     private final String fieldName, hitName;
     private final DataType dataType;
+    private final ZoneId zoneId;
     private final boolean useDocValue;
     private final String[] path;
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
-        this(name, dataType, useDocValue, null);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
+        this(name, dataType, zoneId, useDocValue, null);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName) {
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName) {
         this.fieldName = name;
         this.dataType = dataType;
+        this.zoneId = zoneId;
         this.useDocValue = useDocValue;
         this.hitName = hitName;
 
@@ -74,6 +77,7 @@ public class FieldHitExtractor implements HitExtractor {
         fieldName = in.readString();
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
+        zoneId = ZoneId.of(in.readString());
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         path = sourcePath(fieldName, useDocValue, hitName);
@@ -88,6 +92,7 @@ public class FieldHitExtractor implements HitExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.esType);
+        out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
     }
@@ -130,7 +135,7 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.DATE) {
             if (values instanceof String) {
-                return DateUtils.of(Long.parseLong(values.toString()));
+                return DateUtils.of(Long.parseLong(values.toString()), zoneId);
             }
             // returned by nested types...
             if (values instanceof DateTime) {
@@ -214,9 +219,17 @@ public class FieldHitExtractor implements HitExtractor {
         return fieldName;
     }
 
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
+    DataType dataType() {
+        return dataType;
+    }
+
     @Override
     public String toString() {
-        return fieldName + "@" + hitName;
+        return fieldName + "@" + hitName + "@" + zoneId;
     }
 
     @Override

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -64,19 +65,21 @@ public class Querier {
     private final Logger log = LogManager.getLogger(getClass());
 
     private final TimeValue keepAlive, timeout;
+    private final ZoneId zoneId;
     private final int size;
     private final Client client;
     @Nullable
     private final QueryBuilder filter;
 
     public Querier(Client client, Configuration cfg) {
-        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.filter(), cfg.pageSize());
+        this(client, cfg.requestTimeout(), cfg.pageTimeout(), cfg.zoneId(), cfg.filter(), cfg.pageSize());
     }
 
-    public Querier(Client client, TimeValue keepAlive, TimeValue timeout, QueryBuilder filter, int size) {
+    public Querier(Client client, TimeValue keepAlive, TimeValue timeout, ZoneId zoneId, QueryBuilder filter, int size) {
         this.client = client;
         this.keepAlive = keepAlive;
         this.timeout = timeout;
+        this.zoneId = zoneId;
         this.filter = filter;
         this.size = size;
     }
@@ -98,13 +101,13 @@ public class Querier {
         ActionListener<SearchResponse> l;
         if (query.isAggsOnly()) {
             if (query.aggs().useImplicitGroupBy()) {
-                l = new ImplicitGroupActionListener(listener, client, timeout, schema, query, search);
+                l = new ImplicitGroupActionListener(listener, client, timeout, zoneId, schema, query, search);
             } else {
-                l = new CompositeActionListener(listener, client, timeout, schema, query, search);
+                l = new CompositeActionListener(listener, client, timeout, zoneId, schema, query, search);
             }
         } else {
             search.scroll(keepAlive);
-            l = new ScrollActionListener(listener, client, timeout, schema, query);
+            l = new ScrollActionListener(listener, client, timeout, zoneId, schema, query);
         }
 
         client.search(search, l);
@@ -149,9 +152,9 @@ public class Querier {
             }
         });
 
-        ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema,
-                QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, schema, query, request);
+        ImplicitGroupActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, ZoneId zoneId,
+                                    Schema schema, QueryContainer query, SearchRequest request) {
+            super(listener, client, keepAlive, zoneId, schema, query, request);
         }
 
         @Override
@@ -197,11 +200,10 @@ public class Querier {
      */
     static class CompositeActionListener extends BaseAggActionListener {
 
-        CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        CompositeActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, ZoneId zoneId,
                 Schema schema, QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, schema, query, request);
+            super(listener, client, keepAlive, zoneId, schema, query, request);
         }
-
 
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
@@ -240,9 +242,9 @@ public class Querier {
         final QueryContainer query;
         final SearchRequest request;
 
-        BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema,
-                QueryContainer query, SearchRequest request) {
-            super(listener, client, keepAlive, schema);
+        BaseAggActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, ZoneId zoneId,
+                              Schema schema, QueryContainer query, SearchRequest request) {
+            super(listener, client, keepAlive, zoneId, schema);
 
             this.query = query;
             this.request = request;
@@ -263,7 +265,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
+                return new CompositeKeyExtractor(r.key(), r.property(), zoneId, r.isDateTimeBased());
             }
 
             if (ref instanceof MetricAggRef) {
@@ -297,9 +299,9 @@ public class Querier {
     static class ScrollActionListener extends BaseActionListener {
         private final QueryContainer query;
 
-        ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive,
+        ScrollActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, ZoneId zoneId,
                 Schema schema, QueryContainer query) {
-            super(listener, client, keepAlive, schema);
+            super(listener, client, keepAlive, zoneId, schema);
             this.query = query;
         }
 
@@ -344,12 +346,12 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName());
+                return new FieldHitExtractor(f.name(), f.getDataType(), zoneId, f.useDocValue(), f.hitName());
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, true);
+                return new FieldHitExtractor(f.name(), null, zoneId, true);
             }
 
             if (ref instanceof ComputedRef) {
@@ -387,13 +389,15 @@ public class Querier {
 
         final Client client;
         final TimeValue keepAlive;
+        final ZoneId zoneId;
         final Schema schema;
 
-        BaseActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, Schema schema) {
+        BaseActionListener(ActionListener<SchemaRowSet> listener, Client client, TimeValue keepAlive, ZoneId zoneId, Schema schema) {
             this.listener = listener;
 
             this.client = client;
             this.keepAlive = keepAlive;
+            this.zoneId = zoneId;
             this.schema = schema;
         }
 

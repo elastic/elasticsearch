@@ -23,7 +23,6 @@ public class StDistanceProcessor extends BinaryProcessor {
         super(source1, source2);
     }
 
-
     public StDistanceProcessor(StreamInput in) throws IOException {
         super(in);
     }
@@ -61,7 +60,6 @@ public class StDistanceProcessor extends BinaryProcessor {
     public String getWriteableName() {
         return NAME;
     }
-
 
     @Override
     public boolean equals(Object obj) {

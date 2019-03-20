@@ -35,13 +35,7 @@ public class Round extends BinaryOptionalNumericFunction {
     }
     
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
-        if (right() != null && newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        } else if (right() == null && newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-
+    protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
         return new Round(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }

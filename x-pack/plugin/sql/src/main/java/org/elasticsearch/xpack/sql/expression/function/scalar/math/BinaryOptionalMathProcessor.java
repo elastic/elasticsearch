@@ -16,7 +16,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 /**
- * Processor for binary mathematical operations that can have the second parameter optional.
+ * Processor for binary mathematical operations that have a second optional parameter.
  */
 public class BinaryOptionalMathProcessor implements Processor {
     

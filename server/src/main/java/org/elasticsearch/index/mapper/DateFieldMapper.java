@@ -176,7 +176,7 @@ public final class DateFieldMapper extends FieldMapper {
             return this;
         }
 
-        Builder withResolution(Resolution resolution) {
+        public Builder withResolution(Resolution resolution) {
             this.resolution = resolution;
             return this;
         }
@@ -306,6 +306,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
+        }
+
+        public Resolution resolution() {
+            return resolution;
         }
 
         void setDateTimeFormatter(DateFormatter formatter) {

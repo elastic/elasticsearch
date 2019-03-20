@@ -131,8 +131,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 engine.flushAndClose();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
-                Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), randomBoolean());
-                assertEquals(flush, readOnlyEngine.flush(randomBoolean(), randomBoolean()));
+                Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), true);
+                assertEquals(flush, readOnlyEngine.flush(randomBoolean(), true));
             } finally {
                 IOUtils.close(readOnlyEngine);
             }

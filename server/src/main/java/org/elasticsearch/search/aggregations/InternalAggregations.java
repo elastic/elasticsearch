@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -150,22 +149,14 @@ public final class InternalAggregations extends Aggregations implements Streamab
         if (aggregations.isEmpty()) {
             aggregationsAsMap = emptyMap();
         }
-        //TODO update version after backport
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.topLevelPipelineAggregators = in.readList(
+        this.topLevelPipelineAggregators = in.readList(
                 stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
-        } else {
-            this.topLevelPipelineAggregators = Collections.emptyList();
-        }
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        //TODO update version after backport
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeNamedWriteableList(topLevelPipelineAggregators);
-        }
+        out.writeNamedWriteableList(topLevelPipelineAggregators);
     }
 }

@@ -849,8 +849,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
+                        // TODO: we should move to always compare the functions directly
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
+                        // Same for LIKE: the equals function also compares the pattern of LIKE
                         if (seenFunction instanceof Count || seenFunction instanceof Like) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;

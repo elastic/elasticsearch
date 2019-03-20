@@ -36,11 +36,7 @@ public class Like extends RegexMatch {
 
     @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        Like other = (Like) obj;
-        return Objects.equals(other.pattern(), pattern());
+        return super.equals(obj) && Objects.equals(((Like) obj).pattern(), pattern());
     }
 
     @Override

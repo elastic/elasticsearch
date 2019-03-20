@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -39,12 +38,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 /**
  * Builds a pipeline aggregation that allows sorting the buckets of its parent
@@ -77,21 +74,14 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::from, FROM);
         PARSER.declareInt(BucketSortPipelineAggregationBuilder::size, SIZE);
-        PARSER.declareField(BucketSortPipelineAggregationBuilder::gapPolicy, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return GapPolicy.parse(p.text().toLowerCase(Locale.ROOT), p.getTokenLocation());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, GAP_POLICY, ObjectParser.ValueType.STRING);
     }
 
-    private List<FieldSortBuilder> sorts = Collections.emptyList();
+    private List<FieldSortBuilder> sorts;
     private int from = 0;
     private Integer size;
-    private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public BucketSortPipelineAggregationBuilder(String name, List<FieldSortBuilder> sorts) {
-        super(name, NAME, sorts == null ? new String[0] : sorts.stream().map(s -> s.getFieldName()).toArray(String[]::new));
+        super(name, NAME, sorts == null ? new String[0] : sorts.stream().map(FieldSortBuilder::getFieldName).toArray(String[]::new));
         this.sorts = sorts == null ? Collections.emptyList() : sorts;
     }
 
@@ -103,7 +93,6 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         sorts = in.readList(FieldSortBuilder::new);
         from = in.readVInt();
         size = in.readOptionalVInt();
-        gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
@@ -111,7 +100,6 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         out.writeList(sorts);
         out.writeVInt(from);
         out.writeOptionalVInt(size);
-        gapPolicy.writeTo(out);
     }
 
     public BucketSortPipelineAggregationBuilder from(int from) {
@@ -130,17 +118,9 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         return this;
     }
 
-    public BucketSortPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
-        if (gapPolicy == null) {
-            throw new IllegalArgumentException("[" + GAP_POLICY.getPreferredName() + "] must not be null: [" + name + "]");
-        }
-        this.gapPolicy = gapPolicy;
-        return this;
-    }
-
     @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-        return new BucketSortPipelineAggregator(name, sorts, from, size, gapPolicy, metaData);
+        return new BucketSortPipelineAggregator(name, sorts, from, size, metaData);
     }
 
     @Override
@@ -160,7 +140,6 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         if (size != null) {
             builder.field(SIZE.getPreferredName(), size);
         }
-        builder.field(GAP_POLICY.getPreferredName(), gapPolicy);
         return builder;
     }
 
@@ -175,7 +154,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(sorts, from, size, gapPolicy);
+        return Objects.hash(sorts, from, size);
     }
 
     @Override
@@ -183,8 +162,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
         BucketSortPipelineAggregationBuilder other = (BucketSortPipelineAggregationBuilder) obj;
         return Objects.equals(sorts, other.sorts)
                 && Objects.equals(from, other.from)
-                && Objects.equals(size, other.size)
-                && Objects.equals(gapPolicy, other.gapPolicy);
+                && Objects.equals(size, other.size);
     }
 
     @Override

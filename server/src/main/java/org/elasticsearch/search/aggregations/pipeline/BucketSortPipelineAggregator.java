@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -41,15 +40,12 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
     private final List<FieldSortBuilder> sorts;
     private final int from;
     private final Integer size;
-    private final GapPolicy gapPolicy;
 
-    BucketSortPipelineAggregator(String name, List<FieldSortBuilder> sorts, int from, Integer size, GapPolicy gapPolicy,
-                                        Map<String, Object> metadata) {
+    BucketSortPipelineAggregator(String name, List<FieldSortBuilder> sorts, int from, Integer size, Map<String, Object> metadata) {
         super(name, sorts.stream().map(FieldSortBuilder::getFieldName).toArray(String[]::new), metadata);
         this.sorts = sorts;
         this.from = from;
         this.size = size;
-        this.gapPolicy = gapPolicy;
     }
 
     /**
@@ -60,7 +56,6 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         sorts = in.readList(FieldSortBuilder::new);
         from = in.readVInt();
         size = in.readOptionalVInt();
-        gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
@@ -68,7 +63,6 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         out.writeList(sorts);
         out.writeVInt(from);
         out.writeOptionalVInt(size);
-        gapPolicy.writeTo(out);
     }
 
     @Override
@@ -132,10 +126,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                 if ("_key".equals(sortField)) {
                     resolved.put(sort, (Comparable<Object>) internalBucket.getKey());
                 } else {
-                    Double bucketValue = BucketHelpers.resolveBucketValue(parentAgg, internalBucket, sortField, gapPolicy);
-                    if (GapPolicy.SKIP == gapPolicy && Double.isNaN(bucketValue)) {
-                        continue;
-                    }
+                    Double bucketValue = BucketHelpers.resolveBucketValue(parentAgg, internalBucket, sortField);
                     resolved.put(sort, (Comparable<Object>) (Object) bucketValue);
                 }
             }

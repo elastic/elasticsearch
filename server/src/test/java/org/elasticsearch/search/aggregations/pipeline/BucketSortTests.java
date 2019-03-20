@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
-import org.elasticsearch.search.aggregations.pipeline.BucketSortPipelineAggregationBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -52,9 +50,6 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
         if (size != null) {
             factory.size(size);
         }
-        if (randomBoolean()) {
-            factory.gapPolicy(randomFrom(BucketHelpers.GapPolicy.values()));
-        }
         // Check if the combination ended up being invalid
         if (sorts.isEmpty() && size == null && from == 0) {
             factory.size(42);
@@ -78,11 +73,5 @@ public class BucketSortTests extends BasePipelineAggregationTestCase<BucketSortP
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).size(0));
         assertThat(e.getMessage(), equalTo("[size] must be a positive integer: [0]"));
-    }
-
-    public void testNullGapPolicy() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new BucketSortPipelineAggregationBuilder("foo", Collections.emptyList()).gapPolicy(null));
-        assertThat(e.getMessage(), equalTo("[gap_policy] must not be null: [foo]"));
     }
 }

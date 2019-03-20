@@ -23,6 +23,13 @@ setup:
   - match: { transforms: [] }
 
 ---
+"Test get transform when it does not exist":
+  - do:
+      catch: /Transform with id \[missing-transform-id\] could not be found/
+      data_frame.get_data_frame_transform:
+        transform_id: "missing-transform-id"
+
+---
 "Test delete transform when it does not exist":
   - do:
       catch: missing
@@ -32,7 +39,7 @@ setup:
 ---
 "Test put transform with invalid source index":
   - do:
-      catch: /Failed to validate data frame configuration/
+      catch: /Source index \[missing-index\] does not exist/
       data_frame.put_data_frame_transform:
         transform_id: "missing-source-transform"
         body: >
@@ -100,11 +107,39 @@ setup:
   - match: { transforms.1.id: "airline-transform-dos" }
 
   - do:
-      data_frame.delete_data_frame_transform:
-        transform_id: "airline-transform"
-  - match: { acknowledged: true }
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform,airline-transform-dos"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
 
   - do:
-      data_frame.delete_data_frame_transform:
-        transform_id: "airline-transform-dos"
-  - match: { acknowledged: true }
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+        from: 0
+        size: 1
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+        from: 1
+        size: 1
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-dos" }
+---
+"Test transform with invalid page parameter":
+  - do:
+      catch: /Param \[size\] has a max acceptable value of \[1000\]/
+      data_frame.get_data_frame_transform:
+        transform_id: "_all"
+        from: 0
+        size: 10000

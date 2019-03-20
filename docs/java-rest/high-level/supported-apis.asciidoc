@@ -556,10 +556,12 @@ The Java High Level REST Client supports the following Data Frame APIs:
 
 * <<{upid}-put-data-frame-transform>>
 * <<{upid}-delete-data-frame-transform>>
+* <<{upid}-preview-data-frame-transform>>
 * <<{upid}-start-data-frame-transform>>
 * <<{upid}-stop-data-frame-transform>>
 
 include::dataframe/put_data_frame.asciidoc[]
 include::dataframe/delete_data_frame.asciidoc[]
+include::dataframe/preview_data_frame.asciidoc[]
 include::dataframe/start_data_frame.asciidoc[]
 include::dataframe/stop_data_frame.asciidoc[]

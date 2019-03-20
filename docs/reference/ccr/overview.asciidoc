@@ -30,17 +30,20 @@ Replication can be configured in two ways:
 
 NOTE: You must also <<ccr-requirements,configure the leader index>>.
 
+NOTE: You can also
+{kibana-ref}/working-remote-clusters.html#managing-cross-cluster-replication[manage {ccr}]
+using Kibana.
+
 When you initiate replication either manually or through an auto-follow pattern, the
 follower index is created on the local cluster. Once the follower index is created,
 the <<remote-recovery, remote recovery>> process copies all of the Lucene segment
 files from the remote cluster to the local cluster.
 
-When initiating following manually using the API, by default the recovery process
-will be asynchronous in relationship to the
-{ref}/ccr-put-follow.html[create follower request]. The request will return prior
-to the <<remote-recovery, remote recovery>> process being completed. If you
-would like to wait on the process to complete, you can use the
-`wait_for_active_shards` parameter to do so.
+By default, if you initiate following manually (by using {kib} or the create follower API),
+the recovery process is asynchronous in relationship to the
+{ref}/ccr-put-follow.html[create follower request]. The request returns before
+the <<remote-recovery, remote recovery>> process completes. If you would like to wait on
+the process to complete, you can use the `wait_for_active_shards` parameter.
 
 //////////////////////////
 
@@ -106,8 +109,8 @@ follower shard task resumes sending read requests when the write buffer no
 longer exceeds its configured limits.
 
 NOTE: The intricacies of how operations are replicated from the leader are
-governed by settings that can be configured in the
-{ref}/ccr-put-follow.html[create follower request].
+governed by settings that you can configure when you create the follower index
+in {kib} or by using the {ref}/ccr-put-follow.html[create follower API].
 
 Mapping updates applied to the leader index are automatically retrieved
 as-needed by the follower index.
@@ -177,12 +180,12 @@ before the follower falls fatally behind.
 === Remedying a follower that has fallen behind
 
 If a follower falls sufficiently behind a leader that it can no longer replicate
-operations this can be detected using the
+operations this can be detected in {kib} or by using the
 {ref}/ccr-get-follow-stats.html[get follow stats API]. It will be reported as a
 `indices[].fatal_exception`.
 
-In order to restart the follower, the following process must be paused, the follower
-index closed, and the create follower API called again.
+In order to restart the follower, you must pause the following process, close the
+index, and the create follower index again. For example:
 
 ["source","js"]
 ----------------------------------------------------------------------
@@ -198,11 +201,11 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 ----------------------------------------------------------------------
 // CONSOLE
 
-Calling the create follower API is a destructive action. All of the existing Lucene
-segment files will be deleted on the follower cluster. The
-<<remote-recovery, remote recovery>> process will be used to copy the Lucene segment
-files from the leader again. After the follower index has been reinitialized, the
-following process will be started again.
+Re-creating the follower index is a destructive action. All of the existing Lucene
+segment files are deleted on the follower cluster. The
+<<remote-recovery, remote recovery>> process copies the Lucene segment
+files from the leader again. After the follower index initializes, the
+following process starts again.
 
 [float]
 === Terminating replication

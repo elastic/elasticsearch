@@ -95,7 +95,7 @@ If a read request fails, the cause of the failure is inspected. If the
 cause of the failure is deemed to be a failure that can be recovered from (for 
 example, a network failure), the follower shard task enters into a retry
 loop. Otherwise, the follower shard task is paused and requires user
-intervention before the it can be resumed with the
+intervention before it can be resumed with the
 {ref}/ccr-post-resume-follow.html[resume follower API].
 
 When operations are received by the follower shard task, they are placed in a

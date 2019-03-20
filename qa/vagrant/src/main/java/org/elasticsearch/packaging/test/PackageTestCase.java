@@ -88,9 +88,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
         try {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.APPEND);
-            startElasticsearch();
+            startElasticsearch(sh);
             runElasticsearchTests();
-            stopElasticsearch();
+            stopElasticsearch(sh);
         } finally {
             Files.write(installation.envFile, originalEnvFile);
         }
@@ -123,7 +123,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
     public void test40StartServer() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
-        startElasticsearch();
+        startElasticsearch(newShell());
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), newShell()); // check startup script didn't change permissions
     }

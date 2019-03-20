@@ -1,6 +1,6 @@
 setup:
   - skip:
-      version: " - 7.9.99" #TODO adjust to 7.0.99 after merging to 7.x
+      version: " - 7.0.99"
       reason:  "Implemented in 7.1"
 
   - do:

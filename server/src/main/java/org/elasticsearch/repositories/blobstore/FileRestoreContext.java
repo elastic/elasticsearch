@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -119,7 +118,7 @@ public abstract class FileRestoreContext {
                 // store can still have existing files but they will be deleted just before being
                 // restored.
                 recoveryTargetMetadata = indexShard.snapshotStoreMetadata();
-            } catch (IndexNotFoundException e) {
+            } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens when restore to an empty shard, not a big deal
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;

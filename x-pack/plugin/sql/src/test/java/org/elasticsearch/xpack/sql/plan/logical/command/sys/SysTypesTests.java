@@ -36,11 +36,11 @@ public class SysTypesTests extends ESTestCase {
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
 
         IndexResolver resolver = mock(IndexResolver.class);
-        SqlSession session = new SqlSession(null, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
     }
 
-    public void testSysTypes() throws Exception {
+    public void testSysTypes() {
         Command cmd = sql("SYS TYPES").v1();
 
         List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE",
@@ -69,7 +69,7 @@ public class SysTypesTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysTypesDefaultFiltering() throws Exception {
+    public void testSysTypesDefaultFiltering() {
         Command cmd = sql("SYS TYPES 0").v1();
 
         cmd.execute(null, wrap(r -> {
@@ -77,7 +77,7 @@ public class SysTypesTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysTypesPositiveFiltering() throws Exception {
+    public void testSysTypesPositiveFiltering() {
         // boolean = 16
         Command cmd = sql("SYS TYPES " + JDBCType.BOOLEAN.getVendorTypeNumber()).v1();
 
@@ -87,7 +87,7 @@ public class SysTypesTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysTypesNegativeFiltering() throws Exception {
+    public void testSysTypesNegativeFiltering() {
         Command cmd = sql("SYS TYPES " + JDBCType.TINYINT.getVendorTypeNumber()).v1();
 
         cmd.execute(null, wrap(r -> {
@@ -96,7 +96,7 @@ public class SysTypesTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysTypesMultipleMatches() throws Exception {
+    public void testSysTypesMultipleMatches() {
         Command cmd = sql("SYS TYPES " + JDBCType.VARCHAR.getVendorTypeNumber()).v1();
 
         cmd.execute(null, wrap(r -> {

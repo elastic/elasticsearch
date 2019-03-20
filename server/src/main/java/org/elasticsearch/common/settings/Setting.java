@@ -114,6 +114,11 @@ public class Setting<T> implements ToXContentObject {
         NodeScope,
 
         /**
+         * Setting value not allowed to differ across the nodes
+         */
+        Consistent,
+
+        /**
          * Index scope
          */
         IndexScope,

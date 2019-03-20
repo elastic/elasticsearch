@@ -1920,35 +1920,28 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            LogicalPlan optimized = plan.transformDown(p -> {
+            Holder<LocalRelation> optimizedPlan = new Holder<>();
+            plan.forEachDown(p -> {
                 List<Object> values = extractConstants(p.projections());
                 if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    return new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
-                return p;
             }, Project.class);
 
-            if (optimized.equals(plan) == false) {
-                LocalRelation lr = findLocalRelation(optimized);
-                if (lr != null) {
-                    return lr;
-                }
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
 
-            optimized = optimized.transformDown(a -> {
+            plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
                 if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    return new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
-                return a;
             }, Aggregate.class);
 
-            if (optimized.equals(plan) == false) {
-                LocalRelation lr = findLocalRelation(optimized);
-                if (lr != null) {
-                    return lr;
-                }
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
 
             return plan;
@@ -1974,19 +1967,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
             return (!(plan.child() instanceof LocalRelation) || (plan.child() instanceof LocalRelation &&
                 !(((LocalRelation) plan.child()).executable() instanceof EmptyExecutable)));
-        }
-
-        private static LocalRelation findLocalRelation(LogicalPlan plan) {
-            Holder<LocalRelation> logicalPlanHolder = new Holder<>();
-            plan.transformDown(l -> {
-                logicalPlanHolder.set(l);
-                return l;
-            }, LocalRelation.class);
-
-            if (logicalPlanHolder.get() != null) {
-                return logicalPlanHolder.get();
-            }
-            return logicalPlanHolder.get();
         }
     }
 

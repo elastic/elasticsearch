@@ -474,7 +474,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (final IndexId indexId : indicesToCleanUp) {
                 boolean deleteSuccess = true;
                 try {
-                    indicesBlobContainer.deleteBlob(indexId.getId());
+                    indicesBlobContainer.deleteBlobIgnoringIfNotExists(indexId.getId());
                 } catch (DirectoryNotEmptyException dnee) {
                     // if the directory isn't empty for some reason, it will fail to clean up;
                     // we'll ignore that and accept that cleanup didn't fully succeed.

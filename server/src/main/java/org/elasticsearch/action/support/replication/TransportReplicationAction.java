@@ -232,6 +232,13 @@ public abstract class TransportReplicationAction<
         return true;
     }
 
+    /**
+     * True if this action can be replicated even on closed indices.
+     */
+    protected boolean isReplicatedOnClosedIndices() {
+        return false;
+    }
+
     protected TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
     }
@@ -775,7 +782,7 @@ public abstract class TransportReplicationAction<
                     retry(new IndexNotFoundException(concreteIndex));
                     return;
                 }
-                if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                if (isReplicatedOnClosedIndices() == false && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
                     throw new IndexClosedException(indexMetaData.getIndex());
                 }
 

@@ -123,6 +123,16 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
+    protected boolean resolveIndex() {
+        return false;
+    }
+
+    @Override
+    protected boolean isReplicatedOnClosedIndices() {
+        return true;
+    }
+
+    @Override
     protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
             final Request request,
             final IndexShard primary) throws WriteStateException {

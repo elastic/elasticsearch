@@ -1,33 +1,39 @@
 [[recovery]]
 === Indices Recovery
 
-<<cat-recovery,Peer recovery>> is the process used to build a new copy of a
-shard on a node by copying data from the primary. {es} uses this peer recovery
-process to rebuild shard copies that were lost if a node has failed, and uses
-the same process when migrating a shard copy between nodes to rebalance the
-cluster or to honor any changes to the <<modules-cluster,shard allocation
-settings>>.
+<<cat-recovery, Peer recovery>> syncs a new or existing shard copy's data from a
+primary shard.
 
-The following _expert_ setting can be set to manage the resources consumed by
-peer recoveries:
+Peer recovery automatically occurs when {es}:
+
+* Recreates a shard lost during node failure
+* Relocates a shard to another node due to a cluster rebalance or changes to the
+<<modules-cluster, shard allocation settings>>
+* Restores a <<modules-snapshots, snapshot>>
+
+[float]
+==== Peer recovery settings
+You can use the following _expert_ settings to manage resources for peer
+recoveries. These settings apply to all peer recoveries, including
+those related to shard relocation or snapshot restoration.
 
 `indices.recovery.max_bytes_per_sec`::
-    Limits the total inbound and outbound peer recovery traffic on each node.
-    Since this limit applies on each node, but there may be many nodes
-    performing peer recoveries concurrently, the total amount of peer recovery
-    traffic within a cluster may be much higher than this limit. If you set
-    this limit too high then there is a risk that ongoing peer recoveries will
-    consume an excess of bandwidth (or other resources) which could destabilize
-    the cluster. Defaults to `40mb`.
+Limits total inbound and outbound recovery traffic for each node.
+Defaults to `40mb`.
++
+This limit applies to nodes only. If multiple nodes in a cluster perform
+recoveries at the same time, the cluster's total recovery traffic may exceed
+this limit.
++
+If this limit is too high, ongoing recoveries may consume an excess
+of bandwidth and other resources, which can destabilize the cluster.
 
 `indices.recovery.max_concurrent_file_chunks`::
-    Controls the number of file chunk requests that can be sent in parallel per recovery.
-    As multiple recoveries are already running in parallel (controlled by
-    cluster.routing.allocation.node_concurrent_recoveries), increasing this expert-level
-    setting might only help in situations where peer recovery of a single shard is not
-    reaching the total inbound and outbound peer recovery traffic as configured by
-    indices.recovery.max_bytes_per_sec, but is CPU-bound instead, typically when using
-    transport-level security or compression. Defaults to `2`.
+Number of file chunk requests sent in parallel for each recovery. Defaults to
+`2`.
++
+You can increase the value of this setting when the recovery of a single shard
+is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
 
-This setting can be dynamically updated on a live cluster with the
-<<cluster-update-settings,cluster-update-settings>> API.
+You can use the <<cluster-update-settings, Cluster Update Settings>> API to
+view and change these settings for a live cluster.

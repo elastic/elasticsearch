@@ -22,7 +22,6 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;

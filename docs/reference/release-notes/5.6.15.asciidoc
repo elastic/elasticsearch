@@ -3,4 +3,6 @@
 
 Also see <<breaking-changes-5.6>>.
 
-There are no changes for 5.6.15
+Security::
+* Fix an improper permission issue when a new name is attached to an index. (CVE-2019-7611).
+See https://www.elastic.co/community/security[Security issues].

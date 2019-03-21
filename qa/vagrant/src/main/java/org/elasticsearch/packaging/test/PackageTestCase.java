@@ -216,32 +216,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         stopElasticsearch(sh);
     }
 
-    public void test71serviceFileSetsLimits() throws IOException {
-        final Shell sh = newShell();
 
-        cleanup();
-
-        installation = install(distribution());
-
-        startElasticsearch(newShell());
-
-        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
-        assertTrue(Files.exists(pidFile));
-        String pid = slurp(pidFile).trim();
-        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();
-        assertThat(maxFileSize, equalTo("unlimited"));
-
-        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout.trim();
-        assertThat(maxProcesses, equalTo("4096"));
-
-        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout.trim();
-        assertThat(maxOpenFiles, equalTo("65535"));
-
-        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
-        assertThat(maxAddressSpace, equalTo("unlimited"));
-
-        stopElasticsearch(newShell());
-    }
 
     public void test72TestRuntimeDirectory() throws IOException {
         cleanup();
@@ -262,6 +237,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
     }
 
     // TEST CASES FOR SYSTEMD ONLY
+
+
 
     /**
      * # Simulates the behavior of a system restart:
@@ -350,5 +327,32 @@ public abstract class PackageTestCase extends PackagingTestCase {
         unmaskSysctl(sh);
     }
 
+    public void test83serviceFileSetsLimits() throws IOException {
+        // Limits are changed on systemd platforms only
+        assumeTrue(isSystemd());
+        final Shell sh = newShell();
 
+        cleanup();
+
+        installation = install(distribution());
+
+        startElasticsearch(newShell());
+
+        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+        assertTrue(Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxFileSize, equalTo("unlimited"));
+
+        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout.trim();
+        assertThat(maxProcesses, equalTo("4096"));
+
+        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxOpenFiles, equalTo("65535"));
+
+        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxAddressSpace, equalTo("unlimited"));
+
+        stopElasticsearch(newShell());
+    }
 }

@@ -36,7 +36,7 @@ setup:
         id: 3
         body:
           my_field1: "jumparound"
-          my_field2: "xylophone"
+          my_field2: "emu"
 
   - do:
       index:
@@ -271,3 +271,53 @@ setup:
   - match: { hits.hits.0._id: "4" }
   - match: { hits.hits.0._source.my_field1: "dog" }
   - match: { hits.hits.0._source.my_field2: "brown fox jump lazy" }
+
+---
+"multi_match multiple fields with boost":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "brown emu"
+              type: bool_prefix
+              fields: [ "my_field1", "my_field2^10" ]
+              fuzziness: 1
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0._source.my_field2: "emu" }
+
+---
+"multi_match multiple fields with slop throws exception":
+
+  - do:
+      catch: /\[slop\] not allowed for type \[bool_prefix\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "brown"
+              type: bool_prefix
+              fields: [ "my_field1", "my_field2" ]
+              slop: 1
+
+---
+"multi_match multiple fields with cutoff_frequency throws exception":
+
+  - do:
+      catch: /\[cutoff_frequency\] not allowed for type \[bool_prefix\]/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            multi_match:
+              query: "brown"
+              type: bool_prefix
+              fields: [ "my_field1", "my_field2" ]
+              cutoff_frequency: 0.001

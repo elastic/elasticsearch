@@ -692,6 +692,16 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                     "Fuzziness not allowed for type [" + type.parseField.getPreferredName() + "]");
         }
 
+        if (slop != DEFAULT_PHRASE_SLOP && type == Type.BOOL_PREFIX) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "[" + SLOP_FIELD.getPreferredName() + "] not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
+        if (cutoffFrequency != null && type == Type.BOOL_PREFIX) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "[" + CUTOFF_FREQUENCY_FIELD.getPreferredName() + "] not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)

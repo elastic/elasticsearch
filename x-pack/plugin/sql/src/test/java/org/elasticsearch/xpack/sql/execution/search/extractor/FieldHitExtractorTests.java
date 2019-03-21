@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,13 +31,15 @@ import java.util.function.Supplier;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.is;
 
 public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<FieldHitExtractor> {
+
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, randomBoolean(), hitName, false);
+        return new FieldHitExtractor(name, null, randomZone(), randomBoolean(), hitName, false);
     }
 
     @Override
@@ -51,7 +54,13 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     @Override
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
-        return new FieldHitExtractor(instance.fieldName() + "mutated", null, true, instance.hitName(), false);
+        return new FieldHitExtractor(
+            instance.fieldName() + "mutated",
+            randomValueOtherThan(instance.dataType(), () -> randomFrom(DataType.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
+            randomBoolean(),
+            instance.hitName() + "mutated",
+            randomBoolean());
     }
 
     public void testGetDottedValueWithDocValues() {
@@ -60,7 +69,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -84,7 +93,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         String child = randomAlphaOfLength(5);
         String fieldName = grandparent + "." + parent + "." + child;
 
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, false);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -123,7 +132,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testGetDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, true);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, true);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -140,18 +149,19 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testGetDate() {
+        ZoneId zoneId = randomZone();
         long millis = 1526467911780L;
         List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField("my_date_field", documentFieldValues);
         hit.fields(singletonMap("my_date_field", field));
-        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, true);
-        assertEquals(DateUtils.asDateTime(millis), extractor.extract(hit));
+        FieldHitExtractor extractor = new FieldHitExtractor("my_date_field", DataType.DATETIME, zoneId, true);
+        assertEquals(DateUtils.asDateTime(millis, zoneId), extractor.extract(hit));
     }
 
     public void testGetSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor extractor = new FieldHitExtractor(fieldName, null, false);
+        FieldHitExtractor extractor = getFieldHitExtractor(fieldName, false);
 
         int times = between(1, 1000);
         for (int i = 0; i < times; i++) {
@@ -174,12 +184,13 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testToString() {
-        assertEquals("hit.field@hit", new FieldHitExtractor("hit.field", null, true, "hit", false).toString());
+        assertEquals("hit.field@hit@Europe/Berlin",
+            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), true, "hit", false).toString());
     }
 
     public void testMultiValuedDocValue() {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, true);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, true);
         SearchHit hit = new SearchHit(1);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         hit.fields(singletonMap(fieldName, field));
@@ -189,7 +200,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testMultiValuedSourceValue() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         source.startObject(); {
@@ -204,7 +215,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testSingleValueArrayInSource() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         Object value = randomValue();
@@ -218,14 +229,14 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testExtractSourcePath() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         assertThat(fe.extractFromSource(map), is(value));
     }
 
     public void testExtractSourceIncorrectPath() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b", singletonMap("c", value)));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
@@ -233,7 +244,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testMultiValuedSource() {
-        FieldHitExtractor fe = new FieldHitExtractor("a", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", asList(value, value));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
@@ -241,7 +252,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testMultiValuedSourceAllowed() {
-        FieldHitExtractor fe = new FieldHitExtractor("a", null, false, true);
+        FieldHitExtractor fe = new FieldHitExtractor("a", null, UTC, false, true);
         Object valueA = randomValue();
         Object valueB = randomValue();
         Map<String, Object> map = singletonMap("a", asList(valueA, valueB));
@@ -249,28 +260,28 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testFieldWithDots() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a.b", value);
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDots() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", value));
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDotsWithNestedField() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
         assertEquals(value, fe.extractFromSource(map));
     }
 
     public void testNestedFieldWithDotsWithNestedFieldWithDots() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
         Object value = randomValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d.e", value)));
         assertEquals(value, fe.extractFromSource(map));
@@ -284,7 +295,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             path[i] = randomAlphaOfLength(randomIntBetween(1, 10));
             sj.add(path[i]);
         }
-        FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, false);
+        FieldHitExtractor fe = getFieldHitExtractor(sj.toString(), false);
 
         List<String> paths = new ArrayList<>(path.length);
         int start = 0;
@@ -337,7 +348,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testExtractSourceIncorrectPathWithFieldWithDots() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = singletonMap("a", singletonMap("b.c", singletonMap("d", value)));
         SqlException ex = expectThrows(SqlException.class, () -> fe.extractFromSource(map));
@@ -345,8 +356,8 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testFieldWithDotsAndCommonPrefix() {
-        FieldHitExtractor fe1 = new FieldHitExtractor("a.d", null, false);
-        FieldHitExtractor fe2 = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe1 = getFieldHitExtractor("a.d", false);
+        FieldHitExtractor fe2 = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a", singletonMap("d", value));
@@ -356,8 +367,8 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testFieldWithDotsAndCommonPrefixes() {
-        FieldHitExtractor fe1 = new FieldHitExtractor("a1.b.c.d1.e.f.g1", null, false);
-        FieldHitExtractor fe2 = new FieldHitExtractor("a2.b.c.d2.e.f.g2", null, false);
+        FieldHitExtractor fe1 = getFieldHitExtractor("a1.b.c.d1.e.f.g1", false);
+        FieldHitExtractor fe2 = getFieldHitExtractor("a2.b.c.d2.e.f.g2", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a1", singletonMap("b.c", singletonMap("d1", singletonMap("e.f", singletonMap("g1", value)))));
@@ -367,7 +378,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
 
     public void testFieldWithDotsAndSamePathButDifferentHierarchy() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c.d.e.f.g", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c.d.e.f.g", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         map.put("a.b", singletonMap("c", singletonMap("d.e", singletonMap("f.g", value))));
@@ -377,7 +388,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
     
     public void testFieldsWithSingleValueArrayAsSubfield() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : "value"}]
@@ -386,7 +397,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
     
     public void testFieldsWithMultiValueArrayAsSubfield() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b", false);
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : "value1"}, {"b" : "value2"}]
         map.put("a", asList(singletonMap("b", randomNonNullValue()), singletonMap("b", randomNonNullValue())));
@@ -395,7 +406,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
     
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : [{"c" : "value"}]}]
@@ -404,7 +415,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
     
     public void testFieldsWithMultiValueArrayAsSubfield_ThreeNestedLists() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : [{"c" : ["value1", "value2"]}]}]
         map.put("a", singletonList(singletonMap("b", singletonList(singletonMap("c", asList("value1", "value2"))))));
@@ -413,7 +424,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
     }
     
     public void testFieldsWithSingleValueArrayAsSubfield_TwoNestedLists2() {
-        FieldHitExtractor fe = new FieldHitExtractor("a.b.c", null, false);
+        FieldHitExtractor fe = getFieldHitExtractor("a.b.c", false);
         Object value = randomNonNullValue();
         Map<String, Object> map = new HashMap<>();
         // "a" : [{"b" : {"c" : ["value"]}]}]
@@ -423,7 +434,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
 
     public void testObjectsForSourceValue() throws IOException {
         String fieldName = randomAlphaOfLength(5);
-        FieldHitExtractor fe = new FieldHitExtractor(fieldName, null, false);
+        FieldHitExtractor fe = getFieldHitExtractor(fieldName, false);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
         source.startObject(); {
@@ -437,6 +448,10 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         hit.sourceRef(sourceRef);
         SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
+    }
+
+    private FieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {
+        return new FieldHitExtractor(fieldName, null, UTC, useDocValue);
     }
 
     private Object randomValue() {

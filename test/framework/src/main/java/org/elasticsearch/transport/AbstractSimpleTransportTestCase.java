@@ -476,7 +476,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(0));
             assertThat(tracerA.requestsSent.get(), equalTo(1));
@@ -495,7 +495,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(1));
             assertThat(tracerA.requestsSent.get(), equalTo(1));
@@ -507,7 +507,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(tracerB.responseSent.get(), equalTo(1));
         });
 
-        // Test send local request
+        // use assert busy as callbacks are called on a different thread
         try {
             serviceA.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
         } catch (ExecutionException e) {
@@ -515,7 +515,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(2));
             assertThat(tracerA.requestsSent.get(), equalTo(2));

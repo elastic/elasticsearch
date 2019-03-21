@@ -19,14 +19,16 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -36,27 +38,39 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class OutboundHandlerTests extends ESTestCase {
 
+    private final String feature1 = "feature1";
+    private final String feature2 = "feature2";
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+    private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
     private OutboundHandler handler;
-    private FakeTcpChannel fakeTcpChannel;
+    private FakeTcpChannel channel;
+    private DiscoveryNode node;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
         TransportLogger transportLogger = new TransportLogger();
-        fakeTcpChannel = new FakeTcpChannel(randomBoolean());
-        handler = new OutboundHandler("node", Version.CURRENT, new String[0], threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            transportLogger);
+        InetSocketAddress localAddress = buildNewFakeTransportAddress().address();
+        InetSocketAddress remoteAddress = buildNewFakeTransportAddress().address();
+        channel = new FakeTcpChannel(randomBoolean(), localAddress, remoteAddress);
+        TransportAddress transportAddress = buildNewFakeTransportAddress();
+        node = new DiscoveryNode("", transportAddress, Version.CURRENT);
+        String[] features = {feature1, feature2};
+        handler = new OutboundHandler("node", Version.CURRENT, features, threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
     }
 
     @After
@@ -71,10 +85,10 @@ public class OutboundHandlerTests extends ESTestCase {
         AtomicBoolean isSuccess = new AtomicBoolean(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
-        handler.sendBytes(fakeTcpChannel, bytesArray, listener);
+        handler.sendBytes(channel, bytesArray, listener);
 
-        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
-        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = channel.getListenerCaptor().get();
         if (randomBoolean()) {
             sendListener.onResponse(null);
             assertTrue(isSuccess.get());
@@ -91,35 +105,42 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = Version.CURRENT;
-        String actionName = "handshake";
+        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
-        Writeable writeable = new Message(value);
+        Request request = new Request(value);
 
-        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId,
-            isHandshake, compress);
+        AtomicReference<DiscoveryNode> nodeRef = new AtomicReference<>();
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportRequest> requestRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                      TransportRequestOptions options) {
+                nodeRef.set(node);
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                requestRef.set(request);
+            }
+        });
+        handler.sendRequest(node, channel, requestId, action, request, options, version, compress, isHandshake);
 
-        AtomicBoolean isSuccess = new AtomicBoolean(false);
-        AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
-        handler.sendMessage(fakeTcpChannel, message, listener);
-
-        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
-        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = channel.getListenerCaptor().get();
         if (randomBoolean()) {
             sendListener.onResponse(null);
-            assertTrue(isSuccess.get());
-            assertNull(exception.get());
         } else {
-            IOException e = new IOException("failed");
-            sendListener.onFailure(e);
-            assertFalse(isSuccess.get());
-            assertSame(e, exception.get());
+            sendListener.onFailure(new IOException("failed"));
         }
+        assertEquals(node, nodeRef.get());
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(request, requestRef.get());
 
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool.getThreadContext());
         try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6))) {
@@ -137,7 +158,10 @@ public class OutboundHandlerTests extends ESTestCase {
             } else {
                 assertFalse(inboundMessage.isCompress());
             }
-            Message readMessage = new Message();
+            InboundMessage.Request inboundRequest = (InboundMessage.Request) inboundMessage;
+            assertThat(inboundRequest.getFeatures(), contains(feature1, feature2));
+
+            Request readMessage = new Request();
             readMessage.readFrom(inboundMessage.getStreamInput());
             assertEquals(value, readMessage.value);
 
@@ -150,57 +174,47 @@ public class OutboundHandlerTests extends ESTestCase {
         }
     }
 
-
-
-    public void testSendMessage() throws IOException {
-        OutboundMessage message;
+    public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        Version version = Version.CURRENT;
-        String actionName = "handshake";
+        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
-        Writeable writeable = new Message(value);
+        Response response = new Response(value);
 
-        boolean isRequest = randomBoolean();
-        if (isRequest) {
-            message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
-                compress);
-        } else {
-            message = new OutboundMessage.Response(threadContext, new HashSet<>(), writeable, version, requestId, isHandshake, compress);
-        }
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<TransportResponse> responseRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, TransportResponse response) {
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                responseRef.set(response);
+            }
+        });
+        handler.sendResponse(version, Collections.emptySet(), channel, requestId, action, response, compress, isHandshake);
 
-        AtomicBoolean isSuccess = new AtomicBoolean(false);
-        AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<Void> listener = ActionListener.wrap((v) -> isSuccess.set(true), exception::set);
-        handler.sendMessage(fakeTcpChannel, message, listener);
-
-        BytesReference reference = fakeTcpChannel.getMessageCaptor().get();
-        ActionListener<Void> sendListener  = fakeTcpChannel.getListenerCaptor().get();
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = channel.getListenerCaptor().get();
         if (randomBoolean()) {
             sendListener.onResponse(null);
-            assertTrue(isSuccess.get());
-            assertNull(exception.get());
         } else {
-            IOException e = new IOException("failed");
-            sendListener.onFailure(e);
-            assertFalse(isSuccess.get());
-            assertSame(e, exception.get());
+            sendListener.onFailure(new IOException("failed"));
         }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(response, responseRef.get());
 
         InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool.getThreadContext());
         try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6))) {
             assertEquals(version, inboundMessage.getVersion());
             assertEquals(requestId, inboundMessage.getRequestId());
-            if (isRequest) {
-                assertTrue(inboundMessage.isRequest());
-                assertFalse(inboundMessage.isResponse());
-            } else {
-                assertTrue(inboundMessage.isResponse());
-                assertFalse(inboundMessage.isRequest());
-            }
+            assertFalse(inboundMessage.isRequest());
+            assertTrue(inboundMessage.isResponse());
             if (isHandshake) {
                 assertTrue(inboundMessage.isHandshake());
             } else {
@@ -211,7 +225,11 @@ public class OutboundHandlerTests extends ESTestCase {
             } else {
                 assertFalse(inboundMessage.isCompress());
             }
-            Message readMessage = new Message();
+
+            InboundMessage.Response inboundResponse = (InboundMessage.Response) inboundMessage;
+            assertFalse(inboundResponse.isError());
+
+            Response readMessage = new Response();
             readMessage.readFrom(inboundMessage.getStreamInput());
             assertEquals(value, readMessage.value);
 
@@ -224,14 +242,95 @@ public class OutboundHandlerTests extends ESTestCase {
         }
     }
 
-    private static final class Message extends TransportMessage {
+    public void testErrorResponse() throws IOException {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
+        String action = "handshake";
+        long requestId = randomLongBetween(0, 300);
+        threadContext.putHeader("header", "header_value");
+        ElasticsearchException error = new ElasticsearchException("boom");
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        AtomicReference<Exception> responseRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error) {
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+                responseRef.set(error);
+            }
+        });
+        handler.sendErrorResponse(version, Collections.emptySet(), channel, requestId, action, error);
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        ActionListener<Void> sendListener  = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+        assertEquals(error, responseRef.get());
+
+        InboundMessage.Reader reader = new InboundMessage.Reader(Version.CURRENT, namedWriteableRegistry, threadPool.getThreadContext());
+        try (InboundMessage inboundMessage = reader.deserialize(reference.slice(6, reference.length() - 6))) {
+            assertEquals(version, inboundMessage.getVersion());
+            assertEquals(requestId, inboundMessage.getRequestId());
+            assertFalse(inboundMessage.isRequest());
+            assertTrue(inboundMessage.isResponse());
+            assertFalse(inboundMessage.isCompress());
+            assertFalse(inboundMessage.isHandshake());
+
+            InboundMessage.Response inboundResponse = (InboundMessage.Response) inboundMessage;
+            assertTrue(inboundResponse.isError());
+
+            RemoteTransportException remoteException = inboundMessage.getStreamInput().readException();
+            assertThat(remoteException.getCause(), instanceOf(ElasticsearchException.class));
+            assertEquals(remoteException.getCause().getMessage(), "boom");
+            assertEquals(action, remoteException.action());
+            assertEquals(channel.getLocalAddress(), remoteException.address().address());
+
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                ThreadContext.StoredContext storedContext = inboundMessage.getStoredContext();
+                assertNull(threadContext.getHeader("header"));
+                storedContext.restore();
+                assertEquals("header_value", threadContext.getHeader("header"));
+            }
+        }
+    }
+
+    private static final class Request extends TransportRequest {
 
         public String value;
 
-        private Message() {
+        private Request() {
         }
 
-        private Message(String value) {
+        private Request(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            value = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(value);
+        }
+    }
+
+    private static final class Response extends TransportResponse {
+
+        public String value;
+
+        private Response() {
+        }
+
+        private Response(String value) {
             this.value = value;
         }
 

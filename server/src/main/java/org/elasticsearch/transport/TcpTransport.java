@@ -114,8 +114,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    private static final TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
-    private volatile TransportMessageListener messageListener = NOOP_LISTENER;
+    private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -166,8 +165,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
                 TransportRequestOptions.EMPTY, v, false, true),
-            (v, features1, channel, response, requestId) -> outboundHandler.sendResponse(v, features1, channel, response, requestId,
-                TransportHandshaker.HANDSHAKE_ACTION_NAME, false, true));
+            (v, features1, channel, response, requestId) -> outboundHandler.sendResponse(v, features1, channel, requestId,
+                TransportHandshaker.HANDSHAKE_ACTION_NAME, response, false, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.reader = new InboundMessage.Reader(version, namedWriteableRegistry, threadPool.getThreadContext());
     }
@@ -178,9 +177,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
-        // TODO
-        if (messageListener == NOOP_LISTENER) {
+        if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;
+            outboundHandler.setMessageListener(listener);
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
         }
@@ -835,7 +834,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             message.getStoredContext().restore();
             threadContext.putTransient("_remote_address", remoteAddress);
             if (message.isRequest()) {
-                handleRequest(channel, (InboundMessage.RequestMessage) message, reference.length());
+                handleRequest(channel, (InboundMessage.Request) message, reference.length());
             } else {
                 final TransportResponseHandler<?> handler;
                 long requestId = message.getRequestId();
@@ -921,7 +920,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         });
     }
 
-    protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage message, int messageLengthBytes) throws IOException {
+    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) throws IOException {
         final Set<String> features = message.getFeatures();
         final String profileName = channel.getProfile();
         final String action = message.getActionName();

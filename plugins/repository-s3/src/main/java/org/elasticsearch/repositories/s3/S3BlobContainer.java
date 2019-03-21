@@ -23,6 +23,7 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -116,6 +117,40 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
         deleteBlobIgnoringIfNotExists(blobName);
+    }
+
+    @Override
+    public void deleteBlobs(List<String> blobNames) throws IOException {
+        if (blobNames.isEmpty()) {
+            return;
+        }
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+            final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
+            final List<String> partition = new ArrayList<>();
+            for (String blob : blobNames) {
+                partition.add(buildKey(blob));
+                if (partition.size() == 1000 ) {
+                    deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
+                    partition.clear();
+                }
+            }
+            if (partition.isEmpty() == false) {
+                deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
+            }
+            SocketAccess.doPrivilegedVoid(() -> {
+                for (DeleteObjectsRequest deleteRequest : deleteRequests) {
+                    clientReference.client().deleteObjects(
+                        deleteRequest);
+                }
+            });
+        } catch (final AmazonClientException e) {
+            throw new IOException("Exception when deleting blobs [" + blobNames + "]", e);
+        }
+    }
+
+    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+        return new DeleteObjectsRequest(bucket).withKeys(blobs.toArray(Strings.EMPTY_ARRAY)).withQuiet(true);
     }
 
     @Override

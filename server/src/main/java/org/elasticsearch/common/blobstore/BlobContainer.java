@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -96,6 +97,7 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
     /**
      * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
      * this method throws a NoSuchFileException.
@@ -106,6 +108,20 @@ public interface BlobContainer {
      * @throws  IOException if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
+
+    /**
+     * Deletes the blobs with giving names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
+     * when one or multiple of the given blobs don't exist and simply ignore this case.
+     *
+     * @param   blobNames  The names of the blob to delete.
+     * @throws  NoSuchFileException if the blob does not exist
+     * @throws  IOException if the blob exists but could not be deleted.
+     */
+    default void deleteBlobs(List<String> blobNames) throws IOException {
+        for (String blobName : blobNames) {
+            deleteBlob(blobName);
+        }
+    }
 
     /**
      * Deletes a blob with giving name, ignoring if the blob does not exist.

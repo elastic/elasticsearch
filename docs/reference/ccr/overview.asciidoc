@@ -18,7 +18,7 @@ follower index. This simplifies state management on the leader index and means
 that {ccr} does not interfere with indexing on the leader index.
 
 [float]
-=== Initiating replication
+=== Configuring replication
 
 Replication can be configured in two ways:
 

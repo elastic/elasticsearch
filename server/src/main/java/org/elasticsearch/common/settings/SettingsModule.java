@@ -106,7 +106,8 @@ public class SettingsModule implements Module {
             assert added : settingUpgrader.getSetting().getKey();
         }
         this.indexScopedSettings = new IndexScopedSettings(settings, new HashSet<>(this.indexSettings.values()));
-        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders);
+        this.clusterSettings = new ClusterSettings(settings, new HashSet<>(this.nodeSettings.values()), clusterSettingUpgraders,
+                localHashesOfConsistentSettings, publicHashesOfConsistentSettings);
         Settings indexSettings = settings.filter((s) -> (s.startsWith("index.") &&
             // special case - we want to get Did you mean indices.query.bool.max_clause_count
             // which means we need to by-pass this check for this setting

@@ -26,7 +26,7 @@ public class SchemaUtil {
     private SchemaUtil() {
     }
 
-    public static void deduceMappings(final Client client, final PivotConfig config, final String source,
+    public static void deduceMappings(final Client client, final PivotConfig config, final String[] source,
                                       final ActionListener<Map<String, String>> listener) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
@@ -101,7 +101,7 @@ public class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(Client client, String index, String[] fields,
+    private static void getSourceFieldMappings(Client client, String[] index, String[] fields,
             ActionListener<Map<String, String>> listener) {
         GetFieldMappingsRequest fieldMappingRequest = new GetFieldMappingsRequest();
         fieldMappingRequest.indices(index);
@@ -129,7 +129,7 @@ public class SchemaUtil {
                             final Map<?, ?> map = (Map<?, ?>) typeMap;
                             if (map.containsKey("type")) {
                                 String type = map.get("type").toString();
-                                logger.debug("Extracted type for [" + fieldName + "] : [" + type + "]");
+                                logger.debug("Extracted type for [" + fieldName + "] : [" + type + "] from index [" + indexName +"]");
                                 // TODO: overwrites types, requires resolve if
                                 // types are mixed
                                 extractedTypes.put(fieldName, type);

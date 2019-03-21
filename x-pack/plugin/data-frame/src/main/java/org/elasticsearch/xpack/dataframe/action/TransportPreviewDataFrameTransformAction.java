@@ -57,8 +57,8 @@ public class TransportPreviewDataFrameTransformAction extends
             return;
         }
 
-        Pivot pivot = new Pivot(request.getConfig().getSource(),
-            request.getConfig().getQueryConfig().getQuery(),
+        Pivot pivot = new Pivot(request.getConfig().getSource().getIndex(),
+            request.getConfig().getSource().getQueryConfig().getQuery(),
             request.getConfig().getPivotConfig());
 
         getPreview(pivot, ActionListener.wrap(

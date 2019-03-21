@@ -1,0 +1,98 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.client.dataframe.transforms;
+
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
+
+public class SourceConfig implements ToXContentObject {
+
+    public static final ParseField QUERY = new ParseField("query");
+    public static final ParseField INDEX = new ParseField("index");
+
+    public static final ConstructingObjectParser<SourceConfig, Void> PARSER = new ConstructingObjectParser<>("data_frame_config_source",
+    true,
+    args -> {
+        @SuppressWarnings("unchecked")
+        String[] index = ((List<String>)args[0]).toArray(new String[0]);
+        // default handling: if the user does not specify a query, we default to match_all
+        QueryConfig queryConfig = (QueryConfig) args[1];
+        return new SourceConfig(index, queryConfig);
+    });
+    static {
+        PARSER.declareStringArray(constructorArg(), INDEX);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
+    }
+
+    private final String[] index;
+    private final QueryConfig queryConfig;
+
+    public SourceConfig(String[] index, QueryConfig queryConfig) {
+        this.index = index;
+        this.queryConfig = queryConfig;
+    }
+
+    public String[] getIndex() {
+        return index;
+    }
+
+    public QueryConfig getQueryConfig() {
+        return queryConfig;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.array(INDEX.getPreferredName(), index);
+        builder.field(QUERY.getPreferredName(), queryConfig);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (other == this) {
+            return true;
+        }
+        if (other == null || other.getClass() != getClass()) {
+            return false;
+        }
+
+        SourceConfig that = (SourceConfig) other;
+        return Arrays.equals(index, that.index) && Objects.equals(queryConfig, that.queryConfig);
+    }
+
+    @Override
+    public int hashCode(){
+        int hash = Arrays.hashCode(index);
+        return 31 * hash + (queryConfig == null ? 0 : queryConfig.hashCode());
+    }
+}

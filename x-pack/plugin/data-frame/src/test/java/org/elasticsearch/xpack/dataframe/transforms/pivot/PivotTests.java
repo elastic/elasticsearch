@@ -83,13 +83,13 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertValidTransform(client, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"non_existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -97,7 +97,9 @@ public class PivotTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        Pivot pivot = new Pivot("existing_source_index_with_failing_shards", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index_with_failing_shards"},
+            new MatchAllQueryBuilder(),
+            getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -106,7 +108,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
 
             assertValidTransform(client, pivot);
         }
@@ -116,7 +118,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
 
             assertInvalidTransform(client, pivot);
         }

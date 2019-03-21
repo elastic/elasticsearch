@@ -21,7 +21,9 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.Streams;
@@ -32,11 +34,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +50,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
@@ -56,7 +65,8 @@ public class SettingsModule implements Module {
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private final Map<String, byte[]> privateHashesOfConsistentSettings = new HashMap<>();
+    private final Map<String, char[]> localHashesOfConsistentSettings = new HashMap<>();
+    private final Map<String, String> publicHashesOfConsistentSettings = new HashMap<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -165,7 +175,6 @@ public class SettingsModule implements Module {
         binder.bind(IndexScopedSettings.class).toInstance(indexScopedSettings);
     }
 
-
     /**
      * Registers a new setting. This method should be used by plugins in order to expose any custom settings the plugin defines.
      * Unless a setting is registered the setting is unusable. If a setting is never the less specified the node will reject
@@ -188,13 +197,13 @@ public class SettingsModule implements Module {
                     if (setting instanceof Setting.AffixSetting<?>) {
                         ((Setting.AffixSetting<?>)setting).getAllConcreteSettings(this.settings).forEach(concreteSetting -> {
                             if (concreteSetting instanceof SecureSetting<?>) {
-                                saveSecureSettingForLaterComparison((SecureSetting<?>)concreteSetting);
+                                buildSecureSettingHashes((SecureSetting<?>) concreteSetting);
                             } else {
                                 throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                             }
                         });
                     } else if (setting instanceof SecureSetting<?>) {
-                        saveSecureSettingForLaterComparison((SecureSetting<?>) setting);
+                        buildSecureSettingHashes((SecureSetting<?>) setting);
                     } else {
                         throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                     }
@@ -211,16 +220,26 @@ public class SettingsModule implements Module {
         }
     }
 
+    private void buildSecureSettingHashes(SecureSetting<?> secureConcreteSetting) {
+        // compute unsalted hash to store in memory on the local node
+        final char[] localHash = computeSecureSettingLocalHash(secureConcreteSetting);
+        localHashesOfConsistentSettings.put(secureConcreteSetting.getKey(), localHash);
+        // compute and store a salted hash to store on the cluster state, so that other nodes can cross check against it
+        publicHashesOfConsistentSettings.put(secureConcreteSetting.getKey(), computePublicHash(localHash));
+    }
+
     /**
-     * Save unsalted hash for subsequent comparison with the master node.
+     * Compute UNSALTED hash of a secure setting value for subsequent comparison with the master's reference. This values IS NOT to be
+     * published in the cluster state, but rather compared (and stored), on the local node, to the SALTED hash value published in the
+     * cluster state by the master node.
      */
-    private void saveSecureSettingForLaterComparison(SecureSetting<?> secureSetting) {
+    private char[] computeSecureSettingLocalHash(SecureSetting<?> secureSetting) {
         final Object verbatimValue = secureSetting.get(this.settings);
         final MessageDigest digest;
         try {
-            digest = MessageDigest.getInstance("SHA-256");
+            digest = MessageDigest.getInstance("SHA-512");
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm is required for the consistent secure settings functionality", e);
+            throw new RuntimeException("\"SHA-512\" algorithm is required for consistent secure settings", e);
         }
         if (verbatimValue instanceof InputStream) {
             try (InputStream is = ((InputStream)verbatimValue)) {
@@ -238,7 +257,41 @@ public class SettingsModule implements Module {
         } else {
             throw new IllegalArgumentException("Unrecognized consistent secure setting [" + secureSetting.getKey() + "]");
         }
-        privateHashesOfConsistentSettings.put(secureSetting.getKey(), digest.digest());
+        // computing a base64 encoded unsalted SHA512 hash
+        byte[] unencodedSHA512AsByteArray = null;
+        byte[] SHA512EncodedBase64AsByteArray = null;
+        try {
+            unencodedSHA512AsByteArray = digest.digest();
+            SHA512EncodedBase64AsByteArray = Base64.getEncoder().encode(unencodedSHA512AsByteArray);
+            return CharArrays.utf8BytesToChars(SHA512EncodedBase64AsByteArray);
+        } finally {
+            if (unencodedSHA512AsByteArray != null) {
+                Arrays.fill(unencodedSHA512AsByteArray, (byte) 0);
+            }
+            if (SHA512EncodedBase64AsByteArray != null) {
+                Arrays.fill(SHA512EncodedBase64AsByteArray, (byte) 0);
+            }
+        }
+    }
+
+    public static byte[] computeSaltedHash(char[] value, byte[] salt) {
+        final int iterations = 5000;
+        final int keyLength = 512;
+        try {
+            final SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            final PBEKeySpec spec = new PBEKeySpec(value, salt, iterations, keyLength);
+            final SecretKey key = skf.generateSecret(spec);
+            return key.getEncoded();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException("\"PBKDF2WithHmacSHA512\" algorithm is required for consistent secure settings", e);
+        }
+    }
+
+    public static String computePublicHash(char[] value) {
+        final String saltString = UUIDs.randomBase64UUID();
+        final byte[] saltedHashBytes = computeSaltedHash(value, saltString.getBytes(StandardCharsets.UTF_8));
+        final String base64SaltedHashString = new String(saltedHashBytes, StandardCharsets.UTF_8);
+        return saltString + ":" + base64SaltedHashString;
     }
 
     /**

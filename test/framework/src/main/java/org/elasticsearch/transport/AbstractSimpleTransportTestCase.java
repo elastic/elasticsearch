@@ -466,8 +466,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         final CountingListener tracerA = new CountingListener();
         final CountingListener tracerB = new CountingListener();
-        serviceA.transport().addMessageListener(tracerA);
-        serviceB.transport().addMessageListener(tracerB);
+        serviceA.addMessageListener(tracerA);
+        serviceB.addMessageListener(tracerB);
 
         try {
             serviceA.submitRequest(nodeB, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
@@ -476,7 +476,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(0));
             assertThat(tracerA.requestsSent.get(), equalTo(1));
@@ -495,12 +495,32 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
         }
 
-        // use assert busy as call backs are sometime called after the response have been sent
+        // use assert busy as callbacks are called on a different thread
         assertBusy(() -> {
             assertThat(tracerA.requestsReceived.get(), equalTo(1));
             assertThat(tracerA.requestsSent.get(), equalTo(1));
             assertThat(tracerA.responseReceived.get(), equalTo(1));
             assertThat(tracerA.responseSent.get(), equalTo(1));
+            assertThat(tracerB.requestsReceived.get(), equalTo(1));
+            assertThat(tracerB.requestsSent.get(), equalTo(1));
+            assertThat(tracerB.responseReceived.get(), equalTo(1));
+            assertThat(tracerB.responseSent.get(), equalTo(1));
+        });
+
+        // use assert busy as callbacks are called on a different thread
+        try {
+            serviceA.submitRequest(nodeA, ACTION, TransportRequest.Empty.INSTANCE, EmptyTransportResponseHandler.INSTANCE_SAME).get();
+        } catch (ExecutionException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+            assertThat(ExceptionsHelper.unwrapCause(e.getCause()).getMessage(), equalTo("simulated"));
+        }
+
+        // use assert busy as callbacks are called on a different thread
+        assertBusy(() -> {
+            assertThat(tracerA.requestsReceived.get(), equalTo(2));
+            assertThat(tracerA.requestsSent.get(), equalTo(2));
+            assertThat(tracerA.responseReceived.get(), equalTo(2));
+            assertThat(tracerA.responseSent.get(), equalTo(2));
             assertThat(tracerB.requestsReceived.get(), equalTo(1));
             assertThat(tracerB.requestsSent.get(), equalTo(1));
             assertThat(tracerB.responseReceived.get(), equalTo(1));

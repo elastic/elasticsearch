@@ -70,7 +70,7 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
     }
 
     private File getNewNonExistingTempFolderFile(Project project) throws IOException {
-        File newEmptyFolder = File.createTempFile("empty",".dir", project.getBuildDir());
+        File newEmptyFolder = new File(project.getBuildDir(), "empty-dir");
         assertFalse(newEmptyFolder.exists());
         return newEmptyFolder;
     }

@@ -27,7 +27,7 @@ public class CcrRetentionLeases {
     public static final Setting<TimeValue> RETENTION_LEASE_RENEW_INTERVAL_SETTING =
             Setting.timeSetting(
                     "index.ccr.retention_lease.renew_interval",
-                    new TimeValue(5, TimeUnit.MINUTES),
+                    new TimeValue(30, TimeUnit.SECONDS),
                     new TimeValue(0, TimeUnit.MILLISECONDS),
                     Setting.Property.NodeScope);
 

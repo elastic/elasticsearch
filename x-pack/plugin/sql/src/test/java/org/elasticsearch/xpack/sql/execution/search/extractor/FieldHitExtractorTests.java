@@ -295,7 +295,8 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             path[i] = randomAlphaOfLength(randomIntBetween(1, 10));
             sj.add(path[i]);
         }
-        FieldHitExtractor fe = getFieldHitExtractor(sj.toString(), false);
+        boolean arrayLeniency = randomBoolean();
+        FieldHitExtractor fe = new FieldHitExtractor(sj.toString(), null, UTC, false, arrayLeniency);
 
         List<String> paths = new ArrayList<>(path.length);
         int start = 0;
@@ -336,7 +337,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             expected.insert(0, paths.get(i) + ".");
         }
 
-        if (valuesCount == 1) {
+        if (valuesCount == 1 || arrayLeniency) {
             // if the number of generated values is 1, just check we return the correct value
             assertEquals(value instanceof List ? ((List) value).get(0) : value, fe.extractFromSource(map));
         } else {

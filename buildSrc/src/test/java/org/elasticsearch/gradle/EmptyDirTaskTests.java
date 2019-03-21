@@ -24,13 +24,8 @@ import java.io.IOException;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 public class EmptyDirTaskTests extends GradleUnitTestCase {
-
-    @Rule
-    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     public void testCreateEmptyDir() throws Exception {
         Project project = createProject();
@@ -38,7 +33,7 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         assertEquals(0755, emptyDirTask.getDirMode());
 
         // generate a new temporary folder and make sure it does not exists
-        File newEmptyFolder = getNewTempFolderFile();
+        File newEmptyFolder = getNewNonExistingTempFolderFile(project);
 
         emptyDirTask.setDir(newEmptyFolder);
         emptyDirTask.create();
@@ -48,6 +43,9 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         assertTrue(newEmptyFolder.canExecute());
         assertTrue(newEmptyFolder.canRead());
         assertTrue(newEmptyFolder.canWrite());
+
+        // cleanup
+        newEmptyFolder.delete();
     }
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
@@ -56,7 +54,7 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         emptyDirTask.setDirMode(0000);
 
         // generate a new temporary folder and make sure it does not exists
-        File newEmptyFolder = getNewTempFolderFile();
+        File newEmptyFolder = getNewNonExistingTempFolderFile(project);
 
         emptyDirTask.setDir(newEmptyFolder);
         emptyDirTask.create();
@@ -66,17 +64,18 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         assertFalse(newEmptyFolder.canExecute());
         assertFalse(newEmptyFolder.canRead());
         assertFalse(newEmptyFolder.canWrite());
+
+        newEmptyFolder.delete();
     }
 
-    private File getNewTempFolderFile() throws IOException {
-        File newEmptyFolder = temporaryFolder.newFolder("newEmptyFolder");
-        newEmptyFolder.delete();
+    private File getNewNonExistingTempFolderFile(Project project) throws IOException {
+        File newEmptyFolder = File.createTempFile("empty",".dir", project.getBuildDir());
         assertFalse(newEmptyFolder.exists());
         return newEmptyFolder;
     }
 
     private Project createProject() throws IOException {
-        return ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder()).build();
+        return ProjectBuilder.builder().build();
     }
 
     private EmptyDirTask createTask(Project project) {

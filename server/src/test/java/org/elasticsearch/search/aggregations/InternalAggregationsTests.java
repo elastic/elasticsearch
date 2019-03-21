@@ -53,7 +53,7 @@ public class InternalAggregationsTests extends ESTestCase {
         assertNull(InternalAggregations.reduce(aggs, Collections.emptyList(), reduceContext));
     }
 
-    public void testNonFinalReduceTopLevelPipelineAggs() throws IOException  {
+    public void testNonFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
             10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
         List<InternalAggregations> aggs = Collections.singletonList(new InternalAggregations(Collections.singletonList(terms)));
@@ -66,7 +66,7 @@ public class InternalAggregationsTests extends ESTestCase {
         assertEquals(1, reducedAggs.aggregations.size());
     }
 
-    public void testFinalReduceTopLevelPipelineAggs() throws IOException  {
+    public void testFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
             10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
 

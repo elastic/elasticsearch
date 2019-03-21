@@ -25,7 +25,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.intervals.IntervalQuery;
 import org.apache.lucene.search.intervals.Intervals;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -37,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -64,7 +69,27 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         return null;
     }
 
+    private static final String MASKED_FIELD = "masked_field";
+    private static final String NO_POSITIONS_FIELD = "no_positions_field";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+            .startObject(MASKED_FIELD)
+            .field("type", "text")
+            .endObject()
+            .startObject(NO_POSITIONS_FIELD)
+            .field("type", "text")
+            .field("index_options", "freqs")
+            .endObject()
+            .endObject().endObject().endObject();
+
+        mapperService.merge("_doc",
+            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
     private IntervalsSourceProvider createRandomSource() {
+        String useField = rarely() ? MASKED_FIELD : null;
         switch (randomInt(20)) {
             case 0:
             case 1:
@@ -95,7 +120,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
                 boolean mOrdered = randomBoolean();
                 int maxMGaps = randomInt(5) - 1;
                 String analyzer = randomFrom("simple", "keyword", "whitespace");
-                return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter());
+                return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(), useField);
         }
     }
 
@@ -149,6 +174,21 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         builder = (IntervalQueryBuilder) parseQuery(json);
         expected = new IntervalQuery(STRING_FIELD_NAME,
             Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world"))));
+        assertEquals(expected, builder.toQuery(createShardContext()));
+
+        json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"max_gaps\" : 10," +
+            "           \"analyzer\" : \"whitespace\"," +
+            "           \"use_field\" : \"" + MASKED_FIELD + "\"," +
+            "           \"ordered\" : true } } } }";
+
+        builder = (IntervalQueryBuilder) parseQuery(json);
+        expected = new IntervalQuery(STRING_FIELD_NAME,
+            Intervals.fixField(MASKED_FIELD,
+                                Intervals.maxgaps(10, Intervals.ordered(Intervals.term("Hello"), Intervals.term("world")))));
         assertEquals(expected, builder.toQuery(createShardContext()));
 
         json = "{ \"intervals\" : " +
@@ -262,14 +302,31 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             IntervalQueryBuilder builder = new IntervalQueryBuilder(INT_FIELD_NAME, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field [" + INT_FIELD_NAME + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Can only use interval queries on text fields - not on ["
+            + INT_FIELD_NAME + "] which is of type [integer]"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
-            IntervalQueryBuilder builder = new IntervalQueryBuilder(STRING_FIELD_NAME_2, provider);
+            IntervalQueryBuilder builder = new IntervalQueryBuilder(NO_POSITIONS_FIELD, provider);
             builder.doToQuery(createShardContext());
         });
-        assertThat(e.getMessage(), equalTo("Cannot create IntervalQuery over field ["
-            + STRING_FIELD_NAME_2 + "] with no indexed positions"));
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field ["
+            + NO_POSITIONS_FIELD + "] with no positions indexed"));
+
+        String json = "{ \"intervals\" : " +
+            "{ \"" + STRING_FIELD_NAME + "\" : { " +
+            "       \"match\" : { " +
+            "           \"query\" : \"Hello world\"," +
+            "           \"max_gaps\" : 10," +
+            "           \"analyzer\" : \"whitespace\"," +
+            "           \"use_field\" : \"" + NO_POSITIONS_FIELD + "\"," +
+            "           \"ordered\" : true } } } }";
+
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
+            builder.doToQuery(createShardContext());
+        });
+        assertThat(e.getMessage(), equalTo("Cannot create intervals over field ["
+            + NO_POSITIONS_FIELD + "] with no positions indexed"));
     }
 
     public void testMultipleProviders() {

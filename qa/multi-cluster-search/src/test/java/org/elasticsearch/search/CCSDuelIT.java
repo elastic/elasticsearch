@@ -65,6 +65,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
@@ -122,6 +123,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
+    private static final String REMOTE_INDEX_NAME = "my_remote_cluster:" + INDEX_NAME;
     private static final String[] TAGS = new String[]{"java", "xml", "sql", "html", "php", "ruby", "python", "perl"};
 
     private static RestHighLevelClient restHighLevelClient;
@@ -160,12 +162,17 @@ public class CCSDuelIT extends ESRestTestCase {
     }
 
     private static void indexDocuments(String idPrefix) throws IOException, InterruptedException {
+        //this index with a single document is used to test partial failures
         IndexRequest indexRequest = new IndexRequest(INDEX_NAME + "_err");
         indexRequest.id("id");
         indexRequest.source("creationDate", "err");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
+
+        CreateIndexRequest createEmptyIndexRequest = new CreateIndexRequest(INDEX_NAME + "_empty");
+        CreateIndexResponse response = restHighLevelClient.indices().create(createEmptyIndexRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
 
         int numShards = randomIntBetween(1, 5);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
@@ -231,6 +238,7 @@ public class CCSDuelIT extends ESRestTestCase {
         }
         indexRequest.source(XContentType.JSON,
             "type", type,
+            "votes", randomIntBetween(0, 30),
             "questionId", questionId,
             "tags", tagsArray,
             "user", "user" + randomIntBetween(1, 10),
@@ -422,6 +430,52 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
+    public void testSortByFieldOneClusterHasNoResults() throws Exception {
+        assumeMultiClusterSetup();
+        SearchRequest searchRequest = initSearchRequest();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        boolean onlyRemote = randomBoolean();
+        sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
+        sourceBuilder.sort("type.keyword", SortOrder.ASC);
+        sourceBuilder.sort("creationDate", SortOrder.DESC);
+        sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        searchRequest.source(sourceBuilder);
+        duelSearch(searchRequest, response -> {
+            assertHits(response);
+            SearchHit[] hits = response.getHits().getHits();
+            for (SearchHit hit : hits) {
+                assertEquals(3, hit.getSortValues().length);
+                assertEquals(INDEX_NAME, hit.getIndex());
+                if (onlyRemote) {
+                    assertEquals("my_remote_cluster", hit.getClusterAlias());
+                } else {
+                    assertNull(hit.getClusterAlias());
+                }
+            }
+        });
+    }
+
+    public void testFieldCollapsingOneClusterHasNoResults() throws Exception {
+        assumeMultiClusterSetup();
+        SearchRequest searchRequest = initSearchRequest();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        boolean onlyRemote = randomBoolean();
+        sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
+        sourceBuilder.collapse(new CollapseBuilder("user.keyword"));
+        searchRequest.source(sourceBuilder);
+        duelSearch(searchRequest, response -> {
+            assertHits(response);
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertEquals(INDEX_NAME, hit.getIndex());
+                if (onlyRemote) {
+                    assertEquals("my_remote_cluster", hit.getClusterAlias());
+                } else {
+                    assertNull(hit.getClusterAlias());
+                }
+            }
+        });
+    }
+
     public void testFieldCollapsingSortByScore() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
@@ -537,17 +591,21 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.query(new TermQueryBuilder("type", "answer"));
         searchRequest.source(sourceBuilder);
         sourceBuilder.size(0);
-        TermsAggregationBuilder type = new TermsAggregationBuilder("type", ValueType.STRING);
-        type.field("type.keyword");
-        sourceBuilder.aggregation(type);
-        DateHistogramAggregationBuilder monthly = new DateHistogramAggregationBuilder("daily");
-        monthly.field("creationDate");
-        monthly.dateHistogramInterval(DateHistogramInterval.DAY);
-        type.subAggregation(monthly);
-        monthly.subAggregation(new DerivativePipelineAggregationBuilder("derivative", "_count"));
-        type.subAggregation(new MaxBucketPipelineAggregationBuilder("biggest_day", "daily._count"));
+        DateHistogramAggregationBuilder daily = new DateHistogramAggregationBuilder("daily");
+        daily.field("creationDate");
+        daily.dateHistogramInterval(DateHistogramInterval.DAY);
+        sourceBuilder.aggregation(daily);
+        daily.subAggregation(new DerivativePipelineAggregationBuilder("derivative", "_count"));
+        sourceBuilder.aggregation(new MaxBucketPipelineAggregationBuilder("biggest_day", "daily._count"));
+        daily.subAggregation(new SumAggregationBuilder("votes").field("votes"));
+        sourceBuilder.aggregation(new MaxBucketPipelineAggregationBuilder("most_voted", "daily>votes"));
+        duelSearch(searchRequest, response -> {
+            assertAggs(response);
+            assertNotNull(response.getAggregations().get("most_voted"));
+        });
         duelSearch(searchRequest, CCSDuelIT::assertAggs);
     }
 
@@ -588,7 +646,7 @@ public class CCSDuelIT extends ESRestTestCase {
 
     public void testShardFailures() throws Exception {
         assumeMultiClusterSetup();
-        SearchRequest searchRequest = new SearchRequest(INDEX_NAME + "*", "my_remote_cluster:" + INDEX_NAME + "*");
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME + "*", REMOTE_INDEX_NAME + "*");
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.query(QueryBuilders.matchQuery("creationDate", "err"));
         searchRequest.source(sourceBuilder);
@@ -685,10 +743,14 @@ public class CCSDuelIT extends ESRestTestCase {
 
         if (exception1.get() != null && exception2.get() != null) {
             exception1.get().addSuppressed(exception2.get());
-            throw exception1.get();
+            throw new AssertionError("both requests returned an exception", exception1.get());
         } else {
-            assertNull(exception1.get());
-            assertNull(exception2.get());
+            if (exception1.get() != null) {
+                throw new AssertionError("one of the two requests returned an exception", exception1.get());
+            }
+            if (exception2.get() != null) {
+                throw new AssertionError("one of the two requests returned an exception", exception2.get());
+            }
             SearchResponse minimizeRoundtripsSearchResponse = minimizeRoundtripsResponse.get();
             responseChecker.accept(minimizeRoundtripsSearchResponse);
             assertEquals(3, minimizeRoundtripsSearchResponse.getNumReducePhases());

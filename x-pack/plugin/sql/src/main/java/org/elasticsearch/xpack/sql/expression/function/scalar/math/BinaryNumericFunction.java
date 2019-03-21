@@ -69,6 +69,6 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
         BinaryNumericFunction other = (BinaryNumericFunction) obj;
         return Objects.equals(other.left(), left())
             && Objects.equals(other.right(), right())
-                && Objects.equals(other.operation, operation);
+            && Objects.equals(other.operation, operation);
     }
 }

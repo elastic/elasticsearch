@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.dataframe;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStatsTests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,6 +39,8 @@ public class GetDataFrameTransformStatsResponseTests extends ESTestCase {
                 GetDataFrameTransformStatsResponseTests::createTestInstance,
                 GetDataFrameTransformStatsResponseTests::toXContent,
                 GetDataFrameTransformStatsResponse::fromXContent)
+                .assertEqualsConsumer(GetDataFrameTransformStatsResponseTests::assertEqualInstances)
+                .assertToXContentEquivalence(false)
                 .supportsUnknownFields(true)
                 .randomFieldsExcludeFilter(path -> path.isEmpty() == false)
                 .test();
@@ -48,16 +52,48 @@ public class GetDataFrameTransformStatsResponseTests extends ESTestCase {
         for (int i=0; i<count; i++) {
             stats.add(DataFrameTransformStateAndStatsTests.randomInstance());
         }
-        return new GetDataFrameTransformStatsResponse(stats);
+
+        List<TaskOperationFailure> taskFailures = null;
+        if (randomBoolean()) {
+            taskFailures = new ArrayList<>();
+            int numTaskFailures = randomIntBetween(1, 4);
+            for (int i=0; i<numTaskFailures; i++) {
+                taskFailures.add(new TaskOperationFailure(randomAlphaOfLength(4), randomNonNegativeLong(), new IllegalStateException()));
+            }
+        }
+        List<ElasticsearchException> nodeFailures = null;
+        if (randomBoolean()) {
+            nodeFailures = new ArrayList<>();
+            int numNodeFailures = randomIntBetween(1, 4);
+            for (int i=0; i<numNodeFailures; i++) {
+                nodeFailures.add(new ElasticsearchException("GetDataFrameTransformStatsResponseTests"));
+            }
+        }
+
+        return new GetDataFrameTransformStatsResponse(stats, taskFailures, nodeFailures);
     }
 
     private static void toXContent(GetDataFrameTransformStatsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.startArray("transforms");
-        for (DataFrameTransformStateAndStats stats : response.getTransformsStateAndStats()) {
-            DataFrameTransformStateAndStatsTests.toXContent(stats, builder);
+        {
+            builder.startArray("transforms");
+            for (DataFrameTransformStateAndStats stats : response.getTransformsStateAndStats()) {
+                DataFrameTransformStateAndStatsTests.toXContent(stats, builder);
+            }
+            builder.endArray();
+
+            AcknowledgedTasksResponseTests.taskFailuresToXContent(response.getTaskFailures(), builder);
+            AcknowledgedTasksResponseTests.nodeFailuresToXContent(response.getNodeFailures(), builder);
         }
-        builder.endArray();
         builder.endObject();
+    }
+
+    // Serialisation of TaskOperationFailure and ElasticsearchException changes
+    // the object so use a custom compare method rather than Object.equals
+    private static void assertEqualInstances(GetDataFrameTransformStatsResponse expected,
+                                             GetDataFrameTransformStatsResponse actual) {
+        assertEquals(expected.getTransformsStateAndStats(), actual.getTransformsStateAndStats());
+        AcknowledgedTasksResponseTests.assertTaskOperationFailuresEqual(expected.getTaskFailures(), actual.getTaskFailures());
+        AcknowledgedTasksResponseTests.assertNodeFailuresEqual(expected.getNodeFailures(), actual.getNodeFailures());
     }
 }

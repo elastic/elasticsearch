@@ -19,15 +19,20 @@
 
 package org.elasticsearch.client.dataframe;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class GetDataFrameTransformStatsResponse {
 
@@ -36,32 +41,51 @@ public class GetDataFrameTransformStatsResponse {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetDataFrameTransformStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_data_frame_transform_stats_response", true, args -> new GetDataFrameTransformStatsResponse(
-            (List<DataFrameTransformStateAndStats>) args[0]));
+            "get_data_frame_transform_stats_response", true,
+            args -> new GetDataFrameTransformStatsResponse((List<DataFrameTransformStateAndStats>) args[0],
+                    (List<TaskOperationFailure>) args[1], (List<ElasticsearchException>) args[2]));
 
     static {
         PARSER.declareObjectArray(constructorArg(), DataFrameTransformStateAndStats.PARSER::apply, TRANSFORMS);
         // Discard the count field which is the size of the transforms array
         PARSER.declareInt((a, b) -> {}, COUNT);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p),
+                AcknowledgedTasksResponse.TASK_FAILURES);
+        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
+                AcknowledgedTasksResponse.NODE_FAILURES);
     }
 
     public static GetDataFrameTransformStatsResponse fromXContent(final XContentParser parser) {
         return GetDataFrameTransformStatsResponse.PARSER.apply(parser, null);
     }
 
-    private List<DataFrameTransformStateAndStats> transformsStateAndStats;
+    private final List<DataFrameTransformStateAndStats> transformsStateAndStats;
+    private final List<TaskOperationFailure> taskFailures;
+    private final List<ElasticsearchException> nodeFailures;
 
-    public GetDataFrameTransformStatsResponse(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
+    public GetDataFrameTransformStatsResponse(List<DataFrameTransformStateAndStats> transformsStateAndStats,
+                                              @Nullable List<TaskOperationFailure> taskFailures,
+                                              @Nullable List<? extends ElasticsearchException> nodeFailures) {
         this.transformsStateAndStats = transformsStateAndStats;
+        this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(taskFailures);
+        this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(nodeFailures);
     }
 
     public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
         return transformsStateAndStats;
     }
 
+    public List<ElasticsearchException> getNodeFailures() {
+        return nodeFailures;
+    }
+
+    public List<TaskOperationFailure> getTaskFailures() {
+        return taskFailures;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(transformsStateAndStats);
+        return Objects.hash(transformsStateAndStats, nodeFailures, taskFailures);
     }
 
     @Override
@@ -75,6 +99,8 @@ public class GetDataFrameTransformStatsResponse {
         }
 
         final GetDataFrameTransformStatsResponse that = (GetDataFrameTransformStatsResponse) other;
-        return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats);
+        return Objects.equals(this.transformsStateAndStats, that.transformsStateAndStats)
+                && Objects.equals(this.nodeFailures, that.nodeFailures)
+                && Objects.equals(this.taskFailures, that.taskFailures);
     }
 }

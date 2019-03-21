@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.core;
+package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -42,7 +42,7 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
                 this::createTestInstance,
                 AcknowledgedTasksResponseTests::toXContent,
                 AcknowledgedTasksResponseTests::fromXContent)
-                .assertEqualsConsumer(this::assertEqualInstances)
+                .assertEqualsConsumer(AcknowledgedTasksResponseTests::assertEqualInstances)
                 .assertToXContentEquivalence(false)
                 .supportsUnknownFields(false)
                 .test();
@@ -50,32 +50,15 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
 
     // Serialisation of TaskOperationFailure and ElasticsearchException changes
     // the object so use a custom compare method rather than Object.equals
-    private void assertEqualInstances(AcknowledgedTasksResponse expected, AcknowledgedTasksResponse actual) {
+    private static void assertEqualInstances(AcknowledgedTasksResponse expected, AcknowledgedTasksResponse actual) {
         assertNotSame(expected, actual);
         assertEquals(expected.isAcknowledged(), actual.isAcknowledged());
 
-        List<TaskOperationFailure> expectedTaskFailures = expected.getTaskFailures();
-        List<TaskOperationFailure> actualTaskFailures = actual.getTaskFailures();
-
-        assertListEquals(expectedTaskFailures, actualTaskFailures, (a, b) ->
-                Objects.equals(a.getNodeId(), b.getNodeId())
-                        && Objects.equals(a.getTaskId(), b.getTaskId())
-                        && Objects.equals(a.getStatus(), b.getStatus())
-        );
-
-        List<ElasticsearchException> expectedExceptions = expected.getNodeFailures();
-        List<ElasticsearchException> actualExceptions = actual.getNodeFailures();
-
-        // actualException is a wrapped copy of expectedException so the
-        // error messages won't be the same but actualException should contain
-        // the error message from expectedException
-        assertListEquals(expectedExceptions, actualExceptions, (expectedException, actualException) -> {
-            assertThat(actualException.getDetailedMessage(), containsString(expectedException.getMessage()));
-            return true;
-        });
+        assertTaskOperationFailuresEqual(expected.getTaskFailures(), actual.getTaskFailures());
+        assertNodeFailuresEqual(expected.getNodeFailures(), actual.getNodeFailures());
     }
 
-    private <T> void assertListEquals(List<T> expected, List<T> actual, BiPredicate<T, T> comparator) {
+    private static <T> void assertListEquals(List<T> expected, List<T> actual, BiPredicate<T, T> comparator) {
         if (expected == null) {
             assertNull(actual);
             return;
@@ -87,6 +70,26 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         for (int i=0; i<expected.size(); i++) {
             assertTrue(comparator.test(expected.get(i), actual.get(i)));
         }
+    }
+
+    public static void assertTaskOperationFailuresEqual(List<TaskOperationFailure> expected,
+                                                        List<TaskOperationFailure> actual) {
+        assertListEquals(expected, actual, (a, b) ->
+                Objects.equals(a.getNodeId(), b.getNodeId())
+                        && Objects.equals(a.getTaskId(), b.getTaskId())
+                        && Objects.equals(a.getStatus(), b.getStatus())
+        );
+    }
+
+    public static void assertNodeFailuresEqual(List<ElasticsearchException> expected,
+                                               List<ElasticsearchException> actual) {
+        // actualException is a wrapped copy of expectedException so the
+        // error messages won't be the same but actualException should contain
+        // the error message from expectedException
+        assertListEquals(expected, actual, (expectedException, actualException) -> {
+            assertThat(actualException.getDetailedMessage(), containsString(expectedException.getMessage()));
+            return true;
+        });
     }
 
     private static AcknowledgedTasksResponse fromXContent(XContentParser parser) {
@@ -120,32 +123,35 @@ public class AcknowledgedTasksResponseTests extends ESTestCase {
         builder.startObject();
         {
             builder.field("acknowleged", response.isAcknowledged());
-
-            List<TaskOperationFailure> taskFailures = response.getTaskFailures();
-            if (taskFailures != null && taskFailures.isEmpty() == false) {
-                builder.startArray(AcknowledgedTasksResponse.TASK_FAILURES.getPreferredName());
-                for (TaskOperationFailure failure : taskFailures) {
-                    builder.startObject();
-                    failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    builder.endObject();
-                }
-                builder.endArray();
-            }
-
-            List<ElasticsearchException> nodeFailures = response.getNodeFailures();
-            if (nodeFailures != null && nodeFailures.isEmpty() == false) {
-                builder.startArray(AcknowledgedTasksResponse.NODE_FAILURES.getPreferredName());
-                for (ElasticsearchException failure : nodeFailures) {
-                    builder.startObject();
-                    failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    builder.endObject();
-                }
-                builder.endArray();
-            }
+            taskFailuresToXContent(response.getTaskFailures(), builder);
+            nodeFailuresToXContent(response.getNodeFailures(), builder);
         }
         builder.endObject();
     }
 
+    public static void taskFailuresToXContent(List<TaskOperationFailure> taskFailures, XContentBuilder builder) throws IOException {
+        if (taskFailures != null && taskFailures.isEmpty() == false) {
+            builder.startArray(AcknowledgedTasksResponse.TASK_FAILURES.getPreferredName());
+            for (TaskOperationFailure failure : taskFailures) {
+                builder.startObject();
+                failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+    }
+
+    public static void nodeFailuresToXContent(List<ElasticsearchException> nodeFailures, XContentBuilder builder) throws IOException {
+        if (nodeFailures != null && nodeFailures.isEmpty() == false) {
+            builder.startArray(AcknowledgedTasksResponse.NODE_FAILURES.getPreferredName());
+            for (ElasticsearchException failure : nodeFailures) {
+                builder.startObject();
+                failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+    }
 }
 
 

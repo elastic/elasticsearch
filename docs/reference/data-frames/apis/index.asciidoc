@@ -16,7 +16,7 @@
 include::get-transform.asciidoc[]
 include::get-transform-stats.asciidoc[]
 //PREVIEW
-include::preview-data-frame-transform.asciidoc[]
+include::preview-transform.asciidoc[]
 //START
 include::start-transform.asciidoc[]
 //STOP

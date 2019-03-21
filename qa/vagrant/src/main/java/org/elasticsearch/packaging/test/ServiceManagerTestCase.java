@@ -67,7 +67,6 @@ public class ServiceManagerTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
 
         //unless 70_sysv_initd.bats is migrated this should only run for systemd
-        assumeTrue(isSystemd());
     }
 
     public void test10Install() throws IOException {
@@ -118,6 +117,8 @@ public class ServiceManagerTestCase extends PackagingTestCase {
      * # see https://github.com/elastic/elasticsearch/issues/11594
      */
     public void test50DeletePID_DIRandRestart() throws IOException {
+        assumeTrue(isSystemd());
+
         rm(installation.pidDir);
 
         recreateTempFiles();
@@ -134,6 +135,8 @@ public class ServiceManagerTestCase extends PackagingTestCase {
 
 
     public void test70CustomPathConfAndJvmOptions() throws IOException {
+        assumeTrue(isSystemd());
+
         assumeThat(installation, CoreMatchers.is(notNullValue()));
         FileUtils.assertPathsExist(installation.envFile);
 
@@ -181,6 +184,8 @@ public class ServiceManagerTestCase extends PackagingTestCase {
     }
 
     public void test60SystemdMask() throws IOException {
+        assumeTrue(isSystemd());
+
         cleanup();
 
         maskSysctl();
@@ -191,6 +196,7 @@ public class ServiceManagerTestCase extends PackagingTestCase {
     }
 
     public void test70serviceFileSetsLimits() throws IOException {
+
         final Shell sh = newShell();
 
         cleanup();
@@ -220,9 +226,9 @@ public class ServiceManagerTestCase extends PackagingTestCase {
     public void test80TestRuntimeDirectory() throws IOException {
         cleanup();
         installation = install(distribution());
-        FileUtils.rm(Paths.get("/var/run/elasticsearch"));
+        FileUtils.rm(installation.pidDir);
         startElasticsearch(newShell());
-        FileUtils.assertPathsExist(Paths.get("/var/run/elasticsearch"));
+        FileUtils.assertPathsExist(installation.pidDir);
         stopElasticsearch(newShell());
     }
 
@@ -231,7 +237,7 @@ public class ServiceManagerTestCase extends PackagingTestCase {
         installation = install(distribution());
         startElasticsearch(newShell());
         //somehow it is not .0.current when running test?
-        FileUtils.assertPathsExist(Paths.get("/var/log/elasticsearch/gc.log"));
+        FileUtils.assertPathsExist(installation.logs.resolve("gc.log"));
         stopElasticsearch(newShell());
     }
 
@@ -244,20 +250,13 @@ public class ServiceManagerTestCase extends PackagingTestCase {
         final Shell sh = newShell();
         if (isSystemd()) {
             sh.run("systemctl restart elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch restart");
         }
-//        } else {
-//            sh.run("service elasticsearch start");
-//        }
 
         waitForElasticsearch();
 
-        if (isSystemd()) {
-            sh.run("systemctl is-active elasticsearch.service");
-            sh.run("systemctl status elasticsearch.service");
-        }
-//        else {
-//            sh.run("service elasticsearch status");
-//        }
+        assertStatuses();
     }
 
 

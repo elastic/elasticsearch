@@ -20,31 +20,46 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.cp;
+import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
+import static org.elasticsearch.packaging.util.FileUtils.rm;
+import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.install;
+import static org.elasticsearch.packaging.util.Packages.maskSysctl;
+import static org.elasticsearch.packaging.util.Packages.recreateTempFiles;
 import static org.elasticsearch.packaging.util.Packages.remove;
+import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
+import static org.elasticsearch.packaging.util.Packages.unmaskSysctl;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -189,4 +204,144 @@ public abstract class PackageTestCase extends PackagingTestCase {
         remove(distribution());
         assertRemoved(distribution());
     }
+
+    public void test70RestartServer() throws IOException {
+        Shell sh = newShell();
+        restartElasticsearch(sh);
+        runElasticsearchTests();
+        stopElasticsearch(sh);
+    }
+
+    public void test71serviceFileSetsLimits() throws IOException {
+        final Shell sh = newShell();
+
+        cleanup();
+
+        installation = install(distribution());
+
+        startElasticsearch(newShell());
+
+        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+        assertTrue(Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxFileSize, equalTo("unlimited"));
+
+        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout.trim();
+        assertThat(maxProcesses, equalTo("4096"));
+
+        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxOpenFiles, equalTo("65535"));
+
+        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
+        assertThat(maxAddressSpace, equalTo("unlimited"));
+
+        stopElasticsearch(newShell());
+    }
+
+    public void test72TestRuntimeDirectory() throws IOException {
+        cleanup();
+        installation = install(distribution());
+        FileUtils.rm(installation.pidDir);
+        startElasticsearch(newShell());
+        FileUtils.assertPathsExist(installation.pidDir);
+        stopElasticsearch(newShell());
+    }
+
+    public void test73gcLogsExist() throws IOException {
+        cleanup();
+        installation = install(distribution());
+        startElasticsearch(newShell());
+        //somehow it is not .0.current when running test?
+        FileUtils.assertPathsExist(installation.logs.resolve("gc.log"));
+        stopElasticsearch(newShell());
+    }
+
+    /**
+     * # Simulates the behavior of a system restart:
+     * # the PID directory is deleted by the operating system
+     * # but it should not block ES from starting
+     * # see https://github.com/elastic/elasticsearch/issues/11594
+     */
+    public void test80DeletePID_DIRandRestart() throws IOException {
+        assumeTrue(isSystemd());
+        Shell sh = newShell();
+
+        rm(installation.pidDir);
+
+        recreateTempFiles(sh);
+
+        startElasticsearch(sh);
+
+        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+
+        assertTrue(Files.exists(pidFile));
+
+        stopElasticsearch(sh);
+    }
+
+    // TEST CASES FOR SYSTEMD ONLY
+    public void test81CustomPathConfAndJvmOptions() throws IOException {
+        assumeTrue(isSystemd());
+
+        assumeThat(installation, CoreMatchers.is(notNullValue()));
+        FileUtils.assertPathsExist(installation.envFile);
+
+        Shell sh = newShell();
+        // The custom config directory is not under /tmp or /var/tmp because
+        // systemd's private temp directory functionally means different
+        // processes can have different views of what's in these directories
+        String temp = sh.runIgnoreExitCode("mktemp -p /etc -d").stdout.trim();
+        final Path tempConf = Paths.get(temp);
+
+        try {
+            mkdir(tempConf);
+            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
+            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
+
+            // we have to disable Log4j from using JMX lest it will hit a security
+            // manager exception before we have configured logging; this will fail
+            // startup since we detect usages of logging before it is configured
+            final String jvmOptions =
+                "-Xms512m\n" +
+                    "-Xmx512m\n" +
+                    "-Dlog4j2.disable.jmx=true\n";
+            append(tempConf.resolve("jvm.options"), jvmOptions);
+
+            sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
+
+            final Shell serverShell = newShell();
+            cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));//backup
+            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
+
+            startElasticsearch(serverShell);
+
+            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
+            assertThat(nodesResponse, CoreMatchers.containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
+
+            stopElasticsearch(serverShell);
+
+        } finally {
+            rm(installation.envFile);
+            cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
+            rm(tempConf);
+        }
+    }
+
+    public void test82SystemdMask() throws IOException {
+        assumeTrue(isSystemd());
+
+        cleanup();
+
+        Shell sh = newShell();
+        maskSysctl(sh);
+
+        installation = install(distribution());
+
+        unmaskSysctl(sh);
+    }
+
+
 }

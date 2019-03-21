@@ -301,4 +301,37 @@ public class Packages {
             sh.run("service elasticsearch stop");
         }
     }
+
+    public static void restartElasticsearch(Shell sh) throws IOException {
+        if (isSystemd()) {
+            sh.run("systemctl restart elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch restart");
+        }
+
+        waitForElasticsearch();
+
+//        assertStatuses();
+    }
+
+    public static void recreateTempFiles(Shell sh) {
+        //only systemd
+        if (isSystemd()) {
+            sh.run("systemd-tmpfiles --create");
+        }
+    }
+
+    public static void maskSysctl(Shell sh) {
+        if (isSystemd()) {
+            sh.run("systemctl mask systemd-sysctl.service");
+        }
+    }
+
+
+    public static void unmaskSysctl(Shell sh) {
+        if (isSystemd()) {
+            sh.run("systemctl unmask systemd-sysctl.service");
+        }
+    }
+
 }

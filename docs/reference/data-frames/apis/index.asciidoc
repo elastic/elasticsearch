@@ -7,10 +7,17 @@
 [[data-frame-transform-apis]]
 === {dataframe-transforms-cap}
 
+* <<preview-data-frame-transform,Preview {dataframe-transforms}>>
+* <<put-data-frame-transform,Create {dataframe-transforms}>>,
+<<delete-data-frame-transform,delete {dataframe-transforms}>>
+* <<preview-data-frame-transform,Preview {dataframe-transforms}>>
 * <<get-data-frame-transform,Get {dataframe-transform} info>>,
 <<get-data-frame-transform-stats,Get {dataframe-transform} statistics>>
-* <<preview-data-frame-transform,Preview {dataframe-transforms}>>
 
+//CREATE
+include::put-transform.asciidoc[]
+//DELETE
+include::delete-transform.asciidoc[]
 //GET
 include::get-transform.asciidoc[]
 include::get-transform-stats.asciidoc[]

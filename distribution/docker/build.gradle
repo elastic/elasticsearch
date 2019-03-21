@@ -136,32 +136,17 @@ preProcessFixture {
 }
 
 processTestResources {
-  inputs.property "distribution", System.getProperty("tests.distribution", "default")
-  from { zipTree(configurations.restSpec.singleFile) }
+  from ({ zipTree(configurations.restSpec.singleFile) }) {
+    include 'rest-api-spec/api/**'
+  }
   from project(':x-pack:plugin:core')
           .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  if (System.getProperty("tests.distribution", "default") == "default") {
-    from { project(':x-pack:plugin').sourceSets.test.resources }
-  }
   dependsOn configurations.restSpec
-  // FIXME: check why these tests fail
-  exclude "**/data_frame/**"
-  exclude "**/ml/**"
 }
 
 task integTest(type: RandomizedTestingTask) {
   parallelism = '1'
   include '**/*IT.class'
-  // FIXME: see why these tests fail
-  systemProperty 'tests.rest.blacklist', [
-          'snapshot.restore/10_basic/Create a snapshot and then restore it}',
-          'watcher/execute_watch/60_http_input/HTTP input supports extracting of keys',
-          'token/10_basic/Test invalidate realm\'s tokens',
-          'monitoring/bulk/10_basic/Bulk indexing of monitoring data on closed indices should throw an export exception',
-          'monitoring/bulk/20_privileges/Monitoring Bulk API',
-          'indices.get_alias/10_basic/Get alias against closed indices',
-          'ssl/10_basic/Test get SSL certificates',
-          ].join(",")
 }
 
 check.dependsOn integTest

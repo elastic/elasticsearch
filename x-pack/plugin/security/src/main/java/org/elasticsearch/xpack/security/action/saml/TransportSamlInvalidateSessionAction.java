@@ -91,7 +91,7 @@ public final class TransportSamlInvalidateSessionAction
             return;
         }
 
-        tokenService.findActiveTokensForRealm(realm.name(), ActionListener.wrap(tokens -> {
+        tokenService.findActiveTokensForRealm(realm.name(), containsMetadata(tokenMetadata), ActionListener.wrap(tokens -> {
                 logger.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
                 if (tokens.isEmpty()) {
                     listener.onResponse(0);
@@ -101,7 +101,7 @@ public final class TransportSamlInvalidateSessionAction
                     tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
                 }
             }, listener::onFailure
-        ), containsMetadata(tokenMetadata));
+        ));
     }
 
     private void invalidateTokenPair(Tuple<UserToken, String> tokenPair, ActionListener<TokensInvalidationResult> listener) {

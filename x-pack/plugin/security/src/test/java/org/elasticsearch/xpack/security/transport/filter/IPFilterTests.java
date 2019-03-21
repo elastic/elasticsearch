@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -26,6 +27,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -140,7 +145,8 @@ public class IPFilterTests extends ESTestCase {
         ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         assertAddressIsAllowed("127.0.0.1");
-        assertAddressIsDenied("192.168.0.1");
+        // when "localhost" is used, ES considers all local addresses see PatternRule#isLocalhost()
+        assertAddressIsDenied(randomNonLocalIPv4Address());
         assertAddressIsAllowedForProfile("client", "192.168.0.1");
         assertAddressIsDeniedForProfile("client", "192.168.0.2");
     }
@@ -161,7 +167,8 @@ public class IPFilterTests extends ESTestCase {
         clusterSettings.updateDynamicSettings(newSettings, updatedSettingsBuilder, Settings.builder(), "test");
         clusterSettings.applySettings(updatedSettingsBuilder.build());
         assertAddressIsAllowed("127.0.0.1");
-        assertAddressIsDenied("192.168.0.1");
+        // when "localhost" is used, ES considers all local addresses see PatternRule#isLocalhost()
+        assertAddressIsDenied(randomNonLocalIPv4Address());
         assertAddressIsAllowedForProfile("client", "192.168.0.1", "192.168.0.2");
         assertAddressIsDeniedForProfile("client", "192.168.0.3");
     }
@@ -297,4 +304,22 @@ public class IPFilterTests extends ESTestCase {
     private void assertAddressIsDenied(String ... inetAddresses) {
         assertAddressIsDeniedForProfile("default", inetAddresses);
     }
+
+    private String randomNonLocalIPv4Address() throws SocketException, UnknownHostException {
+        String ipv4Address = null;
+        int noOfRetries = 0;
+        do {
+            noOfRetries++;
+            final InetAddress address = InetAddress.getByAddress(Numbers.intToBytes(randomInt()));
+            if (address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null) {
+                continue;
+            } else {
+                ipv4Address = NetworkAddress.format(address);
+                break;
+            }
+        } while (ipv4Address == null && noOfRetries < 25);
+        assertThat("could not generate random IPv4 address which is not local address", ipv4Address, notNullValue());
+        return ipv4Address;
+    }
+
 }

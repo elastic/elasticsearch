@@ -509,6 +509,8 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 // CONSOLE
 // TEST[continued]
 
+But keep in mind that if it is restored on a different computer from which it was created, you need to register a repo in the new computer before you run this command. 
+
 By default, all indices in the snapshot are restored, and the cluster state is
 *not* restored. It's possible to select indices that should be restored as well
 as to allow the global cluster state from being restored by using `indices` and

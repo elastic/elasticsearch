@@ -105,3 +105,41 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform,airline-transform-dos"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.1.id: "airline-transform-dos" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+        from: 0
+        size: 1
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform" }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform*"
+        from: 1
+        size: 1
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-dos" }
+---
+"Test transform with invalid page parameter":
+  - do:
+      catch: /Param \[size\] has a max acceptable value of \[1000\]/
+      data_frame.get_data_frame_transform:
+        transform_id: "_all"
+        from: 0
+        size: 10000

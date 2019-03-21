@@ -68,7 +68,7 @@ public class Cleanup {
             );
         });
 
-        Platforms.onLinux(() -> purgePackagesLinux());
+        Platforms.onLinux(Cleanup::purgePackagesLinux);
 
         // remove elasticsearch users
         Platforms.onLinux(() -> {

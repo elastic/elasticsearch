@@ -208,7 +208,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 final String newPath = Arrays.stream(originalPath.split(";"))
                                              .filter(path -> path.contains("Java") == false)
                                              .collect(joining(";"));
-                // one windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
+                // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.runIgnoreExitCode("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
 
                 sh.getEnv().put("PATH", newPath);

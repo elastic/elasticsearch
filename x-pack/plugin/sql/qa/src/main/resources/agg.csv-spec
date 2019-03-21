@@ -85,8 +85,8 @@ SELECT SUM(salary) FROM test_emp;
 aggregateWithCastPruned
 SELECT CAST(SUM(salary) AS INTEGER) FROM test_emp;
 
-  SUM(salary)
--------------
+ CAST(SUM(salary) AS INTEGER)
+-----------------------------
 4824855
 ;
 

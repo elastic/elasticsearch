@@ -244,7 +244,7 @@ integTestSecureHaCluster.dependsOn secureHaHdfsFixture
 // Set the keytab files in the classpath so that we can access them from test code without the security manager
 // freaking out.
 project.dependencies {
-  testRuntime fileTree(dir: project(':test:fixtures:krb5kdc-fixture').krb5Keytabs("hdfs","keytabs"), include: ['*.keytab'])
+  testRuntime fileTree(dir: project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab").parent, include: ['*.keytab'])
 }
 
 // Run just the secure hdfs rest test suite.

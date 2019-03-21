@@ -47,7 +47,7 @@ postProcessFixture {
     }
 }
 
-project.ext.krb5Conf = { service -> "$buildDir/shared/${service}/krb5.conf" }
-project.ext.krb5Keytabs = { service, fileName -> "$buildDir/shared/${service}/keytabs/${fileName}" }
+project.ext.krb5Conf = { service -> file("$buildDir/shared/${service}/krb5.conf") }
+project.ext.krb5Keytabs = { service, fileName -> file("$buildDir/shared/${service}/keytabs/${fileName}") }
 
 unitTest.enabled = false

@@ -156,8 +156,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             throw new IllegalArgumentException("distance unit must not be null");
         }
         double newDistance = DistanceUnit.parse(distance, unit, DistanceUnit.DEFAULT);
-        if (newDistance <= 0.0) {
-            throw new IllegalArgumentException("distance must be greater than zero");
+        if (newDistance < 0.0) {
+            throw new IllegalArgumentException("distance must be greater than or equal to zero");
         }
         this.distance = newDistance;
         return this;

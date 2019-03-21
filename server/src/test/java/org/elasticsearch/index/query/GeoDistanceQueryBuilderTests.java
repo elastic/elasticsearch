@@ -103,8 +103,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals("distance unit must not be null", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> query.distance(
-                randomIntBetween(Integer.MIN_VALUE, 0), DistanceUnit.DEFAULT));
-        assertEquals("distance must be greater than zero", e.getMessage());
+                randomIntBetween(Integer.MIN_VALUE, -1), DistanceUnit.DEFAULT));
+        assertEquals("distance must be greater than or equal to zero", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> query.geohash(null));
         assertEquals("geohash must not be null or empty", e.getMessage());

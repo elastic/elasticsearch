@@ -280,6 +280,10 @@ public class Packages {
             sh.run("service elasticsearch start");
         }
 
+        assertElasticsearchStarted(sh);
+    }
+
+    public static void assertElasticsearchStarted(Shell sh) throws IOException {
         waitForElasticsearch();
 
         if (isSystemd()) {

@@ -21,10 +21,8 @@ package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
@@ -37,9 +35,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
-import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
@@ -126,29 +122,27 @@ public class ServiceManagerTestCase extends PackagingTestCase {
 
         recreateTempFiles();
 
-        startElasticsearch(newShell());
+        Shell sh = newShell();
+        startElasticsearch(sh);
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
 
         assertTrue(Files.exists(pidFile));
+
+        stopElasticsearch(sh);
     }
 
-//
 
     public void test70CustomPathConfAndJvmOptions() throws IOException {
         assumeThat(installation, CoreMatchers.is(notNullValue()));
         FileUtils.assertPathsExist(installation.envFile);
 
-        /**
-         //         * # The custom config directory is not under /tmp or /var/tmp because
-         //         * # systemd's private temp directory functionally means different
-         //         * # processes can have different views of what's in these directories
-         //         */
         Shell sh = newShell();
+        // The custom config directory is not under /tmp or /var/tmp because
+        // systemd's private temp directory functionally means different
+        // processes can have different views of what's in these directories
         String temp = sh.runIgnoreExitCode("mktemp -p /etc -d").stdout.trim();
         final Path tempConf = Paths.get(temp);
-        System.out.println(tempConf);
-        System.out.println(installation.envFile);
 
         try {
             mkdir(tempConf);
@@ -167,11 +161,9 @@ public class ServiceManagerTestCase extends PackagingTestCase {
             sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
 
             final Shell serverShell = newShell();
-//            serverShell.getEnv().put("ES_PATH_CONF", tempConf.toString());
-//            serverShell.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
-            cp(installation.envFile,tempConf.resolve("elasticsearch"));//backup
-            append(installation.envFile,"ES_PATH_CONF="+tempConf+"\n");
-            append(installation.envFile,"ES_JAVA_OPTS=-XX:-UseCompressedOops");
+            cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));//backup
+            append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
+            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
             startElasticsearch(serverShell);
 
@@ -182,66 +174,66 @@ public class ServiceManagerTestCase extends PackagingTestCase {
             stopElasticsearch(serverShell);
 
         } finally {
-//            rm(installation.envFile);
-//            cp(tempConf.resolve("elasticsearch"), installation.envFile);
-           // rm(tempConf);
+            rm(installation.envFile);
+            cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
+            rm(tempConf);
         }
     }
 
-//    public void test60SystemdMask() throws IOException {
-//        cleanup();
-//
-//        maskSysctl();
-//
-//        installation = install(distribution());
-//
-//        unmaskSysctl();
-//    }
-//
-//    public void test70serviceFileSetsLimits() throws IOException {
-//        final Shell sh = newShell();
-//
-//        cleanup();
-//
-//        installation = install(distribution());
-//
-//        startElasticsearch(newShell());
-//
-//        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
-//        assertTrue(Files.exists(pidFile));
-//        String pid = slurp(pidFile).trim();
-//        String maxFileSize = run(sh, "cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid);
-//        assertThat(maxFileSize, equalTo("unlimited"));
-//
-//        String maxProcesses = run(sh, "cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid);
-//        assertThat(maxProcesses, equalTo("4096"));
-//
-//        String maxOpenFiles = run(sh, "cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid);
-//        assertThat(maxOpenFiles, equalTo("65535"));
-//
-//        String maxAddressSpace = run(sh, "cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid);
-//        assertThat(maxAddressSpace, equalTo("unlimited"));
-//
-//        stopElasticsearch(newShell());
-//    }
-//
-//    public void test80TestRuntimeDirectory() throws IOException {
-//        cleanup();
-//        installation = install(distribution());
-//        FileUtils.rm(Paths.get("/var/run/elasticsearch"));
-//        startElasticsearch(newShell());
-//        FileUtils.assertPathsExist(Paths.get("/var/run/elasticsearch"));
-//        stopElasticsearch(newShell());
-//    }
-//
-//    public void test90gcLogsExist() throws IOException {
-//        cleanup();
-//        installation = install(distribution());
-//        startElasticsearch(newShell());
-//        //somehow it is not .0.current when running test?
-//        FileUtils.assertPathsExist(Paths.get("/var/log/elasticsearch/gc.log"));
-//        stopElasticsearch(newShell());
-//    }
+    public void test60SystemdMask() throws IOException {
+        cleanup();
+
+        maskSysctl();
+
+        installation = install(distribution());
+
+        unmaskSysctl();
+    }
+
+    public void test70serviceFileSetsLimits() throws IOException {
+        final Shell sh = newShell();
+
+        cleanup();
+
+        installation = install(distribution());
+
+        startElasticsearch(newShell());
+
+        final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
+        assertTrue(Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        String maxFileSize = run(sh, "cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid);
+        assertThat(maxFileSize, equalTo("unlimited"));
+
+        String maxProcesses = run(sh, "cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid);
+        assertThat(maxProcesses, equalTo("4096"));
+
+        String maxOpenFiles = run(sh, "cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid);
+        assertThat(maxOpenFiles, equalTo("65535"));
+
+        String maxAddressSpace = run(sh, "cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid);
+        assertThat(maxAddressSpace, equalTo("unlimited"));
+
+        stopElasticsearch(newShell());
+    }
+
+    public void test80TestRuntimeDirectory() throws IOException {
+        cleanup();
+        installation = install(distribution());
+        FileUtils.rm(Paths.get("/var/run/elasticsearch"));
+        startElasticsearch(newShell());
+        FileUtils.assertPathsExist(Paths.get("/var/run/elasticsearch"));
+        stopElasticsearch(newShell());
+    }
+
+    public void test90gcLogsExist() throws IOException {
+        cleanup();
+        installation = install(distribution());
+        startElasticsearch(newShell());
+        //somehow it is not .0.current when running test?
+        FileUtils.assertPathsExist(Paths.get("/var/log/elasticsearch/gc.log"));
+        stopElasticsearch(newShell());
+    }
 
     private String run(Shell sh, String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);

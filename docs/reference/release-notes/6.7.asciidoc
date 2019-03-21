@@ -15,6 +15,9 @@ Authentication::
 CCR::
 * Follow stats api should return a 404 when requesting stats for a non existing index {pull}37220[#37220] (issue: {issue}37021[#37021])
 
+Distributed::
+* Stop returning cluster state size by default {pull}40016[#40016] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951])
+
 Infra/Packaging::
 * Package ingest-user-agent as a module {pull}36956[#36956]
 * Package ingest-geoip as a module {pull}36898[#36898]
@@ -46,6 +49,12 @@ Audit::
 
 CRUD::
 * Deprecate support for internal versioning for concurrency control {pull}38451[#38451] (issues: {issue}10708[#10708], {issue}38254[#38254])
+
+Cluster Coordination::
+* Deprecate size in cluster state response {pull}39951[#39951] (issue: {issue}39806[#39806])
+
+Features/Features::
+* Deprecate Migration Assistance and Upgrade APIs  {pull}40072[#40072] (issue: {issue}40014[#40014])
 
 Features/Java High Level REST Client::
 * Deprecate HLRC EmptyResponse used by security {pull}37540[#37540] (issue: {issue}36938[#36938])
@@ -152,6 +161,7 @@ Authorization::
 * Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
 
 CCR::
+* Reduce retention lease sync intervals {pull}40302[#40302]
 * Introduce forget follower API {pull}39718[#39718] (issue: {issue}37165[#37165])
 * Renew retention leases while following {pull}39335[#39335] (issues: {issue}37165[#37165], {issue}38718[#38718])
 * Reduce refresh when lookup term in FollowingEngine {pull}39184[#39184]
@@ -174,6 +184,9 @@ CRUD::
 
 Client::
 * Fixed required fields and paths list {pull}39358[#39358]
+
+Cluster Coordination::
+* Expose minimum_master_nodes in cluster state {pull}37811[#37811] (issue: {issue}37701[#37701])
 
 Distributed::
 * Add BWC for retention leases {pull}39482[#39482] (issue: {issue}37165[#37165])
@@ -205,6 +218,7 @@ Docs Infrastructure::
 * Align generated release notes with doc standards {pull}39234[#39234] (issue: {issue}39155[#39155])
 
 Engine::
+* Also mmap cfs files for hybridfs {pull}38940[#38940] (issue: {issue}36668[#36668])
 * Specialize pre-closing checks for engine implementations {pull}38702[#38702]
 * Ensure that max seq # is equal to the global checkpoint when creating ReadOnlyEngines {pull}37426[#37426]
 * Enable Bulk-Merge if all source remains {pull}37269[#37269]
@@ -258,6 +272,7 @@ Infra/Logging::
 * Only update response headers if we have a new one {pull}37590[#37590] (issues: {issue}35754[#35754], {issue}37530[#37530])
 
 Infra/Packaging::
+* Upgrade bundled JDK and Docker images to JDK 12 {pull}40229[#40229]
 * Change file descriptor limit to 65535 {pull}37537[#37537] (issue: {issue}35839[#35839])
 * Exit batch files explictly using ERRORLEVEL {pull}29583[#29583] (issue: {issue}29582[#29582])
 
@@ -350,9 +365,6 @@ Snapshot/Restore::
 Suggesters::
 * [API] spelling: likelihood {pull}37052[#37052] (issue: {issue}37035[#37035])
 
-ZenDiscovery::
-* Expose minimum_master_nodes in cluster state {pull}37811[#37811] (issue: {issue}37701[#37701])
-
 
 
 [[bug-6.7.0]]
@@ -360,6 +372,7 @@ ZenDiscovery::
 === Bug fixes
 
 Aggregations::
+* Skip sibling pipeline aggregators reduction during non-final reduce {pull}40101[#40101] (issue: {issue}40059[#40059])
 * Only create MatrixStatsResults on final reduction {pull}38130[#38130] (issue: {issue}37587[#37587])
 * Don't load global ordinals with the `map` execution_hint {pull}37833[#37833] (issue: {issue}37705[#37705])
 * Issue #37303 - Invalid variance fix {pull}37384[#37384] (issue: {issue}37303[#37303])
@@ -374,6 +387,7 @@ Analysis::
 * Fix PreConfiguredTokenFilters getSynonymFilter() implementations {pull}38839[#38839] (issue: {issue}38793[#38793])
 
 Audit::
+* LoggingAuditTrail correctly handle ReplicatedWriteRequest {pull}39925[#39925] (issue: {issue}39555[#39555])
 * Fix IndexAuditTrail rolling upgrade on rollover edge - take 2 {pull}38286[#38286] (issues: {issue}33867[#33867], {issue}35988[#35988], {issue}37062[#37062])
 * Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
 
@@ -387,6 +401,9 @@ Authentication::
 * Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
 
 CCR::
+* Safe publication of AutoFollowCoordinator {pull}40153[#40153] (issue: {issue}38560[#38560])
+* Enable reading auto-follow patterns from x-content {pull}40130[#40130] (issue: {issue}40128[#40128])
+* Stop auto-followers on shutdown {pull}40124[#40124]
 * Protect against the leader index being removed {pull}39351[#39351] (issue: {issue}39308[#39308])
 * Fix shard follow task startup error handling {pull}39053[#39053] (issue: {issue}38779[#38779])
 * Filter out upgraded version index settings when starting index following {pull}38838[#38838] (issue: {issue}38835[#38835])
@@ -403,8 +420,13 @@ CCR::
 * [CCR] Resume follow Api should not require a request body {pull}37217[#37217] (issue: {issue}37022[#37022])
 
 CRUD::
+* Cascading primary failure lead to MSU too low {pull}40249[#40249]
 * ShardBulkAction ignore primary response on primary {pull}38901[#38901]
 * Fix Reindex from remote query logic {pull}36908[#36908]
+
+Cluster Coordination::
+* Fixing the custom object serialization bug in diffable utils. {pull}39544[#39544]
+* Always return metadata version if metadata is requested {pull}37674[#37674]
 
 Distributed::
 * Enforce retention leases require soft deletes {pull}39922[#39922] (issue: {issue}39914[#39914])
@@ -425,6 +447,7 @@ Engine::
 * Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
 
 Features/Features::
+* Only count some fields types for deprecation check {pull}40166[#40166]
 * Deprecation check for indices with very large numbers of fields {pull}39869[#39869] (issue: {issue}39851[#39851])
 * Check for .watches that wasn't upgraded properly {pull}39609[#39609]
 * Link to 7.0 documentation in deprecation checks {pull}39194[#39194]
@@ -500,6 +523,7 @@ Infra/Settings::
 * Fix handling of fractional time value settings {pull}37171[#37171]
 
 Machine Learning::
+* [ML] Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
 * [ML] Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
 * [ML] refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
 * [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
@@ -531,11 +555,20 @@ Ranking::
 * QueryRescorer should keep the window size when rewriting {pull}36836[#36836]
 
 Recovery::
+* Create retention leases file during recovery {pull}39359[#39359] (issue: {issue}37165[#37165])
 * RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
 
 SQL::
+* SQL: Preserve original source for cast/convert function {pull}40271[#40271] (issue: {issue}40239[#40239])
+* SQL: Fix issue with optimization on queries with ORDER BY/LIMIT {pull}40256[#40256] (issue: {issue}40211[#40211])
+* SQL: Fix issue with getting DATE type in JDBC {pull}40207[#40207]
+* SQL: Fix issue with date columns returned always in UTC {pull}40163[#40163] (issue: {issue}40152[#40152])
+* SQL: Add multi_value_field_leniency inside FieldHitExtractor {pull}40113[#40113] (issue: {issue}39700[#39700])
+* SQL: fix incorrect ordering of groupings (GROUP BY) based on orderings (ORDER BY) {pull}40087[#40087] (issue: {issue}39956[#39956])
+* SQL: Fix bug with JDBC timezone setting and DATE type {pull}39978[#39978] (issue: {issue}39915[#39915])
 * SQL: Wrap ZonedDateTime parameters inside scripts {pull}39911[#39911] (issue: {issue}39877[#39877])
 * SQL: ConstantProcessor can now handle NamedWriteable {pull}39876[#39876] (issue: {issue}39875[#39875])
+* SQL: Extend the multi dot field notation extraction to lists of values {pull}39823[#39823] (issue: {issue}39738[#39738])
 * SQL: values in datetime script aggs should be treated as long {pull}39773[#39773] (issue: {issue}37042[#37042])
 * SQL: Don't allow inexact fields for MIN/MAX {pull}39563[#39563] (issue: {issue}39427[#39427])
 * SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
@@ -568,6 +601,7 @@ SQL::
 * SQL: normalized keywords shouldn't be allowed for groupings and sorting [ISSUE] {pull}35203[#35203]
 
 Search::
+* Serialize top-level pipeline aggs as part of InternalAggregations {pull}40177[#40177] (issues: {issue}40059[#40059], {issue}40101[#40101])
 * Fix Fuzziness#asDistance(String) {pull}39643[#39643] (issue: {issue}39614[#39614])
 * Fix simple query string serialization conditional {pull}38960[#38960] (issues: {issue}21504[#21504], {issue}38889[#38889])
 * Ensure that maxConcurrentShardRequests is never defaulted to 0 {pull}38734[#38734]
@@ -594,10 +628,6 @@ Suggesters::
 Task Management::
 * Un-assign persistent tasks as nodes exit the cluster {pull}37656[#37656]
 
-ZenDiscovery::
-* Fixing the custom object serialization bug in diffable utils. {pull}39544[#39544]
-* Always return metadata version if metadata is requested {pull}37674[#37674]
-
 
 
 [[regression-6.7.0]]
@@ -618,6 +648,9 @@ Discovery-Plugins::
 
 Features/Ingest::
 * Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
+
+Security::
+* Upgrade the bouncycastle dependency to 1.61 {pull}40017[#40017] (issue: {issue}40011[#40011])
 
 Snapshot/Restore::
 * plugins/repository-gcs: Update google-cloud-storage/core to 1.59.0 {pull}39748[#39748] (issue: {issue}39366[#39366])

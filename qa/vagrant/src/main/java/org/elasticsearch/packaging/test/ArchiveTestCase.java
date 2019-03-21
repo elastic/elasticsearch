@@ -205,13 +205,9 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final String javaHome = sh.run("$Env:JAVA_HOME").stdout.trim();
 
             try {
-                final String newPath = Arrays.stream(originalPath.split(";"))
-                                             .filter(path -> path.contains("Java") == false)
-                                             .collect(joining(";"));
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.runIgnoreExitCode("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
 
-                sh.getEnv().put("PATH", newPath);
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 //verify ES can start, stop and run plugin list
@@ -226,9 +222,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             } finally {
                 //clean up sym link
                 sh.runIgnoreExitCode("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
-                sh.getEnv().put("PATH", originalPath);
                 sh.getEnv().put("JAVA_HOME", javaHome);
-
             }
         });
 

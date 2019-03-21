@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -89,7 +88,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(left);
-        ScriptTemplate rightScript = right == null ? asScript(Literal.NULL) : asScript(right);
+        ScriptTemplate rightScript = asOptionalScript(right);
 
         return asScriptFrom(leftScript, rightScript);
     }

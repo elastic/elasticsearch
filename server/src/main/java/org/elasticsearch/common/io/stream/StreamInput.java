@@ -415,7 +415,6 @@ public abstract class StreamInput extends InputStream {
         return spare.toString();
     }
 
-
     public final float readFloat() throws IOException {
         return Float.intBitsToFloat(readInt());
     }

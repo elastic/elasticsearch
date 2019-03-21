@@ -562,3 +562,18 @@ GET /_search
 // CONSOLE
 
 // todo fuzziness and other params support
+
+// definitely supports lenient
+// we don't mention supporting operator but we should, both here and in the regular query
+// we support fuzziness (ditto prefix length and max expansions and rewrite, fuzzy_transpositions) but only on the term queries
+// we don't mention supporting zero terms query but we should, nboth here and in the regular query
+// we don't support phrase slop -> todo deny it in the builder
+// cutoff frequency -> we don't support it, it only gets used for BOOLEAN matchquery type. we probably shouldnt support it
+// it looks like we do support auto_generate_synonym_whatever -> we have tests for it, we should probably support it in the regular type too
+// we support boost -> add a test for this
+
+//Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
+//`fuzziness`, `lenient`, `prefix_length`, `max_expansions`, `rewrite`, `zero_terms_query`,
+// `cutoff_frequency`, `auto_generate_synonyms_phrase_query` and `fuzzy_transpositions`,
+//  as explained in <<query-dsl-match-query, match query>>.
+// slop?

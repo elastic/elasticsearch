@@ -110,11 +110,5 @@ SELECT gender AS g, first_name AS f, last_name AS l FROM test_emp GROUP BY f, ge
 multipleGroupingsAndOrderingByGroups_8
 SELECT gender AS g, first_name, last_name FROM test_emp GROUP BY g, last_name, first_name ORDER BY gender ASC, first_name DESC, last_name ASC;
 
-multipleGroupingsAndOrderingByGroupsWithFunctions_1
-SELECT first_name f, last_name l, gender g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY gender, l, f, c ORDER BY c DESC, first_name, l ASC, g;
-
-multipleGroupingsAndOrderingByGroupsWithFunctions_2
+multipleGroupingsAndOrderingByGroupsWithFunctions
 SELECT first_name f, last_name l, gender g, CONCAT(first_name, last_name) c FROM test_emp GROUP BY gender, l, f, c ORDER BY gender, c DESC, first_name, last_name ASC;
-
-multipleGroupingsAndOrderingByGroupsWithFunctions_3
-SELECT first_name f, last_name l, LCASE(gender) g, CONCAT(UCASE(first_name), LCASE(last_name)) c FROM test_emp GROUP BY f, LCASE(gender), l, c ORDER BY c DESC, first_name, l ASC, g;

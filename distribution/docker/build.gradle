@@ -90,10 +90,7 @@ void addCopyDockerfileTask(final boolean oss) {
 }
 
 preProcessFixture {
-  dependsOn taskName("copy", true, "DockerContext")
-  dependsOn taskName("copy", true, "Dockerfile")
-  dependsOn taskName("copy", false, "DockerContext")
-  dependsOn taskName("copy", false, "Dockerfile")
+  dependsOn assemble
 }
 
 postProcessFixture.doLast {
@@ -110,12 +107,16 @@ void addBuildDockerImage(final boolean oss) {
     dependsOn taskName("copy", oss, "Dockerfile")
     List<String> tags
     if (oss) {
-      tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
+      tags = [ 
+        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss:test" 
+      ]
     } else {
       tags = [
         "elasticsearch:${VersionProperties.elasticsearch}",
         "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}"
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
+        "elasticsearch:test",
       ]
     }
     executable 'docker'

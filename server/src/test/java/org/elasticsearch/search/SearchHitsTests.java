@@ -267,4 +267,19 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
         }
     }
+
+    public void testEmpty() {
+        SearchHits empty = randomBoolean() ? SearchHits.empty() : SearchHits.empty(true);
+        assertTrue(Float.isNaN(empty.getMaxScore()));
+        assertEquals(0, empty.getHits().length);
+        assertNotNull(empty.getTotalHits());
+        assertEquals(0, empty.getTotalHits().value);
+    }
+
+    public void testEmptyWithoutTotalHits() {
+        SearchHits empty = SearchHits.empty(false);
+        assertTrue(Float.isNaN(empty.getMaxScore()));
+        assertEquals(0, empty.getHits().length);
+        assertNull(empty.getTotalHits());
+    }
 }

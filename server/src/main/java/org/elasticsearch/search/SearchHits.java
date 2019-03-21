@@ -48,7 +48,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     public static SearchHits empty(boolean withTotalHits) {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
+        return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, Float.NaN);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];

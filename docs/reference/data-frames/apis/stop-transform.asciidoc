@@ -21,6 +21,18 @@ Stops one or more {dataframe-transforms}.
   lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
   must start and end with alphanumeric characters.
 
+==== Query Parameters
+
+`wait_for_completion`::
+  (boolean) If set to true, causes the API to block until the indexer state completely stops. If set to false, the API returns immediately and the indexer will be stopped asynchronously in the background. Defaults to `false`.
+
+ `timeout`::
+   (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
+   the specified duration while waiting for the job to stop. If more than
+   `timeout` time has passed, the API throws a timeout exception. Even if a
+   timeout exception is thrown, the stop request is still processing and
+   eventually moves the job to `STOPPED`. The timeout simply means the API call itself timed out while waiting for the status change. Defaults to `30s`
+    
 //==== Request Body
 //==== Authorization
 

@@ -206,7 +206,11 @@ public abstract class PackageTestCase extends PackagingTestCase {
     }
 
     public void test70RestartServer() throws IOException {
+        installation = install(distribution());
+        assertInstalled(distribution());
+
         Shell sh = newShell();
+        startElasticsearch(sh);
         restartElasticsearch(sh);
         runElasticsearchTests();
         stopElasticsearch(sh);
@@ -252,10 +256,12 @@ public abstract class PackageTestCase extends PackagingTestCase {
         cleanup();
         installation = install(distribution());
         startElasticsearch(newShell());
-        //somehow it is not .0.current when running test?
-        FileUtils.assertPathsExist(installation.logs.resolve("gc.log"));
+        // it can be gc.log or gc.log.0.current
+        assertThat(installation.logs, FileUtils.fileWithRegexExist("gc.log*"));
         stopElasticsearch(newShell());
     }
+
+    // TEST CASES FOR SYSTEMD ONLY
 
     /**
      * # Simulates the behavior of a system restart:
@@ -280,7 +286,6 @@ public abstract class PackageTestCase extends PackagingTestCase {
         stopElasticsearch(sh);
     }
 
-    // TEST CASES FOR SYSTEMD ONLY
     public void test81CustomPathConfAndJvmOptions() throws IOException {
         assumeTrue(isSystemd());
 
@@ -288,6 +293,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         FileUtils.assertPathsExist(installation.envFile);
 
         Shell sh = newShell();
+        stopElasticsearch(sh);
+
         // The custom config directory is not under /tmp or /var/tmp because
         // systemd's private temp directory functionally means different
         // processes can have different views of what's in these directories

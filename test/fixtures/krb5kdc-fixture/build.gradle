@@ -41,7 +41,7 @@ postProcessFixture {
         doLast {
             assert confTemplate.exists()
             String confContents = confTemplate.text
-                .replace(":88", ":${ext."test.fixtures.${service}.udp.88"}")
+                .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
             confFile.text = confContents
         }
     }

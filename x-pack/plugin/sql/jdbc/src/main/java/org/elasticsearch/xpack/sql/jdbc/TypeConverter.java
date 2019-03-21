@@ -469,7 +469,7 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATETIME) {
+        if (columnType == EsType.DATETIME || columnType == EsType.DATE) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
         }
         return failConversion(val, columnType, typeString, Date.class);
@@ -479,11 +479,14 @@ final class TypeConverter {
         if (columnType == EsType.DATETIME) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
         }
+        if (columnType == EsType.DATE) {
+            return new Time(0L);
+        }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATETIME) {
+        if (columnType == EsType.DATETIME || columnType == EsType.DATE) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);

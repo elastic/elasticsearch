@@ -1,0 +1,13 @@
+[role="xpack"]
+[testenv="basic"]
+[[data-frame-apis]]
+== {dataframe-cap} APIs
+
+[float]
+[[data-frame-transform-apis]]
+=== {dataframe-transforms-cap}
+
+* <<preview-data-frame-transform,Preview {dataframe-transforms}>>
+
+//PREVIEW
+include::preview-data-frame-transform.asciidoc[]

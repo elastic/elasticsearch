@@ -553,11 +553,6 @@ public class CCSDuelIT extends ESRestTestCase {
         return sourceBuilder;
     }
 
-    public void testScriptedAggs() {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.size(0);
-    }
-
     public void testDateHistogram() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();

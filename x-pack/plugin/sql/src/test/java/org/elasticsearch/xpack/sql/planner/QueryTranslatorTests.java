@@ -421,6 +421,27 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
     }
     
+    public void testTranslateRoundWithOneParameter() {
+        LogicalPlan p = plan("SELECT ROUND(YEAR(date)) FROM test GROUP BY ROUND(YEAR(date))");
+
+        assertTrue(p instanceof Aggregate);
+        assertEquals(1, ((Aggregate) p).groupings().size());
+        assertEquals(1, ((Aggregate) p).aggregates().size());
+        assertTrue(((Aggregate) p).groupings().get(0) instanceof Round);
+        assertTrue(((Aggregate) p).aggregates().get(0) instanceof Round);
+
+        Round groupingRound = (Round) ((Aggregate) p).groupings().get(0);
+        assertEquals(1, groupingRound.children().size());
+
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.round(InternalSqlScriptUtils.dateTimeChrono(InternalSqlScriptUtils.docValue(doc,params.v0), "
+                + "params.v1, params.v2),params.v3)",
+            scriptTemplate.toString());
+        assertEquals("[{v=date}, {v=Z}, {v=YEAR}, {v=null}]", scriptTemplate.params().toString());
+    }
+    
     public void testTranslateRoundWithTwoParameters() {
         LogicalPlan p = plan("SELECT ROUND(YEAR(date), -2) FROM test GROUP BY ROUND(YEAR(date), -2)");
         

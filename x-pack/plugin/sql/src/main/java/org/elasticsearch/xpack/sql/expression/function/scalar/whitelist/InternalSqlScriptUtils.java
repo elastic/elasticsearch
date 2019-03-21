@@ -197,18 +197,10 @@ public final class InternalSqlScriptUtils {
         return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
-    public static Number round(Number v) {
-        return round(v, null);
-    }
-
     public static Number round(Number v, Number s) {
         return BinaryOptionalMathOperation.ROUND.apply(v, s);
     }
 
-    public static Number truncate(Number v) {
-        return truncate(v, null);
-    }
-    
     public static Number truncate(Number v, Number s) {
         return BinaryOptionalMathOperation.TRUNCATE.apply(v, s);
     }

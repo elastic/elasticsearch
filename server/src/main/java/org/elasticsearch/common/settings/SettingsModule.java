@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -185,34 +184,22 @@ public class SettingsModule implements Module {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 nodeSettings.put(setting.getKey(), setting);
-                if (setting instanceof SecureSetting<?> && setting.getProperties().contains(Property.Consistent)) {
-                    final Object verbatimValue = setting.get(this.settings);
-                    final MessageDigest digest;
-                    try {
-                        digest = MessageDigest.getInstance("SHA-256");
-                    } catch (NoSuchAlgorithmException e) {
-                        throw new RuntimeException("SHA-256 algorithm is required for the consistent secure settings functionality", e);
-                    }
-                    if (verbatimValue instanceof InputStream) {
-                        try (InputStream is = ((InputStream)verbatimValue)) {
-                            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                                Streams.copy(is, out);
-                                digest.update(out.toByteArray());
+                if (setting.isConsistent()) {
+                    if (setting instanceof Setting.AffixSetting<?>) {
+                        ((Setting.AffixSetting<?>)setting).getAllConcreteSettings(this.settings).forEach(concreteSetting -> {
+                            if (concreteSetting instanceof SecureSetting<?>) {
+                                saveSecureSettingForLaterComparison((SecureSetting<?>)concreteSetting);
+                            } else {
+                                throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                             }
-                        } catch (IOException e) {
-                            throw new RuntimeException("Exception while reading the [" + setting.getKey() + "] secure setting.", e);
-                        }
-                    } else if (verbatimValue instanceof SecureString) {
-                        try (SecureString secureString = ((SecureString)verbatimValue)) {
-                            digest.update(StandardCharsets.UTF_8.encode(CharBuffer.wrap(secureString.getChars())));
-                        }
+                        });
+                    } else if (setting instanceof SecureSetting<?>) {
+                        saveSecureSettingForLaterComparison((SecureSetting<?>) setting);
                     } else {
-                        throw new IllegalArgumentException("Unrecognized consistent secure setting [" + setting.getKey() + "]");
+                        throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                     }
-                    privateHashesOfConsistentSettings.put(setting.getKey(), digest.digest());
                 }
-            }
-            if (setting.hasIndexScope()) {
+            } else if (setting.hasIndexScope()) {
                 Setting<?> existingSetting = indexSettings.get(setting.getKey());
                 if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
@@ -222,6 +209,36 @@ public class SettingsModule implements Module {
         } else {
             throw new IllegalArgumentException("No scope found for setting [" + setting.getKey() + "]");
         }
+    }
+
+    /**
+     * Save unsalted hash for subsequent comparison with the master node.
+     */
+    private void saveSecureSettingForLaterComparison(SecureSetting<?> secureSetting) {
+        final Object verbatimValue = secureSetting.get(this.settings);
+        final MessageDigest digest;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm is required for the consistent secure settings functionality", e);
+        }
+        if (verbatimValue instanceof InputStream) {
+            try (InputStream is = ((InputStream)verbatimValue)) {
+                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    Streams.copy(is, out);
+                    digest.update(out.toByteArray());
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Exception while reading the [" + secureSetting.getKey() + "] secure setting.", e);
+            }
+        } else if (verbatimValue instanceof SecureString) {
+            try (SecureString secureString = ((SecureString)verbatimValue)) {
+                digest.update(StandardCharsets.UTF_8.encode(CharBuffer.wrap(secureString.getChars())));
+            }
+        } else {
+            throw new IllegalArgumentException("Unrecognized consistent secure setting [" + secureSetting.getKey() + "]");
+        }
+        privateHashesOfConsistentSettings.put(secureSetting.getKey(), digest.digest());
     }
 
     /**

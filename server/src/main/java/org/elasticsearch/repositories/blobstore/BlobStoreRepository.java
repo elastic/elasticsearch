@@ -1041,15 +1041,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 // Delete all blobs that don't exist in a snapshot
-                for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(DATA_BLOB_PREFIX) && (updatedSnapshots.findNameFile(canonicalName(blobName)) == null)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                        }
-                    }
+                final List<String> staleBlobs = blobs.keySet().stream()
+                    .filter(blobName ->
+                        blobName.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blobName)) == null)
+                    .collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobs(staleBlobs);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs [{}] during finalization",
+                        snapshotId, shardId, staleBlobs), e);
                 }
             } catch (IOException e) {
                 String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";

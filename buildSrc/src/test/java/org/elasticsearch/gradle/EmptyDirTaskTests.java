@@ -65,6 +65,7 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         assertFalse(newEmptyFolder.canRead());
         assertFalse(newEmptyFolder.canWrite());
 
+        // cleanup
         newEmptyFolder.delete();
     }
 

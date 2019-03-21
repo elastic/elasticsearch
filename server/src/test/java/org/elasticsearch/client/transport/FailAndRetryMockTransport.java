@@ -229,13 +229,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        throw new UnsupportedOperationException();
-    }
-
 }

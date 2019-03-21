@@ -114,7 +114,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
+    private static final TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
+    private volatile TransportMessageListener messageListener = NOOP_LISTENER;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -175,16 +176,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected void doStart() {
     }
 
-    public void addMessageListener(TransportMessageListener listener) {
-        messageListener.addListener(listener);
-        // The outbound handler handles the send listeners
-        outboundHandler.addMessageListener(listener);
-    }
-
-    public void removeMessageListener(TransportMessageListener listener) {
-        messageListener.removeListener(listener);
-        // The outbound handler handles the send listeners
-        outboundHandler.removeMessageListener(listener);
+    @Override
+    public synchronized void setMessageListener(TransportMessageListener listener) {
+        // TODO
+        if (messageListener == NOOP_LISTENER) {
+            messageListener = listener;
+        } else {
+            throw new IllegalStateException("Cannot set message listener twice");
+        }
     }
 
     @Override

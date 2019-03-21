@@ -100,8 +100,8 @@ public class OutboundHandlerTests extends ESTestCase {
         threadContext.putHeader("header", "header_value");
         Writeable writeable = new Message(value);
 
-        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId, isHandshake,
-            compress);
+        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], writeable, version, actionName, requestId,
+            isHandshake, compress);
 
         AtomicBoolean isSuccess = new AtomicBoolean(false);
         AtomicReference<Exception> exception = new AtomicReference<>();

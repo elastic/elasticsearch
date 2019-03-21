@@ -103,6 +103,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     "but none could be found so these will be skipped", project.getPath()
             );
             disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
             // conventions are not honored when the tasks are disabled
             disableTaskByType(tasks, TestingConventionsTasks.class);
             disableTaskByType(tasks, ComposeUp.class);

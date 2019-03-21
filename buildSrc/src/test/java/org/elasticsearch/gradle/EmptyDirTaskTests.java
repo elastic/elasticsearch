@@ -28,8 +28,8 @@ import org.gradle.testfixtures.ProjectBuilder;
 public class EmptyDirTaskTests extends GradleUnitTestCase {
 
     public void testCreateEmptyDir() throws Exception {
-        Project project = createProject();
-        EmptyDirTask emptyDirTask = createTask(project);
+        Project project = ProjectBuilder.builder().build();
+        EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);
         assertEquals(0755, emptyDirTask.getDirMode());
 
         // generate a new temporary folder and make sure it does not exists
@@ -49,8 +49,8 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
     }
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
-        Project project = createProject();
-        EmptyDirTask emptyDirTask = createTask(project);
+        Project project = ProjectBuilder.builder().build();
+        EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);
         emptyDirTask.setDirMode(0000);
 
         // generate a new temporary folder and make sure it does not exists
@@ -75,11 +75,4 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         return newEmptyFolder;
     }
 
-    private Project createProject() throws IOException {
-        return ProjectBuilder.builder().build();
-    }
-
-    private EmptyDirTask createTask(Project project) {
-        return project.getTasks().create("emptyDirTask", EmptyDirTask.class);
-    }
 }

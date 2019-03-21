@@ -28,6 +28,8 @@ import java.util.Optional;
 public class GetDataFrameTransformRequest implements Validatable {
 
     private final String id;
+    private Integer from;
+    private Integer size;
 
     public GetDataFrameTransformRequest(String id) {
         this.id = id;
@@ -35,6 +37,22 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     public String getId() {
         return id;
+    }
+
+    public Integer getFrom() {
+        return from;
+    }
+
+    public void setFrom(Integer from) {
+        this.from = from;
+    }
+
+    public Integer getSize() {
+        return size;
+    }
+
+    public void setSize(Integer size) {
+        this.size = size;
     }
 
     @Override

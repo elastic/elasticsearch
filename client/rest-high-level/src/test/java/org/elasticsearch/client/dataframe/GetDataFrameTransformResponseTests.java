@@ -58,13 +58,13 @@ public class GetDataFrameTransformResponseTests extends ESTestCase {
             List<String> invalidIds = Arrays.asList(generateRandomStringArray(5, 6, false, false));
             invalidTransforms = new GetDataFrameTransformResponse.InvalidTransforms(invalidIds);
         }
-        return new GetDataFrameTransformResponse(transforms, invalidTransforms);
+        return new GetDataFrameTransformResponse(transforms, transforms.size() + 10, invalidTransforms);
     }
 
     private static void toXContent(GetDataFrameTransformResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         {
-            builder.field("count", response.getTransformConfigurations().size());
+            builder.field("count", response.getCount());
             builder.field("transforms", response.getTransformConfigurations());
             if (response.getInvalidTransforms() != null) {
                 builder.startObject("invalid_transforms");

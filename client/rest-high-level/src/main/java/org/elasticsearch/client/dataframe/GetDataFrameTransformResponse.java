@@ -44,15 +44,14 @@ public class GetDataFrameTransformResponse {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetDataFrameTransformResponse, Void> PARSER = new ConstructingObjectParser<>(
             "get_data_frame_transform", true, args -> new GetDataFrameTransformResponse(
-                    (List<DataFrameTransformConfig>) args[0], (InvalidTransforms) args[1]));
+                    (List<DataFrameTransformConfig>) args[0], (int) args[1], (InvalidTransforms) args[2]));
     static {
         // Discard the count field which is the size of the transforms array
         INVALID_TRANSFORMS_PARSER.declareInt((a, b) -> {}, COUNT);
         INVALID_TRANSFORMS_PARSER.declareStringArray(constructorArg(), TRANSFORMS);
 
         PARSER.declareObjectArray(constructorArg(), DataFrameTransformConfig.PARSER::apply, TRANSFORMS);
-        // Discard the count field which is the size of the transforms array
-        PARSER.declareInt((a, b) -> {}, COUNT);
+        PARSER.declareInt(constructorArg(), COUNT);
         PARSER.declareObject(optionalConstructorArg(), INVALID_TRANSFORMS_PARSER::apply, INVALID_TRANSFORMS);
     }
 
@@ -61,11 +60,14 @@ public class GetDataFrameTransformResponse {
     }
 
     private List<DataFrameTransformConfig> transformConfigurations;
+    private int count;
     private InvalidTransforms invalidTransforms;
 
     public GetDataFrameTransformResponse(List<DataFrameTransformConfig> transformConfigurations,
+                                         int count,
                                          @Nullable InvalidTransforms invalidTransforms) {
         this.transformConfigurations = transformConfigurations;
+        this.count = count;
         this.invalidTransforms = invalidTransforms;
     }
 
@@ -74,13 +76,17 @@ public class GetDataFrameTransformResponse {
         return invalidTransforms;
     }
 
+    public int getCount() {
+        return count;
+    }
+
     public List<DataFrameTransformConfig> getTransformConfigurations() {
         return transformConfigurations;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(transformConfigurations, invalidTransforms);
+        return Objects.hash(transformConfigurations, count, invalidTransforms);
     }
 
     @Override
@@ -95,6 +101,7 @@ public class GetDataFrameTransformResponse {
 
         final GetDataFrameTransformResponse that = (GetDataFrameTransformResponse) other;
         return Objects.equals(this.transformConfigurations, that.transformConfigurations)
+                && Objects.equals(this.count, that.count)
                 && Objects.equals(this.invalidTransforms, that.invalidTransforms);
     }
 

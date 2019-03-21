@@ -155,5 +155,14 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/bar"));
+
+        assertFalse(request.getParameters().containsKey("from"));
+        assertFalse(request.getParameters().containsKey("size"));
+
+        getRequest.setFrom(0);
+        getRequest.setSize(10);
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertEquals("0", request.getParameters().get("from"));
+        assertEquals("10", request.getParameters().get("size"));
     }
 }

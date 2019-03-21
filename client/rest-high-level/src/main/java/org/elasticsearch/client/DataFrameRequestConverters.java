@@ -50,12 +50,19 @@ final class DataFrameRequestConverters {
         return request;
     }
 
-    static Request getDataFrameTransform(GetDataFrameTransformRequest request) {
+    static Request getDataFrameTransform(GetDataFrameTransformRequest getRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_data_frame", "transforms")
-                .addPathPart(request.getId())
+                .addPathPart(getRequest.getId())
                 .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        if (getRequest.getFrom() != null) {
+            request.addParameter("from", getRequest.getFrom().toString());
+        }
+        if (getRequest.getSize() != null) {
+            request.addParameter("size", getRequest.getSize().toString());
+        }
+        return request;
     }
 
     static Request deleteDataFrameTransform(DeleteDataFrameTransformRequest request) {

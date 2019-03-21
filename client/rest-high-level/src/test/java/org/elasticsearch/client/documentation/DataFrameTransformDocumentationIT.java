@@ -531,6 +531,11 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     new GetDataFrameTransformRequest("mega-transform"); // <1>
             // end::get-data-frame-transform-request
 
+            // tag::get-data-frame-transform-request-options
+            request.setFrom(0);     // <1>
+            request.setSize(100);   // <2>
+            // end::get-data-frame-transform-request-options
+
             // tag::get-data-frame-transform-execute
             GetDataFrameTransformResponse response =
                 client.dataFrame()

@@ -21,6 +21,17 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET request referencing an existing {dataframe-transform}
 
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Page {dataframe-transform}s starting from this value
+<2> Return at most `size` {dataframe-transform}s
+
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]

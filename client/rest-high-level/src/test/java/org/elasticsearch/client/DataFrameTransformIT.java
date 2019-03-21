@@ -194,7 +194,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertEquals(transform, getResponse.getTransformConfigurations().get(0));
     }
 
-    public void testGetAllTransforms() throws IOException {
+    public void testGetAllAndPageTransforms() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
 
@@ -216,6 +216,13 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
         assertEquals(transform, getResponse.getTransformConfigurations().get(1));
+
+        getRequest.setFrom(0);
+        getRequest.setSize(1);
+        getResponse = execute(getRequest, client::getDataFrameTransform,
+                client::getDataFrameTransformAsync);
+        assertNull(getResponse.getInvalidTransforms());
+        assertThat(getResponse.getTransformConfigurations(), hasSize(1));
     }
 
     public void testGetMissingTransform() {

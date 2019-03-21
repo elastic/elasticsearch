@@ -18,4 +18,3 @@ To learn about monitoring in general, see
 include::collecting-monitoring-data.asciidoc[]
 include::configuring-metricbeat.asciidoc[]
 include::indices.asciidoc[]
-include::{es-repo-dir}/settings/monitoring-settings.asciidoc[]

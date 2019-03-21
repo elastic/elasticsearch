@@ -148,7 +148,7 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> primaryTerm,
                 EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }

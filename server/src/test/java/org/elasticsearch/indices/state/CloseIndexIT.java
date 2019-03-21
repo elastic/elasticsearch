@@ -29,7 +29,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -55,6 +58,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CloseIndexIT extends ESIntegTestCase {
 
     private static final int MAX_DOCS = 25_000;
+
+    @Override
+    public Settings indexSettings() {
+        Settings.builder().put(super.indexSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
+                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        return super.indexSettings();
+    }
 
     public void testCloseMissingIndex() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").get());

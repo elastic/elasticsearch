@@ -75,7 +75,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
         final Result r = sh.run(bin.elasticsearchPlugin + " list");
 
         assertThat(r.stdout, isEmptyString());
@@ -85,18 +85,23 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
+        sh.getEnv().remove("JAVA_HOME");
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
         try {
-            mv(installation.bundledJdk, relocatedJdk);
+            if (distribution().hasJdk) {
+                mv(installation.bundledJdk, relocatedJdk);
+            }
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
             assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
         } finally {
-            mv(relocatedJdk, installation.bundledJdk);
+            if (distribution().hasJdk) {
+                mv(relocatedJdk, installation.bundledJdk);
+            }
         }
     }
 
@@ -104,7 +109,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
 
         Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
 
@@ -139,16 +144,20 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        Archives.runElasticsearch(installation);
+        Archives.runElasticsearch(installation, newShell());
 
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
+        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false
+            ? "gc.log.0.current"
+            : "gc.log";
+
+        assertTrue("gc logs exist", Files.exists(installation.logs.resolve(gcLogName)));
         ServerUtils.runElasticsearchTests();
 
         Archives.stopElasticsearch(installation);
     }
 
     public void assertRunsWithJavaHome() throws Exception {
-        Shell sh = new Shell();
+        Shell sh = newShell();
 
         Platforms.onLinux(() -> {
             String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -176,6 +185,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
     public void test52BundledJdkRemoved() throws Exception {
         assumeThat(installation, is(notNullValue()));
+        assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
@@ -259,7 +269,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
 
         Platforms.onLinux(() -> {
             final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
@@ -291,7 +301,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 "-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
-            final Shell sh = new Shell();
+            final Shell sh = newShell();
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
@@ -304,7 +314,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 "}"
             ));
 
-            final Shell serverShell = new Shell();
+            final Shell serverShell = newShell();
             serverShell.getEnv().put("ES_PATH_CONF", tempConf.toString());
             serverShell.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
@@ -337,7 +347,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            final Shell sh = new Shell();
+            final Shell sh = newShell();
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
@@ -350,7 +360,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 "}"
             ));
 
-            final Shell serverShell = new Shell(temp);
+            final Shell serverShell = newShell();
+            serverShell.setWorkingDirectory(temp);
             serverShell.getEnv().put("ES_PATH_CONF", "config");
             Archives.runElasticsearch(installation, serverShell);
 
@@ -368,7 +379,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
@@ -388,14 +399,14 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test100ElasticsearchShardCliPackaging() throws Exception {
+    public void test91ElasticsearchShardCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
 
         Platforms.PlatformAction action = () -> {
-            final Result result = sh.run(bin.elasticsearchShard + " help");
+            final Result result = sh.run(bin.elasticsearchShard + " -h");
             assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
@@ -405,22 +416,38 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test110ElasticsearchNodeCliPackaging() throws Exception {
+    public void test92ElasticsearchNodeCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchNode + " -h");
             assertThat(result.stdout,
-                    containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
+                    containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
             Platforms.onLinux(action);
             Platforms.onWindows(action);
         }
+    }
+
+    public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+
+        Path relativeDataPath = installation.data.relativize(installation.home);
+        append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
+
+        final Shell sh = newShell();
+        sh.setWorkingDirectory(getTempDir());
+
+        Archives.runElasticsearch(installation, sh);
+        Archives.stopElasticsearch(installation);
+
+        Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
+        assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 
 }

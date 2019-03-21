@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
+
+import java.util.Objects;
 
 public class Like extends RegexMatch {
 
@@ -30,5 +32,15 @@ public class Like extends RegexMatch {
     @Override
     protected Like replaceChild(Expression newLeft) {
         return new Like(source(), newLeft, pattern);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(((Like) obj).pattern(), pattern());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), pattern());
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractStreamableTestCase;
@@ -28,10 +29,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -91,9 +94,9 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             Collections.unmodifiableList(Arrays.asList(
                 (idx) -> indexIssueFound ? foundIssue : null
             ));
-        List<Function<DatafeedConfig, DeprecationIssue>> mlSettingsChecks =
+        List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> mlSettingsChecks =
                 Collections.unmodifiableList(Arrays.asList(
-                        (idx) -> mlIssueFound ? foundIssue : null
+                        (idx, unused) -> mlIssueFound ? foundIssue : null
                 ));
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -101,10 +104,10 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
             nodeIssueFound
                 ? Collections.singletonList(
                     new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue)))
-                : Collections.emptyList(),
-            Collections.emptyList());
+                : emptyList(),
+            emptyList());
 
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state,
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state, NamedXContentRegistry.EMPTY,
             resolver, Strings.EMPTY_ARRAY, indicesOptions, datafeeds,
             nodeDeprecationIssues, indexSettingsChecks, clusterSettingsChecks, mlSettingsChecks);
 

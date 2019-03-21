@@ -75,7 +75,7 @@ public class MockNioTransport extends TcpTransport {
     public MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                             PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                             CircuitBreakerService circuitBreakerService) {
-        super("mock-nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
     }
 
     @Override
@@ -95,7 +95,7 @@ public class MockNioTransport extends TcpTransport {
         boolean success = false;
         try {
             nioGroup = new NioSelectorGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
-                (s) -> new TestingSocketEventHandler(this::onNonChannelException, s));
+                (s) -> new TestEventHandler(this::onNonChannelException, s, System::nanoTime));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new MockTcpChannelFactory(true, clientProfileSettings, "client");

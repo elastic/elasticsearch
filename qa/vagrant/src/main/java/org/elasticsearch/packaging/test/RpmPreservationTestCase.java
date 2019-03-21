@@ -70,7 +70,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20Remove() throws Exception {
@@ -93,7 +93,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(

@@ -68,7 +68,7 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20Remove() throws Exception {

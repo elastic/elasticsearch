@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
@@ -59,6 +60,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.E;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -196,6 +198,33 @@ public class QueryTranslatorTests extends ESTestCase {
         Expression condition = ((Filter) p).condition();
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
+    }
+    
+    public void testDifferentLikeAndNotLikePatterns() {
+        LogicalPlan p = plan("SELECT keyword k FROM test WHERE k LIKE 'X%' AND k NOT LIKE 'Y%'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(BoolQuery.class, qt.query.getClass());
+        BoolQuery bq = ((BoolQuery) qt.query);
+        assertTrue(bq.isAnd());
+        assertTrue(bq.left() instanceof QueryStringQuery);
+        assertTrue(bq.right() instanceof NotQuery);
+        
+        NotQuery nq = (NotQuery) bq.right();
+        assertTrue(nq.child() instanceof QueryStringQuery);
+        QueryStringQuery lqsq = (QueryStringQuery) bq.left();
+        QueryStringQuery rqsq = (QueryStringQuery) nq.child();
+        
+        assertEquals("X*", lqsq.query());
+        assertEquals(1, lqsq.fields().size());
+        assertEquals("keyword", lqsq.fields().keySet().iterator().next());
+        assertEquals("Y*", rqsq.query());
+        assertEquals(1, rqsq.fields().size());
+        assertEquals("keyword", rqsq.fields().keySet().iterator().next());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {
@@ -727,5 +756,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
+    }
+
+    public void testZonedDateTimeInScripts() throws Exception {
+        PhysicalPlan p = optimizeAndPlan(
+                "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+                "\"script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter("
+                + "InternalSqlScriptUtils.gt(InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
+                + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),InternalSqlScriptUtils.asDateTime(params.v3)))\","
+                + "\"lang\":\"painless\","
+                + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"2019-03-11T12:34:56.000Z\"}},"));
     }
 }

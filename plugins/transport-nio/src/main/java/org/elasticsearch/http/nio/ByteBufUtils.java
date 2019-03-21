@@ -21,7 +21,6 @@ package org.elasticsearch.http.nio;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.util.ByteProcessor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -257,61 +256,6 @@ class ByteBufUtils {
                 EOFException eofException = new EOFException();
                 eofException.initCause(ex);
                 throw eofException;
-            }
-        }
-        private final StringLengthProcessor stringLengthProcessor = new StringLengthProcessor();
-
-        @Override
-        public String readString() throws IOException {
-            final int charCount = readArraySize();
-            final int startIndex = buffer.readerIndex();
-            stringLengthProcessor.charsLeft = charCount;
-            assert stringLengthProcessor.bytesLeft == 0;
-            final int endIndex = buffer.forEachByte(stringLengthProcessor);
-            assert stringLengthProcessor.bytesLeft == 0;
-            assert stringLengthProcessor.charsLeft == 0;
-            buffer.readerIndex(endIndex);
-            return buffer.toString(startIndex, endIndex - startIndex + 1, StandardCharsets.UTF_8);
-        }
-
-        private static final class StringLengthProcessor implements ByteProcessor {
-
-            private int charsLeft;
-
-            private int bytesLeft;
-
-            @Override
-            public boolean process(byte value) throws Exception {
-                if (bytesLeft == 0) {
-                    final int c = value & 0xff;
-                    switch (c >> 4) {
-                        case 0:
-                        case 1:
-                        case 2:
-                        case 3:
-                        case 4:
-                        case 5:
-                        case 6:
-                        case 7:
-                            --charsLeft;
-                            break;
-                        case 12:
-                        case 13:
-                            bytesLeft = 1;
-                            break;
-                        case 14:
-                            bytesLeft = 2;
-                            break;
-                        default:
-                            throw new IOException("Invalid string; unexpected character: " + c + " hex: " + Integer.toHexString(c));
-                    }
-                } else {
-                    --bytesLeft;
-                    if (bytesLeft == 0) {
-                        --charsLeft;
-                    }
-                }
-                return charsLeft != 0;
             }
         }
 

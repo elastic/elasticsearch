@@ -85,13 +85,13 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig(), Collections.emptyMap());
+        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertValidTransform(client, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig(), Collections.emptyMap());
+        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -101,8 +101,7 @@ public class PivotTests extends ESTestCase {
         // search has failures although they might just be temporary
         Pivot pivot = new Pivot("existing_source_index_with_failing_shards",
             new MatchAllQueryBuilder(),
-            getValidPivotConfig(),
-            Collections.emptyMap());
+            getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -113,8 +112,7 @@ public class PivotTests extends ESTestCase {
 
             Pivot pivot = new Pivot("existing_source",
                 new MatchAllQueryBuilder(),
-                getValidPivotConfig(aggregationConfig),
-                Collections.emptyMap());
+                getValidPivotConfig(aggregationConfig));
 
             assertValidTransform(client, pivot);
         }
@@ -126,8 +124,7 @@ public class PivotTests extends ESTestCase {
 
             Pivot pivot = new Pivot("existing_source",
                 new MatchAllQueryBuilder(),
-                getValidPivotConfig(aggregationConfig),
-                Collections.emptyMap());
+                getValidPivotConfig(aggregationConfig));
 
             assertInvalidTransform(client, pivot);
         }

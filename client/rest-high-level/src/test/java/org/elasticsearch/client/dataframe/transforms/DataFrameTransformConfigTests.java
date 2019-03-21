@@ -28,29 +28,15 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Predicate;
 
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig(),
-            randomNullableStringMap());
+            randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
-    public static Map<String, String> randomNullableStringMap() {
-        Map<String, String> stringStringMap = null;
-        if (randomBoolean()) {
-            stringStringMap = new HashMap<>();
-            int kvCount = randomInt(10);
-            for (int i = 0; i < kvCount; i++) {
-                stringStringMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            }
-        }
-        return stringStringMap;
-    }
     @Override
     protected DataFrameTransformConfig createTestInstance() {
         return randomDataFrameTransformConfig();

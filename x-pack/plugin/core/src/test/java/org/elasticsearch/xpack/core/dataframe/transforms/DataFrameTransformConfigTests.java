@@ -37,46 +37,34 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10), null, QueryConfigTests.randomQueryConfig(),
-            PivotConfigTests.randomPivotConfig(), randomNullableStringMap());
+            PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomQueryConfig(),
-                PivotConfigTests.randomPivotConfig(), randomNullableStringMap());
+                PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
         return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig(), randomNullableStringMap());
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
         return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), randomHeaders(),
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig(), randomNullableStringMap());
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
             return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                     randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomInvalidQueryConfig(),
-                    PivotConfigTests.randomPivotConfig(), randomNullableStringMap());
+                    PivotConfigTests.randomPivotConfig());
         } // else
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomQueryConfig(),
-                PivotConfigTests.randomInvalidPivotConfig(), randomNullableStringMap());
-    }
-
-    public static Map<String, String> randomNullableStringMap() {
-        Map<String, String> stringStringMap = null;
-        if (randomBoolean()) {
-            stringStringMap = new HashMap<>();
-            int kvCount = randomInt(10);
-            for (int i = 0; i < kvCount; i++) {
-                stringStringMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
-            }
-        }
-        return stringStringMap;
+                PivotConfigTests.randomInvalidPivotConfig());
     }
 
     @Before

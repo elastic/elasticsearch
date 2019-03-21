@@ -51,9 +51,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -119,10 +117,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 AggregationBuilders.avg("avg_rating").field("stars"));  // <1>
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         // end::put-data-frame-transform-agg-config
-        // tag::put-data-frame-transform-mapping-override
-        Map<String, String> mappingOverride = new HashMap<>();
-        mappingOverride.put("avg_rating", "keyword"); // <1>
-        // end::put-data-frame-transform-mapping-override
         // tag::put-data-frame-transform-pivot-config
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
         // end::put-data-frame-transform-pivot-config
@@ -132,8 +126,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 "source-index", // <2>
                 "pivot-destination",  // <3>
                 queryConfig,   // <4>
-                pivotConfig, // <5>
-                mappingOverride);  // <6>
+                pivotConfig); // <5>
         // end::put-data-frame-transform-config
 
         {
@@ -153,7 +146,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             DataFrameTransformConfig configWithDifferentId = new DataFrameTransformConfig("reviewer-avg-rating2",
                     transformConfig.getSource(), transformConfig.getDestination(), transformConfig.getQueryConfig(),
-                    transformConfig.getPivotConfig(), null);
+                    transformConfig.getPivotConfig());
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
             // tag::put-data-frame-transform-execute-listener
@@ -198,7 +191,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig, null);
+                "source-data", "pivot-dest", queryConfig, pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
@@ -315,9 +308,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig1 = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig, null);
+                "source-data", "pivot-dest", queryConfig, pivotConfig);
         DataFrameTransformConfig transformConfig2 = new DataFrameTransformConfig("mega-transform2",
-                "source-data", "pivot-dest2", queryConfig, pivotConfig, null);
+                "source-data", "pivot-dest2", queryConfig, pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig1), RequestOptions.DEFAULT);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
@@ -385,8 +378,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 "source-data",
                 null,                               // <2>
                 queryConfig,
-                pivotConfig,
-                Collections.emptyMap());
+                pivotConfig);
 
         PreviewDataFrameTransformRequest request =
             new PreviewDataFrameTransformRequest(transformConfig); // <3>

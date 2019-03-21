@@ -50,7 +50,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     protected void onStartJob(long now) {
         QueryBuilder queryBuilder = getConfig().getQueryConfig().getQuery();
 
-        pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig(), getConfig().getMappingOverrides());
+        pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
     }
 
     @Override

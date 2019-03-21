@@ -43,14 +43,12 @@ public class Pivot {
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
     private final SearchRequest cachedSearchRequest;
-    private final Map<String, String> mappingOverrides;
 
-    public Pivot(String source, QueryBuilder query, PivotConfig config, Map<String, String> mappingOverrides) {
+    public Pivot(String source, QueryBuilder query, PivotConfig config) {
         this.source = source;
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
         this.cachedSearchRequest = createSearchRequest(source, query, cachedCompositeAggregation);
-        this.mappingOverrides = mappingOverrides;
     }
 
     public void validate(Client client, final ActionListener<Boolean> listener) {
@@ -67,7 +65,7 @@ public class Pivot {
     }
 
     public void deduceMappings(Client client, final ActionListener<Map<String, String>> listener) {
-        SchemaUtil.deduceMappings(client, config, source, mappingOverrides, listener);
+        SchemaUtil.deduceMappings(client, config, source, listener);
     }
 
     public SearchRequest buildSearchRequest(Map<String, Object> position) {

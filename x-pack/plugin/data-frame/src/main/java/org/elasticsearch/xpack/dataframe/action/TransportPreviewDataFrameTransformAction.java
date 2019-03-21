@@ -62,8 +62,7 @@ public class TransportPreviewDataFrameTransformAction extends
 
         Pivot pivot = new Pivot(config.getSource(),
             config.getQueryConfig().getQuery(),
-            config.getPivotConfig(),
-            config.getMappingOverrides());
+            config.getPivotConfig());
 
         getPreview(pivot, ActionListener.wrap(
             previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),

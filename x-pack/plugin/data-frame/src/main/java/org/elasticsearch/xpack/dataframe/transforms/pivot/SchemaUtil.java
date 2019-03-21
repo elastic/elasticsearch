@@ -53,13 +53,11 @@ public final class SchemaUtil {
      * @param client Client from which to make requests against the cluster
      * @param config The PivotConfig for which to deduce destination mapping
      * @param source Source index that contains the data to pivot
-     * @param userProvidedTypes A map of "field-name":"mapping-type" provided by the user to override deduced mapping types
      * @param listener Listener to alert on success or failure.
      */
     public static void deduceMappings(final Client client,
                                       final PivotConfig config,
                                       final String source,
-                                      final Map<String, String> userProvidedTypes,
                                       final ActionListener<Map<String, String>> listener) {
         // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
@@ -93,8 +91,7 @@ public final class SchemaUtil {
                     sourceMappings -> listener.onResponse(resolveMappings(aggregationSourceFieldNames,
                         aggregationTypes,
                         fieldNamesForGrouping,
-                        sourceMappings,
-                        userProvidedTypes)),
+                        sourceMappings)),
                     listener::onFailure));
     }
 
@@ -125,8 +122,7 @@ public final class SchemaUtil {
     private static Map<String, String> resolveMappings(Map<String, String> aggregationSourceFieldNames,
                                                        Map<String, String> aggregationTypes,
                                                        Map<String, String> fieldNamesForGrouping,
-                                                       Map<String, String> sourceMappings,
-                                                       Map<String, String> providedOverrides) {
+                                                       Map<String, String> sourceMappings) {
         Map<String, String> targetMapping = new HashMap<>();
 
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
@@ -153,10 +149,6 @@ public final class SchemaUtil {
                 logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to keyword.");
                 targetMapping.put(targetFieldName, "keyword");
             }
-        });
-        providedOverrides.forEach((targetFieldName, userProvidedType) -> {
-            logger.debug("Using user provided mapping type [" + userProvidedType + "] for field [" + targetFieldName + "]");
-            targetMapping.put(targetFieldName, userProvidedType);
         });
         return targetMapping;
     }

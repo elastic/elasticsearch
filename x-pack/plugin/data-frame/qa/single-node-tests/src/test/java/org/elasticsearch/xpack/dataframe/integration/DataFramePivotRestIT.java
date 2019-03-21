@@ -314,52 +314,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertThat(actual, containsString("2017-01-15T20:"));
     }
 
-    public void testPivotWithMappingOverride() throws Exception {
-        String transformId = "simpleDateHistogramPivotWithMappingOverride";
-        String dataFrameIndex = "pivot_reviews_via_date_histogram_and_mapping_override";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
-
-        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
-            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
-
-        String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
-
-        config += "    \"pivot\": { \n" +
-            "        \"group_by\": {\n" +
-            "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"\n" +
-            "            }}\n" +
-            "        },\n" +
-            "    \"aggs\" :{\n" +
-            "        \"avg_rating\": {\n" +
-            "            \"avg\": {\"field\": \"stars\"}\n" +
-            "        },\n" +
-            "        \"timestamp\": {\n" +
-            "            \"max\": {\"field\": \"timestamp\"}\n" +
-            "        }\n" +
-            "    }},\n" +
-            "    \"mapping_override\": {\"avg_rating\": \"keyword\"}}";
-
-        createDataframeTransformRequest.setJsonEntity(config);
-        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
-        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
-
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
-
-        // we expect 21 documents as there shall be 21 days worth of docs
-        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
-        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=by_day:2017-01-15");
-        String actualAvg = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
-        assertThat(actualAvg, equalTo("3.82"));
-        String actualTime = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
-        // Do `containsString` as actual ending timestamp is indeterminate due to how data is generated
-        assertThat(actualTime, containsString("2017-01-15T20"));
-    }
-
     private void assertOnePivotValue(String query, double expected) throws IOException {
         Map<String, Object> searchResult = getAsMap(query);
 

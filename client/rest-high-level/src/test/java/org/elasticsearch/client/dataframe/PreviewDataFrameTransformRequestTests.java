@@ -66,13 +66,13 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
 
         // null id and destination is valid
         DataFrameTransformConfig config = new DataFrameTransformConfig(null, "source", null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig(), Collections.emptyMap());
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
 
         assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
 
         // null source is not valid
         config = new DataFrameTransformConfig(null, null, null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig(), Collections.emptyMap());
+                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
 
         Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

@@ -7,7 +7,12 @@
 [[data-frame-transform-apis]]
 === {dataframe-transforms-cap}
 
+* <<get-data-frame-transform,Get {dataframe-transform} info>>,
+<<get-data-frame-transform-stats,Get {dataframe-transform} statistics>>
 * <<preview-data-frame-transform,Preview {dataframe-transforms}>>
 
+//GET
+include::get-transform.asciidoc[]
+include::get-transform-stats.asciidoc[]
 //PREVIEW
 include::preview-data-frame-transform.asciidoc[]

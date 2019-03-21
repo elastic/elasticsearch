@@ -173,9 +173,10 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1) {
+                    if (listOfValues.size() == 1 || arrayLeniency) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
+                        // in case of being lenient about arrays, just extract the first value in the array
                         node = listOfValues.get(0);
                     } else {
                         // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list

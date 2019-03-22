@@ -2008,12 +2008,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService()) {
             @Override
-            protected void handleRequest(TcpChannel channel, InboundMessage.RequestMessage request, int messageLengthBytes)
+            protected void handleRequest(TcpChannel channel, InboundMessage.Request request, int messageLengthBytes)
                 throws IOException {
                 // we flip the isHandshake bit back and act like the handler is not found
                 byte status = (byte) (request.status & ~(1 << 3));
                 Version version = request.getVersion();
-                InboundMessage.RequestMessage nonHandshakeRequest = new InboundMessage.RequestMessage(request.threadContext, version,
+                InboundMessage.Request nonHandshakeRequest = new InboundMessage.Request(request.threadContext, version,
                     status, request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
                 super.handleRequest(channel, nonHandshakeRequest, messageLengthBytes);
             }

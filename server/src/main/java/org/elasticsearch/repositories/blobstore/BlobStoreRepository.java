@@ -472,17 +472,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
             for (final IndexId indexId : indicesToCleanUp) {
                 try {
-                    indicesBlobContainer.deleteBlob(indexId.getId());
+                    indicesBlobContainer.deleteBlobIgnoringIfNotExists(indexId.getId());
                 } catch (DirectoryNotEmptyException dnee) {
                     // if the directory isn't empty for some reason, it will fail to clean up;
                     // we'll ignore that and accept that cleanup didn't fully succeed.
                     // since we are using UUIDs for path names, this won't be an issue for
                     // snapshotting indices of the same name
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
+                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
                         "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
                 }
             }
@@ -832,7 +832,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NumberFormatException nfe) {
                 // the index- blob wasn't of the format index-N where N is a number,
                 // no idea what this blob is but it doesn't belong in the repository!
-                logger.debug("[{}] Unknown blob in the repository: {}", metadata.name(), blobName);
+                logger.warn("[{}] Unknown blob in the repository: {}", metadata.name(), blobName);
             }
         }
         return latest;
@@ -975,7 +975,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 indexShardSnapshotFormat.delete(blobContainer, snapshotId.getUUID());
             } catch (IOException e) {
-                logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
+                logger.warn(new ParameterizedMessage("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId), e);
             }
 
             // Build a list of snapshots that should be preserved
@@ -1135,7 +1135,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read index file [{}]", file), e);
                 }
             } else if (blobKeys.isEmpty() == false) {
-                logger.debug("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", blobContainer.path());
+                logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", blobContainer.path());
             }
 
             // We couldn't load the index file - falling back to loading individual snapshots

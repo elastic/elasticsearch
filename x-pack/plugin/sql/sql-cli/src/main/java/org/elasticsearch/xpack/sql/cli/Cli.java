@@ -48,7 +48,7 @@ public class Cli extends LoggingAwareCommand {
      * -Dorg.jline.terminal.dumb=true
      */
     public static void main(String[] args) throws Exception {
-        //configureJLineLogging();
+        configureJLineLogging();
         final Cli cli = new Cli(new JLineTerminal(TerminalBuilder.builder()
                 .name("Elasticsearch SQL CLI")
                 // remove jansi since it has issues on Windows in closing terminals

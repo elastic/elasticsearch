@@ -50,6 +50,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/nested.csv-spec", parser));
         tests.addAll(readScriptSpec("/select.csv-spec", parser));
         
+        tests.addAll(readScriptSpec("/ip.csv-spec", parser));
         return tests;
     }
 

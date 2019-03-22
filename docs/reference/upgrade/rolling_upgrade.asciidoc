@@ -178,4 +178,10 @@ In the unlikely case of a network malfunction during the upgrade process that
 isolates all remaining old nodes from the cluster, you must take the
 old nodes offline and upgrade them to enable them to join the cluster.
 
+Similarly, if you run a testing/development environment with only one master
+node, the master node should be upgraded last. Restarting a single master node
+forces the cluster to be reformed. The new cluster will initially only have the
+upgraded master node and will thus reject the older nodes when they re-join the
+cluster. Nodes that have already been upgraded will successfully re-join the 
+upgraded master. 
 ====================================================

@@ -24,16 +24,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Map;
@@ -58,7 +59,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public DataFrameTransformTask(long id, String type, String action, TaskId parentTask, DataFrameTransform transform,
             DataFrameTransformState state, Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
+            DataFrameTransformsCheckpointService transformsCheckpointService, SchedulerEngine schedulerEngine, ThreadPool threadPool,
+            Map<String, String> headers) {
         super(id, type, action, DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
         this.schedulerEngine = schedulerEngine;
@@ -83,8 +85,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             initialGeneration = state.getGeneration();
         }
 
-        this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, new AtomicReference<>(initialState),
-                initialPosition, client);
+        this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
+                new AtomicReference<>(initialState), initialPosition, client);
         this.generation = new AtomicReference<Long>(initialGeneration);
     }
 
@@ -226,15 +228,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
+        private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
 
         private DataFrameTransformConfig transformConfig = null;
 
         public ClientDataFrameIndexer(String transformId, DataFrameTransformsConfigManager transformsConfigManager,
-                AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client) {
+                DataFrameTransformsCheckpointService transformsCheckpointService, AtomicReference<IndexerState> initialState,
+                Map<String, Object> initialPosition, Client client) {
             super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition);
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
+            this.transformsCheckpointService = transformsCheckpointService;
             this.client = client;
         }
 

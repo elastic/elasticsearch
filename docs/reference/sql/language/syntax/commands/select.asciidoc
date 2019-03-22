@@ -336,7 +336,7 @@ Further more, it is possible to order groups based on aggregations of their valu
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[groupByAgg]
+include-tagged::{sql-specs}/docs.csv-spec[orderByAgg]
 ----
 
 IMPORTANT: Ordering by aggregation is possible for up to 512 entries for memory consumption reasons.

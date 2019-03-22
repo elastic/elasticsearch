@@ -97,17 +97,17 @@ public class MetricAggExtractor implements BucketExtractor {
             //if (innerKey == null) {
             //    throw new SqlIllegalArgumentException("Invalid innerKey {} specified for aggregation {}", innerKey, name);
             //}
-            return tryExtractDateTime(((InternalNumericMetricsAggregation.MultiValue) agg).value(property));
+            return handleDateTime(((InternalNumericMetricsAggregation.MultiValue) agg).value(property));
         } else if (agg instanceof InternalFilter) {
             // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
             return ((InternalFilter) agg).getDocCount();
         }
 
         Object v = agg.getProperty(property);
-        return tryExtractDateTime(innerKey != null && v instanceof Map ? ((Map<?, ?>) v).get(innerKey) : v);
+        return handleDateTime(innerKey != null && v instanceof Map ? ((Map<?, ?>) v).get(innerKey) : v);
     }
 
-    private Object tryExtractDateTime(Object object) {
+    private Object handleDateTime(Object object) {
         if (isDateTimeBased) {
             if (object == null) {
                 return object;

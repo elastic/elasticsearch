@@ -852,7 +852,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // TODO: we should move to always compare the functions directly
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
-                        // Same for LIKE: the equals function also compares the pattern of LIKE
+                        // Same for LIKE/RLIKE: the equals function also compares the pattern of LIKE/RLIKE
                         if (seenFunction instanceof Count || seenFunction instanceof RegexMatch) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;

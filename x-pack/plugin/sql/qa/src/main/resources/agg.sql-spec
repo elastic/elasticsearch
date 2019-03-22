@@ -50,6 +50,31 @@ SELECT emp_no * 2 AS e FROM test_emp GROUP BY e ORDER BY e;
 groupByModScalar
 SELECT (emp_no % 3) + 1 AS e FROM test_emp GROUP BY e ORDER BY e;
 
+// group by nested functions with no alias
+//https://github.com/elastic/elasticsearch/issues/40239
+groupByTruncate-Ignore
+SELECT CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) FROM test_emp GROUP BY CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) ORDER BY CAST(TRUNCATE(EXTRACT(YEAR FROM "birth_date")) AS INTEGER);
+//https://github.com/elastic/elasticsearch/issues/40239
+groupByRound-Ignore
+SELECT CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) FROM test_emp GROUP BY CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER) ORDER BY CAST(ROUND(EXTRACT(YEAR FROM "birth_date")) AS INTEGER);
+groupByAtan2
+SELECT ATAN2(YEAR("birth_date"), 5) FROM test_emp GROUP BY ATAN2(YEAR("birth_date"), 5) ORDER BY ATAN2(YEAR("birth_date"), 5);
+groupByPower
+SELECT POWER(YEAR("birth_date"), 2) FROM test_emp GROUP BY POWER(YEAR("birth_date"), 2) ORDER BY POWER(YEAR("birth_date"), 2);
+//https://github.com/elastic/elasticsearch/issues/40239
+groupByPowerWithCast-Ignore
+SELECT CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE) FROM test_emp GROUP BY CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE) ORDER BY CAST(POWER(YEAR("birth_date"), 2) AS DOUBLE);
+groupByConcat
+SELECT LEFT(CONCAT("first_name", "last_name"), 3) FROM test_emp GROUP BY LEFT(CONCAT("first_name", "last_name"), 3) ORDER BY LEFT(CONCAT("first_name", "last_name"), 3) LIMIT 15;
+groupByLocateWithTwoParams
+SELECT LOCATE('a', CONCAT("first_name", "last_name")) FROM test_emp GROUP BY LOCATE('a', CONCAT("first_name", "last_name")) ORDER BY LOCATE('a', CONCAT("first_name", "last_name"));
+groupByLocateWithThreeParams
+SELECT LOCATE('a', CONCAT("first_name", "last_name"), 3) FROM test_emp GROUP BY LOCATE('a', CONCAT("first_name", "last_name"), 3) ORDER BY LOCATE('a', CONCAT("first_name", "last_name"), 3);
+groupByRoundAndTruncateWithTwoParams
+SELECT ROUND(SIN(TRUNCATE("salary", 2)), 2) FROM "test_emp" GROUP BY ROUND(SIN(TRUNCATE("salary", 2)), 2) ORDER BY ROUND(SIN(TRUNCATE("salary", 2)), 2) LIMIT 5;
+groupByRoundAndTruncateWithOneParam
+SELECT ROUND(SIN(TRUNCATE("languages"))) FROM "test_emp" GROUP BY ROUND(SIN(TRUNCATE("languages"))) ORDER BY ROUND(SIN(TRUNCATE("languages"))) LIMIT 5;
+
 // multiple group by
 groupByMultiOnText
 SELECT gender g, languages l FROM "test_emp" GROUP BY gender, languages ORDER BY gender ASC, languages ASC;

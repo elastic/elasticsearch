@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -49,21 +50,23 @@ public class FieldHitExtractor implements HitExtractor {
 
     private final String fieldName, hitName;
     private final DataType dataType;
+    private final ZoneId zoneId;
     private final boolean useDocValue;
     private final boolean arrayLeniency;
     private final String[] path;
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue) {
-        this(name, dataType, useDocValue, null, false);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
+        this(name, dataType, zoneId, useDocValue, null, false);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, boolean arrayLeniency) {
-        this(name, dataType, useDocValue, null, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
+        this(name, dataType, zoneId, useDocValue, null, arrayLeniency);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, boolean useDocValue, String hitName, boolean arrayLeniency) {
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName, boolean arrayLeniency) {
         this.fieldName = name;
         this.dataType = dataType;
+        this.zoneId = zoneId;
         this.useDocValue = useDocValue;
         this.arrayLeniency = arrayLeniency;
         this.hitName = hitName;
@@ -81,6 +84,7 @@ public class FieldHitExtractor implements HitExtractor {
         fieldName = in.readString();
         String esType = in.readOptionalString();
         dataType = esType != null ? DataType.fromTypeName(esType) : null;
+        zoneId = ZoneId.of(in.readString());
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
         arrayLeniency = in.readBoolean();
@@ -96,6 +100,7 @@ public class FieldHitExtractor implements HitExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName);
+        out.writeString(zoneId.getId());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
         out.writeBoolean(arrayLeniency);
@@ -166,7 +171,7 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.DATETIME) {
             if (values instanceof String) {
-                return DateUtils.asDateTime(Long.parseLong(values.toString()));
+                return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
         if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
@@ -199,9 +204,10 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1) {
+                    if (listOfValues.size() == 1 || arrayLeniency) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
+                        // in case of being lenient about arrays, just extract the first value in the array
                         node = listOfValues.get(0);
                     } else {
                         // a List of elements with more than one value. Break early and let unwrapMultiValue deal with the list
@@ -246,9 +252,17 @@ public class FieldHitExtractor implements HitExtractor {
         return fieldName;
     }
 
+    public ZoneId zoneId() {
+        return zoneId;
+    }
+
+    DataType dataType() {
+        return dataType;
+    }
+
     @Override
     public String toString() {
-        return fieldName + "@" + hitName;
+        return fieldName + "@" + hitName + "@" + zoneId;
     }
 
     @Override

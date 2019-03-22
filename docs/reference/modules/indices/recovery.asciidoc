@@ -1,8 +1,8 @@
 [[recovery]]
 === Indices Recovery
 
-<<cat-recovery, Peer recovery>> syncs a new or existing shard copy's data from a
-primary shard.
+<<cat-recovery, Peer recovery>> syncs data from a primary shard to a new or
+existing shard copy.
 
 Peer recovery automatically occurs when {es}:
 

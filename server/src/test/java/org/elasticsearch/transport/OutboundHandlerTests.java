@@ -38,7 +38,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -64,9 +63,7 @@ public class OutboundHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         TransportLogger transportLogger = new TransportLogger();
-        InetSocketAddress localAddress = buildNewFakeTransportAddress().address();
-        InetSocketAddress remoteAddress = buildNewFakeTransportAddress().address();
-        channel = new FakeTcpChannel(randomBoolean(), localAddress, remoteAddress);
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         String[] features = {feature1, feature2};

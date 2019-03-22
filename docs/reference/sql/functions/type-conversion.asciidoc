@@ -38,6 +38,11 @@ include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
 include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateTimeCast]
 ----
 
+IMPORTANT: Both ANSI SQL and {es-sql} types are supported with the former taking
+precedence. This only affects `FLOAT` which due naming conflict, is interpreted as ANSI SQL 
+and thus maps to `double` in {es} as oppose to `float`.
+To obtain an {es} `float`, perform casting to its SQL equivalent, `real` type.
+
 
 [[sql-functions-type-conversion-convert]]
 ==== `CONVERT`

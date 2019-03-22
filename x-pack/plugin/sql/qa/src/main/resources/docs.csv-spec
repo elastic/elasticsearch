@@ -898,9 +898,35 @@ Frank Herbert    |Dune                |604            |1965-06-01T00:00:00Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
 
-
-
 // end::orderByBasic
+;
+
+orderByGroup
+schema::g:s|c:i
+// tag::orderByGroup
+SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender ORDER BY g DESC;
+
+       g       |       c       
+---------------+---------------
+M              |57
+F              |33             
+null           |10             
+      
+// end::orderByGroup
+;
+
+orderByAgg
+schema::g:s|salary:i
+// tag::orderByAgg
+SELECT gender AS g, MIN(salary) AS salary FROM emp GROUP BY gender ORDER BY salary DESC;
+
+       g       |    salary     
+---------------+---------------
+F              |25976          
+M              |25945          
+null           |25324             
+    
+// end::orderByAgg
 ;
 
 orderByScore

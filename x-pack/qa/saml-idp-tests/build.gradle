@@ -1,6 +1,3 @@
-import com.avast.gradle.dockercompose.ComposeExtension
-import com.avast.gradle.dockercompose.ServiceInfo
-
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 evaluationDependsOn(idpFixtureProject.path)
 
@@ -19,18 +16,17 @@ testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpCertificate(type: Copy) {
+task copyIdpFiles(type: Copy) {
     from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml');
     into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
 
 task setupPorts {
-    dependsOn copyIdpCertificate, idpFixtureProject.postProcessFixture
-    doFirst {
-        Map<String, ServiceInfo> serviceInfoMap = idpFixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
-        ServiceInfo shibIdp = serviceInfoMap.get('shibboleth-idp')
-        int ephemeralPort = shibIdp.getTcpPorts().get(4443)
+    dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+    doLast {
+        String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
+        int ephemeralPort = Integer.valueOf(portString)
         File idpMetaFile = file(outputDir + '/idp-metadata.xml')
         List<String> lines = idpMetaFile.readLines("UTF-8")
         StringBuilder content = new StringBuilder()

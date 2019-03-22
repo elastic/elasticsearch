@@ -561,7 +561,8 @@ public class IndexNameExpressionResolver {
            this(state, options, startTime, false, false);
         }
 
-        protected Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex) {
+        protected Context(ClusterState state, IndicesOptions options, long startTime,
+                          boolean preserveAliases, boolean resolveToWriteIndex) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;

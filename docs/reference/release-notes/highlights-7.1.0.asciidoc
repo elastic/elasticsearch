@@ -1,0 +1,16 @@
+[[release-highlights-7.1.0]]
+== 7.1.0 release highlights
+++++
+<titleabbrev>7.1.0</titleabbrev>
+++++
+
+coming[7.1.0]
+
+////
+The following section is re-used in the Installation and Upgrade Guide
+[[notable-highlights-7.1.0]]
+=== Notable breaking changes
+////
+// tag::notable-highlights[]
+
+// end::notable-highlights[]

@@ -108,7 +108,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -117,23 +116,12 @@ import java.util.function.Predicate;
  */
 public final class ClusterSettings extends AbstractScopedSettings {
 
-    private final Map<String, char[]> localHashesOfConsistentSettings;
-    private final Map<String, String> publicHashesOfConsistentSettings;
-
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
-        this(nodeSettings, settingsSet, Collections.emptySet(), Collections.emptyMap(), Collections.emptyMap());
+        this(nodeSettings, settingsSet, Collections.emptySet());
     }
 
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
-        this(nodeSettings, settingsSet, settingUpgraders, Collections.emptyMap(), Collections.emptyMap());
-    }
-
-    public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders,
-                           final Map<String, char[]> localHashesOfConsistentSettings,
-                           final Map<String, String> publicHashesOfConsistentSettings) {
         super(nodeSettings, settingsSet, settingUpgraders, Property.NodeScope);
-        this.localHashesOfConsistentSettings = localHashesOfConsistentSettings;
-        this.publicHashesOfConsistentSettings = publicHashesOfConsistentSettings;
         addSettingsUpdater(new LoggingSettingUpdater(nodeSettings));
     }
 

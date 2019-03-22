@@ -18,7 +18,7 @@ as long as the app can use the {es-sql} driver, it can use {es-sql}.
 * <<sql-client-apps-workbench, SQL Workbench>>
 * <<sql-client-apps-tableau, Tableau Desktop>>
 
-IMPORTANT: Elastic does not endorse, promote or provide support for any of the applications listed.
+IMPORTANT: Elastic does not endorse, promote or provide support for any of the applications listed. For native Elasticsearch integration in these products, please reach out to their respective vendor.
 
 NOTE: Each application has its own requirements and license these are outside the scope of this documentation
 which covers only the configuration aspect with {es-sql}.

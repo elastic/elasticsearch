@@ -277,12 +277,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType type = columnType(columnIndex);
         try {
             return JdbcDateUtils.asDate(val.toString());
-        } catch (Exception cce) {
+        } catch (Exception e) {
+            EsType type = columnType(columnIndex);
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
         }
     }
 
@@ -300,9 +300,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
         try {
             return JdbcDateUtils.asTime(val.toString());
-        } catch (Exception cce) {
+        } catch (Exception e) {
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
         }
     }
 
@@ -313,13 +313,15 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType type = columnType(columnIndex);
-
         try {
+            if (val instanceof Number) {
+                return JdbcDateUtils.asTimestamp(((Number) val).longValue());
+            }
             return JdbcDateUtils.asTimestamp(val.toString());
-        } catch (Exception cce) {
+        } catch (Exception e) {
+            EsType type = columnType(columnIndex);
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
         }
     }
 

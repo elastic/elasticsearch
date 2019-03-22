@@ -156,19 +156,45 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         runnables.forEach(Runnable::run);
     }
 
-    /**
-     * Makes a single attempt to reconnect to any nodes which are disconnected but should be connected. Does not attempt to reconnect any
-     * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
-     * attempts have completed.
-     */
     void ensureConnections(Runnable onCompletion) {
+        // Called by tests after some disruption has concluded. It is possible that one or more targets are currently CONNECTING and have
+        // been since the disruption was active, and that the connection attempt was thwarted by a concurrent disruption to the connection.
+        // If so, we cannot simply add our listener to the queue because it will be notified when this CONNECTING activity completes even
+        // though it was disrupted. We must therefore wait for all the current activity to finish and then go through and reconnect to
+        // any missing nodes.
+        awaitPendingActivity(() -> connectDisconnectedTargets(onCompletion));
+    }
+
+    private void awaitPendingActivity(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {
             final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
             if (connectionTargets.isEmpty()) {
                 runnables.add(onCompletion);
             } else {
-                logger.trace("ensuring connections to {}", targetsByNode);
+                final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+                    ActionListener.wrap(onCompletion), connectionTargets.size());
+                for (final ConnectionTarget connectionTarget : connectionTargets) {
+                    runnables.add(connectionTarget.awaitCurrentActivity(listener));
+                }
+            }
+        }
+        runnables.forEach(Runnable::run);
+    }
+
+    /**
+     * Makes a single attempt to reconnect to any nodes which are disconnected but should be connected. Does not attempt to reconnect any
+     * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
+     * attempts have completed.
+     */
+    private void connectDisconnectedTargets(Runnable onCompletion) {
+        final List<Runnable> runnables = new ArrayList<>();
+        synchronized (mutex) {
+            final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
+            if (connectionTargets.isEmpty()) {
+                runnables.add(onCompletion);
+            } else {
+                logger.trace("connectDisconnectedTargets: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     ActionListener.wrap(onCompletion), connectionTargets.size());
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
@@ -182,7 +208,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     class ConnectionChecker extends AbstractRunnable {
         protected void doRun() {
             if (connectionChecker == this) {
-                ensureConnections(this::scheduleNextCheck);
+                connectDisconnectedTargets(this::scheduleNextCheck);
             }
         }
 
@@ -345,6 +371,18 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     addListener(listener);
                     return connectActivity;
                 }
+            } else {
+                addListener(listener);
+                return () -> {
+                };
+            }
+        }
+
+        Runnable awaitCurrentActivity(ActionListener<Void> listener) {
+            assert Thread.holdsLock(mutex) : "mutex not held";
+
+            if (activityType == ActivityType.IDLE) {
+                return () -> listener.onResponse(null);
             } else {
                 addListener(listener);
                 return () -> {

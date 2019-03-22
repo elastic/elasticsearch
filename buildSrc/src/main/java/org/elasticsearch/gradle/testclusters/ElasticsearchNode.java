@@ -41,6 +41,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -73,7 +75,8 @@ public class ElasticsearchNode {
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
-    private final Map<String, String> keystoreSettings = new HashMap<>();
+    private final Map<String, Supplier<String>> settings = new LinkedHashMap<>();
+    private final Map<String, String> keystoreSettings = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -435,34 +438,45 @@ public class ElasticsearchNode {
     }
 
     private void createConfiguration()  {
-        LinkedHashMap<String, String> config = new LinkedHashMap<>();
+        LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
         String nodeName = safeName(name);
-        config.put("cluster.name",nodeName);
-        config.put("node.name", nodeName);
-        config.put("path.repo", confPathRepo.toAbsolutePath().toString());
-        config.put("path.data", confPathData.toAbsolutePath().toString());
-        config.put("path.logs", confPathLogs.toAbsolutePath().toString());
-        config.put("path.shared_data", workingDir.resolve("sharedData").toString());
-        config.put("node.attr.testattr", "test");
-        config.put("node.portsfile", "true");
-        config.put("http.port", "0");
-        config.put("transport.tcp.port", "0");
+        defaultConfig.put("cluster.name",nodeName);
+        defaultConfig.put("node.name", nodeName);
+        defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
+        defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
+        defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
+        defaultConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
+        defaultConfig.put("node.attr.testattr", "test");
+        defaultConfig.put("node.portsfile", "true");
+        defaultConfig.put("http.port", "0");
+        defaultConfig.put("transport.tcp.port", "0");
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
-        config.put("cluster.routing.allocation.disk.watermark.low", "1b");
-        config.put("cluster.routing.allocation.disk.watermark.high", "1b");
+        defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
+        defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
         // increase script compilation limit since tests can rapid-fire script compilations
-        config.put("script.max_compilations_rate", "2048/1m");
+        defaultConfig.put("script.max_compilations_rate", "2048/1m");
         if (Version.fromString(version).getMajor() >= 6) {
-            config.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
+            defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
         if (Version.fromString(version).getMajor() >= 7) {
-            config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
+            defaultConfig.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
+        Map<String, String> userConfig = settings.entrySet().stream()
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get()));
+        HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
+        overriden.retainAll(userConfig.keySet());
+        if (overriden.isEmpty() ==false) {
+            throw new IllegalArgumentException("Testclusters does not allow the following settings to be changed:" + overriden);
+        }
+
         try {
             Files.write(
                 configFile,
-                config.entrySet().stream()
+                Stream.concat(
+                    userConfig.entrySet().stream(),
+                    defaultConfig.entrySet().stream()
+                )
                     .map(entry -> entry.getKey() + ": " + entry.getValue())
                     .collect(Collectors.joining("\n"))
                     .getBytes(StandardCharsets.UTF_8)

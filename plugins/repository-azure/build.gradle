@@ -66,7 +66,7 @@ check {
 }
 
 testClusters {
-    integTestCluster {
+    integTest {
         keystore 'azure.client.integration_test.account', 'azure_account'
         keystore 'azure.client.integration_test.key', 'azure_key'
     }

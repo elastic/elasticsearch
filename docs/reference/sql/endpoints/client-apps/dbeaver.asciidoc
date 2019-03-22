@@ -8,6 +8,8 @@ ____
 https://dbeaver.io/[DBeaver] DBeaver is free and open source universal database tool for developers and database administrators.
 ____
 
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
 ==== Prerequisites
 
 * DBeaver version 5.1.4 or higher

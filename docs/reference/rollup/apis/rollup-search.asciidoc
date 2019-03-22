@@ -121,7 +121,7 @@ aggregation has been used on the `temperature` field, yielding the following res
         "value": 0,
         "relation": "eq"
     },
-    "max_score" : 0.0,
+    "max_score" : null,
     "hits" : [ ]
   },
   "aggregations" : {

@@ -162,7 +162,7 @@ If you were to execute that query, you'd receive a result that looks like a norm
         "value": 0,
         "relation": "eq"
     },
-    "max_score" : 0.0,
+    "max_score" : null,
     "hits" : [ ]
   },
   "aggregations" : {
@@ -236,7 +236,7 @@ Which returns a corresponding response:
         "value": 0,
         "relation": "eq"
      },
-     "max_score" : 0.0,
+     "max_score" : null,
      "hits" : [ ]
    },
    "aggregations" : {

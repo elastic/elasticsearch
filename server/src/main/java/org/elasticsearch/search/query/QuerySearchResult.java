@@ -37,6 +37,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -289,13 +290,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (in.getVersion().before(Version.V_8_0_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
                 .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
-            List<InternalAggregation> internalAggs = aggregations.asList().stream()
-                .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
-            assert this.aggregations.getTopLevelPipelineAggregators().isEmpty();
-            //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
-            //while later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
-            //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.
-            this.aggregations = new InternalAggregations(internalAggs, pipelineAggregators);
+            if (hasAggs && pipelineAggregators.isEmpty() == false) {
+                assert this.aggregations.getTopLevelPipelineAggregators().isEmpty();
+                List<InternalAggregation> internalAggs = aggregations.asList().stream()
+                    .map(agg -> (InternalAggregation) agg).collect(Collectors.toList());
+                //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while
+                //later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
+                //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1.
+                this.aggregations = new InternalAggregations(internalAggs, pipelineAggregators);
+            }
         }
         if (in.readBoolean()) {
             suggest = new Suggest(in);
@@ -337,7 +340,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
             //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
             //while later versions expect them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
             //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.
-            out.writeNamedWriteableList(aggregations.getTopLevelPipelineAggregators());
+            if (aggregations == null) {
+                out.writeNamedWriteableList(Collections.emptyList());
+            } else {
+                out.writeNamedWriteableList(aggregations.getTopLevelPipelineAggregators());
+            }
         }
         if (suggest == null) {
             out.writeBoolean(false);

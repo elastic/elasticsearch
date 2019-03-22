@@ -6,11 +6,9 @@
 
 coming[7.1.0]
 
-////
-The following section is re-used in the Installation and Upgrade Guide
-[[notable-highlights-7.1.0]]
-=== Notable breaking changes
-////
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 // tag::notable-highlights[]
 
 // end::notable-highlights[]

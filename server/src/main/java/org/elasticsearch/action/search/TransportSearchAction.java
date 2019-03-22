@@ -116,10 +116,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
                                                               Index[] concreteIndices, Map<String, AliasFilter> remoteAliasMap) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
-        final Function<String, AliasFilter> indexToAliasFilter = searchService.buildAliasFilter(clusterState, request.indices());;
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = indexToAliasFilter.apply(index.getName());
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }

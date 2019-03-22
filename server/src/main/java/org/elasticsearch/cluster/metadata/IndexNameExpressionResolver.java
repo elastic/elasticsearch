@@ -44,6 +44,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,7 +52,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -312,39 +312,40 @@ public class IndexNameExpressionResolver {
     }
 
     /**
+     * Resolve an array of expressions to the set of indices and aliases that these expressions match.
+     */
+    public Set<String> resolveExpressions(ClusterState state, String... expressions) {
+        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
+        List<String> resolvedExpressions = Arrays.asList(expressions);
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
+        }
+        return Collections.unmodifiableSet(new HashSet<>(resolvedExpressions));
+    }
+
+    /**
      * Iterates through the list of indices and selects the effective list of filtering aliases for the
      * given index.
      * <p>Only aliases with filters are returned. If the indices list contains a non-filtering reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
+     * <b>NOTE</b>: The provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
-    public Function<String, String[]> filteringAliases(ClusterState state, String... expressions) {
-        return indexAliases(state, AliasMetaData::filteringRequired, false, expressions);
+    public String[] filteringAliases(ClusterState state, String index, Set<String> resolvedExpressions) {
+        return indexAliases(state, index, AliasMetaData::filteringRequired, false, resolvedExpressions);
     }
 
     /**
      * Iterates through the list of indices and selects the effective list of required aliases for the given index.
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
      * the index itself - null is returned. Returns {@code null} if no filtering is required.
+     * <p><b>NOTE</b>: the provided expressions must have been resolved already via {@link #resolveExpressions}.
      */
-    public Function<String, String[]> indexAliases(ClusterState state, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
-            String... expressions) {
-        // expand the aliases wildcard
-        List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), true, false);
-        for (ExpressionResolver expressionResolver : expressionResolvers) {
-            resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
-        }
-
-        if (isAllIndices(resolvedExpressions)) {
-            return index -> null;
-        }
-
-        final Set<String> resolvedExpressionsSet = new HashSet<>(resolvedExpressions);
-        return index -> indexAliases(state, index, requiredAlias, skipIdentity, resolvedExpressionsSet);
-    }
-
-    private String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
+    public String[] indexAliases(ClusterState state, String index, Predicate<AliasMetaData> requiredAlias, boolean skipIdentity,
             Set<String> resolvedExpressions) {
+        if (isAllIndices(resolvedExpressions)) {
+            return null;
+        }
+
         final IndexMetaData indexMetaData = state.metaData().getIndices().get(index);
         if (indexMetaData == null) {
             // Shouldn't happen
@@ -496,7 +497,7 @@ public class IndexNameExpressionResolver {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public static boolean isAllIndices(List<String> aliasesOrIndices) {
+    public static boolean isAllIndices(Collection<String> aliasesOrIndices) {
         return aliasesOrIndices == null || aliasesOrIndices.isEmpty() || isExplicitAllPattern(aliasesOrIndices);
     }
 
@@ -507,8 +508,8 @@ public class IndexNameExpressionResolver {
      * @param aliasesOrIndices the array containing index names
      * @return true if the provided array explicitly maps to all indices, false otherwise
      */
-    static boolean isExplicitAllPattern(List<String> aliasesOrIndices) {
-        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && MetaData.ALL.equals(aliasesOrIndices.get(0));
+    static boolean isExplicitAllPattern(Collection<String> aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.size() == 1 && MetaData.ALL.equals(aliasesOrIndices.iterator().next());
     }
 
     /**
@@ -581,7 +582,7 @@ public class IndexNameExpressionResolver {
         /**
          * This is used to prevent resolving aliases to concrete indices but this also means
          * that we might return aliases that point to a closed index. This is currently only used
-         * by {@link #filteringAliases(ClusterState, String...)} since it's the only one that needs aliases
+         * by {@link #filteringAliases(ClusterState, String, Set)} since it's the only one that needs aliases
          */
         boolean isPreserveAliases() {
             return preserveAliases;

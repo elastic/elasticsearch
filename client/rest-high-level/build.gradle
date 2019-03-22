@@ -66,6 +66,9 @@ dependencies {
   testCompile "org.elasticsearch:rest-api-spec:${version}"
 
   restSpec "org.elasticsearch:rest-api-spec:${version}"
+  // Needed for serialization tests: 
+  // (In order to serialize a server side class to a client side class or the other way around)
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)

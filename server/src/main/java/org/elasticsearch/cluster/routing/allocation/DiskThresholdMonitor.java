@@ -19,9 +19,12 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
@@ -43,7 +46,8 @@ import org.elasticsearch.common.util.set.Sets;
 
 /**
  * Listens for a node to go over the high watermark and kicks off an empty
- * reroute if it does. Also responsible for logging about nodes that have
+ * reroute if it does. Responsible for re-enabling indices if the nodes go above the auto release threshold.
+ * Also responsible for logging about nodes that have
  * passed the disk watermarks
  */
 public class DiskThresholdMonitor {
@@ -109,13 +113,23 @@ public class DiskThresholdMonitor {
             }
             ClusterState state = clusterStateSupplier.get();
             Set<String> indicesToMarkReadOnly = new HashSet<>();
+            Map<String, Boolean> autoReleaseEligibility = new HashMap<>();
             for (ObjectObjectCursor<String, DiskUsage> entry : usages) {
                 String node = entry.key;
                 DiskUsage usage = entry.value;
                 warnAboutDiskIfNeeded(usage);
+
+                RoutingNode routingNode = state.getRoutingNodes().node(node);
+
+                // Only unblock index if all nodes that contain shards of it are above the node auto release threshold
+                if (nodeIndicesAvailableForAutoRelease(usage)) {
+                    markIndicesAutoReleaseAvailability(routingNode, autoReleaseEligibility, true);
+                } else {
+                    markIndicesAutoReleaseAvailability(routingNode, autoReleaseEligibility, false);
+                }
+
                 if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                     usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-                    RoutingNode routingNode = state.getRoutingNodes().node(node);
                     if (routingNode != null) { // this might happen if we haven't got the full cluster-state yet?!
                         for (ShardRouting routing : routingNode) {
                             indicesToMarkReadOnly.add(routing.index().getName());
@@ -159,17 +173,51 @@ public class DiskThresholdMonitor {
                 logger.info("rerouting shards: [{}]", explanation);
                 reroute();
             }
+
+            // Get set of indices that are eligible to be automatically unblocked
+            // Only collect indices that are currently blocked
+            Set<String> indicesToDisableReadOnly = autoReleaseEligibility.entrySet().stream()
+                .filter(Map.Entry::getValue)
+                .map(Map.Entry::getKey)
+                .filter(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index))
+                .collect(Collectors.toCollection(HashSet::new));
+
+            if (!indicesToDisableReadOnly.isEmpty()) {
+                logger.warn("Releasing read-only (allow delete) block on indices: [{}]", indicesToDisableReadOnly);
+                updateIndicesReadOnly(indicesToDisableReadOnly, false);
+            }
+
             indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
             if (indicesToMarkReadOnly.isEmpty() == false) {
-                markIndicesReadOnly(indicesToMarkReadOnly);
+                updateIndicesReadOnly(indicesToMarkReadOnly, true);
             }
         }
     }
 
-    protected void markIndicesReadOnly(Set<String> indicesToMarkReadOnly) {
+    // Indices for node can be made available (unblocked) if applicable
+    private boolean nodeIndicesAvailableForAutoRelease(DiskUsage usage) {
+        return diskThresholdSettings.isAutoReleaseIndexEnabled() && !(usage.getFreeBytes() <
+            diskThresholdSettings.getFreeBytesThresholdAutoReleaseStage().getBytes() ||
+            usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdAutoReleaseStage());
+    }
+
+    // Tracks index's availability across all the nodes that it is distributed across. If at least one node is
+    // unavailable the index will be marked as unavailable for auto release of read-only-delete block
+    private void markIndicesAutoReleaseAvailability(RoutingNode routingNode, Map<String, Boolean> autoReleaseEligibility,
+                                                    boolean available) {
+        if (routingNode != null) {
+            for (ShardRouting routing : routingNode) {
+                String indexName = routing.index().getName();
+                boolean value = autoReleaseEligibility.getOrDefault(indexName, true);
+                autoReleaseEligibility.put(indexName, value && available);
+            }
+        }
+    }
+
+    protected void updateIndicesReadOnly(Set<String> indicesToUpdate, boolean readOnly) {
         // set read-only block but don't block on the response
-        client.admin().indices().prepareUpdateSettings(indicesToMarkReadOnly.toArray(Strings.EMPTY_ARRAY)).
-            setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build()).execute();
+        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY)).
+            setSettings(Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, readOnly).build()).execute();
     }
 
     protected void reroute() {

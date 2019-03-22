@@ -101,3 +101,15 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
+
+==== Auto Release of read-only (and delete) blocked indices
+
+When a node breaches the flood stage write operations for all indices that have shards
+on that node are restricted. The index can be manually unblocked. Alternatively, the auto
+release feature automatically removes the read only blocks on indices if all
+nodes that it is sharded across are both 5% above the flood stage watermark
+and above the high watermark.
+
+`cluster.routing.allocation.disk.auto_release_index_enabled`::
+    Enables the auto release of read-only (and delete) blocked indices when there is
+    enough free disk space. Defaults to `false`

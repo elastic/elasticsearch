@@ -33,6 +33,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class DiskThresholdSettingsTests extends ESTestCase {
 
+    private static final double DELTA = 10E-14;
+
     public void testDefaults() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
@@ -45,6 +47,11 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(60L, diskThresholdSettings.getRerouteInterval().seconds());
         assertTrue(diskThresholdSettings.isEnabled());
         assertTrue(diskThresholdSettings.includeRelocations());
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
+        assertEquals(5.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdAutoReleaseStage());
+        assertEquals(10.0D, diskThresholdSettings.getFreeDiskThresholdAutoReleaseStage(), 0.0D);
+        assertFalse(diskThresholdSettings.isAutoReleaseIndexEnabled());
     }
 
     public void testUpdate() {
@@ -58,6 +65,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INDEX_AUTO_RELEASE_INDEX_ENABLED_SETTING.getKey(), true)
             .build();
         nss.applySettings(newSettings);
 
@@ -70,6 +78,9 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
+        assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), diskThresholdSettings.getFreeBytesThresholdAutoReleaseStage());
+        assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdAutoReleaseStage(), 0.0D);
+        assertTrue(diskThresholdSettings.isAutoReleaseIndexEnabled());
     }
 
     public void testInvalidConstruction() {
@@ -250,4 +261,20 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         }
     }
 
+    public void testAutoReleaseThresholdDerivedFromFloodStageThreshold() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
+
+        Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "90.1%")
+            .build();
+        nss.applySettings(newSettings);
+
+        ByteSizeValue zeroBytes = ByteSizeValue.parseBytesSizeValue("0b", "test");
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdFloodStage());
+        assertEquals(9.9D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), DELTA);
+        assertEquals(zeroBytes, diskThresholdSettings.getFreeBytesThresholdAutoReleaseStage());
+        assertEquals(10.395D, diskThresholdSettings.getFreeDiskThresholdAutoReleaseStage(), DELTA);
+        assertFalse(diskThresholdSettings.isAutoReleaseIndexEnabled());
+    }
 }

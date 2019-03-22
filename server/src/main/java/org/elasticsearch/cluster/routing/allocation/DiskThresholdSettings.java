@@ -60,6 +60,10 @@ public class DiskThresholdSettings {
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INDEX_AUTO_RELEASE_INDEX_ENABLED_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.disk.auto_release_index_enabled", false,
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    private static final double FLOOD_STAGE_NODE_AUTO_RELEASE_FACTOR = 1.05;
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -72,6 +76,9 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
+    private volatile boolean autoReleaseIndexEnabled;
+    private volatile Double freeDiskThresholdAutoReleaseStage;
+    private volatile ByteSizeValue freeBytesThresholdAutoReleaseStage;
 
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
@@ -83,12 +90,15 @@ public class DiskThresholdSettings {
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.autoReleaseIndexEnabled = CLUSTER_ROUTING_ALLOCATION_INDEX_AUTO_RELEASE_INDEX_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INDEX_AUTO_RELEASE_INDEX_ENABLED_SETTING,
+            this::setAutoReleaseIndexEnabled);
     }
 
     static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
@@ -239,6 +249,7 @@ public class DiskThresholdSettings {
         this.freeDiskThresholdHigh = 100.0 - thresholdPercentageFromWatermark(highWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey());
+        setAutoReleaseStage();
     }
 
     private void setFloodStage(String floodStageRaw) {
@@ -246,6 +257,30 @@ public class DiskThresholdSettings {
         this.freeDiskThresholdFloodStage = 100.0 - thresholdPercentageFromWatermark(floodStageRaw);
         this.freeBytesThresholdFloodStage = thresholdBytesFromWatermark(floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey());
+        setAutoReleaseStage();
+    }
+
+    private void setAutoReleaseIndexEnabled(boolean enabled) {
+        this.autoReleaseIndexEnabled = enabled;
+    }
+
+    /**
+     * Index Auto-Release threshold is derived from the flood stage and high watermark thresholds
+     */
+    private void setAutoReleaseStage() {
+        if (!canSetAutoRelease()) return;
+        Double freeDiskThresholdFloodStageFactor = FLOOD_STAGE_NODE_AUTO_RELEASE_FACTOR * this.freeDiskThresholdFloodStage;
+        ByteSizeValue freeBytesThresholdFloodStageFactor = new ByteSizeValue(
+            (long) FLOOD_STAGE_NODE_AUTO_RELEASE_FACTOR * this.freeBytesThresholdFloodStage.getBytes());
+
+        this.freeDiskThresholdAutoReleaseStage = freeDiskThresholdFloodStageFactor > freeDiskThresholdHigh
+            ? freeDiskThresholdFloodStageFactor : freeDiskThresholdHigh;
+        this.freeBytesThresholdAutoReleaseStage = freeBytesThresholdFloodStageFactor.getBytes() > freeBytesThresholdHigh.getBytes()
+            ? freeBytesThresholdFloodStageFactor : freeBytesThresholdHigh;
+    }
+
+    private boolean canSetAutoRelease() {
+        return (this.freeBytesThresholdHigh != null && this.freeBytesThresholdFloodStage != null);
     }
 
     /**
@@ -284,6 +319,16 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
+    }
+
+    public boolean isAutoReleaseIndexEnabled() { return this.autoReleaseIndexEnabled; }
+
+    public Double getFreeDiskThresholdAutoReleaseStage() {
+        return freeDiskThresholdAutoReleaseStage;
+    }
+
+    public ByteSizeValue getFreeBytesThresholdAutoReleaseStage() {
+        return freeBytesThresholdAutoReleaseStage;
     }
 
     public boolean includeRelocations() {

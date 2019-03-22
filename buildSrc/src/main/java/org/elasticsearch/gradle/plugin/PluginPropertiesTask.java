@@ -57,9 +57,7 @@ public class PluginPropertiesTask extends DefaultTask {
         File templateFile = new File(project.getBuildDir(), "templates/" + descriptorOutput.getName());
         templateFile.getParentFile().mkdirs();
 
-        InputStream resourceTemplate = this.getClass().getResourceAsStream("/" + descriptorOutput.getName());
-
-        try {
+        try (InputStream resourceTemplate = this.getClass().getResourceAsStream("/" + descriptorOutput.getName())) {
             Files.copy(resourceTemplate, templateFile.toPath());
         } catch (IOException e) {
             throw new RuntimeException(e);

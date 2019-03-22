@@ -217,7 +217,7 @@ public class TcpTransportTests extends ESTestCase {
             AtomicReference<BytesReference> responseCaptor = new AtomicReference<>();
             InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 0);
             FakeTcpChannel responseChannel = new FakeTcpChannel(true, address, address, "profile", responseCaptor);
-            transport.messageReceived(reference.slice(6, reference.length() - 6), responseChannel);
+//            transport.messageReceived(reference.slice(6, reference.length() - 6), responseChannel);
 
 
             StreamInput streamIn = responseCaptor.get().streamInput();

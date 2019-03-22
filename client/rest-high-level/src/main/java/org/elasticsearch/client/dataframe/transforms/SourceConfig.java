@@ -33,6 +33,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 
+/**
+ * Class encapsulating all options for a {@link DataFrameTransformConfig} gathering data
+ */
 public class SourceConfig implements ToXContentObject {
 
     public static final ParseField QUERY = new ParseField("query");
@@ -55,6 +58,24 @@ public class SourceConfig implements ToXContentObject {
     private final String[] index;
     private final QueryConfig queryConfig;
 
+    /**
+     * Create a new SourceConfig for the provided indices.
+     *
+     * {@link QueryConfig} defaults to a MatchAll query.
+     *
+     * @param index Any number of indices. At least one non-null, non-empty, index should be provided
+     */
+    public SourceConfig(String... index) {
+        this.index = index;
+        this.queryConfig = null;
+    }
+
+    /**
+     * Create a new SourceConfig for the provided indices, from which data is gathered with the provided {@link QueryConfig}
+     *
+     * @param index Any number of indices. At least one non-null, non-empty, index should be provided
+     * @param queryConfig A QueryConfig object that contains the desired query. Defaults to MatchAll query.
+     */
     public SourceConfig(String[] index, QueryConfig queryConfig) {
         this.index = index;
         this.queryConfig = queryConfig;
@@ -71,8 +92,12 @@ public class SourceConfig implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.array(INDEX.getPreferredName(), index);
-        builder.field(QUERY.getPreferredName(), queryConfig);
+        if (index != null) {
+            builder.array(INDEX.getPreferredName(), index);
+        }
+        if (queryConfig != null) {
+            builder.field(QUERY.getPreferredName(), queryConfig);
+        }
         builder.endObject();
         return builder;
     }

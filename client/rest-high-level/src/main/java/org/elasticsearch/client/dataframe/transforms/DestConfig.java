@@ -29,6 +29,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Configuration containing the destination index for the {@link DataFrameTransformConfig}
+ */
 public class DestConfig implements ToXContentObject {
 
     public static final ParseField INDEX = new ParseField("index");

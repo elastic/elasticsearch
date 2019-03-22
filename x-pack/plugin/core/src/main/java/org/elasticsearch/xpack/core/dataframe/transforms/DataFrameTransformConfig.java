@@ -118,8 +118,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
     public DataFrameTransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
-        source = in.readOptionalWriteable(SourceConfig::new);
-        dest = in.readOptionalWriteable(DestConfig::new);
+        source = new SourceConfig(in);
+        dest = new DestConfig(in);
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
     }
@@ -159,8 +159,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeOptionalWriteable(source);
-        out.writeOptionalWriteable(dest);
+        source.writeTo(out);
+        dest.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
     }

@@ -100,7 +100,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
         if (id != null) {
             builder.field(ID.getPreferredName(), id);
         }
-        builder.field(SOURCE.getPreferredName(), source);
+        if (source != null) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
         if (dest != null) {
             builder.field(DEST.getPreferredName(), dest);
         }

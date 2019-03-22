@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,7 +41,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
                 @SuppressWarnings("unchecked")
                 String[] index = ((List<String>)args[0]).toArray(new String[0]);
                 // default handling: if the user does not specify a query, we default to match_all
-                QueryConfig queryConfig = args[1] == null ? QueryConfig.defaultQueryConfig() : (QueryConfig) args[1];
+                QueryConfig queryConfig = args[1] == null ? QueryConfig.matchAll() : (QueryConfig) args[1];
                 return new SourceConfig(index, queryConfig);
             });
         parser.declareStringArray(constructorArg(), INDEX);
@@ -51,12 +52,29 @@ public class SourceConfig implements Writeable, ToXContentObject {
     private final String[] index;
     private final QueryConfig queryConfig;
 
+    /**
+     * Create a new SourceConfig for the provided indices.
+     *
+     * {@link QueryConfig} defaults to a MatchAll query.
+     *
+     * @param index Any number of indices. At least one non-null, non-empty, index should be provided
+     */
+    public SourceConfig(String... index) {
+        this(index, QueryConfig.matchAll());
+    }
+
+    /**
+     * Create a new SourceConfig for the provided indices, from which data is gathered with the provided {@link QueryConfig}
+     *
+     * @param index Any number of indices. At least one non-null, non-empty, index should be provided
+     * @param queryConfig A QueryConfig object that contains the desired query, needs to be non-null
+     */
     public SourceConfig(String[] index, QueryConfig queryConfig) {
         ExceptionsHelper.requireNonNull(index, INDEX.getPreferredName());
         if (index.length == 0) {
             throw new IllegalArgumentException("must specify at least one index");
         }
-        if (Arrays.stream(index).anyMatch(i -> i == null || i.isEmpty())) {
+        if (Arrays.stream(index).anyMatch(Strings::isNullOrEmpty)) {
             throw new IllegalArgumentException("all indices need to be non-null and non-empty");
         }
         this.index = index;
@@ -65,7 +83,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     public SourceConfig(final StreamInput in) throws IOException {
         index = in.readStringArray();
-        queryConfig = in.readOptionalWriteable(QueryConfig::new);
+        queryConfig = new QueryConfig(in);
     }
 
     public String[] getIndex() {
@@ -83,7 +101,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(index);
-        out.writeOptionalWriteable(queryConfig);
+        queryConfig.writeTo(out);
     }
 
     @Override

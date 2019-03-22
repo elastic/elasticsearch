@@ -76,7 +76,7 @@ public class ElasticsearchNode {
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
     private final Map<String, Supplier<String>> settings = new LinkedHashMap<>();
-    private final Map<String, String> keystoreSettings = new LinkedHashMap<>();
+    private final Map<String, Supplier<String>> keystoreSettings = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -152,7 +152,7 @@ public class ElasticsearchNode {
     public void keystore(String key, String value) {
         requireNonNull(key, "Keystore key was null when configuring test cluster `" + this + "`");
         requireNonNull(value, "Keystore value was null when configuring test cluster `" + this + "`");
-        keystoreSettings.put(key, value);
+        keystoreSettings.put(key, () -> value);
     }
 
     public Path getConfigDir() {
@@ -241,7 +241,7 @@ public class ElasticsearchNode {
         if (keystoreSettings.isEmpty() == false) {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
             keystoreSettings.forEach((key, value) -> {
-                runElaticsearchBinScriptWithInput(value, "elasticsearch-keystore", "add", "-x", key);
+                runElaticsearchBinScriptWithInput(value.get(), "elasticsearch-keystore", "add", "-x", key);
             });
         }
 

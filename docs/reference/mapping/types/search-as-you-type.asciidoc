@@ -183,7 +183,7 @@ GET my_index/_search
 To search for documents that strictly match the query terms in order, or to
 search using other properties of phrase queries, use a
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>> on the root
-field. A <<query-dsl-match-query-phrase`match_phrase` query>> can also be used
+field. A <<query-dsl-match-query-phrase,`match_phrase` query>> can also be used
 if the last term should be matched exactly, and not as a prefix. Using phrase
 queries may be less efficient than using the `bool_prefix` query.
 

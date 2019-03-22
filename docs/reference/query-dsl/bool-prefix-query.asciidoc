@@ -46,7 +46,7 @@ An important difference between the `bool_prefix` query and the
 `bool_prefix` query above could match a field containing containing `quick
 brown fox`, but it could also match `brown fox quick`. It could also match a
 field containing the term `quick`, the term `brown` and a term starting with
-`f`,appearing in any position.
+`f`, appearing in any position.
 
 `bool_prefix` queries support the
 <<query-dsl-minimum-should-match,`minimum_should_match`>> parameter, applying

@@ -17,10 +17,8 @@ coming[8.0.0]
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_snapshots_changes>>
 
-[float]
-[[breaking_80_notable]]
-=== Notable changes
-// NOTE: The content in this section is also used in the Installation and Upgrade Guide.
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
 [float]

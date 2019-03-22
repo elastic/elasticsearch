@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNu
 
 final class AggregationResultUtils {
     private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
+
     /**
      * Extracts aggregation results from a composite aggregation and puts it into a map.
      *
@@ -51,8 +52,6 @@ final class AggregationResultUtils {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
             idGen.clear();
-
-            dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
             Map<String, Object> document = new HashMap<>();
 
             // important: the order is important for creating the document id, therefore we ensure order by sorting
@@ -60,6 +59,7 @@ final class AggregationResultUtils {
                 Object value = bucket.getKey().get(destinationFieldName);
                 idGen.add(value);
                 document.put(destinationFieldName, value);
+            });
 
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
                 String aggName = aggregationBuilder.getName();

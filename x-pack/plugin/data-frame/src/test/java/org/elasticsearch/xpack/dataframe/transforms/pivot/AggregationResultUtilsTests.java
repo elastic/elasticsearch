@@ -503,8 +503,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
                     ));
         DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
 
-        List<Map<String, Object>> resultFirstRun = runExtraction(groupBy, aggregationBuilders, inputFirstRun, stats);
-        List<Map<String, Object>> resultSecondRun = runExtraction(groupBy, aggregationBuilders, inputSecondRun, stats);
+        Map<String, String> fieldTypeMap = asStringMap(
+                aggName, "double",
+                targetField, "keyword",
+                targetField2, "keyword"
+            );
+
+        List<Map<String, Object>> resultFirstRun = runExtraction(groupBy, aggregationBuilders, inputFirstRun, fieldTypeMap, stats);
+        List<Map<String, Object>> resultSecondRun = runExtraction(groupBy, aggregationBuilders, inputSecondRun, fieldTypeMap, stats);
 
         assertNotEquals(resultFirstRun, resultSecondRun);
 
@@ -532,8 +538,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
-        List<Map<String, Object>> result = runExtraction(groups, aggregationBuilders, input, stats);
-                    .extractCompositeAggregationResults(agg, groups, aggregationBuilders, fieldTypeMap, stats).collect(Collectors.toList());
+        List<Map<String, Object>> result = runExtraction(groups, aggregationBuilders, input, fieldTypeMap, stats);
 
         // remove the document ids and test uniqueness
         Set<String> documentIds = new HashSet<>();
@@ -548,14 +553,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     private List<Map<String, Object>> runExtraction(GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders,
-            Map<String, Object> input, DataFrameIndexerTransformStats stats) throws IOException {
+            Map<String, Object> input, Map<String, String> fieldTypeMap, DataFrameIndexerTransformStats stats) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
         try (XContentParser parser = createParser(builder)) {
             CompositeAggregation agg = ParsedComposite.fromXContent(parser, "my_feature");
-            return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, stats)
+            return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, fieldTypeMap, stats)
                     .collect(Collectors.toList());
         }
     }

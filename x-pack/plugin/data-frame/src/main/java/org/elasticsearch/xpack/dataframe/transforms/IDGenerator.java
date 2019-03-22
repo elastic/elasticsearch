@@ -65,7 +65,7 @@ public class IDGenerator {
     }
 
     /**
-     * Turns objects into byte arrays, only supporting type that potentially come out of a composite agg.
+     * Turns objects into byte arrays, only supporting types returned groupBy
      *
      * @param value the value as object
      * @return a byte representation of the input object

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
@@ -32,6 +33,9 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -842,17 +846,13 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
-        Calendar connCalendar = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        
         doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
-            connCalendar.setTimeInMillis(randomLongDate);
-            connCalendar.set(HOUR_OF_DAY, 0);
-            connCalendar.set(MINUTE, 0);
-            connCalendar.set(SECOND, 0);
-            connCalendar.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDate = new java.sql.Date(connCalendar.getTimeInMillis());
+            ZoneId zoneId = ZoneId.of(timeZoneId);
+            java.sql.Date expectedDate = new java.sql.Date(
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomLongDate), zoneId)
+                    .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli());
 
             assertEquals(expectedDate, results.getDate("test_date"));
             assertEquals(expectedDate, results.getDate(9));
@@ -860,7 +860,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
 
             // bulk validation for all fields which are not of type date
-            validateErrorsForDateTimeTestsWithoutCalendar(results::getDate);
+            validateErrorsForDateTestsWithoutCalendar(results::getDate);
         });
     }
     
@@ -918,15 +918,16 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(YEAR, 1970);
             c.set(MONTH, 0);
             c.set(DAY_OF_MONTH, 1);
-            
-            assertEquals(results.getTime("test_date"), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getTime(9), new java.sql.Time(c.getTimeInMillis()));
-            assertEquals(results.getObject("test_date", java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
-            assertEquals(results.getObject(9, java.sql.Time.class),
-                    new java.sql.Time(randomLongDate % 86400000L));
-            
-            validateErrorsForDateTimeTestsWithoutCalendar(results::getTime);
+
+            ZoneId zoneId = ZoneId.of(timeZoneId);
+            java.sql.Time expectedTime = new java.sql.Time(randomLongDate % 86400000L);
+
+            assertEquals(expectedTime, results.getTime("test_date"));
+            assertEquals(expectedTime, results.getTime(9));
+            assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
+
+            validateErrorsForTimeTestsWithoutCalendar(results::getTime);
         });
     }
     
@@ -1620,13 +1621,23 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
     }
     
-    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+    private void validateErrorsForDateTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
             assertEquals(
-                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long",
+                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date",
                             field.getKey().v2(), field.getValue()), sqle.getMessage());
+        }
+    }
+
+    private void validateErrorsForTimeTestsWithoutCalendar(CheckedFunction<String,Object,SQLException> method) {
+        SQLException sqle;
+        for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
+            sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
+            assertEquals(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time",
+                    field.getKey().v2(), field.getValue()), sqle.getMessage());
         }
     }
     

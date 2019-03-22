@@ -178,12 +178,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        return getDate(columnIndex, null);
+        return asDate(columnIndex);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return getTime(columnIndex, null);
+        return asTime(columnIndex);
     }
 
     @Override
@@ -244,7 +244,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         return getDate(column(columnLabel));
     }
 
-    private Long dateTime(int columnIndex) throws SQLException {
+    private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
         try {
@@ -270,13 +270,49 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
     }
 
+    private Date asDate(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        try {
+            return JdbcDateUtils.asDate(val.toString());
+        } catch (Exception cce) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), cce);
+        }
+    }
+
+    private Time asTime(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        if (type == EsType.DATE) {
+            return new Time(0L);
+        }
+
+        try {
+            return JdbcDateUtils.asTime(val.toString());
+        } catch (Exception cce) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), cce);
+        }
+    }
+
     private Calendar safeCalendar(Calendar calendar) {
         return calendar == null ? defaultCalendar : calendar;
     }
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertDate(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertDate(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -290,7 +326,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         if (type == EsType.DATE) {
             return new Time(0L);
         }
-        return TypeConverter.convertTime(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertTime(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -300,7 +336,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTimestamp(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertTimestamp(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override

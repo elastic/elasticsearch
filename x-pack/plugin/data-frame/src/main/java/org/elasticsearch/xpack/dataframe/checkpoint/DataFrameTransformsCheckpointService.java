@@ -68,7 +68,7 @@ public class DataFrameTransformsCheckpointService {
         long timeUpperBound = 0;
 
         // 1st get index to see the indexes the user has access to
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(transformConfig.getSource());
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(transformConfig.getSource().getIndex());
 
         ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, GetIndexAction.INSTANCE,
                 getIndexRequest, ActionListener.wrap(getIndexResponse -> {
@@ -76,7 +76,7 @@ public class DataFrameTransformsCheckpointService {
 
                     // 2nd get stats request
                     ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DATA_FRAME_ORIGIN, IndicesStatsAction.INSTANCE,
-                            new IndicesStatsRequest().indices(transformConfig.getSource()), ActionListener.wrap(response -> {
+                            new IndicesStatsRequest().indices(transformConfig.getSource().getIndex()), ActionListener.wrap(response -> {
                                 if (response.getFailedShards() != 0) {
                                     throw new CheckpointException("Source has [" + response.getFailedShards() + "] failed shards");
                                 }

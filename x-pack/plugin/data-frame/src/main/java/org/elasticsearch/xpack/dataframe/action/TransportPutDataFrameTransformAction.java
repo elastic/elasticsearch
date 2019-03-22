@@ -196,9 +196,7 @@ public class TransportPutDataFrameTransformAction
 
     private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
 
-        final Pivot pivot = new Pivot(config.getSource(),
-            config.getQueryConfig().getQuery(),
-            config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getSource(), config.getQueryConfig().getQuery(), config.getPivotConfig());
 
 
         // <5> Return the listener, or clean up destination index on failure.

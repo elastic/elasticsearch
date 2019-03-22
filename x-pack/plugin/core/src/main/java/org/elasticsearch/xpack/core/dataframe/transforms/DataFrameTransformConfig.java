@@ -93,7 +93,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     }
 
                     PivotConfig pivotConfig = (PivotConfig) args[6];
-
                     return new DataFrameTransformConfig(id, source, dest, headers, queryConfig, pivotConfig);
                 });
 

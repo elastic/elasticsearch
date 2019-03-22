@@ -126,7 +126,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 "source-index", // <2>
                 "pivot-destination",  // <3>
                 queryConfig,   // <4>
-                pivotConfig); // <5>
+                pivotConfig);  // <5>
         // end::put-data-frame-transform-config
 
         {

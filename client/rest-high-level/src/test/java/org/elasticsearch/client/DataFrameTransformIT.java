@@ -152,11 +152,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         String id = "test-crud";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-            sourceIndex,
-            "pivot-dest",
-            queryConfig,
-            pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -186,11 +182,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         String id = "test-stop-start";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-            sourceIndex,
-            "pivot-dest",
-            queryConfig,
-            pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig(id, sourceIndex, "pivot-dest", queryConfig, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -227,11 +219,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
-        DataFrameTransformConfig transform = new DataFrameTransformConfig("test-preview",
-            sourceIndex,
-            null,
-            queryConfig,
-            pivotConfig);
+        DataFrameTransformConfig transform = new DataFrameTransformConfig("test-preview", sourceIndex, null, queryConfig, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         PreviewDataFrameTransformResponse preview = execute(new PreviewDataFrameTransformRequest(transform),

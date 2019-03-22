@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -71,6 +70,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static DataFrameTransformConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
+
 
     public DataFrameTransformConfig(final String id,
                                     final String source,

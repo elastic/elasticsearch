@@ -158,7 +158,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             protected void doRun() {
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), listener::onFailure)) == false) {
+                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
                         return;
@@ -166,10 +166,29 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     assert context.isInitial(); // either completed and moved to next or reset
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
+                finishRequest();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                while (context.hasMoreOperationsToExecute()) {
+                    context.setRequestToExecute(context.getCurrent());
+                    final long version = context.getRequestToExecute().version();
+                    final Engine.Result result = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE
+                        ? primary.getFailedDeleteResult(e, version)
+                        : primary.getFailedIndexResult(e, version);
+                    onComplete(result, context, null);
+                }
+                // We're done, there's no more operations to execute so we resolve the wrapped listener
+                finishRequest();
+            }
+
+            private void finishRequest() {
                 listener.onResponse(
                     new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
                         null, context.getPrimary(), logger));
             }
+
         }.doRun();
     }
 

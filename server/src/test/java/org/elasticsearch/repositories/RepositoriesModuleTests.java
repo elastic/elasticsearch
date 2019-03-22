@@ -80,8 +80,10 @@ public class RepositoriesModuleTests extends ESTestCase {
     }
 
     public void testCannotRegisterTwoInternalRepositoriesWithSameTypes() {
-        when(plugin1.getInternalRepositories(environment, contentRegistry)).thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getInternalRepositories(environment, contentRegistry)).thenReturn(Collections.singletonMap("type1", factory));
+        when(plugin1.getInternalRepositories(environment, contentRegistry, threadPool))
+            .thenReturn(Collections.singletonMap("type1", factory));
+        when(plugin2.getInternalRepositories(environment, contentRegistry, threadPool))
+            .thenReturn(Collections.singletonMap("type1", factory));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> new RepositoriesModule(environment, repoPlugins, mock(TransportService.class), mock(ClusterService.class),
@@ -92,7 +94,8 @@ public class RepositoriesModuleTests extends ESTestCase {
 
     public void testCannotRegisterNormalAndInternalRepositoriesWithSameTypes() {
         when(plugin1.getRepositories(environment, contentRegistry, threadPool)).thenReturn(Collections.singletonMap("type1", factory));
-        when(plugin2.getInternalRepositories(environment, contentRegistry)).thenReturn(Collections.singletonMap("type1", factory));
+        when(plugin2.getInternalRepositories(environment, contentRegistry, threadPool))
+            .thenReturn(Collections.singletonMap("type1", factory));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> new RepositoriesModule(environment, repoPlugins, mock(TransportService.class), mock(ClusterService.class),

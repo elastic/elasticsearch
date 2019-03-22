@@ -60,7 +60,7 @@ public class RepositoriesModule extends AbstractModule {
 
         Map<String, Repository.Factory> internalFactories = new HashMap<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getInternalRepositories(env, namedXContentRegistry);
+            Map<String, Repository.Factory> newRepoTypes = repoPlugin.getInternalRepositories(env, namedXContentRegistry, threadPool);
             for (Map.Entry<String, Repository.Factory> entry : newRepoTypes.entrySet()) {
                 if (internalFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Internal repository type [" + entry.getKey() + "] is already registered");

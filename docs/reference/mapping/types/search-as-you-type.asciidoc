@@ -117,16 +117,27 @@ PUT my_index/_doc/1?refresh
 // CONSOLE
 // TEST[continued]
 
-To search for documents with values of `my_field` that can complete the
-query text, use a `match_phrase_prefix` query
+The most efficient way of querying to serve a search-as-you-type use case is
+usually a <<query-dsl-multi-match-query,`multi_match`>> query of type
+<<query-dsl-bool-prefix-query,`bool_prefix`>> that targets the root
+`search_as_you_type` field and its shingle subfields. This can match the query
+terms in any order, but will score documents higher if they contain the terms
+in order in a shingle subfield.
 
 [source,js]
 --------------------------------------------------
 GET my_index/_search
 {
   "query": {
-    "match_phrase_prefix": {
-      "my_field": "brown f"
+    "multi_match": {
+      "query": "brown f",
+      "type": "bool_prefix",
+      "fields": [
+        "my_field",
+        "my_field._2gram",
+        "my_field._3gram",
+        "my_field._4gram"
+      ]
     }
   }
 }
@@ -168,6 +179,27 @@ GET my_index/_search
 // TESTRESPONSE[s/"took" : 44/"took" : $body.took/]
 // TESTRESPONSE[s/"max_score" : 0.8630463/"max_score" : $body.hits.max_score/]
 // TESTRESPONSE[s/"_score" : 0.8630463/"_score" : $body.hits.hits.0._score/]
+
+To search for documents that strictly match the query terms in order, or to
+search using other properties of phrase queries, use a
+<<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>> on the root
+field. A <<query-dsl-match-query-phrase`match_phrase` query>> can also be used
+if the last term should be matched exactly, and not as a prefix. Using phrase
+queries may be less efficient than using the `bool_prefix` query.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "match_phrase_prefix": {
+      "my_field": "brown f"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 [[specific-params]]
 ==== Parameters specific to the `search_as_you_type` field
@@ -261,7 +293,7 @@ The analyzer of the `._index_prefix` subfield slightly modifies the
 shingle-building behavior to also index prefixes of the terms at the end of the
 field's value that normally would not be produced as shingles. For example, if
 the value `quick brown fox` is indexed into a `search_as_you_type` field with
-`max_shingle_size` of 3, prefixes for `brown fox` and `fox` are also indexed into
-the `._index_prefix` subfield even though they do not appear as terms in the
-`._3gram` subfield. This allows for completion of all the terms in the field's
-input.
+`max_shingle_size` of 3, prefixes for `brown fox` and `fox` are also indexed
+into the `._index_prefix` subfield even though they do not appear as terms in
+the `._3gram` subfield. This allows for completion of all the terms in the
+field's input.

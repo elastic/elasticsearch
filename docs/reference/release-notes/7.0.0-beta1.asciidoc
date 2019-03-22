@@ -1,9 +1,7 @@
 [[release-notes-7.0.0-beta1]]
-== 7.0.0-beta1 Release Notes
+== {es} version 7.0.0-beta1
 
-coming[7.0.0-beta1]
-
-Also see <<breaking-changes-7.0>>.
+Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
 
 [[breaking-7.0.0-beta1]]
 [float]

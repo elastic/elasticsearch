@@ -128,6 +128,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode(){
+        // Using Arrays.hashCode as Objects.hash does not deeply hash nested arrays. Since we are doing Array.equals, this is necessary
         int hash = Arrays.hashCode(index);
         return 31 * hash + (queryConfig == null ? 0 : queryConfig.hashCode());
     }

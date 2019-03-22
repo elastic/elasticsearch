@@ -53,6 +53,9 @@ public class DataFrameMessages {
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
 
+    public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
+            "Failed to parse transform checkpoints for [{0}]";
+
     private DataFrameMessages() {
     }
 

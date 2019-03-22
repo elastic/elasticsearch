@@ -59,7 +59,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportTasksActio
         IndexerState state = task.getState().getIndexerState();
         if (state.equals(IndexerState.STOPPED)) {
             task.onCancelled();
-            transformsConfigManager.deleteTransformConfiguration(request.getId(), ActionListener.wrap(r -> {
+            transformsConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                 listener.onResponse(new Response(true));
             }, listener::onFailure));
         } else {
@@ -80,7 +80,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportTasksActio
                 // we couldn't find the transform in the persistent task CS, but maybe the transform exists in the configuration index,
                 // if so delete the orphaned document and do not throw (for the normal case we want to stop the task first,
                 // than delete the configuration document if and only if the data frame transform is in stopped state)
-                transformsConfigManager.deleteTransformConfiguration(request.getId(), ActionListener.wrap(r -> {
+                transformsConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
                     listener.onResponse(new Response(true));
                     return;
                 }, listener::onFailure));

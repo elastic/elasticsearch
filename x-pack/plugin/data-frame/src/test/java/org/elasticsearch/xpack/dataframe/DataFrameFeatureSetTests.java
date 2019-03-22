@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -83,17 +82,19 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                     DataFrameTransformConfigTests.randomDataFrameTransformConfig("df-" + Integer.toString(uniqueId++)));
         }
 
-        List<DataFrameTransformConfig> transformConfigWithTasks = new ArrayList<>(transformsStateAndStats.size());
+        List<DataFrameTransformConfig> transformConfigWithTasks =
+            new ArrayList<>(transformsStateAndStats.size() + transformConfigWithoutTasks.size());
+
         transformsStateAndStats.forEach(stats ->
             transformConfigWithTasks.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig(stats.getId())));
-
-        List<DataFrameTransformConfig> allConfigs = new ArrayList<>(transformConfigWithoutTasks.size() + transformConfigWithTasks.size());
-        allConfigs.addAll(transformConfigWithoutTasks);
-        allConfigs.addAll(transformConfigWithTasks);
+        transformConfigWithoutTasks.forEach(withoutTask ->
+            transformsStateAndStats.add(DataFrameTransformStateAndStats.initialStateAndStats(withoutTask.getId())));
 
         boolean enabled = randomBoolean();
         boolean available = randomBoolean();
-        DataFrameFeatureSetUsage usage = DataFrameFeatureSet.createUsage(available, enabled, allConfigs, transformsStateAndStats);
+        DataFrameFeatureSetUsage usage = DataFrameFeatureSet.createUsage(available,
+            enabled,
+            transformsStateAndStats);
 
         assertEquals(enabled, usage.enabled());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -108,13 +109,12 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 assertEquals(null, XContentMapValues.extractValue("transforms", usageAsMap));
                 assertEquals(null, XContentMapValues.extractValue("stats", usageAsMap));
             } else {
-                assertEquals(transformsStateAndStats.size() + transformConfigWithoutTasks.size(),
-                    XContentMapValues.extractValue("transforms._all", usageAsMap));
+                assertEquals(transformsStateAndStats.size(), XContentMapValues.extractValue("transforms._all", usageAsMap));
 
                 Map<String, Integer> stateCounts = new HashMap<>();
-                transformsStateAndStats.stream().map(x -> x.getTransformState().getIndexerState().value())
-                        .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
-                transformConfigWithoutTasks.forEach(ignored -> stateCounts.merge(IndexerState.STOPPED.value(), 1, Integer::sum));
+                transformsStateAndStats.stream()
+                    .map(x -> x.getTransformState().getIndexerState().value())
+                    .forEach(x -> stateCounts.merge(x, 1, Integer::sum));
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
                 // use default constructed stats object for assertions if transformsStateAndStats is empty

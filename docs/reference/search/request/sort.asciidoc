@@ -112,8 +112,8 @@ POST /_search
 
 For numeric fields it is also possible to cast the values from one type
 to another using the `numeric_type` option.
-This option accepts the following values: [`"double", "long"`] and can be useful
-for cross-index search if the sort field is mapped differently on some
+This option accepts the following values: [`"double", "long", "date", "date_nanos"`]
+and can be useful for cross-index search if the sort field is mapped differently on some
 indices.
 
 Consider for instance these two indices:
@@ -174,6 +174,63 @@ It is also possible to transform a floating point field into a `long`
 but note that in this case floating points are replaced by the largest
 value that is less than or equal (greater than or equal if the value
 is negative) to the argument and is equal to a mathematical integer.
+
+This option can also be used to convert a `date` field that uses millisecond
+resolution to a `date_nanos` field with nanosecond resolution.
+Consider for instance these two indices:
+
+[source,js]
+--------------------------------------------------
+PUT /index_double
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "date" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
+PUT /index_long
+{
+    "mappings": {
+        "properties": {
+            "field": { "type": "date_nanos" }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Values in these indices are stored with different resolutions so sorting on these
+fields will always sort the `date` before the `date_nanos` (ascending order).
+With the `numeric_type` type option it is possible to set a single resolution for
+the sort, setting to `date` will convert the `date_nanos` to the millisecond resolution
+while `date_nanos` will convert the values in the `date` field to the nanoseconds resolution:
+
+[source,js]
+--------------------------------------------------
+POST /index_long,index_double/_search
+{
+   "sort" : [
+      {
+        "field" : {
+            "numeric_type" : "date_nanos"
+        }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[WARNING]
+To avoid overflow, the conversion to `date_nanos` cannot be applied on dates before
+1970 and after 2262 as nanoseconds are represented as longs.
 
 [[nested-sorting]]
 ==== Sorting within nested objects.

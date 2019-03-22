@@ -107,7 +107,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             query.analyzer(randomAnalyzer());
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
             query.slop(randomIntBetween(0, 5));
         }
         if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean() &&
@@ -129,7 +129,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
             query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
         if (randomBoolean()) {

@@ -43,6 +43,7 @@ class JavaDateFormatter implements DateFormatter {
 
     // base fields which should be used for default parsing, when we round up for date math
     private static final Map<TemporalField, Long> ROUND_UP_BASE_FIELDS = new HashMap<>(6);
+
     {
         ROUND_UP_BASE_FIELDS.put(ChronoField.MONTH_OF_YEAR, 1L);
         ROUND_UP_BASE_FIELDS.put(ChronoField.DAY_OF_MONTH, 1L);
@@ -62,7 +63,7 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     JavaDateFormatter(String format, DateTimeFormatter printer, Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
-                              DateTimeFormatter... parsers) {
+                      DateTimeFormatter... parsers) {
         if (printer == null) {
             throw new IllegalArgumentException("printer may not be null");
         }
@@ -123,34 +124,19 @@ class JavaDateFormatter implements DateFormatter {
     private TemporalAccessor doParse(String input) {
         if (parsers.size() > 1) {
             for (DateTimeFormatter formatter : parsers) {
-                if (tryParseUnresolved(formatter, input) == true) {
-                    return formatter.parse(input);
+                ParsePosition pos = new ParsePosition(0);
+                Object object = formatter.toFormat().parseObject(input, pos);
+                if (parsingSucceeded(object, input, pos) == true) {
+                    return (TemporalAccessor) object;
                 }
             }
-            throw new DateTimeParseException("Failed to parse with all parsers from a composite parser", input, 0);
+            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
         }
         return firstParser().parse(input);
     }
 
-    /**
-     * Attempt parsing the input without throwing exception. This is needed because java-time requires ordering on optional (composite)
-     * patterns. Joda does not suffer from this.
-     * https://bugs.openjdk.java.net/browse/JDK-8188771
-     *
-     * @param input An arbitrary string resembling the string representation of a date or time
-     * @return true if parsing was successful, false if parsing failed
-     */
-    private boolean tryParseUnresolved(DateTimeFormatter formatter, String input) {
-        try {
-            ParsePosition pp = new ParsePosition(0);
-            formatter.parseUnresolved(input, pp);
-            if (pp.getErrorIndex() == -1 && pp.getIndex() == input.length()) {
-                return true;
-            }
-        } catch (RuntimeException ex) {
-            // should not happen, but ignore if it does
-        }
-        return false;
+    private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
+        return object != null && pos.getIndex() == input.length();
     }
 
     @Override
@@ -161,7 +147,7 @@ class JavaDateFormatter implements DateFormatter {
         }
 
         return new JavaDateFormatter(format, printer.withZone(zoneId),
-            parsers.stream().map(p->p.withZone(zoneId)).toArray(size->new DateTimeFormatter[size]));
+            parsers.stream().map(p -> p.withZone(zoneId)).toArray(size -> new DateTimeFormatter[size]));
     }
 
     @Override
@@ -172,7 +158,7 @@ class JavaDateFormatter implements DateFormatter {
         }
 
         return new JavaDateFormatter(format, printer.withLocale(locale),
-            parsers.stream().map(p->p.withLocale(locale)).toArray(size->new DateTimeFormatter[size]));
+            parsers.stream().map(p -> p.withLocale(locale)).toArray(size -> new DateTimeFormatter[size]));
     }
 
     @Override
@@ -213,8 +199,8 @@ class JavaDateFormatter implements DateFormatter {
         JavaDateFormatter other = (JavaDateFormatter) obj;
 
         return Objects.equals(format, other.format) &&
-               Objects.equals(locale(), other.locale()) &&
-               Objects.equals(this.printer.getZone(), other.printer.getZone());
+            Objects.equals(locale(), other.locale()) &&
+            Objects.equals(this.printer.getZone(), other.printer.getZone());
     }
 
     @Override

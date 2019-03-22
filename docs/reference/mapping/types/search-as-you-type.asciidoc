@@ -52,56 +52,16 @@ This creates the following fields
     Wraps the analyzer of `my_field._3gram` with an edge ngram token filter
 
 
-Setting a larger `max_shingle_size` in the mapping will create shingle fields
-with larger sized shingles, of 2 up to `max_shingle_size`. The
-`my_field._index_prefix` subfield will always use the analyzer from the
-subfield with the largest shingle size. For example the mapping
+The size of shingles in subfields can be configured with the `max_shingle_size`
+mapping parameter. The default is 3, and valid values for this parameter are
+integer values 2 - 4 inclusive. Shingle subfields will be created for each
+shingle size from 2 up to and including the `max_shingle_size`. The
+`my_field._index_prefix` subfield will always use the analyzer from the shingle
+subfield with the `max_shingle_size` when constructing its own analyzer.
 
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "properties": {
-      "my_field": {
-        "type": "search_as_you_type",
-        "max_shingle_size": 4
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-Will create the fields as such. Note how this changes how the
-`my_field._index_prefix` field is analyzed
-
-[horizontal]
-
-`my_field`::
-
-    Analyzed as configured in the mapping. If an analyzer is not configured,
-    the default analyzer for the index is used
-
-`my_field._2gram`::
-
-    Wraps the analyzer of `my_field` with a shingle token filter of shingle
-    size 2
-
-`my_field._3gram`::
-
-    Wraps the analyzer of `my_field` with a shingle token filter of shingle
-    size 3
-
-`my_field._4gram`::
-
-    Wraps the analyzer of `my_field` with a shingle token filter of shingle
-    size 4
-
-`my_field._index_prefix`::
-
-    Wraps the analyzer of `my_field._4gram` with an edge ngram token filter
-
+Increasing the `max_shingle_size` will improve matches for queries with more
+consecutive terms, at the cost of larger index size. The default
+`max_shingle_size` should usually be sufficient.
 
 The same input text is indexed into each of these fields automatically, with
 their differing analysis chains, when an indexed document has a value for the
@@ -135,8 +95,7 @@ GET my_index/_search
       "fields": [
         "my_field",
         "my_field._2gram",
-        "my_field._3gram",
-        "my_field._4gram"
+        "my_field._3gram"
       ]
     }
   }

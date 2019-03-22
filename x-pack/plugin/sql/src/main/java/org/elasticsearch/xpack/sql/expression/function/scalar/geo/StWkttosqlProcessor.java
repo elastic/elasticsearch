@@ -55,4 +55,22 @@ public class StWkttosqlProcessor implements Processor {
     public void writeTo(StreamOutput out) throws IOException {
 
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
 }

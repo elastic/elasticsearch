@@ -56,7 +56,7 @@ public class StWkttosql extends UnaryScalarFunction {
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".wktToSql(" + script + ")");
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".stWktToSql(" + script + ")");
     }
 
     @Override

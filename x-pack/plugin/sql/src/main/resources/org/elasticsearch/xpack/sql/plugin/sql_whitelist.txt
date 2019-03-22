@@ -137,8 +137,14 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  space(Number)
   String  substring(String, Number, Number)
   String  ucase(String)
-  String  aswkt(Object)
-  GeoShape wktToSql(String)
+
+#
+# Geo Functions
+#
+  String   stAswkt(Object)
+  GeoShape stWktToSql(String)
+  Double   stDistance(Object, Object)
+  GeoShape geoDocValue(java.util.Map, String)
 
 #
 # Casting

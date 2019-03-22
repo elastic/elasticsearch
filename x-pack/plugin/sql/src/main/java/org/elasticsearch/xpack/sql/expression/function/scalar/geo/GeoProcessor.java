@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -18,9 +17,7 @@ public class GeoProcessor implements Processor {
 
     private interface GeoShapeFunction<R> {
         default R apply(Object o) {
-            if (o instanceof GeoPoint) {
-                return doApply(new GeoShape(((GeoPoint) o).getLon(), ((GeoPoint) o).getLat()));
-            } else if (o instanceof GeoShape) {
+            if (o instanceof GeoShape) {
                 return doApply((GeoShape) o);
             } else {
                 throw new SqlIllegalArgumentException("A geo_point or geo_shape is required; received [{}]", o);

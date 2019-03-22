@@ -25,3 +25,13 @@ SELECT CAST(ST_WKTToSQL('POINT (10 20)') AS STRING) location;
 point (10.0 20.0)
 // end::wkttosql
 ;
+
+
+selectDistance
+// tag::distance
+SELECT ST_Distance(ST_WKTToSQL('POINT (10 20)'), ST_WKTToSQL('POINT (20 30)')) distance;
+
+   distance:d
+1499101.2889383635
+// end::distance
+;

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -77,6 +78,13 @@ public interface ScriptWeaver {
             return new ScriptTemplate(processScript("{sql}.intervalDayTime({},{})"),
                     paramsBuilder().variable(idt.interval().toString()).variable(idt.dataType().name()).build(),
                     dataType());
+        }
+
+        if (fold instanceof GeoShape) {
+            GeoShape geoShape = (GeoShape) fold;
+            return new ScriptTemplate(processScript("{sql}.stWktToSql({})"),
+                paramsBuilder().variable(geoShape.toString()).build(),
+                dataType());
         }
 
         return new ScriptTemplate(processScript("{}"),

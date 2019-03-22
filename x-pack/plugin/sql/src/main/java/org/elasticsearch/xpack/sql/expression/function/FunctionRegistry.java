@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfM
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -254,7 +255,9 @@ public class FunctionRegistry {
 
         // Geo Functions
         addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
-                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"));
+                def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
+                def(StDistance.class, StDistance::new, "ST_DISTANCE")
+        );
 
         // Special
         addToMap(def(Score.class, Score::new, "SCORE"));

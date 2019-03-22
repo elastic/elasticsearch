@@ -88,7 +88,7 @@ public class InternalAggregationsTests extends ESTestCase {
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
-    public void testSerialization() throws Exception {
+    public static InternalAggregations createTestInstance() throws Exception {
         List<InternalAggregation> aggsList = new ArrayList<>();
         if (randomBoolean()) {
             StringTermsTests stringTermsTests = new StringTermsTests();
@@ -117,7 +117,11 @@ public class InternalAggregationsTests extends ESTestCase {
                 topLevelPipelineAggs.add((SiblingPipelineAggregator)new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
             }
         }
-        InternalAggregations aggregations = new InternalAggregations(aggsList, topLevelPipelineAggs);
+        return new InternalAggregations(aggsList, topLevelPipelineAggs);
+    }
+
+    public void testSerialization() throws Exception {
+        InternalAggregations aggregations = createTestInstance();
         writeToAndReadFrom(aggregations, 0);
     }
 

@@ -76,9 +76,29 @@ public final class ECallLocal extends AExpression {
             if (importedMethod == null) {
                 classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size());
 
+                // check to see if this class binding requires an implicit this reference
+                if (classBinding != null && classBinding.typeParameters.isEmpty() == false &&
+                        classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                    classBinding = null;
+                }
+
                 if (classBinding == null) {
-                    // check for a possible class binding using an implicit this reference
+                    // This extra check looks for a possible match where the class binding requires an implicit this
+                    // reference.  This is a temporary solution to allow the class binding access to data from the
+                    // base script class without need for a user to add additional arguments.  A long term solution
+                    // will likely involve adding a class instance binding where any instance can have a class binding
+                    // as part of its API.  However, the situation at run-time is difficult and will modifications that
+                    // are a substantial change if even possible to do.
                     classBinding = locals.getPainlessLookup().lookupPainlessClassBinding(name, arguments.size() + 1);
+
+                    if (classBinding != null) {
+                        if (classBinding.typeParameters.isEmpty() == false &&
+                                classBinding.typeParameters.get(0) == locals.getBaseClass()) {
+                            classBindingOffset = 1;
+                        } else {
+                            classBinding = null;
+                        }
+                    }
 
                     if (classBinding == null) {
                         instanceBinding = locals.getPainlessLookup().lookupPainlessInstanceBinding(name, arguments.size());
@@ -101,11 +121,6 @@ public final class ECallLocal extends AExpression {
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             actual = importedMethod.returnType;
         } else if (classBinding != null) {
-            // set the argument offset to 1 if the class binding is using an implicit this reference
-            if (classBinding.typeParameters.isEmpty() == false && classBinding.typeParameters.get(0) == locals.getBaseClass()) {
-                classBindingOffset = 1;
-            }
-
             typeParameters = new ArrayList<>(classBinding.typeParameters);
             actual = classBinding.returnType;
         } else if (instanceBinding != null) {

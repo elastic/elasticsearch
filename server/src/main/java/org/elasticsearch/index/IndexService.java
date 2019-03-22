@@ -940,7 +940,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public static final Setting<TimeValue> RETENTION_LEASE_SYNC_INTERVAL_SETTING =
             Setting.timeSetting(
                     "index.soft_deletes.retention_lease.sync_interval",
-                    new TimeValue(5, TimeUnit.MINUTES),
+                    new TimeValue(30, TimeUnit.SECONDS),
                     new TimeValue(0, TimeUnit.MILLISECONDS),
                     Property.Dynamic,
                     Property.IndexScope);

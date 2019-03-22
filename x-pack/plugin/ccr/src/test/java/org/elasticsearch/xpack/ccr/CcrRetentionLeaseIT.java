@@ -874,7 +874,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                     removeLeaseLatch.countDown();
                                     unfollowLatch.await();
 
-                                    senderTransportService.transport().addMessageListener(new TransportMessageListener() {
+                                    senderTransportService.addMessageListener(new TransportMessageListener() {
 
                                         @SuppressWarnings("rawtypes")
                                         @Override
@@ -886,7 +886,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                                         new RetentionLeaseNotFoundException(retentionLeaseId);
                                                 context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
                                                 responseLatch.countDown();
-                                                senderTransportService.transport().removeMessageListener(this);
+                                                senderTransportService.removeMessageListener(this);
                                             }
                                         }
 

@@ -232,7 +232,9 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testRLikePatterns() {
         String[] patterns = new String[] {"(...)+", "abab(ab)?", "(ab){1,2}", "(ab){3}", "aabb|bbaa", "a+b+|b+a+", "aa(cc|bb)",
                 "a{4,6}b{4,6}", ".{3}.{3}", "aaa*bbb*", "a+.+", "a.c.e", "[^abc\\-]"};
-        assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
+        for (int i = 0; i < 5; i++) {
+            assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
+        }
     }
     
     private void assertDifferentRLikeAndNotRLikePatterns(String firstPattern, String secondPattern) {

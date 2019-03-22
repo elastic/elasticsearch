@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
@@ -120,6 +121,20 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
             assertEquals(stopRequest.getTimeout(), TimeValue.parseTimeValue(request.getParameters().get("timeout"), "timeout"));
         } else {
             assertFalse(request.getParameters().containsKey("timeout"));
+        }
+    }
+
+    public void testPreviewDataFrameTransform() throws IOException {
+        PreviewDataFrameTransformRequest previewRequest = new PreviewDataFrameTransformRequest(
+                DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+        Request request = DataFrameRequestConverters.previewDataFrameTransform(previewRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/_preview"));
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DataFrameTransformConfig parsedConfig = DataFrameTransformConfig.PARSER.apply(parser, null);
+            assertThat(parsedConfig, equalTo(previewRequest.getConfig()));
         }
     }
 }

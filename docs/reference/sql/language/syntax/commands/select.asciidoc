@@ -303,7 +303,7 @@ Represents an input column, an output column or an ordinal number of the positio
 The direction, if not specified, is by default `ASC` (ascending).
 Regardless of the ordering specified, null values are ordered last (at the end).
 
-IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the columns used for grouping.
+IMPORTANT: When used along-side, `GROUP BY` expression can point _only_ to the columns used for grouping or aggregate functions.
 
 For example, the following query sorts by an arbitrary input field (`page_count`):
 
@@ -311,6 +311,37 @@ For example, the following query sorts by an arbitrary input field (`page_count`
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByBasic]
 ----
+
+[[sql-syntax-order-by-grouping]]
+==== Order By and Grouping
+
+For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions. 
+
+NOTE: With `GROUP BY`, make sure the ordering targets the resulting group - applying it to individual elements inside the group will have no impact on the results since regardless of the order, values inside the group are aggregated.
+
+For example, to order groups simply indicate the grouping key:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByGroup]
+----
+
+Multiple keys can be specified of course:
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[groupByMulti]
+----
+
+Further more, it is possible to order groups based on aggregations of their values:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[orderByAgg]
+----
+
+IMPORTANT: Ordering by aggregation is possible for up to 512 entries for memory consumption reasons.
+In cases where the results pass this threshold, use <<`LIMIT`, sql-syntax-limit>> to reduce the number
+of results.
 
 [[sql-syntax-order-by-score]]
 ==== Order By Score

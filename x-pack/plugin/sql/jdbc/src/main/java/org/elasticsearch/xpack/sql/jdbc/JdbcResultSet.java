@@ -188,7 +188,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(columnIndex, null);
+        return asTimeStamp(columnIndex);
     }
 
     @Override
@@ -303,6 +303,23 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         } catch (Exception cce) {
             throw new SQLException(
                 format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), cce);
+        }
+    }
+
+    private Timestamp asTimeStamp(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+
+        try {
+            return JdbcDateUtils.asTimestamp(val.toString());
+        } catch (Exception cce) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), cce);
         }
     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
@@ -909,17 +908,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
-        
         doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
-            c.setTimeInMillis(randomLongDate);
-            c.set(ERA, GregorianCalendar.AD);
-            c.set(YEAR, 1970);
-            c.set(MONTH, 0);
-            c.set(DAY_OF_MONTH, 1);
 
-            ZoneId zoneId = ZoneId.of(timeZoneId);
             java.sql.Time expectedTime = new java.sql.Time(randomLongDate % 86400000L);
 
             assertEquals(expectedTime, results.getTime("test_date"));

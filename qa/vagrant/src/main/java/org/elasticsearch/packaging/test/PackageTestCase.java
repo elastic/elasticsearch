@@ -24,7 +24,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,19 +67,19 @@ public abstract class PackageTestCase extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution(), newShell());
     }
 
-    public void test20PluginsCommandWhenNoPlugins() {
+    public void test20PluginsCommandWhenNoPlugins() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertThat(newShell().run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
-    public void test30InstallDoesNotStartServer() {
+    public void test30InstallDoesNotStartServer() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertThat(newShell().run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
-    public void assertRunsWithJavaHome() throws IOException {
+    public void assertRunsWithJavaHome() throws Exception {
         Shell sh = newShell();
 
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
@@ -99,7 +98,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
     }
 
-    public void test31JavaHomeOverride() throws IOException {
+    public void test31JavaHomeOverride() throws Exception {
         assumeThat(installation, is(notNullValue()));
         // we always run with java home when no bundled jdk is included, so this test would be repetitive
         assumeThat(distribution().hasJdk, is(true));
@@ -107,7 +106,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertRunsWithJavaHome();
     }
 
-    public void test42BundledJdkRemoved() throws IOException {
+    public void test42BundledJdkRemoved() throws Exception {
         assumeThat(installation, is(notNullValue()));
         assumeThat(distribution().hasJdk, is(true));
 
@@ -120,7 +119,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         }
     }
 
-    public void test40StartServer() throws IOException {
+    public void test40StartServer() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         startElasticsearch();

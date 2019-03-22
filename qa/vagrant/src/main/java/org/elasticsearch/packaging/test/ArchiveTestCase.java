@@ -34,10 +34,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -71,7 +69,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         verifyArchiveInstallation(installation, distribution());
     }
 
-    public void test20PluginsListWithNoPlugins() {
+    public void test20PluginsListWithNoPlugins() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -81,7 +79,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30NoJava() {
+    public void test30NoJava() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();

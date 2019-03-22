@@ -113,6 +113,38 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
                 () -> doWithQuery(() -> esJdbc(), "SELECT int, keyword FROM test", (results) -> {
         }));
     }
+    
+    public void testMultiValueFields_InsideObjects_WithMultiValueLeniencyEnabled() throws Exception {
+        createTestDataForMultiValuesInObjectsTests();
+
+        doWithQuery(() -> esWithLeniency(true), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword FROM test",
+                (results) -> {
+                    results.next();
+                    Object number = results.getObject(1);
+                    Object text = results.getObject(2);
+                    Object keyword = results.getObject(3);
+                    assertEquals(-25, number);
+                    assertEquals("xyz", text);
+                    assertEquals("-25", keyword);
+                    assertFalse(results.next());
+        });
+    }
+    
+    public void testMultiValueFields_InsideObjects_WithMultiValueLeniencyDisabled() throws Exception {
+        createTestDataForMultiValuesInObjectsTests();
+
+        SQLException expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esWithLeniency(false), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword"
+                        + " FROM test", (results) -> {
+        }));
+        assertTrue(expected.getMessage().contains("Arrays (returned by [object.intsubfield]) are not supported"));
+        
+        // default has multi value disabled
+        expected = expectThrows(SQLException.class,
+                () -> doWithQuery(() -> esJdbc(), "SELECT object.intsubfield, object.textsubfield, object.textsubfield.keyword",
+                        (results) -> {
+        }));
+    }
 
     // Byte values testing
     public void testGettingValidByteWithoutCasting() throws Exception {
@@ -1411,7 +1443,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             body.accept(updateMapping);
         }
         updateMapping.endObject().endObject();
-        
+
         request.setJsonEntity(Strings.toString(updateMapping));
         client().performRequest(request);
     }
@@ -1435,6 +1467,43 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         index("test", "1", builder -> {
             builder.array("int", (Object[]) values);
             builder.array("keyword", stringValues);
+        });
+    }
+    
+    private void createTestDataForMultiValuesInObjectsTests() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> {
+            builder.startObject("object")
+                .startObject("properties")
+                    .startObject("intsubfield").field("type", "integer").endObject()
+                    .startObject("textsubfield")
+                        .field("type", "text")
+                        .startObject("fields").startObject("keyword").field("type", "keyword").endObject().endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+            builder.startObject("keyword").field("type", "keyword").endObject();
+        });
+
+        Integer[] values = randomArray(3, 15, s -> new Integer[s], () -> Integer.valueOf(randomInt(50)));
+        // add the minimal value in the middle yet the test will pick it up since the results are sorted
+        values[2] = Integer.valueOf(-25);
+
+        String[] stringValues = new String[values.length];
+        for (int i = 0; i < values.length; i++) {
+            stringValues[i] = String.valueOf(values[i]);
+        }
+        stringValues[0] = "xyz";
+
+        index("test", "1", builder -> {
+            builder.startArray("object");
+                for (int i = 0; i < values.length; i++) {
+                    builder.startObject()
+                        .field("intsubfield", values[i])
+                        .field("textsubfield", stringValues[i])
+                    .endObject();
+                }
+            builder.endArray();
         });
     }
 

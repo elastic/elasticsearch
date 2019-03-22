@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 
@@ -51,8 +52,10 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -417,6 +420,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
             List<Map<String, Object>> result = AggregationResultUtils
                     .extractCompositeAggregationResults(agg, groups, aggregationBuilders, fieldTypeMap, stats).collect(Collectors.toList());
 
+            // remove the document ids and test uniqueness
+            Set<String> documentIds = new HashSet<>();
+            result.forEach(m -> {
+                documentIds.add((String) m.remove(DataFrameField.DOCUMENT_ID_FIELD));
+            });
+
+            assertEquals(result.size(), documentIds.size());
             assertEquals(expected, result);
             assertEquals(expectedDocCounts, stats.getNumDocuments());
         }

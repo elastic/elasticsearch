@@ -365,7 +365,6 @@ public class Querier {
             super(listener, client, cfg, output, query, request);
         }
 
-
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<SchemaRowSet> listener) {
             // there are some results
@@ -428,7 +427,7 @@ public class Querier {
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef) {
                 GroupByRef r = (GroupByRef) ref;
-                return new CompositeKeyExtractor(r.key(), r.property(), r.zoneId());
+                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
             }
 
             if (ref instanceof MetricAggRef) {
@@ -438,7 +437,7 @@ public class Querier {
 
             if (ref instanceof TopHitsAggRef) {
                 TopHitsAggRef r = (TopHitsAggRef) ref;
-                return new TopHitsAggExtractor(r.name(), r.fieldDataType());
+                return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
             }
 
             if (ref == GlobalCountRef.INSTANCE) {
@@ -518,12 +517,13 @@ public class Querier {
         private HitExtractor createExtractor(FieldExtraction ref) {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
-                return new FieldHitExtractor(f.name(), f.getDataType(), f.useDocValue(), f.hitName(), multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(),
+                    f.useDocValue(), f.hitName(), multiValueFieldLeniency);
             }
 
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, true, multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true, multiValueFieldLeniency);
             }
 
             if (ref instanceof ComputedRef) {

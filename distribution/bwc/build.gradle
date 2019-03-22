@@ -163,8 +163,9 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
                         'JAVA_HOME',
                         getJavaHome(it, Integer.parseInt(
                                 lines
-                                        .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                                        .findAll({ it.startsWith("ES_BUILD_JAVA=")})
                                         .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                                        .collect({ it.replace("ES_BUILD_JAVA=openjdk", "").trim() })
                                         .join("!!")
                         ))
                 )

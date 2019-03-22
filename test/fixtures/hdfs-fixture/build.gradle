@@ -25,15 +25,16 @@ dependencies {
 }
 
 task syncClasses(type: Sync) {
-  from sourceSets.test.compileClasspath
-  from sourceSets.test.output.dirs
+  from sourceSets.test.runtimeClasspath
   into "${buildDir}/fixture"
-  dependsOn sourceSets.test.getCompileTaskName("java")
 }
 
-preProcessFixture.dependsOn syncClasses
-preProcessFixture.doLast {
-  file("${buildDir}/shared").mkdirs()
+preProcessFixture {
+  dependsOn syncClasses
+
+  doLast {
+    file("${buildDir}/shared").mkdirs()
+  }
 }
 
 unitTest.enabled = false

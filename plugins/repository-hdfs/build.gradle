@@ -234,8 +234,7 @@ if (fixtureSupported) {
   integTestHa.setEnabled(false)
 }
 
-project.check.dependsOn(integTestSecure)
-project.check.dependsOn(integTestSecureHa)
+check.dependsOn(integTestSecure, integTestSecureHa)
 
 // Fixture dependencies
 integTestSecureCluster.dependsOn secureHdfsFixture

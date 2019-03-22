@@ -69,6 +69,5 @@ task copyKeytabToGeneratedResources(type: Copy) {
     from project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("peppa", "peppa.keytab")
     into generatedResources
 }
-project.sourceSets.test.output.dir(generatedResources)
-integTestCluster.dependsOn copyKeytabToGeneratedResources
+project.sourceSets.test.output.dir(generatedResources, builtBy:copyKeytabToGeneratedResources)
 

@@ -23,8 +23,8 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -47,7 +47,7 @@ public class PluginPropertiesTask extends DefaultTask {
 
     public PluginPropertiesTask() {
         Project project = this.getProject();
-        this.extension = project.getExtensions().create("esplugin", PluginPropertiesExtension.class, project);
+        this.extension = (PluginPropertiesExtension) project.getExtensions().getByName("esplugin");
     }
 
     @TaskAction
@@ -68,11 +68,22 @@ public class PluginPropertiesTask extends DefaultTask {
         project.copy(copyArg -> {
             copyArg.from(templateFile.getParentFile()).include(descriptorOutput.getName())
                 .into(descriptorOutput.getParentFile()).expand(this.generateSubstitutions());
-            this.getInputs().properties(this.generateSubstitutions());
         });
     }
 
-    private Map<String, String> generateSubstitutions() {
+    @Input
+    public Map<String, String> generateSubstitutions() {
+        // check require properties are set
+        if (this.extension.getName() == null) {
+            throw new InvalidUserDataException("name is a required setting for esplugin");
+        }
+        if (this.extension.getDescription() == null) {
+            throw new InvalidUserDataException("description is a required setting for esplugin");
+        }
+        if (this.extension.getClassname() == null) {
+            throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
+
         Map<String, String> substitutions = new HashMap<>();
         substitutions.put("name", this.extension.getName());
         substitutions.put("description", this.extension.getDescription());
@@ -88,19 +99,7 @@ public class PluginPropertiesTask extends DefaultTask {
         return substitutions;
     }
 
-    @OutputFile
     public PluginPropertiesExtension getExtension() {
-        // check require properties are set
-        if (this.extension.getName() == null) {
-            throw new InvalidUserDataException("name is a required setting for esplugin");
-        }
-        if (this.extension.getDescription() == null) {
-            throw new InvalidUserDataException("description is a required setting for esplugin");
-        }
-        if (this.extension.getClassname() == null) {
-            throw new InvalidUserDataException("classname is a required setting for esplugin");
-        }
-
         return extension;
     }
 

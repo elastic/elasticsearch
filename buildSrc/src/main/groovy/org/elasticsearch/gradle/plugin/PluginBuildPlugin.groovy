@@ -52,6 +52,8 @@ class PluginBuildPlugin extends BuildPlugin {
         super.apply(project)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
+        project.pluginManager.apply('elasticsearch.esplugin')
+
         configureDependencies(project)
 
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,

@@ -41,31 +41,7 @@ public class PluginPropertiesTaskTests extends GradleUnitTestCase {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
-    public void testCheckPluginPropertiesExtensionMissingName() {
-        Project project = createProject();
-
-        thrown.expect(InvalidUserDataException.class);
-        thrown.expectMessage("name is a required setting for esplugin");
-        createTask(project, null, "desc", "a.b.c").getExtension();
-    }
-
-    public void testCheckPluginPropertiesExtensionMissingDescription() {
-        Project project = createProject();
-
-        thrown.expect(InvalidUserDataException.class);
-        thrown.expectMessage("description is a required setting for esplugin");
-        createTask(project, "name", null, "a.b.c").getExtension();
-    }
-
-    public void testCheckPluginPropertiesExtensionMissingClassname() {
-        Project project = createProject();
-
-        thrown.expect(InvalidUserDataException.class);
-        thrown.expectMessage("classname is a required setting for esplugin");
-        createTask(project, "name", "desc", null).getExtension();
-    }
-
-    public void testCheckValidPluginPropertiesTaskPropertySubstitution() throws IOException {
+    public void testPluginPropertiesTaskActionExecutesSuccessfully() throws IOException {
         Project project = createProject();
         PluginPropertiesTask pluginPropertiesTask = createTask(project, "plugin-name", "plugin-description",
                 "PluginClassname");
@@ -98,16 +74,45 @@ public class PluginPropertiesTaskTests extends GradleUnitTestCase {
                 generatedPluginDescriptorProps.getProperty("has.native.controller"));
     }
 
+    public void testPluginPropertiesTaskActionThrowExceptionForMissingName() throws IOException {
+        Project project = createProject();
+        PluginPropertiesTask pluginPropertiesTask = createTask(project, null, "plugin-description",
+                "PluginClassname");
+
+        thrown.expect(InvalidUserDataException.class);
+        thrown.expectMessage("name is a required setting for esplugin");
+        pluginPropertiesTask.performAction();
+    }
+
+    public void testPluginPropertiesTaskActionThrowExceptionForMissingDescription() throws IOException {
+        Project project = createProject();
+        PluginPropertiesTask pluginPropertiesTask = createTask(project, "plugin-name", null, "PluginClassname");
+
+        thrown.expect(InvalidUserDataException.class);
+        thrown.expectMessage("description is a required setting for esplugin");
+        pluginPropertiesTask.performAction();
+    }
+
+    public void testPluginPropertiesTaskActionThrowExceptionForMissingClassname() throws IOException {
+        Project project = createProject();
+        PluginPropertiesTask pluginPropertiesTask = createTask(project, "plugin-name", "plugin-description", null);
+
+        thrown.expect(InvalidUserDataException.class);
+        thrown.expectMessage("classname is a required setting for esplugin");
+        pluginPropertiesTask.performAction();
+    }
+
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
+        project.getExtensions().create("esplugin", PluginPropertiesExtension.class, project);
         return project;
     }
 
     private PluginPropertiesTask createTask(Project project, String name, String description, String classname) {
-        PluginPropertiesTask task =  project.getTasks().create("copyPluginPropertiesTemplate", PluginPropertiesTask.class);
+        PluginPropertiesTask task =  project.getTasks().create("taskname", PluginPropertiesTask.class);
 
-        PluginPropertiesExtension extension = task.getProject().getExtensions().getByType(PluginPropertiesExtension.class);
+        PluginPropertiesExtension extension = (PluginPropertiesExtension) task.getProject().getExtensions().getByName("esplugin");
 
         extension.setName(name);
         extension.setDescription(description);

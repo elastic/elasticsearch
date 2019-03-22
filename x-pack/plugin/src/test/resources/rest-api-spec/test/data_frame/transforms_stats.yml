@@ -104,3 +104,68 @@ teardown:
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stats-dos"
+
+---
+"Test get multiple transform stats where one does not have a task":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline-stats-dos",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "*"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.1.state.transform_state: "stopped" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "_all"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.1.state.transform_state: "stopped" }
+
+---
+"Test get single transform stats when it does not have a task":
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats-dos"
+        body: >
+          {
+            "source": "airline-data",
+            "dest": "airline-data-by-airline-stats-dos",
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-stats-dos"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats-dos" }
+  - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.0.state.generation: 0 }
+  - match: { transforms.0.stats.pages_processed: 0 }
+  - match: { transforms.0.stats.documents_processed: 0 }
+  - match: { transforms.0.stats.documents_indexed: 0 }
+  - match: { transforms.0.stats.trigger_count: 0 }
+  - match: { transforms.0.stats.index_time_in_ms: 0 }
+  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.index_failures: 0 }
+  - match: { transforms.0.stats.search_time_in_ms: 0 }
+  - match: { transforms.0.stats.search_total: 0 }
+  - match: { transforms.0.stats.search_failures: 0 }

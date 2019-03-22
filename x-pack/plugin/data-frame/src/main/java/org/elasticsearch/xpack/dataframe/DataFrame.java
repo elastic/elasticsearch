@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAc
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
@@ -102,6 +103,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
     private final SetOnce<Auditor<DataFrameAuditMessage>> dataFrameAuditor = new SetOnce<>();
+    private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
     public DataFrame(Settings settings) {
@@ -188,8 +190,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             DATA_FRAME_ORIGIN,
             DataFrameAuditMessage.builder()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client));
 
-        return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get());
+        return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }
 
     @Override
@@ -222,10 +225,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         assert dataFrameTransformsConfigManager.get() != null;
         // the auditor should have been created
         assert dataFrameAuditor.get() != null;
+        assert dataFrameTransformsCheckpointService.get() != null;
+
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-            schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
+                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), dataFrameAuditor.get(), threadPool));
     }
-    
+
     @Override
     public void close() {
         if (schedulerEngine.get() != null) {

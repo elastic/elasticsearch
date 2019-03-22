@@ -72,7 +72,7 @@ public abstract class PackagingTestCase extends Assert {
     /** The {@link Distribution} that should be tested in this case */
     protected abstract Distribution distribution();
 
-    protected Shell newShell() {
+    protected Shell newShell() throws Exception {
         Shell sh = new Shell();
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {

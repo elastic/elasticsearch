@@ -46,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -75,8 +76,11 @@ public class ElasticsearchNode {
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
-    private final Map<String, Supplier<String>> settings = new LinkedHashMap<>();
-    private final Map<String, Supplier<String>> keystoreSettings = new LinkedHashMap<>();
+    // Must use Object here to retain compatibility with the Groovy DSL in Gradle (GString)
+    private final Map<String, Supplier<Object>> settings = new LinkedHashMap<>();
+    private final Map<String, Supplier<Object>> keystoreSettings = new LinkedHashMap<>();
+    private final Map<String, Supplier<Object>> systemProperties = new LinkedHashMap<>();
+    private final Map<String, Supplier<Object>> environment = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -150,9 +154,52 @@ public class ElasticsearchNode {
     }
 
     public void keystore(String key, String value) {
-        requireNonNull(key, "Keystore key was null when configuring test cluster `" + this + "`");
-        requireNonNull(value, "Keystore value was null when configuring test cluster `" + this + "`");
-        keystoreSettings.put(key, () -> value);
+        addSupplier("Keystore", keystoreSettings, key, value);
+    }
+
+    public void keystore(String key, Supplier<Object> valueSupplier) {
+        addSupplier("Keystore", keystoreSettings, key, valueSupplier);
+    }
+
+    public void setting(String key, String value) {
+        addSupplier("Settings", settings, key, value);
+    }
+
+    public void setting(String key, Supplier<Object> valueSupplier) {
+        addSupplier("Setting", settings, key, valueSupplier);
+    }
+
+    public void systemProperty(String key, String value) {
+        addSupplier("Java System property", systemProperties, key, value);
+    }
+
+    public void systemProperty(String key, Supplier<Object> valueSupplier) {
+        addSupplier("Java System property", systemProperties, key, valueSupplier);
+    }
+
+    public void environment(String key, String value) {
+        addSupplier("Environment variable", environment, key, value);
+    }
+
+    public void environment(String key, Supplier<Object> valueSupplier) {
+        addSupplier("Environment variable", environment, key, valueSupplier);
+    }
+
+    private void addSupplier(String name, Map<String, Supplier<Object>> collector, String key, Supplier<Object> valueSupplier) {
+        requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
+        requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
+        collector.put(key, valueSupplier);
+    }
+
+    private void addSupplier(String name, Map<String, Supplier<Object>> collector, String key, String actualValue) {
+        requireNonNull(actualValue, name + " value was null when configuring test cluster `" + this + "`");
+        addSupplier(name, collector, key, () -> actualValue);
+    }
+
+    private void checkSuppliers(String name, Map<String, Supplier<Object>> collector) {
+        collector.forEach((key, value) -> {
+            requireNonNull(value.get().toString(), name + " supplied value was null when configuring test cluster `" + this + "`");
+        });
     }
 
     public Path getConfigDir() {
@@ -179,6 +226,8 @@ public class ElasticsearchNode {
     public File getJavaHome() {
         return javaHome;
     }
+
+
 
     private void waitForUri(String description, String uri) {
         waitConditions.put(description, (node) -> {
@@ -239,9 +288,10 @@ public class ElasticsearchNode {
         );
 
         if (keystoreSettings.isEmpty() == false) {
+            checkSuppliers("Keystore", keystoreSettings);
             runElaticsearchBinScript("elasticsearch-keystore", "create");
             keystoreSettings.forEach((key, value) -> {
-                runElaticsearchBinScriptWithInput(value.get(), "elasticsearch-keystore", "add", "-x", key);
+                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key);
             });
         }
 
@@ -286,15 +336,32 @@ public class ElasticsearchNode {
     }
 
     private Map<String, String> getESEnvironment() {
-        Map<String, String> environment= new HashMap<>();
-        environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-        environment.put("ES_PATH_CONF", configFile.getParent().toString());
-        environment.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m");
-        environment.put("ES_TMPDIR", tmpDir.toString());
+        Map<String, String> defaultEnv = new HashMap<>();
+        defaultEnv.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
+        String systemPropertiesString = "";
+        if (systemProperties.isEmpty() == false) {
+            checkSuppliers("Java System property", systemProperties);
+            systemPropertiesString = " " + systemProperties.entrySet().stream()
+                .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue().get())
+                .collect(Collectors.joining(" "));
+        }
+        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa" + systemPropertiesString);
+        defaultEnv.put("ES_TMPDIR", tmpDir.toString());
         // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
+        defaultEnv.put("TMP", tmpDir.toString());
 
-        environment.put("TMP", tmpDir.toString());
-        return environment;
+        Set<String> commonKeys = new HashSet<>(environment.keySet());
+        commonKeys.retainAll(defaultEnv.keySet());
+        if (commonKeys.isEmpty() == false) {
+            throw new IllegalStateException("testcluster does not allow setting the following env vars " + commonKeys);
+        }
+
+        checkSuppliers("Environment variable", environment);
+        environment.forEach((key, value) -> {
+            defaultEnv.put(key, value.get().toString());
+        });
+        return defaultEnv;
     }
 
     private void startElasticsearchProcess() {
@@ -462,8 +529,9 @@ public class ElasticsearchNode {
         if (Version.fromString(version).getMajor() >= 7) {
             defaultConfig.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
+        checkSuppliers("Settings", settings);
         Map<String, String> userConfig = settings.entrySet().stream()
-            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get()));
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get().toString()));
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(userConfig.keySet());
         if (overriden.isEmpty() ==false) {

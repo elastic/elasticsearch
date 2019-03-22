@@ -152,7 +152,7 @@ public class InboundHandler {
         }
     }
 
-    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) throws IOException {
+    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
         final Set<String> features = message.getFeatures();
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
@@ -196,8 +196,7 @@ public class InboundHandler {
             }
         }
     }
-
-    // TODO: Introduce other way to throw exception
+    
     private void validateRequest(StreamInput stream, long requestId, String action) throws IOException {
         final int nextByte = stream.read();
         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker

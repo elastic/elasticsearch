@@ -376,7 +376,10 @@ public class IndexNameExpressionResolver {
         if (aliases == null) {
             return null;
         }
-        return aliases.toArray(new String[aliases.size()]);
+        String[] aliasesArray = aliases.toArray(new String[aliases.size()]);
+        // Make order predictable
+        Arrays.sort(aliasesArray);
+        return aliasesArray;
     }
 
     /**

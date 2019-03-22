@@ -279,7 +279,7 @@ public class ExpressionTests extends ESTestCase {
 
     public void testCastWithInvalidDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
-        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+        assertEquals("line 1:12: Does not recognize type [INVALID]", ex.getMessage());
     }
 
     public void testConvertWithUnquotedDataType() {

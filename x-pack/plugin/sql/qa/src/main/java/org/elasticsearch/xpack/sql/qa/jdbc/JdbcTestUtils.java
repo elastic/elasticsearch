@@ -137,7 +137,7 @@ public abstract class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     
-    public static String of(long millis) {
-        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC));
+    public static String of(long millis, String zoneId) {
+        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
 }

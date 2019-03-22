@@ -27,6 +27,8 @@ data structures in memory, frozen indices consume much less heap than normal
 indices. This allows for a much higher disk-to-heap ratio than would otherwise
 be possible.
 
+You can freeze the index using the <<freeze-index-api, Freeze Index API>>.
+
 Searches performed on frozen indices use the small, dedicated,
 <<search-throttled,`search_throttled` threadpool>> to control the number of
 concurrent searches that hit frozen shards on each node. This limits the amount
@@ -40,6 +42,9 @@ Searches on frozen indices are expected to execute slowly. Frozen indices are
 not intended for high search load. It is possible that a search of a frozen
 index may take seconds or minutes to complete, even if the same searches
 completed in milliseconds when the indices were not frozen.
+
+To make a frozen index writable again, use the <<unfreeze-index-api, Unfreeze Index API>>.
+
 --
 
 == Best Practices

@@ -60,6 +60,7 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             Map<String, Object> content = parser.map();
             // Destination and ID are not required for Preview, so we just supply our own
             content.put(DataFrameField.DESTINATION.getPreferredName(), "unused-transform-preview-index");
+            content.put(DataFrameField.ID.getPreferredName(), "transform-preview");
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
                     .xContent()

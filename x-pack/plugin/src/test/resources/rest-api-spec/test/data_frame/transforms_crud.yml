@@ -195,8 +195,8 @@ setup:
         transform_id: "airline-transform"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}, "time": {"max": {"field": "time"}}}

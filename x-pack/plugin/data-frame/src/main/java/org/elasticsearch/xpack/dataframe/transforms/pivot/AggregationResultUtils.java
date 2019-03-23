@@ -43,16 +43,13 @@ final class AggregationResultUtils {
                                                                                  Collection<AggregationBuilder> aggregationBuilders,
                                                                                  Map<String, String> fieldTypeMap,
                                                                                  DataFrameIndexerTransformStats stats) {
-        // generator to create unique but deterministic document ids, so we
-        // - do not create duplicates if we re-run after failure
-        // - update documents
-        // re-use 1 generator per batch
-        IDGenerator idGen = new IDGenerator();
-
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
-            idGen.clear();
             Map<String, Object> document = new HashMap<>();
+            // generator to create unique but deterministic document ids, so we
+            // - do not create duplicates if we re-run after failure
+            // - update documents
+            IDGenerator idGen = new IDGenerator();
 
             // important: the order is important for creating the document id, therefore we ensure order by sorting
             groups.getGroups().keySet().stream().sorted().forEach(destinationFieldName -> {

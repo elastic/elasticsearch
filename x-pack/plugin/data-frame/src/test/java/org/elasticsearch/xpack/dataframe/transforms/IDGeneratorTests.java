@@ -33,33 +33,12 @@ public class IDGeneratorTests extends ESTestCase {
         idGen.add("key2");
         String id1 = idGen.getID();
 
-        idGen.clear();
+        idGen = new IDGenerator();
         idGen.add("key2");
         idGen.add("key1");
         String id2 = idGen.getID();
 
         assertNotEquals(id1, id2);
-    }
-
-    public void testReusage() {
-        IDGenerator idGen = new IDGenerator();
-        idGen.add("key1");
-        idGen.add("key2");
-        String id1 = idGen.getID();
-
-        idGen.clear();
-        idGen.add("key1");
-        idGen.add("key2");
-        String id2 = idGen.getID();
-
-        assertEquals(id1, id2);
-
-        IDGenerator idGen3 = new IDGenerator();
-        idGen3.add("key1");
-        idGen3.add("key2");
-        String id3 = idGen.getID();
-
-        assertEquals(id1, id3);
     }
 
     public void testEmptyThrows() {

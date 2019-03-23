@@ -25,15 +25,9 @@ public final class IDGenerator {
     private static final long SEED = 19;
 
     private final BytesRefBuilder buffer = new BytesRefBuilder();
+    private final BytesRefBuilder firstBytes =  new BytesRefBuilder();
 
     public IDGenerator() {
-    }
-
-    /**
-     * Clear the internal buffer to reuse the generator
-     */
-    public void clear() {
-        buffer.clear();
     }
 
     /**
@@ -45,6 +39,9 @@ public final class IDGenerator {
 
         buffer.append(v, 0, v.length);
         buffer.append(DELIM);
+
+        // keep the 1st byte of every object
+        firstBytes.append(v[0]);
     }
 
     /**
@@ -58,9 +55,10 @@ public final class IDGenerator {
         }
 
         MurmurHash3.Hash128 hasher = MurmurHash3.hash128(buffer.bytes(), 0, buffer.length(), SEED, new MurmurHash3.Hash128());
-        byte[] hashedBytes = new byte[16];
-        System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, 0, 8);
-        System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, 8, 8);
+        byte[] hashedBytes = new byte[16 + firstBytes.length()];
+        System.arraycopy(firstBytes.bytes(), 0, hashedBytes, 0, firstBytes.length());
+        System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, firstBytes.length(), 8);
+        System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, firstBytes.length() + 8, 8);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hashedBytes);
     }
 

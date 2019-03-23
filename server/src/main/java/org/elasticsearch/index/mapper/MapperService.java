@@ -638,8 +638,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             .forEach(mapper -> {
                 String name = mapper.simpleName();
                 if (name.length() > maxFieldNameLength) {
-                    throw new IllegalArgumentException("Field name [" + name + "] is too long; limit is length "
-                        + maxFieldNameLength + " but was [" + name.length() + "]");
+                    throw new IllegalArgumentException("Field name [" + name + "] in index [" + index().getName() +
+                        "] is too long. The limit is set to [" + maxFieldNameLength + "] characters but was ["
+                        + name.length() + "] characters");
                 }
             });
     }

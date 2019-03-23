@@ -354,8 +354,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mappingUpdate, MergeReason.MAPPING_UPDATE);
         });
 
-        assertEquals("Field name [" + testString + "] is too long; limit is length "
-            + maxFieldNameLength + " but was [" + testString.length() + "]", e.getMessage());
+        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
+            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
+            + testString.length() + "] characters", e.getMessage());
     }
 
     public void testObjectNameLengthLimit() throws Throwable {
@@ -378,8 +379,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
         });
 
-        assertEquals("Field name [" + testString + "] is too long; limit is length "
-            + maxFieldNameLength + " but was [" + testString.length() + "]", e.getMessage());
+        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
+            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
+            + testString.length() + "] characters", e.getMessage());
     }
 
     public void testAliasFieldNameLengthLimit() throws Throwable {
@@ -406,8 +408,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
         });
 
-        assertEquals("Field name [" + testString + "] is too long; limit is length "
-            + maxFieldNameLength + " but was [" + testString.length() + "]", e.getMessage());
+        assertEquals("Field name [" + testString + "] in index [test1] is too long. " +
+            "The limit is set to [" + maxFieldNameLength + "] characters but was ["
+            + testString.length() + "] characters", e.getMessage());
     }
 
     public void testMappingRecoverySkipFieldNameLengthLimit() throws Throwable {

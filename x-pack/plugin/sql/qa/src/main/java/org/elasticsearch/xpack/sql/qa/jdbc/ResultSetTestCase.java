@@ -158,7 +158,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotByte = randomDoubleBetween(Byte.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotByte = randomFloatBetween(Byte.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomLong();
+        long randomDate = randomNonNegativeLong();
         
         String doubleErrorMessage = (doubleNotByte > Long.MAX_VALUE || doubleNotByte < Long.MIN_VALUE) ?
                 Double.toString(doubleNotByte) : Long.toString(Math.round(doubleNotByte));
@@ -287,7 +287,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotShort = randomDoubleBetween(Short.MAX_VALUE + 1, Double.MAX_VALUE, true);
         float floatNotShort = randomFloatBetween(Short.MAX_VALUE + 1, Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomLong();
+        long randomDate = randomNonNegativeLong();
         
         String doubleErrorMessage = (doubleNotShort > Long.MAX_VALUE || doubleNotShort < Long.MIN_VALUE) ?
                 Double.toString(doubleNotShort) : Long.toString(Math.round(doubleNotShort));
@@ -408,7 +408,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         double doubleNotInt = randomDoubleBetween(getMaxIntPlusOne().doubleValue(), Double.MAX_VALUE, true);
         float floatNotInt = randomFloatBetween(getMaxIntPlusOne().floatValue(), Float.MAX_VALUE);
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
-        long randomDate = randomLong();
+        long randomDate = randomNonNegativeLong();
         
         String doubleErrorMessage = (doubleNotInt > Long.MAX_VALUE || doubleNotInt < Long.MIN_VALUE) ?
                 Double.toString(doubleNotInt) : Long.toString(Math.round(doubleNotInt));
@@ -813,7 +813,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
         Calendar connCalendar = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
@@ -845,7 +845,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -880,7 +880,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId), Locale.ROOT);
@@ -911,7 +911,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -944,7 +944,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("release_date").field("type", "date").endObject();
             builder.startObject("republish_date").field("type", "date").endObject();
         });
-        long randomMillis = randomLong();
+        long randomMillis = randomNonNegativeLong();
 
         index("library", "1", builder -> {
             builder.field("name", "Don Quixote");
@@ -987,7 +987,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_date").field("type", "date").endObject();
         });
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
         index("test", "2", builder -> {
             builder.timeField("test_date", null);
@@ -1085,7 +1085,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         double d = randomDouble();
         float f = randomFloat();
         boolean randomBool = randomBoolean();
-        Long randomLongDate = randomLong();
+        Long randomLongDate = randomNonNegativeLong();
         String randomString = randomUnicodeOfCodepointLengthBetween(128, 256);
                 
         index("test", "1", builder -> {

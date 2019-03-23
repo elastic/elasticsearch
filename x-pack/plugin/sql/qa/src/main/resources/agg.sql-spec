@@ -178,10 +178,7 @@ aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingEquals
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
-//
-// Count(column) = Column(*) which is a bug
-// https://github.com/elastic/elasticsearch/issues/34549
-//
+
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingBetween-Ignore

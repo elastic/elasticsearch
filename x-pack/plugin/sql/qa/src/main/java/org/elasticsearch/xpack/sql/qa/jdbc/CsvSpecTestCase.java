@@ -10,10 +10,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
+import java.net.URL;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
@@ -29,27 +29,9 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
-        Parser parser = specParser();
-        List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/agg.csv-spec", parser));
-        tests.addAll(readScriptSpec("/alias.csv-spec", parser));
-        tests.addAll(readScriptSpec("/arithmetic.csv-spec", parser));
-        tests.addAll(readScriptSpec("/columns.csv-spec", parser));
-        tests.addAll(readScriptSpec("/command.csv-spec", parser));
-        tests.addAll(readScriptSpec("/date.csv-spec", parser));
-        tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
-        tests.addAll(readScriptSpec("/datetime-interval.csv-spec", parser));
-        tests.addAll(readScriptSpec("/field-alias.csv-spec", parser));
-        tests.addAll(readScriptSpec("/filter.csv-spec", parser));
-        tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
-        tests.addAll(readScriptSpec("/functions.csv-spec", parser));
-        tests.addAll(readScriptSpec("/ip.csv-spec", parser));
-        tests.addAll(readScriptSpec("/math.csv-spec", parser));
-        tests.addAll(readScriptSpec("/null.csv-spec", parser));
-        tests.addAll(readScriptSpec("/nested.csv-spec", parser));
-        tests.addAll(readScriptSpec("/select.csv-spec", parser));
-        
-        return tests;
+        List<URL> urls = JdbcTestUtils.classpathResources("/*.csv-spec");
+        assertTrue("Not enough specs found " + urls.toString(), urls.size() > 15);
+        return readScriptSpec(urls, specParser());
     }
 
     public CsvSpecTestCase(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {

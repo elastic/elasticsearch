@@ -19,7 +19,7 @@ import java.util.Base64;
  *
  * uses MurmurHash with 128 bits
  */
-public class IDGenerator {
+public final class IDGenerator {
     private static final byte[] NULL_VALUE = "__NULL_VALUE__".getBytes(StandardCharsets.UTF_8);
     private static final BytesRef DELIM = new BytesRef("$");
     private static final long SEED = 19;

@@ -193,7 +193,8 @@ LAST_VALUE       |AGGREGATE
 MAX              |AGGREGATE      
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
-KURTOSIS         |AGGREGATE      
+KURTOSIS         |AGGREGATE
+MAD              |AGGREGATE      
 PERCENTILE       |AGGREGATE      
 PERCENTILE_RANK  |AGGREGATE      
 SKEWNESS         |AGGREGATE      
@@ -897,9 +898,35 @@ Frank Herbert    |Dune                |604            |1965-06-01T00:00:00Z
 Alastair Reynolds|Revelation Space    |585            |2000-03-15T00:00:00Z
 James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00Z
 
-
-
 // end::orderByBasic
+;
+
+orderByGroup
+schema::g:s|c:i
+// tag::orderByGroup
+SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender ORDER BY g DESC;
+
+       g       |       c       
+---------------+---------------
+M              |57
+F              |33             
+null           |10             
+      
+// end::orderByGroup
+;
+
+orderByAgg
+schema::g:s|salary:i
+// tag::orderByAgg
+SELECT gender AS g, MIN(salary) AS salary FROM emp GROUP BY gender ORDER BY salary DESC;
+
+       g       |    salary     
+---------------+---------------
+F              |25976          
+M              |25945          
+null           |25324             
+    
+// end::orderByAgg
 ;
 
 orderByScore
@@ -1181,6 +1208,16 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, KURTOSIS(salary) AS k FROM emp;
 ---------------+---------------+------------------
 25324          |74999          |2.0444718929142986
 // end::aggKurtosis
+;
+
+aggMad
+// tag::aggMad
+SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, MAD(salary) AS mad FROM emp;
+
+      min      |      max      |      avg      |      mad      
+---------------+---------------+---------------+---------------
+25324          |74999          |48248.55       |10096.5   
+// end::aggMad
 ;
 
 aggPercentile

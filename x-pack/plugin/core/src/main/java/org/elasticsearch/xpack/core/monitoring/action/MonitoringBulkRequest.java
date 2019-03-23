@@ -66,14 +66,13 @@ public class MonitoringBulkRequest extends ActionRequest {
      * Parses a monitoring bulk request and builds the list of documents to be indexed.
      */
     public MonitoringBulkRequest add(final MonitoredSystem system,
-                                     final String defaultType,
                                      final BytesReference content,
                                      final XContentType xContentType,
                                      final long timestamp,
                                      final long intervalMillis) throws IOException {
 
         // MonitoringBulkRequest accepts a body request that has the same format as the BulkRequest
-        new BulkRequestParser(false).parse(content, null, defaultType, null, null, null, true, xContentType,
+        new BulkRequestParser(false).parse(content, null, null, null, null, true, xContentType,
                 indexRequest -> {
                     // we no longer accept non-timestamped indexes from Kibana, LS, or Beats because we do not use the data
                     // and it was duplicated anyway; by simply dropping it, we allow BWC for older clients that still send it

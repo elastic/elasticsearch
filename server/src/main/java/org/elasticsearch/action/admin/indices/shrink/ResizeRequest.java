@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.shrink;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -94,16 +93,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         targetIndexRequest = new CreateIndexRequest();
         targetIndexRequest.readFrom(in);
         sourceIndex = in.readString();
-        if (in.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            type = in.readEnum(ResizeType.class);
-        } else {
-            type = ResizeType.SHRINK; // BWC this used to be shrink only
-        }
-        if (in.getVersion().before(Version.V_6_4_0)) {
-            copySettings = null;
-        } else {
-            copySettings = in.readOptionalBoolean();
-        }
+        type = in.readEnum(ResizeType.class);
+        copySettings = in.readOptionalBoolean();
     }
 
     @Override
@@ -111,15 +102,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         super.writeTo(out);
         targetIndexRequest.writeTo(out);
         out.writeString(sourceIndex);
-        if (out.getVersion().onOrAfter(ResizeAction.COMPATIBILITY_VERSION)) {
-            out.writeEnum(type);
-        }
-        // noinspection StatementWithEmptyBody
-        if (out.getVersion().before(Version.V_6_4_0)) {
-
-        } else {
-            out.writeOptionalBoolean(copySettings);
-        }
+        out.writeEnum(type);
+        out.writeOptionalBoolean(copySettings);
     }
 
     @Override

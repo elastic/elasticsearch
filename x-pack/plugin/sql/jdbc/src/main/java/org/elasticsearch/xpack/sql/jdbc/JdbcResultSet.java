@@ -35,7 +35,6 @@ import java.util.function.Function;
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asMillisSinceEpoch;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.utcMillisRemoveTime;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -89,6 +88,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             throw new SQLException("Invalid column label [" + columnName + "]");
         }
         return index.intValue();
+    }
+
+    private EsType columnType(int columnIndex) {
+        return cursor.columns().get(columnIndex - 1).type;
     }
 
     void checkOpen() throws SQLException {
@@ -243,7 +246,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     private Long dateTime(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        EsType type = cursor.columns().get(columnIndex - 1).type;
+        EsType type = columnType(columnIndex);
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -258,7 +261,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 return asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
             }
             if (EsType.DATE == type) {
-                return utcMillisRemoveTime(asMillisSinceEpoch(val.toString()));
+                return asMillisSinceEpoch(val.toString());
             }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
@@ -283,6 +286,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
+        EsType type = columnType(columnIndex);
+        if (type == EsType.DATE) {
+            return new Time(0L);
+        }
         return TypeConverter.convertTime(dateTime(columnIndex), safeCalendar(cal));
     }
 
@@ -337,7 +344,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType columnType = cursor.columns().get(columnIndex - 1).type;
+        EsType columnType = columnType(columnIndex);
         String typeString = type != null ? type.getSimpleName() : columnType.getName();
 
         return TypeConverter.convert(val, columnType, type, typeString);

@@ -598,13 +598,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         type = in.readOptionalString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readOptionalString(); // timestamp
-            in.readOptionalTimeValue(); // ttl
-        }
         source = in.readBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
@@ -617,13 +610,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             contentType = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
     }
 
     @Override
@@ -634,16 +622,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(type());
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalString(null); // _parent
-        }
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
-            // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for
-            // the transport layer OK as it will be ignored.
-            out.writeOptionalString("0");
-            out.writeOptionalWriteable(null);
-        }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
         out.writeLong(version);
@@ -657,15 +635,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeZLong(ifSeqNo);
-            out.writeVLong(ifPrimaryTerm);
-        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
-            throw new IllegalStateException(
-                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
-                    "Stream version [" + out.getVersion() + "]");
-        }
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
     }
 
     @Override

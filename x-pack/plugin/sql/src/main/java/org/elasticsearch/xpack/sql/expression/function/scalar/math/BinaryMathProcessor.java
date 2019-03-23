@@ -25,26 +25,7 @@ public class BinaryMathProcessor extends FunctionalBinaryProcessor<Number, Numbe
 
         ATAN2((l, r) -> Math.atan2(l.doubleValue(), r.doubleValue())),
         MOD(Arithmetics::mod),
-        POWER((l, r) -> Math.pow(l.doubleValue(), r.doubleValue())),
-        ROUND((l, r) -> {
-            if (r instanceof Float || r instanceof Double) {
-                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", r);
-            }
-
-            double tenAtScale = Math.pow(10., r.longValue());
-            double middleResult = l.doubleValue() * tenAtScale;
-            int sign = middleResult > 0 ? 1 : -1;
-            return Math.round(Math.abs(middleResult)) / tenAtScale * sign;
-        }),
-        TRUNCATE((l, r) -> {
-            if (r instanceof Float || r instanceof Double) {
-                throw new SqlIllegalArgumentException("An integer number is required; received [{}] as second parameter", r);
-            }
-
-            double tenAtScale = Math.pow(10., r.longValue());
-            double g = l.doubleValue() * tenAtScale;
-            return (((l.doubleValue() < 0) ? Math.ceil(g) : Math.floor(g)) / tenAtScale);
-        });
+        POWER((l, r) -> Math.pow(l.doubleValue(), r.doubleValue()));
 
         private final BiFunction<Number, Number, Number> process;
 
@@ -79,7 +60,7 @@ public class BinaryMathProcessor extends FunctionalBinaryProcessor<Number, Numbe
     @Override
     protected void checkParameter(Object param) {
         if (!(param instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received {}", param);
+            throw new SqlIllegalArgumentException("A number is required; received [{}]", param);
         }
     }
 }

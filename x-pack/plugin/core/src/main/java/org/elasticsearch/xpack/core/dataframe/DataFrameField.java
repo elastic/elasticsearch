@@ -24,6 +24,8 @@ public final class DataFrameField {
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
+    public static final ParseField SOURCE = new ParseField("source");
+    public static final ParseField DESTINATION = new ParseField("dest");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";

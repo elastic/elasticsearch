@@ -56,7 +56,7 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-    public static final String LDAPTRUST_PATH = "/idptrust.jks";
+    public static final String LDAPTRUST_PATH = "/ca.jks";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
     public static final String REALM_NAME = "oldap-test";
 

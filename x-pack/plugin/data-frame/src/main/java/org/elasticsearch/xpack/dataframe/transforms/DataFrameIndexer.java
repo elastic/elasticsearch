@@ -74,7 +74,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         String indexName = transformConfig.getDestination().getIndex();
 
         return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
-            String id = (String) document.remove(DataFrameField.DOCUMENT_ID_FIELD);
+            String id = (String) document.get(DataFrameField.DOCUMENT_ID_FIELD);
 
             if (id == null) {
                 throw new RuntimeException("Expected a document id but got null.");
@@ -83,7 +83,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
-                builder.map(document);
+                builder.startObject();
+                for (Map.Entry<String, ?> value : document.entrySet()) {
+                    // skip all internal fields
+                    if (value.getKey().startsWith("_") == false) {
+                        builder.field(value.getKey(), value.getValue());
+                    }
+                }
+                builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

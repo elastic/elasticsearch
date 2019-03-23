@@ -15,6 +15,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,6 +41,7 @@ public final class DataFrameInternalIndex {
     public static final String DYNAMIC = "dynamic";
     public static final String PROPERTIES = "properties";
     public static final String TYPE = "type";
+    public static final String ENABLED = "enabled";
     public static final String DATE = "date";
     public static final String TEXT = "text";
     public static final String FIELDS = "fields";
@@ -138,10 +141,21 @@ public final class DataFrameInternalIndex {
                 .field(TYPE, KEYWORD)
             .endObject()
             .startObject(DataFrameField.SOURCE.getPreferredName())
-                .field(TYPE, KEYWORD)
+                .startObject(PROPERTIES)
+                    .startObject(SourceConfig.INDEX.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(SourceConfig.QUERY.getPreferredName())
+                        .field(ENABLED, "false")
+                    .endObject()
+                .endObject()
             .endObject()
             .startObject(DataFrameField.DESTINATION.getPreferredName())
-                .field(TYPE, KEYWORD)
+                .startObject(PROPERTIES)
+                    .startObject(DestConfig.INDEX.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                .endObject()
             .endObject();
     }
 

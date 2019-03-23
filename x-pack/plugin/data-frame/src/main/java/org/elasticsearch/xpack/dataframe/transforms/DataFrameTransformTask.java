@@ -299,13 +299,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             if (fieldMappings == null) {
                 CountDownLatch latch = new CountDownLatch(1);
-                SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination(), new LatchedActionListener<>(
+                SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), new LatchedActionListener<>(
                     ActionListener.wrap(
                         destinationMappings -> fieldMappings = destinationMappings,
                         e -> {
                             throw new RuntimeException(
                                 DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                                    transformConfig.getDestination()),
+                                    transformConfig.getDestination().getIndex()),
                                 e);
                         }), latch));
                 try {
@@ -313,7 +313,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 } catch (InterruptedException e) {
                    throw new RuntimeException(
                                 DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                                    transformConfig.getDestination()),
+                                    transformConfig.getDestination().getIndex()),
                                 e);
                 }
             }

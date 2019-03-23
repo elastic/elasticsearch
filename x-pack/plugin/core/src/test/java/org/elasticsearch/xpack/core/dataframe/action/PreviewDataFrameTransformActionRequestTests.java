@@ -17,13 +17,14 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.QueryConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 
 public class PreviewDataFrameTransformActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
@@ -65,8 +66,8 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
 
     @Override
     protected Request createTestInstance() {
-        DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomAlphaOfLength(10),
-                "unused-transform-preview-index", null, QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomSourceConfig(),
+                new DestConfig("unused-transform-preview-index"), null, PivotConfigTests.randomPivotConfig());
         return new Request(config);
     }
 
@@ -74,8 +75,9 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
         // id & dest fields will be set by the parser
         BytesArray json = new BytesArray(
                 "{ " +
-                    "\"source\":\"foo\", " +
-                    "\"query\": {\"match_all\": {}}," +
+                    "\"source\":{" +
+                    "   \"index\":\"foo\", " +
+                    "   \"query\": {\"match_all\": {}}}," +
                     "\"pivot\": {" +
                         "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}}," +
                         "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}" +
@@ -87,7 +89,7 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
 
             Request request = Request.fromXContent(parser);
             assertEquals("transform-preview", request.getConfig().getId());
-            assertEquals("unused-transform-preview-index", request.getConfig().getDestination());
+            assertEquals("unused-transform-preview-index", request.getConfig().getDestination().getIndex());
         }
     }
 }

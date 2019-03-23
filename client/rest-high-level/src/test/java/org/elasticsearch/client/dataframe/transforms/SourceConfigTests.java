@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
-import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -27,27 +26,22 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
-import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+import static java.util.Collections.emptyList;
 
-public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
 
-    public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), PivotConfigTests.randomPivotConfig());
+public class SourceConfigTests extends AbstractXContentTestCase<SourceConfig> {
+
+    public static SourceConfig randomSourceConfig() {
+        return new SourceConfig(generateRandomStringArray(10, 10, false, false),
+            QueryConfigTests.randomQueryConfig());
     }
 
-    @Override
-    protected DataFrameTransformConfig createTestInstance() {
-        return randomDataFrameTransformConfig();
-    }
 
     @Override
-    protected DataFrameTransformConfig doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformConfig.fromXContent(parser);
+    protected SourceConfig doParseInstance(XContentParser parser) throws IOException {
+        return SourceConfig.PARSER.apply(parser, null);
     }
 
     @Override
@@ -57,13 +51,18 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
+        // allow unknown fields in the root of the object only as QueryConfig stores a Map<String, Object>
         return field -> !field.isEmpty();
     }
 
     @Override
+    protected SourceConfig createTestInstance() {
+        return randomSourceConfig();
+    }
+
+    @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

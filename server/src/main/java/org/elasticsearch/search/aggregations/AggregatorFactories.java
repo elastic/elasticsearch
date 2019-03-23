@@ -23,10 +23,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -122,10 +122,9 @@ public class AggregatorFactories {
                         try {
                             aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
                                     new AggParseContext(aggregationName));
-                        } catch (UnknownNamedObjectException ex) {
+                        } catch (NamedObjectNotFoundException ex) {
                             if (ex.getCategoryClass().equals(BaseAggregationBuilder.class.getName())) {
-                                throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()),
-                                    "Unknown Aggregation [" + fieldName + "]", ex);
+                                throw new XContentParseException(ex.getLocation(), "Unknown Aggregation [" + fieldName + "]", ex);
                             } else {
                                 throw ex;
                             }

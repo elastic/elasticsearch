@@ -123,20 +123,20 @@ public class NamedXContentRegistry {
         if (parsers == null) {
             if (registry.isEmpty()) {
                 // The "empty" registry will never work so we throw a better exception as a hint.
-                throw new NamedObjectNotFoundException("named objects are not supported for this parser");
+                throw new NamedObjectNotFoundException("named objects are not supported for this parser", categoryClass);
             }
-            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]");
+            throw new NamedObjectNotFoundException("unknown named object category [" + categoryClass.getName() + "]", categoryClass);
         }
         Entry entry = parsers.get(name);
         if (entry == null) {
             throw new NamedObjectNotFoundException(parser.getTokenLocation(), "unable to parse " + categoryClass.getSimpleName() +
-                " with name [" + name + "]: parser not found");
+                " with name [" + name + "]: parser not found", categoryClass);
         }
         if (false == entry.name.match(name, parser.getDeprecationHandler())) {
             /* Note that this shouldn't happen because we already looked up the entry using the names but we need to call `match` anyway
              * because it is responsible for logging deprecation warnings. */
             throw new NamedObjectNotFoundException(parser.getTokenLocation(),
-                    "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match");
+                    "unable to parse " + categoryClass.getSimpleName() + " with name [" + name + "]: parser didn't match", categoryClass);
         }
         return categoryClass.cast(entry.parser.parse(parser, context));
     }

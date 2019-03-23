@@ -276,6 +276,8 @@ aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
 aggMinOnDateTime
 SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMinOnDateTimeCastAsDate
+SELECT gender, YEAR(CAST(MIN(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
 aggMinWithHaving
@@ -332,6 +334,8 @@ aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
 aggMaxOnDateTime
 SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
+aggMaxOnDateTimeCastAsDate
+SELECT gender, YEAR(CAST(MAX(birth_date) AS DATE)) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgAndMaxWithLikeFilter
 SELECT CAST(AVG(salary) AS LONG) AS avg, CAST(SUM(salary) AS LONG) AS s FROM "test_emp" WHERE first_name LIKE 'G%';
 

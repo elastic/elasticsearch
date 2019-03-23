@@ -199,7 +199,6 @@ public class RestRecoveryActionTests extends ESTestCase {
 
             final List<Table.Cell> cells = table.getRows().get(i);
             for (int j = 0; j < expectedValues.size(); j++) {
-                System.out.println(j);
                 assertThat(cells.get(j).value, equalTo(expectedValues.get(j)));
             }
         }

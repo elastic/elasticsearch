@@ -6,4 +6,12 @@
 
 coming[7.0.0]
 
-See also <<breaking-changes-7.0>> and <<release-notes-7.0.0-alpha1>>.
+See also <<breaking-changes-7.0,Breaking changes>> and
+<<release-notes-7.0.0-alpha1,Release notes>>.
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+
+// end::notable-highlights[]

@@ -22,4 +22,6 @@ For more information, see <<setup-upgrade>>.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 --
+
+include::migrate_7_1.asciidoc[]
 include::migrate_7_0.asciidoc[]

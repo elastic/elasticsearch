@@ -171,6 +171,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onRejection(Exception e) {
+                // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
                 while (context.hasMoreOperationsToExecute()) {
                     context.setRequestToExecute(context.getCurrent());
                     final long version = context.getRequestToExecute().version();
@@ -179,7 +180,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         : primary.getFailedIndexResult(e, version);
                     onComplete(result, context, null);
                 }
-                // We're done, there's no more operations to execute so we resolve the wrapped listener
                 finishRequest();
             }
 

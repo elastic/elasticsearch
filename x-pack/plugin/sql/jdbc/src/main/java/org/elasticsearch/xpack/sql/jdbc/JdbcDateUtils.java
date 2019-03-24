@@ -62,8 +62,20 @@ final class JdbcDateUtils {
      * In contrast to {@link JdbcDateUtils#asDate(String)} here we just want to eliminate
      * the date part and just set it to EPOCH (1970-01-1)
      */
+    static Time asTime(long millisSinceEpoch) {
+        return new Time(utcMillisRemoveDate(millisSinceEpoch));
+    }
+
+    /**
+     * In contrast to {@link JdbcDateUtils#asDate(String)} here we just want to eliminate
+     * the date part and just set it to EPOCH (1970-01-1)
+     */
     static Time asTime(String date) {
-        return new Time(utcMillisRemoveDate(asMillisSinceEpoch(date)));
+        return asTime(asMillisSinceEpoch(date));
+    }
+
+    static Timestamp asTimestamp(long millisSinceEpoch) {
+        return new Timestamp(millisSinceEpoch);
     }
 
     static Timestamp asTimestamp(String date) {

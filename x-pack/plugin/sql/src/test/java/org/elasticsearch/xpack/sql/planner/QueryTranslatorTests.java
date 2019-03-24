@@ -228,6 +228,41 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(1, rqsq.fields().size());
         assertEquals("keyword", rqsq.fields().keySet().iterator().next());
     }
+    
+    public void testRLikePatterns() {
+        String[] patterns = new String[] {"(...)+", "abab(ab)?", "(ab){1,2}", "(ab){3}", "aabb|bbaa", "a+b+|b+a+", "aa(cc|bb)",
+                "a{4,6}b{4,6}", ".{3}.{3}", "aaa*bbb*", "a+.+", "a.c.e", "[^abc\\-]"};
+        for (int i = 0; i < 5; i++) {
+            assertDifferentRLikeAndNotRLikePatterns(randomFrom(patterns), randomFrom(patterns));
+        }
+    }
+    
+    private void assertDifferentRLikeAndNotRLikePatterns(String firstPattern, String secondPattern) {
+        LogicalPlan p = plan("SELECT keyword k FROM test WHERE k RLIKE '" + firstPattern + "' AND k NOT RLIKE '" + secondPattern + "'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(BoolQuery.class, qt.query.getClass());
+        BoolQuery bq = ((BoolQuery) qt.query);
+        assertTrue(bq.isAnd());
+        assertTrue(bq.left() instanceof QueryStringQuery);
+        assertTrue(bq.right() instanceof NotQuery);
+        
+        NotQuery nq = (NotQuery) bq.right();
+        assertTrue(nq.child() instanceof QueryStringQuery);
+        QueryStringQuery lqsq = (QueryStringQuery) bq.left();
+        QueryStringQuery rqsq = (QueryStringQuery) nq.child();
+        
+        assertEquals("/" + firstPattern + "/", lqsq.query());
+        assertEquals(1, lqsq.fields().size());
+        assertEquals("keyword", lqsq.fields().keySet().iterator().next());
+        assertEquals("/" + secondPattern + "/", rqsq.query());
+        assertEquals(1, rqsq.fields().size());
+        assertEquals("keyword", rqsq.fields().keySet().iterator().next());
+    }
 
     public void testTranslateNotExpression_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT * FROM test WHERE NOT(POSITION('x', keyword) = 0)");

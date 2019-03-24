@@ -51,6 +51,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
     }
 
     // check that state is persisted after time has been advanced even if no new data is seen in the interim
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40347")
     public void testPersistJobOnGracefulShutdown_givenTimeAdvancedAfterNoNewData() throws Exception {
         String jobId = "time-advanced-after-no-new-data-test";
 

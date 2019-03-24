@@ -23,6 +23,7 @@ public final class IDGenerator {
     private static final byte[] NULL_VALUE = "__NULL_VALUE__".getBytes(StandardCharsets.UTF_8);
     private static final BytesRef DELIM = new BytesRef("$");
     private static final long SEED = 19;
+    private static final int MAX_FIRST_BYTES = 5;
 
     private final BytesRefBuilder buffer = new BytesRefBuilder();
     private final BytesRefBuilder firstBytes =  new BytesRefBuilder();
@@ -41,7 +42,9 @@ public final class IDGenerator {
         buffer.append(DELIM);
 
         // keep the 1st byte of every object
-        firstBytes.append(v[0]);
+        if (firstBytes.length() <= MAX_FIRST_BYTES) {
+            firstBytes.append(v[0]);
+        }
     }
 
     /**

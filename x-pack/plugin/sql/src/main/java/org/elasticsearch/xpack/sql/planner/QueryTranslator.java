@@ -472,6 +472,7 @@ final class QueryTranslator {
 
     // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override

@@ -77,12 +77,17 @@ public class Pivot {
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-            DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                      Map<String, String> fieldTypeMap,
+                                                      DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, dataFrameIndexerTransformStats);
+        return AggregationResultUtils.extractCompositeAggregationResults(agg,
+            groups,
+            aggregationBuilders,
+            fieldTypeMap,
+            dataFrameIndexerTransformStats);
     }
 
     private void runTestQuery(Client client, final ActionListener<Boolean> listener) {
@@ -99,7 +104,7 @@ public class Pivot {
             }
             listener.onResponse(true);
         }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query",e));
+            listener.onFailure(new RuntimeException("Failed to test query", e));
         }));
     }
 

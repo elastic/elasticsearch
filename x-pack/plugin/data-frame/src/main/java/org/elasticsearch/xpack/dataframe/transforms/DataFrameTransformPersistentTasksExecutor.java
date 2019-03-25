@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Map;
@@ -31,14 +32,17 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
     private final Client client;
     private final DataFrameTransformsConfigManager transformsConfigManager;
+    private final DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
 
     public DataFrameTransformPersistentTasksExecutor(Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            SchedulerEngine schedulerEngine, ThreadPool threadPool) {
+            DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService, SchedulerEngine schedulerEngine,
+            ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;
+        this.dataFrameTransformsCheckpointService = dataFrameTransformsCheckpointService;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
     }
@@ -67,6 +71,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> persistentTask, Map<String, String> headers) {
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, schedulerEngine, threadPool, headers);
+                (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, dataFrameTransformsCheckpointService,
+                schedulerEngine, threadPool, headers);
     }
 }

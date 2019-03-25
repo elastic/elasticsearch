@@ -41,9 +41,20 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.script.BucketAggregationScript;
+import org.elasticsearch.script.BucketAggregationSelectorScript;
+import org.elasticsearch.script.FieldScript;
+import org.elasticsearch.script.FilterScript;
+import org.elasticsearch.script.IngestConditionalScript;
+import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.script.StringSortScript;
+import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.ArrayList;
@@ -74,12 +85,33 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         // Moving Function Pipeline Agg
         List<Whitelist> movFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.aggs.movfn.txt"));
+        movFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.geo.txt"));
         map.put(MovingFunctionScript.CONTEXT, movFn);
 
         // Functions used for scoring docs
         List<Whitelist> scoreFn = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
+        scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.geo.txt"));
         map.put(ScoreScript.CONTEXT, scoreFn);
+
+        // All other contexts that need geo classes, methods, and fields
+        List<Whitelist> geoWhitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        geoWhitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.geo.txt"));
+        map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, geoWhitelists);
+        map.put(AggregationScript.CONTEXT, geoWhitelists);
+        map.put(BucketAggregationSelectorScript.CONTEXT, geoWhitelists);
+        map.put(BucketAggregationScript.CONTEXT, geoWhitelists);
+        map.put(ScriptedMetricAggContexts.InitScript.CONTEXT, geoWhitelists);
+        map.put(ScriptedMetricAggContexts.MapScript.CONTEXT, geoWhitelists);
+        map.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, geoWhitelists);
+        map.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, geoWhitelists);
+        map.put(FieldScript.CONTEXT, geoWhitelists);
+        map.put(FilterScript.CONTEXT, geoWhitelists);
+        map.put(IngestConditionalScript.CONTEXT, geoWhitelists);
+        map.put(IngestScript.CONTEXT, geoWhitelists);
+        map.put(NumberSortScript.CONTEXT, geoWhitelists);
+        map.put(StringSortScript.CONTEXT, geoWhitelists);
+        map.put(UpdateScript.CONTEXT, geoWhitelists);
 
         whitelists = map;
     }

@@ -60,8 +60,8 @@ public class TransportPreviewDataFrameTransformAction extends
 
         final DataFrameTransformConfig config = request.getConfig();
 
-        Pivot pivot = new Pivot(config.getSource(),
-            config.getQueryConfig().getQuery(),
+        Pivot pivot = new Pivot(config.getSource().getIndex(),
+            config.getSource().getQueryConfig().getQuery(),
             config.getPivotConfig());
 
         getPreview(pivot, ActionListener.wrap(

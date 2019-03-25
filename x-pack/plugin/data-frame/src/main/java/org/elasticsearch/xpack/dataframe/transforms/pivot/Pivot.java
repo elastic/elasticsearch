@@ -38,13 +38,13 @@ public class Pivot {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
     private final PivotConfig config;
-    private final String source;
+    private final String[] source;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
     private final SearchRequest cachedSearchRequest;
 
-    public Pivot(String source, QueryBuilder query, PivotConfig config) {
+    public Pivot(String[] source, QueryBuilder query, PivotConfig config) {
         this.source = source;
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
@@ -108,7 +108,7 @@ public class Pivot {
         }));
     }
 
-    private static SearchRequest createSearchRequest(String index, QueryBuilder query, CompositeAggregationBuilder compositeAggregation) {
+    private static SearchRequest createSearchRequest(String[] index, QueryBuilder query, CompositeAggregationBuilder compositeAggregation) {
         SearchRequest searchRequest = new SearchRequest(index);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.aggregation(compositeAggregation);

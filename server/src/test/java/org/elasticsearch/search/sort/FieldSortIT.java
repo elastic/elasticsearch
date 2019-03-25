@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1637,5 +1639,149 @@ public class FieldSortIT extends ESIntegTestCase {
         assertEquals(42.0, hits.getAt(0).getSortValues()[0]);
         assertEquals(100.2, hits.getAt(1).getSortValues()[0]);
         assertEquals(120.3, hits.getAt(2).getSortValues()[0]);
+    }
+
+    public void testCastNumericType() throws Exception {
+        assertAcked(prepareCreate("index_double")
+            .addMapping("_doc", "field", "type=double"));
+        assertAcked(prepareCreate("index_long")
+            .addMapping("_doc", "field", "type=long"));
+        assertAcked(prepareCreate("index_float")
+            .addMapping("_doc", "field", "type=float"));
+        ensureGreen("index_double", "index_long", "index_float");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("index_double", "_doc").setSource("field", 12.6));
+        builders.add(client().prepareIndex("index_long", "_doc").setSource("field", 12));
+        builders.add(client().prepareIndex("index_float", "_doc").setSource("field", 12.1));
+        indexRandom(true, true, builders);
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("long"))
+                .get();
+            SearchHits hits = response.getHits();
+
+            assertEquals(3, hits.getHits().length);
+            for (int i = 0; i < 3; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
+            }
+            assertEquals(12L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(12L, hits.getAt(1).getSortValues()[0]);
+            assertEquals(12L, hits.getAt(2).getSortValues()[0]);
+        }
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("double"))
+                .get();
+            SearchHits hits = response.getHits();
+            assertEquals(3, hits.getHits().length);
+            for (int i = 0; i < 3; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Double.class));
+            }
+            assertEquals(12D, hits.getAt(0).getSortValues()[0]);
+            assertEquals(12.1D, (double) hits.getAt(1).getSortValues()[0], 0.001f);
+            assertEquals(12.6D, hits.getAt(2).getSortValues()[0]);
+        }
+    }
+
+    public void testCastDate() throws Exception {
+        assertAcked(prepareCreate("index_date")
+            .addMapping("_doc", "field", "type=date"));
+        assertAcked(prepareCreate("index_date_nanos")
+            .addMapping("_doc", "field", "type=date_nanos"));
+        ensureGreen("index_date", "index_date_nanos");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("index_date", "_doc")
+            .setSource("field", "2024-04-11T23:47:17"));
+        builders.add(client().prepareIndex("index_date_nanos", "_doc")
+            .setSource("field", "2024-04-11T23:47:16.854775807Z"));
+        indexRandom(true, true, builders);
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date"))
+                .get();
+            SearchHits hits = response.getHits();
+
+            assertEquals(2, hits.getHits().length);
+            for (int i = 0; i < 2; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
+            }
+            assertEquals(1712879236854L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(1712879237000L, hits.getAt(1).getSortValues()[0]);
+        }
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                .get();
+            SearchHits hits = response.getHits();
+            assertEquals(2, hits.getHits().length);
+            for (int i = 0; i < 2; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
+            }
+            assertEquals(1712879236854775807L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(1712879237000000000L, hits.getAt(1).getSortValues()[0]);
+        }
+
+        {
+            builders.clear();
+            builders.add(client().prepareIndex("index_date", "_doc")
+                .setSource("field", "1905-04-11T23:47:17"));
+            indexRandom(true, true, builders);
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .setSize(builders.size())
+                        .setAllowPartialSearchResults(false)
+                        .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                        .get()
+            );
+            assertThat(exc.toString(), containsString("are before the epoch in 1970"));
+        }
+
+        {
+            builders.clear();
+            builders.add(client().prepareIndex("index_date", "_doc")
+                .setSource("field", "2346-04-11T23:47:17"));
+            indexRandom(true, true, builders);
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                    .setQuery(QueryBuilders.rangeQuery("field").gt("1970-01-01"))
+                    .setSize(builders.size())
+                    .setAllowPartialSearchResults(false)
+                    .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                    .get()
+            );
+            assertThat(exc.toString(), containsString("are after 2262"));
+        }
+    }
+
+    public void testCastNumericTypeExceptions() throws Exception {
+        assertAcked(prepareCreate("index")
+            .addMapping("_doc", "keyword", "type=keyword", "ip", "type=ip"));
+        ensureGreen("index");
+        for (String invalidField : new String[] {"keyword", "ip"}) {
+            for (String numericType : new String[]{"long", "double", "date", "date_nanos"}) {
+                ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(SortBuilders.fieldSort(invalidField).setNumericType(numericType))
+                    .get()
+                );
+                assertThat(exc.status(), equalTo(RestStatus.BAD_REQUEST));
+                assertThat(exc.getDetailedMessage(), containsString("[numeric_type] option cannot be set on a non-numeric field"));
+            }
+        }
     }
 }

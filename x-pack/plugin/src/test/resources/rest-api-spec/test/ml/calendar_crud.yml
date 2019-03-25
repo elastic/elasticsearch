@@ -127,6 +127,20 @@
   - length: { calendars: 1}
   - match: { calendars.0.calendar_id: calendar2 }
 
+  - do:
+      ml.get_calendars:
+        body: >
+          {
+            "page": {
+              "from": 1,
+              "size": 2
+            }
+          }
+  - match: { count: 3 }
+  - length: { calendars: 2}
+  - match: { calendars.0.calendar_id: calendar2 }
+  - match: { calendars.1.calendar_id: calendar3 }
+
 ---
 "Test PageParams with ID is invalid":
   - do:

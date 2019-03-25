@@ -99,16 +99,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
-                    final Set<String> features;
-                    if (remoteVersion.onOrAfter(Version.V_6_3_0)) {
-                        features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
-                    } else {
-                        features = Collections.emptySet();
-                    }
+                    final Set<String> features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(streamInput.readStringArray())));
                     final String action = streamInput.readString();
-                    message = new RequestMessage(threadContext, remoteVersion, status, requestId, action, features, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
                 } else {
-                    message = new ResponseMessage(threadContext, remoteVersion, status, requestId, streamInput);
+                    message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
                 success = true;
                 return message;
@@ -138,13 +133,13 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
     }
 
-    public static class RequestMessage extends InboundMessage {
+    public static class Request extends InboundMessage {
 
         private final String actionName;
         private final Set<String> features;
 
-        RequestMessage(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features,
-                       StreamInput streamInput) {
+        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features,
+                StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
             this.features = features;
@@ -159,9 +154,9 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
         }
     }
 
-    public static class ResponseMessage extends InboundMessage {
+    public static class Response extends InboundMessage {
 
-        ResponseMessage(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
+        Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
         }
     }

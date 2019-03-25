@@ -264,7 +264,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<StartDataFrameTransformResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             StartDataFrameTransformRequest request = new StartDataFrameTransformRequest("mega-transform");
@@ -294,7 +293,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
-            ActionListener<StopDataFrameTransformResponse> ackListener = listener;
             listener = new LatchedActionListener<>(listener, latch);
 
             StopDataFrameTransformRequest request = new StopDataFrameTransformRequest("mega-transform");
@@ -519,7 +517,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         
         DataFrameTransformConfig putTransformConfig = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig),
+                new DestConfig("pivot-dest"), pivotConfig);
 
         RestHighLevelClient client = highLevelClient();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);

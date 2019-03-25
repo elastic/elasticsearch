@@ -272,15 +272,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
         indexData(sourceIndex);
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
-        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
-        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
-
         DataFrameTransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
-            new SourceConfig(new String[]{sourceIndex}, queryConfig), null, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         PreviewDataFrameTransformResponse preview = execute(new PreviewDataFrameTransformRequest(transform),
@@ -305,9 +297,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        DestConfig destConfig = (destination != null) ? new DestConfig(destination) : null;
+
         return new DataFrameTransformConfig(id,
                 new SourceConfig(new String[]{source}, queryConfig),
-                new DestConfig(destination),
+                destConfig,
                 pivotConfig);
     }
 

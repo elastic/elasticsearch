@@ -109,9 +109,9 @@ Jira account you need to specify (see {ref}/secure-settings.html[secure settings
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_url
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_user
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_password
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_url
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_user
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_password
 --------------------------------------------------
 
 deprecated[The insecure way of storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is deprecated]

@@ -227,7 +227,7 @@ The response to the above query will look as expected, despite spanning rollup a
         "value": 0,
         "relation": "eq"
     },
-    "max_score" : 0.0,
+    "max_score" : null,
     "hits" : [ ]
   },
   "aggregations" : {

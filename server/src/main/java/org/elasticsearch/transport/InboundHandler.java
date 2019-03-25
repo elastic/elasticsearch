@@ -69,18 +69,18 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
     }
 
-    public synchronized <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
+    synchronized <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
         if (requestHandlers.containsKey(reg.getAction())) {
             throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
         }
         requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
     }
 
-    public final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
+    final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
         return requestHandlers.get(action);
     }
 
-    public final Transport.ResponseHandlers getResponseHandlers() {
+    final Transport.ResponseHandlers getResponseHandlers() {
         return responseHandlers;
     }
 
@@ -96,9 +96,10 @@ public class InboundHandler {
         }
     }
 
-    public void inboundMessage(TcpChannel channel, BytesReference message) throws Exception {
+    void inboundMessage(TcpChannel channel, BytesReference message) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         transportLogger.logInboundMessage(channel, message);
+        readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         // Message length of 0 is a ping
         if (message.length() != 0) {
             messageReceived(message, channel);
@@ -108,7 +109,6 @@ public class InboundHandler {
     }
 
     private void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
-        readBytesMetric.inc(reference.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 
         ThreadContext threadContext = threadPool.getThreadContext();
@@ -152,7 +152,7 @@ public class InboundHandler {
         }
     }
 
-    protected void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
+    private void handleRequest(TcpChannel channel, InboundMessage.Request message, int messageLengthBytes) {
         final Set<String> features = message.getFeatures();
         final String action = message.getActionName();
         final long requestId = message.getRequestId();
@@ -179,7 +179,12 @@ public class InboundHandler {
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-                validateRequest(stream, requestId, action);
+                final int nextByte = stream.read();
+                // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+                if (nextByte != -1) {
+                    throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
+                        + "], available [" + stream.available() + "]; resetting");
+                }
                 threadPool.executor(reg.getExecutor()).execute(new RequestHandler(reg, request, transportChannel));
             }
         } catch (Exception e) {
@@ -194,15 +199,6 @@ public class InboundHandler {
                 inner.addSuppressed(e);
                 logger.warn(() -> new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
             }
-        }
-    }
-    
-    private void validateRequest(StreamInput stream, long requestId, String action) throws IOException {
-        final int nextByte = stream.read();
-        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-        if (nextByte != -1) {
-            throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action [" + action
-                + "], available [" + stream.available() + "]; resetting");
         }
     }
 
@@ -224,7 +220,7 @@ public class InboundHandler {
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 handler.handleResponse(response);
             }
         });

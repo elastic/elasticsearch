@@ -242,6 +242,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 listener.onResponse(success);
             },
             failure -> {
+                auditor.warning(transform.getId(), "Failed to persist to state to cluster state: " + failure.getMessage());
                 logger.error("Failed to update state for data frame transform [" + transform.getId() + "]", failure);
                 listener.onFailure(failure);
             }
@@ -254,7 +255,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     synchronized void handleFailure(Exception e) {
         if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > MAX_CONTINUOUS_FAILURES) {
-            stateReason.set(e.getMessage());
+            String failureMessage = isIrrecoverableFailure(e) ?
+                "task encountered irrecoverable failure: " + e.getMessage() :
+                "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
+            auditor.error(transform.getId(), failureMessage);
+            stateReason.set(failureMessage);
             taskState.set(DataFrameTransformTaskState.FAILED);
             persistStateToClusterState(getState(), ActionListener.wrap(
                 r -> failureCount.set(0), // Successfully marked as failed, reset counter so that task can be restarted
@@ -285,6 +290,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
         private final Auditor<DataFrameAuditMessage> auditor;
+        // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
+        private volatile String lastAuditedExceptionMessage = null;
         private Map<String, String> fieldMappings = null;
 
         private DataFrameTransformConfig transformConfig = null;
@@ -326,9 +333,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             if (transformConfig == null) {
                 CountDownLatch latch = new CountDownLatch(1);
 
-                transformsConfigManager.getTransformConfiguration(transformId, new LatchedActionListener<>(ActionListener.wrap(config -> {
-                    transformConfig = config;
-                }, e -> {
+                transformsConfigManager.getTransformConfiguration(transformId, new LatchedActionListener<>(ActionListener.wrap(
+                    config -> transformConfig = config,
+                    e -> {
                     throw new RuntimeException(
                             DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e);
                 }), latch));
@@ -343,7 +350,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             if (transformConfig.isValid() == false) {
                 DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
-                auditor.error(transformId, "Cannot execute data frame transform as configuration is invalid");
                 handleFailure(exception);
                 throw exception;
             }
@@ -414,8 +420,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onFailure(Exception exc) {
-            auditor.error(transform.getId(), "Data frame transform failed with an exception: " + exc.getMessage());
-            logger.warn("Data frame transform [" + transform.getId() + "] failed with an exception: ", exc);
+            if (exc.getMessage().equals(lastAuditedExceptionMessage) == false) {
+                auditor.warning(transform.getId(), "Data frame transform encountered an exception: " + exc.getMessage());
+                lastAuditedExceptionMessage = exc.getMessage();
+            }
+            logger.warn("Data frame transform [" + transform.getId() + "] encountered an exception: ", exc);
             handleFailure(exc);
         }
 

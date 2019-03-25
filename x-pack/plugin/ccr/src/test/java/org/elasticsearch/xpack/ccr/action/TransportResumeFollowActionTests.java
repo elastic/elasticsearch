@@ -217,7 +217,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             validate(request, leaderIMD, followIMD, UUIDs, mapperService);
         }
     }
-    
+
     public void testDynamicIndexSettingsAreClassified() {
         // We should be conscious which dynamic settings are replicated from leader to follower index.
         // This is the list of settings that should be replicated:
@@ -237,7 +237,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             if (setting.isDynamic()) {
                 boolean notReplicated = TransportResumeFollowAction.NON_REPLICATED_SETTINGS.contains(setting);
                 boolean replicated = replicatedSettings.contains(setting);
-                assertThat("setting [" + setting.getKey() + "] is not classified as replicated xor not replicated",
+                assertThat("setting [" + setting.getKey() + "] is not classified as replicated or not replicated",
                     notReplicated ^ replicated, is(true));
             }
         }

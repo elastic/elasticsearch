@@ -116,7 +116,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         indicesStatsRequest.indices(indices);
                         indicesStatsRequest.indicesOptions(strictExpandIndicesOptions);
                         indicesStatsRequest.all();
-                        indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_unloaded_segments", false));
+                        indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
 
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
@@ -288,6 +288,14 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("refresh.time", "sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
         table.addCell("pri.refresh.time", "default:false;text-align:right;desc:time spent in refreshes");
+
+        table.addCell("refresh.external_total",
+            "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+        table.addCell("pri.refresh.external_total", "default:false;text-align:right;desc:total external refreshes");
+
+        table.addCell("refresh.external_time",
+            "sibling:pri;alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
+        table.addCell("pri.refresh.external_time", "default:false;text-align:right;desc:time spent in external refreshes");
 
         table.addCell("refresh.listeners",
             "sibling:pri;alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
@@ -561,6 +569,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotalTime());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotalTime());
+
+            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotal());
+            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotal());
+
+            table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getExternalTotalTime());
+            table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getExternalTotalTime());
 
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getListeners());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getListeners());

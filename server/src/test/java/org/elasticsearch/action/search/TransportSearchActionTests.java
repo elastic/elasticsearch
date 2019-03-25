@@ -419,7 +419,8 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[]{"index"}, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
+        Function<Boolean, InternalAggregation.ReduceContext> reduceContext =
+            finalReduce -> new InternalAggregation.ReduceContext(null, null, finalReduce);
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();

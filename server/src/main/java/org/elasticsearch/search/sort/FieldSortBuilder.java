@@ -300,16 +300,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Allowed values are <code>long</code> and <code>double</code>.
      */
     public FieldSortBuilder setNumericType(String numericType) {
-        String upperCase = numericType.toUpperCase(Locale.ENGLISH);
-        switch (upperCase) {
-            case "LONG":
-            case "DOUBLE":
+        String lowerCase = numericType.toLowerCase(Locale.ENGLISH);
+        switch (lowerCase) {
+            case "long":
+            case "double":
+            case "date":
+            case "date_nanos":
                 break;
 
             default:
-                throw new IllegalArgumentException("invalid value for [numeric_type], must be [LONG, DOUBLE], got " + numericType);
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + lowerCase);
         }
-        this.numericType = upperCase;
+        this.numericType = lowerCase;
         return this;
     }
 
@@ -342,6 +345,23 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    private static NumericType resolveNumericType(String value) {
+        switch (value) {
+            case "long":
+                return NumericType.LONG;
+            case "double":
+                return NumericType.DOUBLE;
+            case "date":
+                return NumericType.DATE;
+            case "date_nanos":
+                return NumericType.DATE_NANOSECONDS;
+
+            default:
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + value);
+        }
     }
 
     @Override
@@ -400,7 +420,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                         "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
                 }
                 SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
-                NumericType resolvedType = NumericType.valueOf(numericType);
+                NumericType resolvedType = resolveNumericType(numericType);
                 field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);
             } else {
                 field = fieldData.sortField(missing, localSortMode, nested, reverse);

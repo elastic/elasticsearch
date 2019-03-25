@@ -516,6 +516,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         if (searchHits.getHits().length > 0) {
             assertArrayEquals(sortFields, searchHits.getSortFields());
             assertEquals(collapseField, searchHits.getCollapseField());
+        } else {
+            assertNull(searchHits.getSortFields());
+            assertNull(searchHits.getCollapseField());
         }
         if (expectedTotalHits == null) {
             assertNull(searchHits.getTotalHits());

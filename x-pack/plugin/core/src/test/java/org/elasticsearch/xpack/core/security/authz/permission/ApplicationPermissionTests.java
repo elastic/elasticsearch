@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +22,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ApplicationPermissionTests extends ESTestCase {
 
@@ -152,14 +151,14 @@ public class ApplicationPermissionTests extends ESTestCase {
 
     private ApplicationPrivilege actionPrivilege(String appName, String... actions) {
         final Set<ApplicationPrivilege> privileges = ApplicationPrivilege.get(appName, Sets.newHashSet(actions), Collections.emptyList());
-        assertThat(privileges, Matchers.hasSize(1));
+        assertThat(privileges, hasSize(1));
         return privileges.iterator().next();
     }
 
     private ApplicationPrivilege compositePrivilege(String application, ApplicationPrivilege... children) {
         Set<String> names = Stream.of(children).map(ApplicationPrivilege::name).flatMap(Set::stream).collect(Collectors.toSet());
         final Set<ApplicationPrivilege> privileges = ApplicationPrivilege.get(application, names, store);
-        assertThat(privileges, Matchers.hasSize(1));
+        assertThat(privileges, hasSize(1));
         return privileges.iterator().next();
     }
 

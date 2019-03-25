@@ -44,8 +44,8 @@ setup:
         transform_id: "missing-source-transform"
         body: >
           {
-            "source": "missing-index",
-            "dest": "missing-source-dest",
+            "source": { "index": "missing-index" },
+            "dest": { "index": "missing-source-dest" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -58,8 +58,8 @@ setup:
         transform_id: "airline-transform"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -72,8 +72,8 @@ setup:
         transform_id: "airline-transform-dos"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-again",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-again" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -86,9 +86,9 @@ setup:
         transform_id: "airline-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform" }
-  - match: { transforms.0.source: "airline-data" }
-  - match: { transforms.0.dest: "airline-data-by-airline" }
-  - is_true: transforms.0.query.match_all
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.dest.index: "airline-data-by-airline" }
+  - is_true: transforms.0.source.query.match_all
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
@@ -136,6 +136,50 @@ setup:
   - match: { transforms.0.id: "airline-transform-dos" }
 
 ---
+"Test transform with query and array of indices in source":
+  - do:
+      indices.create:
+        index: airline-data-other
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data", "airline-data-other"],
+              "query": {"bool":{"filter":{"term":{"airline":"FOO"}}}}
+            },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform" }
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.source.index.1: "airline-data-other" }
+  - match: { transforms.0.source.query.bool.filter.term.airline: "FOO" }
+  - match: { transforms.0.dest.index: "airline-data-by-airline" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+---
 "Test transform with invalid page parameter":
   - do:
       catch: /Param \[size\] has a max acceptable value of \[1000\]/
@@ -151,8 +195,8 @@ setup:
         transform_id: "airline-transform"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}, "time": {"max": {"field": "time"}}}

@@ -244,6 +244,13 @@ public final class ExceptionsHelper {
     }
 
     /**
+     * See {@link #maybeError(Throwable, Logger)}. Uses the class-local logger.
+     */
+    public static Optional<Error> maybeError(final Throwable cause) {
+        return maybeError(cause, logger);
+    }
+
+    /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
      * caught and bubbles up to the uncaught exception handler. Note that the cause tree is examined for any {@link Error}. See
      * {@link #maybeError(Throwable, Logger)} for the semantics.

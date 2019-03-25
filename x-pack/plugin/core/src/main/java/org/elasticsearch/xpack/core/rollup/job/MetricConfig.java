@@ -86,7 +86,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
-        metrics = in.readList(StreamInput::readString);
+        metrics = in.readStringList();
     }
 
     /**
@@ -144,7 +144,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeStringList(metrics);
+        out.writeStringCollection(metrics);
     }
 
     @Override

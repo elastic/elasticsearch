@@ -19,11 +19,18 @@ Instantiates a {dfeed}.
 You must create a job before you create a {dfeed}.  You can associate only one
 {dfeed} to each job.
 
+IMPORTANT:  You must use {kib} or this API to create a {dfeed}. Do not put a {dfeed}
+            directly to the `.ml-config` index using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users `write`
+            privileges on the `.ml-config` index.
+
 
 ==== Path Parameters
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the {dfeed}.
+  This identifier can contain lowercase alphanumeric characters (a-z and 0-9),
+  hyphens, and underscores. It must start and end with alphanumeric characters.
 
 
 ==== Request Body

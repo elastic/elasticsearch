@@ -36,7 +36,7 @@ public class AutoDateHistogramTests extends BaseAggregationTestCase<AutoDateHist
             builder.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            builder.timeZone(randomDateTimeZone());
+            builder.timeZone(randomZone());
         }
         return builder;
     }

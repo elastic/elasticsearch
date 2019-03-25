@@ -33,6 +33,8 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecResult;
@@ -86,11 +88,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     public Configuration getForbiddenAPIsConfiguration() {
         return getProject().getConfigurations().getByName("forbiddenApisCliJar");
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.NONE)
     public File getSignatureFile() {
         return signatureFile;
     }
@@ -154,6 +158,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     }
 
     @InputFiles
+    @PathSensitive(PathSensitivity.NAME_ONLY)
     @SkipWhenEmpty
     public Set<File> getJarsToScan() {
         // These are SelfResolvingDependency, and some of them backed by file collections, like  the Gradle API files,

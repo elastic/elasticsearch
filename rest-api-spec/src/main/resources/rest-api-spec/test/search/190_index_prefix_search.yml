@@ -8,18 +8,16 @@ setup:
         index:  test
         body:
           mappings:
-            test:
-              properties:
-                text:
-                  type: text
-                  index_prefixes:
-                    min_chars: 2
-                    max_chars: 5
+            properties:
+              text:
+                type: text
+                index_prefixes:
+                  min_chars: 2
+                  max_chars: 5
 
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { text: some short words with a stupendously long one }
 
@@ -104,4 +102,3 @@ setup:
               ]
 
   - match: {hits.total: 1}
-

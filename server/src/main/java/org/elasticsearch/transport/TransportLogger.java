@@ -51,6 +51,10 @@ public final class TransportLogger {
     void logOutboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {
+                if (message.get(0) != 'E') {
+                    // This is not an Elasticsearch transport message.
+                    return;
+                }
                 BytesReference withoutHeader = message.slice(HEADER_SIZE, message.length() - HEADER_SIZE);
                 String logMessage = format(channel, withoutHeader, "WRITE");
                 logger.trace(logMessage);
@@ -97,9 +101,7 @@ public final class TransportLogger {
                         context.readHeaders(streamInput);
                     }
                     // now we decode the features
-                    if (streamInput.getVersion().onOrAfter(Version.V_6_3_0)) {
-                        streamInput.readStringArray();
-                    }
+                    streamInput.readStringArray();
                     sb.append(", action: ").append(streamInput.readString());
                 }
                 sb.append(']');

@@ -105,6 +105,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 expectedMinValue = Math.min(expectedMinValue, expectedValues.v2());
             }
             assertEquals(expectedTotalChildren, child.getDocCount());
+            assertTrue(JoinAggregationInspectionHelper.hasValue(child));
             assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
         });
 

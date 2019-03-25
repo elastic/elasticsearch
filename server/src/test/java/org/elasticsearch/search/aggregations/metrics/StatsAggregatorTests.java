@@ -31,6 +31,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -51,6 +52,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Float.NaN, stats.getAvg(), 0);
                 assertEquals(Double.POSITIVE_INFINITY, stats.getMin(), 0);
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
+                assertFalse(AggregationInspectionHelper.hasValue(stats));
             }
         );
     }
@@ -81,6 +83,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.min, stats.getMin(), 0);
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
     }
@@ -110,6 +113,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.min, stats.getMin(), 0);
                 assertEquals(expected.max, stats.getMax(), 0);
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
+                assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
     }

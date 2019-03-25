@@ -62,10 +62,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 ClusterStateResponse clusterStateResponse = client.admin().cluster().prepareState().execute().get();
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
-                // also test a failure, there is no handler for search registered
+                // also test a failure, there is no handler for scroll registered
                 ActionNotFoundTransportException ex = expectThrows(ActionNotFoundTransportException.class,
-                    () -> client.prepareSearch().get());
-                assertEquals("No handler for action [indices:data/read/search]", ex.getMessage());
+                    () -> client.prepareSearchScroll("").get());
+                assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
         }
     }

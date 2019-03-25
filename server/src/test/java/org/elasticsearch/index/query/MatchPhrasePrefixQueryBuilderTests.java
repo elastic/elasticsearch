@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,7 +31,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -43,8 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<MatchPhrasePrefixQueryBuilder> {
     @Override
     protected MatchPhrasePrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -91,10 +86,9 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, SearchContext context)
             throws IOException {
         assertThat(query, notNullValue());
-        assertThat(query,
-                either(instanceOf(BooleanQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
-                .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        assertThat(query, either(instanceOf(MultiPhrasePrefixQuery.class))
+            .or(instanceOf(SynonymQuery.class))
+            .or(instanceOf(MatchNoDocsQuery.class)));
     }
 
     public void testIllegalValues() {

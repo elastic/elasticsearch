@@ -15,7 +15,7 @@ public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState>
 
     @Override
     protected JobTaskState createTestInstance() {
-        return new JobTaskState(randomFrom(JobState.values()), randomLong());
+        return new JobTaskState(randomFrom(JobState.values()), randomLong(), randomAlphaOfLength(10));
     }
 
     @Override
@@ -26,5 +26,10 @@ public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState>
     @Override
     protected JobTaskState doParseInstance(XContentParser parser) {
         return JobTaskState.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
     }
 }

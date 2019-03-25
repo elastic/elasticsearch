@@ -1,13 +1,12 @@
 [role="xpack"]
 [[notification-settings]]
-=== {watcher} Settings in Elasticsearch
+=== {watcher} settings in Elasticsearch
 ++++
-<titleabbrev>{watcher} Settings</titleabbrev>
+<titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
 You configure {watcher} settings to set up {watcher} and send notifications via
 <<email-notification-settings,email>>,
-<<hipchat-notification-settings,HipChat>>,
 <<slack-notification-settings,Slack>>, and
 <<pagerduty-notification-settings, PagerDuty>>.
 
@@ -37,6 +36,7 @@ required. For more information, see
 
 `xpack.watcher.history.cleaner_service.enabled`::
 added[6.3.0,Default changed to `true`.]
+deprecated[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
 +
 Set to `true` (default) to enable the cleaner service. If this setting is
 `true`, the `xpack.monitoring.enabled` setting must also be set to `true` with
@@ -63,6 +63,14 @@ request is aborted.
 `xpack.http.max_response_size`::
 Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
+
+`xpack.http.whitelist`::
+A list of URLs, that the internal HTTP client is allowed to connect to. This
+client is used in the HTTP input, the webhook, the slack, pagerduty,
+and jira actions. This setting can be updated dynamically.  It defaults to `*`
+allowing everything. Note: If you configure this setting and you are using one
+of the slack/pagerduty actions, you have to ensure that the
+corresponding endpoints are whitelisted as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http
@@ -107,7 +115,7 @@ can specify the following email account attributes:
   `smtp.user` (<<cluster-update-settings,Dynamic>>);;
   The user name for SMTP. Required.
 
-  `smtp.password` (<<cluster-update-settings,Dynamic>>);;
+  `smtp.secure_password` (<<secure-settings,Secure>>);;
   The password for the specified SMTP user.
 
   `smtp.starttls.enable` (<<cluster-update-settings,Dynamic>>);;
@@ -199,55 +207,6 @@ Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
 [float]
-[[hipchat-notification-settings]]
-==== HipChat Notification Settings
-You can configure the following HipChat notification settings in
-`elasticsearch.yml`. For more information about sending notifications
-via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
-
-`xpack.notification.hipchat` ::
-Specifies account information for sending notifications
-via HipChat. You can specify the following HipChat account attributes:
-
-[[hipchat-account-attributes]]
-  `profile`;;
-  The HipChat account profile to use: `integration`,
-                      `user`, or `v1`. Required.
-
-  `auth_token`;;
-  The authentication token to use to access
-                      the HipChat API. Required.
-
-  `host`;;
-  The HipChat server hostname. Defaults to `api.hipchat.com`.
-
-  `port`;;
-  The HipChat server port number. Defaults to 443.
-
-  `room`;;
-  The room you want to send messages to. Must be specified
-                      if the `profile` is set to `integration`. Not valid for
-                      the `user` or `vi` profiles.
-
-  `user`;;
-  The HipChat user account to use to send messages.
-                      Specified as an email address. Must be specified if the
-                      `profile` is set to `user`. Not valid for the `integration`
-                      or `v1` profiles.
-
-  `message.format`;;
-  The format of the message: `text` or `html`.
-                      Defaults to `html`.
-
-  `message.color`;;
-  The background color of the notification in the room.
-                      Defaults to  `yellow`.
-  `message.notify`;;
-  Indicates whether people in the room should be
-                      actively notified. Defaults to `false`.
-
-
-[float]
 [[slack-notification-settings]]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
@@ -260,9 +219,8 @@ via Slack. You can specify the following Slack account attributes:
 
 [[slack-account-attributes]]
 
-  `url`;;
-  The Incoming Webhook URL to use to post
-                                    messages to Slack. Required.
+  `secure_url` (<<secure-settings,Secure>>);;
+  The Incoming Webhook URL to use to post messages to Slack. Required.
 
   `message_defaults.from`;;
   The sender name to display in the
@@ -301,13 +259,13 @@ issues in Jira. You can specify the following Jira account attributes:
 
 [[jira-account-attributes]]
 
-  `url`;;
+  `secure_url` (<<secure-settings,Secure>>);;
   The URL of the Jira Software server. Required.
 
-  `user`;;
+  `secure_user` (<<secure-settings,Secure>>);;
   The name of the user to connect to the Jira Software server. Required.
 
-  `password`;;
+  `secure_password` (<<secure-settings,Secure>>);;
   The password of the user to connect to the Jira Software server. Required.
 
   `issue_defaults`;;
@@ -333,7 +291,7 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
   A name for the PagerDuty account associated with the API key you
   are using to access PagerDuty. Required.
 
-  `service_api_key`;;
+  `secure_service_api_key` (<<secure-settings,Secure>>);;
    The https://developer.pagerduty.com/documentation/rest/authentication[
    PagerDuty API key] to use to access PagerDuty. Required.
 

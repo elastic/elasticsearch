@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -185,14 +184,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Should version conflicts cause aborts? Defaults to false.
+     * Whether or not version conflicts cause the action to abort.
      */
     public boolean isAbortOnVersionConflict() {
         return abortOnVersionConflict;
     }
 
     /**
-     * Should version conflicts cause aborts? Defaults to false.
+     * Set whether or not version conflicts cause the action to abort.
      */
     public Self setAbortOnVersionConflict(boolean abortOnVersionConflict) {
         this.abortOnVersionConflict = abortOnVersionConflict;
@@ -448,12 +447,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         out.writeTimeValue(retryBackoffInitialTime);
         out.writeVInt(maxRetries);
         out.writeFloat(requestsPerSecond);
-        if (out.getVersion().before(Version.V_6_1_0) && slices == AUTO_SLICES) {
-            throw new IllegalArgumentException("Slices set as \"auto\" are not supported before version [" + Version.V_6_1_0 + "]. " +
-                "Found version [" + out.getVersion() + "]");
-        } else {
-            out.writeVInt(slices);
-        }
+        out.writeVInt(slices);
     }
 
     /**

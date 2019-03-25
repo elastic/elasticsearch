@@ -20,21 +20,25 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.internal.os.OperatingSystem;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +49,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -56,14 +61,26 @@ public class ElasticsearchNode {
     private final String name;
     private final GradleServicesAdapter services;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
-    private final File artifactsExtractDir;
-    private final File workingDir;
+    private final Path artifactsExtractDir;
+    private final Path workingDir;
 
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
+    private final List<URI> plugins = new ArrayList<>();
+
+    private final Path confPathRepo;
+    private final Path configFile;
+    private final Path confPathData;
+    private final Path confPathLogs;
+    private final Path transportPortFile;
+    private final Path httpPortsFile;
+    private final Path esStdoutFile;
+    private final Path esStderrFile;
+    private final Path tmpDir;
 
     private Distribution distribution;
     private String version;
@@ -75,11 +92,20 @@ public class ElasticsearchNode {
         this.path = path;
         this.name = name;
         this.services = services;
-        this.artifactsExtractDir = artifactsExtractDir;
-        this.workingDir = new File(workingDirBase, safeName(name));
+        this.artifactsExtractDir = artifactsExtractDir.toPath();
+        this.workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
+        confPathRepo = workingDir.resolve("repo");
+        configFile = workingDir.resolve("config/elasticsearch.yml");
+        confPathData = workingDir.resolve("data");
+        confPathLogs = workingDir.resolve("logs");
+        transportPortFile = confPathLogs.resolve("transport.ports");
+        httpPortsFile = confPathLogs.resolve("http.ports");
+        esStdoutFile = confPathLogs.resolve("es.stdout.log");
+        esStderrFile = confPathLogs.resolve("es.stderr.log");
+        tmpDir = workingDir.resolve("tmp");
         this.waitConditions = new LinkedHashMap<>();
-        waitConditions.put("http ports file", node -> node.getHttpPortsFile().exists());
-        waitConditions.put("transport ports file", node -> node.getTransportPortFile().exists());
+        waitConditions.put("http ports file", node -> Files.exists(node.httpPortsFile));
+        waitConditions.put("transport ports file", node -> Files.exists(node.transportPortFile));
         waitForUri("cluster health yellow", "/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow");
     }
 
@@ -107,9 +133,24 @@ public class ElasticsearchNode {
         this.distribution = distribution;
     }
 
+    public void plugin(URI plugin) {
+        requireNonNull(plugin, "Plugin name can't be null");
+        checkFrozen();
+        this.plugins.add(plugin);
+    }
+
+    public void plugin(File plugin) {
+        plugin(plugin.toURI());
+    }
+
+    public Path getConfigDir() {
+        return configFile.getParent();
+    }
+
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
+        requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
         logger.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
@@ -146,60 +187,105 @@ public class ElasticsearchNode {
         });
     }
 
+    /**
+     * Returns a stream of lines in the generated logs similar to Files.lines
+     *
+     * @return stream of log lines
+     */
+    public Stream<String> logLines() throws IOException {
+        return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
+    }
+
     synchronized void start() {
         logger.info("Starting `{}`", this);
 
-        File distroArtifact = new File(
-            new File(artifactsExtractDir, distribution.getFileExtension()),
-            distribution.getFileName() + "-" + getVersion()
-        );
-        if (distroArtifact.exists() == false) {
+        Path distroArtifact = artifactsExtractDir
+            .resolve(distribution.getGroup())
+            .resolve(distribution.getArtifactName() + "-" + getVersion());
+
+        if (Files.exists(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);
         }
-        if (distroArtifact.isDirectory() == false) {
+        if (Files.isDirectory(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
         services.sync(spec -> {
-            spec.from(new File(distroArtifact, "config"));
-            spec.into(getConfigFile().getParent());
+            spec.from(distroArtifact);
+            spec.into(workingDir);
         });
-        configure();
-        startElasticsearchProcess(distroArtifact);
+
+        try {
+            createWorkingDir(distroArtifact);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        createConfiguration();
+
+        plugins.forEach(plugin -> runElaticsearchBinScript(
+            "elasticsearch-plugin",
+            "install", "--batch", plugin.toString())
+        );
+
+        startElasticsearchProcess();
     }
 
-    private void startElasticsearchProcess(File distroArtifact) {
-        logger.info("Running `bin/elasticsearch` in `{}` for {}", workingDir, this);
+    private void runElaticsearchBinScript(String tool, String... args) {
+        services.loggedExec(spec -> {
+            spec.setEnvironment(getESEnvironment());
+            spec.workingDir(workingDir);
+            spec.executable(
+                OS.conditionalString()
+                    .onUnix(() -> "./bin/" + tool)
+                    .onWindows(() -> "cmd")
+                    .supply()
+            );
+            spec.args(
+                OS.<List<String>>conditional()
+                    .onWindows(() -> {
+                        ArrayList<String> result = new ArrayList<>();
+                        result.add("/c");
+                        result.add("bin\\" + tool + ".bat");
+                        for (String arg : args) {
+                            result.add(arg);
+                        }
+                        return result;
+                    })
+                    .onUnix(() -> Arrays.asList(args))
+                    .supply()
+            );
+        });
+    }
+
+    private Map<String, String> getESEnvironment() {
+        Map<String, String> environment= new HashMap<>();
+        environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
+        environment.put("ES_PATH_CONF", configFile.getParent().toString());
+        environment.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m");
+        environment.put("ES_TMPDIR", tmpDir.toString());
+        // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
+
+        environment.put("TMP", tmpDir.toString());
+        return environment;
+    }
+
+    private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
-        if (OperatingSystem.current().isWindows()) {
-            processBuilder.command(
-                "cmd", "/c",
-                new File(distroArtifact, "\\bin\\elasticsearch.bat").getAbsolutePath()
-            );
-        } else {
-            processBuilder.command(
-                new File(distroArtifact.getAbsolutePath(), "bin/elasticsearch").getAbsolutePath()
-            );
-        }
+
+        List<String> command = OS.<List<String>>conditional()
+            .onUnix(() -> Arrays.asList("./bin/elasticsearch"))
+            .onWindows(() -> Arrays.asList("cmd", "/c", "bin\\elasticsearch.bat"))
+            .supply();
+        processBuilder.command(command);
+        processBuilder.directory(workingDir.toFile());
+        Map<String, String> environment = processBuilder.environment();
+        // Don't inherit anything from the environment for as that would  lack reproducibility
+        environment.clear();
+        environment.putAll(getESEnvironment());
+        // don't buffer all in memory, make sure we don't block on the default pipes
+        processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
+        logger.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
-            processBuilder.directory(workingDir);
-            Map<String, String> environment = processBuilder.environment();
-            // Don't inherit anything from the environment for as that would  lack reproductability
-            environment.clear();
-            if (javaHome != null) {
-                environment.put("JAVA_HOME", getJavaHome().getAbsolutePath());
-            } else if (System.getenv().get("JAVA_HOME") != null) {
-                logger.warn("{}: No java home configured will use it from environment: {}",
-                    this, System.getenv().get("JAVA_HOME")
-                );
-                environment.put("JAVA_HOME", System.getenv().get("JAVA_HOME"));
-            } else {
-                logger.warn("{}: No javaHome configured, will rely on default java detection", this);
-            }
-            environment.put("ES_PATH_CONF", getConfigFile().getParentFile().getAbsolutePath());
-            environment.put("ES_JAVA_OPTIONS", "-Xms512m -Xmx512m");
-            // don't buffer all in memory, make sure we don't block on the default pipes
-            processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(getStdErrFile()));
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(getStdoutFile()));
             esProcess = processBuilder.start();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
@@ -216,6 +302,16 @@ public class ElasticsearchNode {
         return getTransportPortInternal().get(0);
     }
 
+    public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
+        return getHttpPortInternal();
+    }
+
+    public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
+        return getTransportPortInternal();
+    }
+
     synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
@@ -224,35 +320,46 @@ public class ElasticsearchNode {
         }
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
-        stopHandle(esProcess.toHandle());
+        // Test clusters are not reused, don't spend time on a graceful shutdown
+        stopHandle(esProcess.toHandle(), true);
         if (tailLogs) {
-            logFileContents("Standard output of node", getStdoutFile());
-            logFileContents("Standard error of node", getStdErrFile());
+            logFileContents("Standard output of node", esStdoutFile);
+            logFileContents("Standard error of node", esStderrFile);
         }
         esProcess = null;
     }
 
-    private void stopHandle(ProcessHandle processHandle) {
+    private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
-        if (processHandle.isAlive()) {
-            processHandle.children().forEach(this::stopHandle);
-        }
-        logProcessInfo("Terminating elasticsearch process:", processHandle.info());
-        if (processHandle.isAlive()) {
-            processHandle.destroy();
-        } else {
+        if (processHandle.isAlive() == false) {
             logger.info("Process was not running when we tried to terminate it.");
+            return;
         }
-        waitForProcessToExit(processHandle);
-        if (processHandle.isAlive()) {
+
+        // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
+        processHandle.children().forEach(each -> stopHandle(each, forcibly));
+
+        logProcessInfo(
+            "Terminating elasticsearch process" + (forcibly ? " forcibly " : "gracefully") + ":",
+            processHandle.info()
+        );
+
+        if (forcibly) {
+            processHandle.destroyForcibly();
+        } else {
+            processHandle.destroy();
+            waitForProcessToExit(processHandle);
+            if (processHandle.isAlive() == false) {
+                return;
+            }
             logger.info("process did not terminate after {} {}, stopping it forcefully",
-                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT
-            );
+                ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
             processHandle.destroyForcibly();
         }
+
         waitForProcessToExit(processHandle);
         if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate es process");
+            throw new TestClustersException("Was not able to terminate elasticsearch process");
         }
     }
 
@@ -265,14 +372,14 @@ public class ElasticsearchNode {
         );
     }
 
-    private void logFileContents(String description, File from) {
+    private void logFileContents(String description, Path from) {
         logger.error("{} `{}`", description, this);
-        try (BufferedReader reader = new BufferedReader(new FileReader(from))) {
-            reader.lines()
-                .map(line -> "  [" + name + "]" + line)
+        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
+            lines
+                .map(line -> "  " + line)
                 .forEach(logger::error);
         } catch (IOException e) {
-            throw new TestClustersException("Error reading " + description, e);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -289,47 +396,28 @@ public class ElasticsearchNode {
         }
     }
 
-    private File getConfigFile() {
-        return new File(workingDir, "config/elasticsearch.yml");
+    private void createWorkingDir(Path distroExtractDir) throws IOException {
+        services.sync(spec -> {
+            spec.from(distroExtractDir.toFile());
+            spec.into(workingDir.toFile());
+        });
+        Files.createDirectories(configFile.getParent());
+        Files.createDirectories(confPathRepo);
+        Files.createDirectories(confPathData);
+        Files.createDirectories(confPathLogs);
+        Files.createDirectories(tmpDir);
     }
 
-    private File getConfPathData() {
-        return new File(workingDir, "data");
-    }
-
-    private File getConfPathSharedData() {
-        return new File(workingDir, "sharedData");
-    }
-
-    private File getConfPathRepo() {
-        return new File(workingDir, "repo");
-    }
-
-    private File getConfPathLogs() {
-        return new File(workingDir, "logs");
-    }
-
-    private File getStdoutFile() {
-        return new File(getConfPathLogs(), "es.stdout.log");
-    }
-
-    private File getStdErrFile() {
-        return new File(getConfPathLogs(), "es.stderr.log");
-    }
-
-    private void configure() {
-        getConfigFile().getParentFile().mkdirs();
-        getConfPathRepo().mkdirs();
-        getConfPathData().mkdirs();
-        getConfPathSharedData().mkdirs();
-        getConfPathLogs().mkdirs();
+    private void createConfiguration()  {
         LinkedHashMap<String, String> config = new LinkedHashMap<>();
-        config.put("cluster.name", "cluster-" + safeName(name));
-        config.put("node.name", "node-" + safeName(name));
-        config.put("path.repo", getConfPathRepo().getAbsolutePath());
-        config.put("path.data", getConfPathData().getAbsolutePath());
-        config.put("path.logs", getConfPathLogs().getAbsolutePath());
-        config.put("path.shared_data", getConfPathSharedData().getAbsolutePath());
+
+        String nodeName = safeName(name);
+        config.put("cluster.name",nodeName);
+        config.put("node.name", nodeName);
+        config.put("path.repo", confPathRepo.toAbsolutePath().toString());
+        config.put("path.data", confPathData.toAbsolutePath().toString());
+        config.put("path.logs", confPathLogs.toAbsolutePath().toString());
+        config.put("path.shared_data", workingDir.resolve("sharedData").toString());
         config.put("node.attr.testattr", "test");
         config.put("node.portsfile", "true");
         config.put("http.port", "0");
@@ -342,18 +430,21 @@ public class ElasticsearchNode {
         if (Version.fromString(version).getMajor() >= 6) {
             config.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
+        if (Version.fromString(version).getMajor() >= 7) {
+            config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
+        }
         try {
             Files.write(
-                getConfigFile().toPath(),
+                configFile,
                 config.entrySet().stream()
                     .map(entry -> entry.getKey() + ": " + entry.getValue())
                     .collect(Collectors.joining("\n"))
                     .getBytes(StandardCharsets.UTF_8)
             );
         } catch (IOException e) {
-            throw new TestClustersException("Could not write config file: " + getConfigFile(), e);
+            throw new UncheckedIOException("Could not write config file: " + configFile, e);
         }
-        logger.info("Written config file:{} for {}", getConfigFile(), this);
+        logger.info("Written config file:{} for {}", configFile, this);
     }
 
     private void checkFrozen() {
@@ -368,41 +459,29 @@ public class ElasticsearchNode {
             .replaceAll("[^a-zA-Z0-9]+", "-");
     }
 
-    private File getHttpPortsFile() {
-        return new File(getConfPathLogs(), "http.ports");
-    }
-
-    private File getTransportPortFile() {
-        return new File(getConfPathLogs(), "transport.ports");
-    }
-
     private List<String> getTransportPortInternal() {
-        File transportPortFile = getTransportPortFile();
         try {
-            return readPortsFile(getTransportPortFile());
+            return readPortsFile(transportPortFile);
         } catch (IOException e) {
-            throw new TestClustersException(
+            throw new UncheckedIOException(
                 "Failed to read transport ports file: " + transportPortFile + " for " + this, e
             );
         }
     }
 
     private List<String> getHttpPortInternal() {
-        File httpPortsFile = getHttpPortsFile();
         try {
-            return readPortsFile(getHttpPortsFile());
+            return readPortsFile(httpPortsFile);
         } catch (IOException e) {
-            throw new TestClustersException(
+            throw new UncheckedIOException(
                 "Failed to read http ports file: " + httpPortsFile + " for " + this, e
             );
         }
     }
 
-    private List<String> readPortsFile(File file) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            return reader.lines()
-                .map(String::trim)
-                .collect(Collectors.toList());
+    private List<String> readPortsFile(Path file) throws IOException {
+        try(Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
+            return lines.map(String::trim).collect(Collectors.toList());
         }
     }
 

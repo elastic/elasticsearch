@@ -39,7 +39,7 @@ public class ForceMergeActionTests extends AbstractXContentTestCase<ForceMergeAc
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

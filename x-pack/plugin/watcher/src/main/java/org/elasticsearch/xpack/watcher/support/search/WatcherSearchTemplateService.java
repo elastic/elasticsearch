@@ -57,7 +57,9 @@ public class WatcherSearchTemplateService {
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
-        searchRequest.types(request.getTypes());
+        if (request.getTypes() != null) {
+            searchRequest.types(request.getTypes());
+        }
         searchRequest.searchType(request.getSearchType());
         searchRequest.indicesOptions(request.getIndicesOptions());
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();

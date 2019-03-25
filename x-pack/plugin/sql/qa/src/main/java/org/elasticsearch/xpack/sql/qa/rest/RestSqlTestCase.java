@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -49,6 +50,9 @@ import static org.hamcrest.Matchers.containsString;
  * user rather than to the JDBC driver or CLI.
  */
 public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+    
+    public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+    private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
     /**
      * Builds that map that is returned in the header for each column.
      */
@@ -57,7 +61,6 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         column.put("name", name);
         column.put("type", type);
         if ("jdbc".equals(mode)) {
-            column.put("jdbc_type", jdbcType.getVendorTypeNumber());
             column.put("display_size", size);
         }
         return unmodifiableMap(column);
@@ -69,13 +72,19 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
         Map<String, Object> expected = new HashMap<>();
         String mode = randomMode();
+        boolean columnar = randomBoolean();
+        
         expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
-        expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
-        assertResponse(expected, runSql(mode, "SELECT * FROM test"));
+        if (columnar) {
+            expected.put("values", singletonList(Arrays.asList("test", "test")));
+        } else {
+            expected.put("rows", Arrays.asList(singletonList("test"), singletonList("test")));
+        }
+        assertResponse(expected, runSql(mode, "SELECT * FROM test", columnar));
     }
 
     public void testNextPage() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -85,14 +94,15 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
-
+        
+        boolean columnar = randomBoolean();
         String sqlRequest =
                   "{\"query\":\""
                 + "   SELECT text, number, SQRT(number) AS s, SCORE()"
                 + "     FROM test"
                 + " ORDER BY number, SCORE()\", "
                 + "\"mode\":\"" + mode + "\", "
-            + "\"fetch_size\":2}";
+            + "\"fetch_size\":2" + columnarParameter(columnar) + "}";
 
         String cursor = null;
         for (int i = 0; i < 20; i += 2) {
@@ -100,7 +110,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             if (i == 0) {
                 response = runSql(new StringEntity(sqlRequest, ContentType.APPLICATION_JSON), "");
             } else {
-                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+                columnar = randomBoolean();
+                response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                         ContentType.APPLICATION_JSON), StringUtils.EMPTY);
             }
 
@@ -112,36 +123,56 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                         columnInfo(mode, "s", "double", JDBCType.DOUBLE, 25),
                         columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
             }
-            expected.put("rows", Arrays.asList(
-                    Arrays.asList("text" + i, i, Math.sqrt(i), 1.0),
-                    Arrays.asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), 1.0)));
+            
+            if (columnar) {
+                expected.put("values", Arrays.asList(
+                        Arrays.asList("text" + i, "text" + (i + 1)),
+                        Arrays.asList(i, i + 1),
+                        Arrays.asList(Math.sqrt(i), Math.sqrt(i + 1)),
+                        Arrays.asList(1.0, 1.0)));
+            } else {
+                expected.put("rows", Arrays.asList(
+                        Arrays.asList("text" + i, i, Math.sqrt(i), 1.0),
+                        Arrays.asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), 1.0)));
+            }
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
             assertNotNull(cursor);
         }
         Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + "}",
+        columnar = randomBoolean();
+        if (columnar) {
+            expected.put("values", emptyList());
+        } else {
+            expected.put("rows", emptyList());
+        }
+        assertResponse(expected, runSql(new StringEntity("{ \"cursor\":\"" + cursor + "\"" + mode(mode) + columnarParameter(columnar) + "}",
                 ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
     public void testTimeZone() throws IOException {
         String mode = randomMode();
+        boolean columnar = randomBoolean();
         index("{\"test\":\"2017-07-27 00:00:00\"}",
             "{\"test\":\"2017-07-27 01:00:00\"}");
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", singletonMap("test", singletonMap("type", "text")));
-        expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+        if (columnar) {
+            expected.put("values", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+        } else {
+            // TODO: what exactly is this test suppossed to do. We need to check the 2074 issue above.
+            expected.put("rows", Arrays.asList(singletonMap("test", "test"), singletonMap("test", "test")));
+        }
         expected.put("size", 2);
 
         // Default TimeZone is UTC
-        assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test), COUNT(*) FROM test"));
+        assertResponse(expected, runSql(mode, "SELECT DAY_OF_YEAR(test), COUNT(*) FROM test", columnar));
     }
 
     public void testScoreWithFieldNamedScore() throws IOException {
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         String mode = randomMode();
         StringBuilder bulk = new StringBuilder();
@@ -151,15 +182,19 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest(request);
 
         Map<String, Object> expected = new HashMap<>();
+        boolean columnar = randomBoolean();
         expected.put("columns", Arrays.asList(
             columnInfo(mode, "name", "text", JDBCType.VARCHAR, 0),
             columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
             columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
-        expected.put("rows", singletonList(Arrays.asList(
-            "test", 10, 1.0)));
-
-        assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()"));
-        assertResponse(expected, runSql(mode, "SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()"));
+        if (columnar) {
+            expected.put("values", Arrays.asList(singletonList("test"), singletonList(10), singletonList(1.0)));
+        } else {
+            expected.put("rows", singletonList(Arrays.asList("test", 10, 1.0)));
+        }
+        
+        assertResponse(expected, runSql(mode, "SELECT *, SCORE() FROM test ORDER BY SCORE()", columnar));
+        assertResponse(expected, runSql(mode, "SELECT name, \\\"score\\\", SCORE() FROM test ORDER BY SCORE()", columnar));
     }
 
     public void testSelectWithJoinFails() throws Exception {
@@ -194,8 +229,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     public void testSelectWhereExistsFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(() -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)"),
-            containsString("line 1:28: EXISTS is not yet supported"));
+        expectBadRequest(() -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)",
+                randomBoolean()), containsString("line 1:28: EXISTS is not yet supported"));
     }
 
 
@@ -279,6 +314,34 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expectBadRequest(() -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
+    
+    public void testUseColumnarForUnsupportedFormats() throws Exception {
+        String format = randomFrom("txt", "csv", "tsv");
+        index("{\"foo\":1}");
+        
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        request.addParameter("error_trace", "true");
+        request.addParameter("pretty", "true");
+        request.addParameter("format", format);
+        request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
+                ContentType.APPLICATION_JSON));
+        expectBadRequest(() -> {
+                client().performRequest(request);
+                return Collections.emptyMap();
+            }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
+    }
+    
+    public void testUseColumnarForTranslateRequest() throws IOException {
+        index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
+        
+        Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
+        request.setEntity(new StringEntity("{\"columnar\":true,\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
+                ContentType.APPLICATION_JSON));
+        expectBadRequest(() -> {
+                client().performRequest(request);
+                return Collections.emptyMap();
+            }, containsString("unknown field [columnar], parser not found"));
+    }
 
     protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
@@ -302,15 +365,29 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     private Map<String, Object> runSql(String mode, String sql) throws IOException {
-        return runSql(mode, sql, StringUtils.EMPTY);
+        return runSql(mode, sql, StringUtils.EMPTY, randomBoolean());
+    }
+    
+    private Map<String, Object> runSql(String mode, String sql, boolean columnar) throws IOException {
+        return runSql(mode, sql, StringUtils.EMPTY, columnar);
     }
 
-    private Map<String, Object> runSql(String mode, String sql, String suffix) throws IOException {
-        return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + "}", ContentType.APPLICATION_JSON), suffix);
+    private Map<String, Object> runSql(String mode, String sql, String suffix, boolean columnar) throws IOException {
+        // put an explicit "columnar": false parameter or omit it altogether, it should make no difference
+        return runSql(new StringEntity("{\"query\":\"" + sql + "\"" + mode(mode) + columnarParameter(columnar) + "}",
+                ContentType.APPLICATION_JSON), suffix);
+    }
+    
+    private String columnarParameter(boolean columnar) {
+        if (columnar == false && randomBoolean()) {
+            return "";
+        } else {
+            return ",\"columnar\":" + columnar;
+        }
     }
 
     protected Map<String, Object> runSql(HttpEntity sql, String suffix) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         if (randomBoolean()) {
@@ -333,8 +410,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     public void testBasicTranslateQuery() throws IOException {
         index("{\"test\":\"test\"}", "{\"test\":\"test\"}");
-
-        Map<String, Object> response = runSql(randomMode(), "SELECT * FROM test", "/translate/");
+        
+        Map<String, Object> response = runSql(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode(randomMode()) + "}",
+                ContentType.APPLICATION_JSON), "/translate/");
         assertEquals(1000, response.get("size"));
         @SuppressWarnings("unchecked")
         Map<String, Object> source = (Map<String, Object>) response.get("_source");
@@ -358,6 +436,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
 
     public void testBasicQueryWithParameters() throws IOException {
         String mode = randomMode();
+        boolean columnar = randomBoolean();
         index("{\"test\":\"foo\"}",
                 "{\"test\":\"bar\"}");
 
@@ -366,10 +445,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
                 columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0),
                 columnInfo(mode, "param", "integer", JDBCType.INTEGER, 11)
         ));
-        expected.put("rows", singletonList(Arrays.asList("foo", 10)));
+        if (columnar) {
+            expected.put("values", Arrays.asList(singletonList("foo"), singletonList(10)));
+        } else {
+            expected.put("rows", Arrays.asList(Arrays.asList("foo", 10)));
+        }
         assertResponse(expected, runSql(new StringEntity("{\"query\":\"SELECT test, ? param FROM test WHERE test = ?\", " +
                 "\"params\":[{\"type\": \"integer\", \"value\": 10}, {\"type\": \"keyword\", \"value\": \"foo\"}]"
-                + mode(mode) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY));
+                + mode(mode) + columnarParameter(columnar) + "}", ContentType.APPLICATION_JSON), StringUtils.EMPTY));
     }
 
     public void testBasicTranslateQueryWithFilter() throws IOException {
@@ -641,7 +724,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than the {@code format} parameter.
      */
     private Tuple<String, String> runSqlAsText(String suffix, HttpEntity entity, String accept) throws IOException {
-        Request request = new Request("POST", "/_sql" + suffix);
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT + suffix);
         request.addParameter("error_trace", "true");
         request.setEntity(entity);
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -659,7 +742,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
      * rather than an {@code Accept} header.
      */
     private Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
-        Request request = new Request("POST", "/_sql");
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
         request.setJsonEntity("{\"query\":\"" + sql + "\"}");
@@ -719,7 +802,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_doc/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

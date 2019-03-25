@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -160,7 +161,7 @@ public class MovFnUnitTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
+        return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
     
     /**

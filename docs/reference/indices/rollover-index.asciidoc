@@ -18,6 +18,15 @@ from the original (rolled-over) index.
 In this scenario, the write index will have its rollover alias' `is_write_index` set to `false`, while the newly created index
 will now have the rollover alias pointing to it as the write index with `is_write_index` as `true`.
 
+The available conditions are:
+
+.`conditions` parameters
+|===
+| Name     | Description
+| max_age  | The maximum age of the index
+| max_docs | The maximum number of documents the index should contain. This does not add documents multiple times for replicas
+| max_size | The maximum estimated size of the primary shard of the index
+|===
 
 [source,js]
 --------------------------------------------------

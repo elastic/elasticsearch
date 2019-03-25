@@ -26,8 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.client.ccr.PutFollowRequest.FOLLOWER_INDEX_FIELD;
-
 public final class ResumeFollowRequest extends FollowConfig implements Validatable, ToXContentObject {
 
     private final String followerIndex;
@@ -39,7 +37,6 @@ public final class ResumeFollowRequest extends FollowConfig implements Validatab
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
         toXContentFragment(builder, params);
         builder.endObject();
         return builder;

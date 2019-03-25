@@ -26,6 +26,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -33,8 +34,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -51,7 +50,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
             client().prepareIndex("index", "type", "2").setSource("foo", "bar").get();
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
-            // expected
+            // general case, the parsing code complains that it can't parse "bar" as a "long"
+            assertThat(e.getMessage(),
+                    Matchers.containsString("failed to parse field [foo] of type [long]"));
+        } catch (IllegalArgumentException e) {
+            // rare case: the node that processes the index request doesn't have the mappings
+            // yet and sends a mapping update to the master node to map "bar" as "text". This
+            // fails as it had been already mapped as a long by the previous index request.
+            assertThat(e.getMessage(),
+                    Matchers.containsString("mapper [foo] of different type, current_type [long], merged_type [text]"));
         }
     }
 
@@ -73,20 +80,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         Map<String, Object> typeMappingsMap = typeMappings.getSourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) typeMappingsMap.get("properties");
         assertTrue("Could not find [" + field + "] in " + typeMappingsMap.toString(), properties.containsKey(field));
-    }
-
-    public void testMappingsPropagatedToMasterNodeImmediately() throws IOException {
-        assertAcked(prepareCreate("index"));
-
-        // works when the type has been dynamically created
-        client().prepareIndex("index", "type", "1").setSource("foo", 3).get();
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "foo");
-
-        // works if the type already existed
-        client().prepareIndex("index", "type", "1").setSource("bar", "baz").get();
-        mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
-        assertMappingsHaveField(mappings, "index", "type", "bar");
     }
 
     public void testConcurrentDynamicUpdates() throws Throwable {

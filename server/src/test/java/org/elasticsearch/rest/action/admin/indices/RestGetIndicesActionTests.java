@@ -23,8 +23,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,7 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.mockito.Mockito.mock;
 
-public class RestGetIndicesActionTests extends ESTestCase {
+public class RestGetIndicesActionTests extends RestActionTestCase {
 
     /**
      * Test that setting the "include_type_name" parameter raises a warning

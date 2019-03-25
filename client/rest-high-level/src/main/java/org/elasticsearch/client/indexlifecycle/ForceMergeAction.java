@@ -33,7 +33,7 @@ public class ForceMergeAction implements LifecycleAction, ToXContentObject {
     private static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        false, a -> {
+        true, a -> {
         int maxNumSegments = (int) a[0];
         return new ForceMergeAction(maxNumSegments);
     });

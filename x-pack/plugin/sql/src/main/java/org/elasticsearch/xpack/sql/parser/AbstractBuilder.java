@@ -92,6 +92,25 @@ abstract class AbstractBuilder extends SqlBaseBaseVisitor<Object> {
         return new Source(new Location(token.getLine(), token.getCharPositionInLine()), text);
     }
 
+    Source source(ParserRuleContext begin, ParserRuleContext end) {
+        Check.notNull(begin, "begin is null");
+        Check.notNull(end, "end is null");
+        Token start = begin.start;
+        Token stop = end.stop != null ? end.stop : begin.stop;
+        Interval interval = new Interval(start.getStartIndex(), stop.getStopIndex());
+        String text = start.getInputStream().getText(interval);
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
+    }
+
+    static Source source(TerminalNode begin, ParserRuleContext end) {
+        Check.notNull(begin, "begin is null");
+        Check.notNull(end, "end is null");
+        Token start = begin.getSymbol();
+        Token stop = end.stop != null ? end.stop : start;
+        String text = start.getInputStream().getText(new Interval(start.getStartIndex(), stop.getStopIndex()));
+        return new Source(new Location(start.getLine(), start.getCharPositionInLine()), text);
+    }
+
     /**
      * Retrieves the raw text of the node (without interpreting it as a string literal).
      */

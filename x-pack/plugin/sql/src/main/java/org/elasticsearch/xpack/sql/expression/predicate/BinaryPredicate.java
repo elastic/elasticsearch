@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Source;
 
@@ -21,12 +19,10 @@ import java.util.Objects;
  */
 public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryScalarFunction {
 
-    private final String name;
     private final F function;
 
     protected BinaryPredicate(Source source, Expression left, Expression right, F function) {
         super(source, left, right);
-        this.name = name(left, right, function.symbol());
         this.function = function;
     }
 
@@ -65,35 +61,11 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
                 && Objects.equals(right(), other.right());
     }
 
-    @Override
-    public String name() {
-        return name;
-    }
-
     public String symbol() {
         return function.symbol();
     }
 
     public F function() {
         return function;
-    }
-
-    private static String name(Expression left, Expression right, String symbol) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(Expressions.name(left));
-        if (!(left instanceof Literal)) {
-            sb.insert(0, "(");
-            sb.append(")");
-        }
-        sb.append(" ");
-        sb.append(symbol);
-        sb.append(" ");
-        int pos = sb.length();
-        sb.append(Expressions.name(right));
-        if (!(right instanceof Literal)) {
-            sb.insert(pos, "(");
-            sb.append(")");
-        }
-        return sb.toString();
     }
 }

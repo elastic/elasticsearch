@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -57,8 +56,7 @@ public class RoutingService extends AbstractLifecycleComponent {
     private AtomicBoolean rerouting = new AtomicBoolean();
 
     @Inject
-    public RoutingService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
-        super(settings);
+    public RoutingService(ClusterService clusterService, AllocationService allocationService) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
     }
@@ -79,11 +77,6 @@ public class RoutingService extends AbstractLifecycleComponent {
      * Initiates a reroute.
      */
     public final void reroute(String reason) {
-        performReroute(reason);
-    }
-
-    // visible for testing
-    protected void performReroute(String reason) {
         try {
             if (lifecycle.stopped()) {
                 return;

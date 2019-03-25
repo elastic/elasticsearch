@@ -51,7 +51,6 @@ public class Exporters extends AbstractLifecycleComponent {
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
                      ClusterService clusterService, XPackLicenseState licenseState,
                      ThreadContext threadContext) {
-        super(settings);
         this.settings = settings;
         this.factories = factories;
         this.exporters = new AtomicReference<>(emptyMap());

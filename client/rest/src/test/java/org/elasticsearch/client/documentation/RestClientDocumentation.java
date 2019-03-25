@@ -112,13 +112,6 @@ public class RestClientDocumentation {
             //end::rest-client-init-default-headers
         }
         {
-            //tag::rest-client-init-max-retry-timeout
-            RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
-            builder.setMaxRetryTimeoutMillis(10000); // <1>
-            //end::rest-client-init-max-retry-timeout
-        }
-        {
             //tag::rest-client-init-node-selector
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200, "http"));
@@ -305,8 +298,7 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
         }
         {

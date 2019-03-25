@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -31,11 +32,23 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+
+import org.elasticsearch.script.DeprecationMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 
 public class ConditionalProcessor extends AbstractProcessor {
+
+    private static final Map<String, String> DEPRECATIONS;
+    static {
+        Map<String, String> deprecations = new HashMap<>();
+        deprecations.put(
+                "_type",
+                "[types removal] Looking up doc types [_type] in scripts is deprecated."
+        );
+        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+    }
 
     static final String TYPE = "conditional";
 
@@ -81,7 +94,8 @@ public class ConditionalProcessor extends AbstractProcessor {
     boolean evaluate(IngestDocument ingestDocument) {
         IngestConditionalScript script =
             scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
+        return script.execute(new UnmodifiableIngestData(
+                new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
     }
 
     Processor getProcessor() {

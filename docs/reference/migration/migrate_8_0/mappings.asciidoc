@@ -1,0 +1,9 @@
+[float]
+[[breaking_80_mappings_changes]]
+=== Mapping changes
+
+[float]
+==== Limiting the number of completion contexts
+
+The number of completion contexts within a single completion field
+has been limited to 10.

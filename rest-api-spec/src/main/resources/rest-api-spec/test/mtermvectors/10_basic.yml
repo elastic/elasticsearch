@@ -7,15 +7,13 @@ setup:
           index: testidx
           body:
             mappings:
-              _doc:
-                properties:
-                  text:
-                    type :         "text"
-                    term_vector :  "with_positions_offsets"
+              properties:
+                text:
+                  type :         "text"
+                  term_vector :  "with_positions_offsets"
   - do:
       index:
         index: testidx
-        type:  _doc
         id:    testing_document
         body:  {"text" : "The quick brown fox is brown."}
 

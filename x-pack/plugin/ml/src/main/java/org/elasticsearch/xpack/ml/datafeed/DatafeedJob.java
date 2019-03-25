@@ -128,7 +128,6 @@ class DatafeedJob {
         auditor.info(jobId, msg);
         LOGGER.info("[{}] {}", jobId, msg);
 
-
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
         run(lookbackStartTimeMs, lookbackEnd, request);
@@ -381,7 +380,7 @@ class DatafeedJob {
             }
         }
 
-        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
+        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
         LOGGER.debug("[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]", jobId, error, recordCount,
                 lastEndTimeMs, isRunning(), dataExtractor.isCancelled());
 

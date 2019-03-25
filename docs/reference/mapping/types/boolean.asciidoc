@@ -20,11 +20,9 @@ For example:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "is_published": {
-          "type": "boolean"
-        }
+    "properties": {
+      "is_published": {
+        "type": "boolean"
       }
     }
   }

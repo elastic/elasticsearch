@@ -5,66 +5,57 @@ setup:
           index: test
           body:
               mappings:
-                doc:
-                  properties:
-                    keyword:
-                      type: keyword
-                    date:
-                      type: date
+                properties:
+                  keyword:
+                    type: keyword
+                  date:
+                    type: date
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "date": "2014-03-03T00:00:00", "keyword": "dgx" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         body:  { "date": "2015-03-03T00:00:00", "keyword": "dfs" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    3
         body:  { "date": "2016-03-03T00:00:00", "keyword": "foobar" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    4
         body:  { "date": "2017-03-03T00:00:00", "keyword": "foo" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    5
         body:  { "date": "2018-03-03T00:00:00", "keyword": "bar" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    6
         body:  { "date": "2019-03-03T00:00:00", "keyword": "baz" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    7
         body:  { "date": "2020-03-03T00:00:00", "keyword": "qux" }
 
   - do:
       index:
         index: test
-        type:  doc
         id:    8
         body:  { "date": "2021-03-03T00:00:00", "keyword": "quux" }
 

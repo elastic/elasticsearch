@@ -42,14 +42,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -63,9 +64,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -77,6 +78,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
 
     private final CountDownLatch blockIncomingRequestsLatch = new CountDownLatch(1);
+    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
     protected final Transport transport;
     protected final ConnectionManager connectionManager;
     protected final ThreadPool threadPool;
@@ -149,13 +151,12 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders) {
         this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders,
-            new ConnectionManager(settings, transport, threadPool));
+            new ConnectionManager(settings, transport));
     }
 
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
-        super(settings);
         // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
         this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
             TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
@@ -224,7 +225,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     @Override
     protected void doStart() {
-        transport.addMessageListener(this);
+        transport.setMessageListener(this);
         connectionManager.addListener(this);
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
@@ -483,6 +484,14 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         connectionManager.disconnectFromNode(node);
     }
 
+    public void addMessageListener(TransportMessageListener listener) {
+        messageListener.listeners.add(listener);
+    }
+
+    public boolean removeMessageListener(TransportMessageListener listener) {
+        return messageListener.listeners.remove(listener);
+    }
+
     public void addConnectionListener(TransportConnectionListener listener) {
         connectionManager.addListener(listener);
     }
@@ -623,7 +632,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             }
             if (timeoutHandler != null) {
                 assert options.timeout() != null;
-                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
+                timeoutHandler.scheduleTimeout(options.timeout());
             }
             connection.sendRequest(requestId, action, request, options); // local node optimization happens upstream
         } catch (final Exception e) {
@@ -855,38 +864,6 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         transport.registerRequestHandler(reg);
     }
 
-    /** called by the {@link Transport} implementation once a request has been sent */
-    public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                              TransportRequestOptions options) {
-        if (traceEnabled() && shouldTraceAction(action)) {
-            traceRequestSent(node, requestId, action, options);
-        }
-    }
-
-    protected boolean traceEnabled() {
-        return tracerLog.isTraceEnabled();
-    }
-
-    /** called by the {@link Transport} implementation once a response was sent to calling node */
-    @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
-        if (traceEnabled() && shouldTraceAction(action)) {
-            traceResponseSent(requestId, action);
-        }
-    }
-
-    /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
-    @Override
-    public void onResponseSent(long requestId, String action, Exception e) {
-        if (traceEnabled() && shouldTraceAction(action)) {
-            traceResponseSent(requestId, action, e);
-        }
-    }
-
-    protected void traceResponseSent(long requestId, String action, Exception e) {
-        tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
-    }
-
     /**
      * called by the {@link Transport} implementation when an incoming request arrives but before
      * any parsing of it has happened (with the exception of the requestId and action)
@@ -898,23 +875,52 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         } catch (InterruptedException e) {
             logger.trace("interrupted while waiting for incoming requests block to be removed");
         }
-        if (traceEnabled() && shouldTraceAction(action)) {
-            traceReceivedRequest(requestId, action);
+        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] received request", requestId, action);
         }
+        messageListener.onRequestReceived(requestId, action);
     }
 
-    public RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
-        return transport.getRequestHandler(action);
+    /** called by the {@link Transport} implementation once a request has been sent */
+    @Override
+    public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                              TransportRequestOptions options) {
+        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+        }
+        messageListener.onRequestSent(node, requestId, action, request, options);
     }
-
 
     @Override
     public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
         if (holder == null) {
             checkForTimeout(requestId);
-        } else if (traceEnabled() && shouldTraceAction(holder.action())) {
-            traceReceivedResponse(requestId, holder.connection().getNode(), holder.action());
+        } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
+            tracerLog.trace("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
         }
+        messageListener.onResponseReceived(requestId, holder);
+    }
+
+    /** called by the {@link Transport} implementation once a response was sent to calling node */
+    @Override
+    public void onResponseSent(long requestId, String action, TransportResponse response) {
+        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+            tracerLog.trace("[{}][{}] sent response", requestId, action);
+        }
+        messageListener.onResponseSent(requestId, action, response);
+    }
+
+    /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
+    @Override
+    public void onResponseSent(long requestId, String action, Exception e) {
+        if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
+            tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+        }
+        messageListener.onResponseSent(requestId, action, e);
+    }
+
+    public RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
+        return transport.getRequestHandler(action);
     }
 
     private void checkForTimeout(long requestId) {
@@ -936,14 +942,14 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             sourceNode = null;
         }
         // call tracer out of lock
-        if (traceEnabled() == false) {
+        if (tracerLog.isTraceEnabled() == false) {
             return;
         }
         if (action == null) {
             assert sourceNode == null;
-            traceUnresolvedResponse(requestId);
+            tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
         } else if (shouldTraceAction(action)) {
-            traceReceivedResponse(requestId, sourceNode, action);
+            tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
         }
     }
 
@@ -954,34 +960,23 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                 responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
-            getExecutorService().execute(() -> {
-                for (Transport.ResponseContext holderToNotify : pruned) {
-                    holderToNotify.handler().handleException(new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+            getExecutorService().execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (Transport.ResponseContext holderToNotify : pruned) {
+                        holderToNotify.handler().handleException(
+                            new NodeDisconnectedException(connection.getNode(), holderToNotify.action()));
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "onConnectionClosed(" + connection.getNode() + ")";
                 }
             });
         } catch (EsRejectedExecutionException ex) {
             logger.debug("Rejected execution on onConnectionClosed", ex);
         }
-    }
-
-    protected void traceReceivedRequest(long requestId, String action) {
-        tracerLog.trace("[{}][{}] received request", requestId, action);
-    }
-
-    protected void traceResponseSent(long requestId, String action) {
-        tracerLog.trace("[{}][{}] sent response", requestId, action);
-    }
-
-    protected void traceReceivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-        tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
-    }
-
-    protected void traceUnresolvedResponse(long requestId) {
-        tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
-    }
-
-    protected void traceRequestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-        tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
     }
 
     final class TimeoutHandler implements Runnable {
@@ -990,7 +985,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         private final long sentTime = threadPool.relativeTimeInMillis();
         private final String action;
         private final DiscoveryNode node;
-        volatile ScheduledFuture future;
+        volatile Scheduler.Cancellable cancellable;
 
         TimeoutHandler(long requestId, DiscoveryNode node, String action) {
             this.requestId = requestId;
@@ -1025,12 +1020,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         public void cancel() {
             assert responseHandlers.contains(requestId) == false :
                 "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
-            FutureUtils.cancel(future);
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
         }
 
         @Override
         public String toString() {
             return "timeout handler for [" + requestId + "][" + action + "]";
+        }
+
+        private void scheduleTimeout(TimeValue timeout) {
+            this.cancellable = threadPool.schedule(this, timeout, ThreadPool.Names.GENERIC);
         }
     }
 
@@ -1242,5 +1243,46 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
 
     private boolean isLocalNode(DiscoveryNode discoveryNode) {
         return Objects.requireNonNull(discoveryNode, "discovery node must not be null").equals(localNode);
+    }
+
+    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
+
+        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void onRequestReceived(long requestId, String action) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onRequestReceived(requestId, action);
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action, TransportResponse response) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseSent(requestId, action, response);
+            }
+        }
+
+        @Override
+        public void onResponseSent(long requestId, String action, Exception error) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseSent(requestId, action, error);
+            }
+        }
+
+        @Override
+        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                  TransportRequestOptions finalOptions) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onRequestSent(node, requestId, action, request, finalOptions);
+            }
+        }
+
+        @Override
+        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
+            for (TransportMessageListener listener : listeners) {
+                listener.onResponseReceived(requestId, holder);
+            }
+        }
     }
 }

@@ -17,14 +17,12 @@
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     1
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_scroll
-        type:   test
         id:     2
         body:   { foo: 1 }
 

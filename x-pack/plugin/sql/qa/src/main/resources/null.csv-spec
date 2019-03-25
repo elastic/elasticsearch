@@ -3,7 +3,7 @@
 //
 
 dateTimeOverNull
-SELECT YEAR(CAST(NULL AS DATE)) d;
+SELECT YEAR(CAST(NULL AS DATETIME)) d;
 
 d:i
 null

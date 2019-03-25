@@ -68,7 +68,7 @@ public final class Sets {
     public static <T> boolean haveEmptyIntersection(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return !left.stream().anyMatch(k -> right.contains(k));
+        return left.stream().noneMatch(right::contains);
     }
 
     /**
@@ -143,5 +143,20 @@ public final class Sets {
         Set<T> union = new HashSet<>(left);
         union.addAll(right);
         return union;
+    }
+
+    public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
+        Objects.requireNonNull(set1);
+        Objects.requireNonNull(set2);
+        final Set<T> left;
+        final Set<T> right;
+        if (set1.size() < set2.size()) {
+            left = set1;
+            right = set2;
+        } else {
+            left = set2;
+            right = set1;
+        }
+        return left.stream().filter(right::contains).collect(Collectors.toSet());
     }
 }

@@ -39,14 +39,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public abstract class AbstractIndicesPrivileges {
     static final ParseField NAMES = new ParseField("names");
+    static final ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
     static final ParseField PRIVILEGES = new ParseField("privileges");
     static final ParseField FIELD_PERMISSIONS = new ParseField("field_security");
     static final ParseField QUERY = new ParseField("query");
 
     protected final Set<String> indices;
     protected final Set<String> privileges;
+    protected final boolean allowRestrictedIndices;
 
-    AbstractIndicesPrivileges(Collection<String> indices, Collection<String> privileges) {
+    AbstractIndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices) {
         if (null == indices || indices.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must refer to at least one index name or index name pattern");
         }
@@ -55,6 +57,7 @@ public abstract class AbstractIndicesPrivileges {
         }
         this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
         this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
+        this.allowRestrictedIndices = allowRestrictedIndices;
     }
 
     /**
@@ -71,6 +74,15 @@ public abstract class AbstractIndicesPrivileges {
      */
     public Set<String> getPrivileges() {
         return this.privileges;
+    }
+
+    /**
+     * True if the privileges cover restricted internal indices too. Certain indices are reserved for internal services and should be
+     * transparent to ordinary users. For that matter, when granting privileges, you also have to toggle this flag to confirm that all
+     * indices, including restricted ones, are in the scope of this permission. By default this is false.
+     */
+    public boolean allowRestrictedIndices() {
+        return this.allowRestrictedIndices;
     }
 
     /**

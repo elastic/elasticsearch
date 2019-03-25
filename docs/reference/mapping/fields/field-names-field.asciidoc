@@ -24,10 +24,8 @@ execute `exists` queries using those fields you might want to disable
 PUT tweets
 {
   "mappings": {
-    "_doc": {
-      "_field_names": {
-        "enabled": false
-      }
+    "_field_names": {
+      "enabled": false
     }
   }
 }

@@ -107,8 +107,8 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC));
+                    ISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970),
+                    ISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -184,8 +184,9 @@ public class Joda {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
             // this sucks we should use the root local by default and not be dependent on the node
             return new JodaDateFormatter(input,
-                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC),
-                    StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC));
+                    StrictISODateTimeFormat.dateOptionalTimeParser().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC)
+                        .withDefaultYear(1970),
+                    StrictISODateTimeFormat.dateTime().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970));
         } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
             formatter = StrictISODateTimeFormat.dateTime();
         } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
@@ -262,7 +263,7 @@ public class Joda {
             }
         }
 
-        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        formatter = formatter.withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter(input, formatter, formatter);
     }
 
@@ -311,7 +312,7 @@ public class Joda {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(longFormatter.withZone(DateTimeZone.UTC).getPrinter(),
             new DateTimeParser[]{longFormatter.getParser(), shortFormatter.getParser(), new EpochTimeParser(true)});
 
-        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC);
+        DateTimeFormatter formatter = builder.toFormatter().withLocale(Locale.ROOT).withZone(DateTimeZone.UTC).withDefaultYear(1970);
         return new JodaDateFormatter("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis", formatter, formatter);
     }
 

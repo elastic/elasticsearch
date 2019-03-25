@@ -21,7 +21,7 @@ public abstract class AbstractHlrcXContentTestCase<T extends ToXContent, H> exte
         AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
             getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser,
             p -> convertHlrcToInternal(doHlrcParseInstance(p)),
-            this::assertEqualInstances, true, getToXContentParams());
+            this::assertEqualInstances, assertToXContentEquivalence(), getToXContentParams());
     }
 
     /**

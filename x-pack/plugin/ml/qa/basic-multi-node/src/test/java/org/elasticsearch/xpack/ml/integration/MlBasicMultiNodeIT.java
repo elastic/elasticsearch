@@ -106,12 +106,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
-                + "    \"_doc\": {"
-                + "      \"properties\": {"
-                + "        \"time\": { \"type\":\"date\"},"
-                + "        \"airline\": { \"type\":\"keyword\"},"
-                + "        \"responsetime\": { \"type\":\"float\"}"
-                + "      }"
+                + "    \"properties\": {"
+                + "      \"time\": { \"type\":\"date\"},"
+                + "      \"airline\": { \"type\":\"keyword\"},"
+                + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
                 + "}");

@@ -3,7 +3,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -17,7 +16,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -31,7 +29,6 @@
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "test" }
   - do:
@@ -47,13 +44,11 @@
         index: test
         body:
           mappings:
-            _doc:
-              _source:
-                enabled: false
+            _source:
+              enabled: false
   - do:
       index:
         index:  test
-        type:   _doc
         id:     1
         body:   { age: 23 }
   - do:

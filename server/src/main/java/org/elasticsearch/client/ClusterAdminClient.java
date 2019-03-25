@@ -578,13 +578,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
 
     /**
      * Stores an ingest pipeline
-     * @deprecated use {@link #preparePutPipeline(String, BytesReference, XContentType)}
-     */
-    @Deprecated
-    PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source);
-
-    /**
-     * Stores an ingest pipeline
      */
     PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType);
 
@@ -632,12 +625,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Simulates an ingest pipeline
      */
     ActionFuture<SimulatePipelineResponse> simulatePipeline(SimulatePipelineRequest request);
-
-    /**
-     * Simulates an ingest pipeline
-     */
-    @Deprecated
-    SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source);
 
     /**
      * Simulates an ingest pipeline

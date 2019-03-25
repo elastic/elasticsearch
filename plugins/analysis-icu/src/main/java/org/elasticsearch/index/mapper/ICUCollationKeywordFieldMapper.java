@@ -46,9 +46,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -208,7 +208,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         };
 
         @Override
-        public DocValueFormat docValueFormat(final String format, final DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(final String format, final ZoneId timeZone) {
             return COLLATE_FORMAT;
         }
     }

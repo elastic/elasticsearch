@@ -33,7 +33,7 @@ public class PutFollowResponseTests extends ESTestCase {
             this::createTestInstance,
             PutFollowResponseTests::toXContent,
             PutFollowResponse::fromXContent)
-            .supportsUnknownFields(false)
+            .supportsUnknownFields(true)
             .test();
     }
 

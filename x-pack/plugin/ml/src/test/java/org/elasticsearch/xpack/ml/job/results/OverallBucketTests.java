@@ -26,7 +26,7 @@ public class OverallBucketTests extends AbstractWireSerializingTestCase<OverallB
         for (int i = 0; i < jobCount; ++i) {
             jobs.add(new OverallBucket.JobInfo(JobTests.randomValidJobId(), randomDoubleBetween(0.0, 100.0, true)));
         }
-        return new OverallBucket(new Date(randomNonNegativeLong()),
+        return new OverallBucket(new Date(randomLongBetween(0, 3000000000000L)),
                 randomIntBetween(60, 24 * 3600),
                 randomDoubleBetween(0.0, 100.0, true),
                 jobs,

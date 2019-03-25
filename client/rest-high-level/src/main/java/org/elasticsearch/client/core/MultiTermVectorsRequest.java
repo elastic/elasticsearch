@@ -37,7 +37,7 @@ public class MultiTermVectorsRequest implements ToXContentObject, Validatable {
      * Constructs an empty MultiTermVectorsRequest
      * After that use {@code add} method to add individual {@code TermVectorsRequest} to it.
      */
-    public MultiTermVectorsRequest() {};
+    public MultiTermVectorsRequest() {}
 
     /**
      * Constructs a MultiTermVectorsRequest from the given document ids

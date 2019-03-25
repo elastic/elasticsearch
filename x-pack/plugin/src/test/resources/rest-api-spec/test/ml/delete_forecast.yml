@@ -34,7 +34,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0"
         body:
           {
@@ -56,7 +55,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0"
         body:
           {
@@ -78,7 +76,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_request_stats_someforecastid"
         body:
           {
@@ -112,19 +109,16 @@ setup:
       get:
         id: delete-forecast-job_model_forecast_request_stats_someforecastid
         index: .ml-anomalies-shared
-        type: doc
   - do:
       catch: missing
       get:
         id: delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0
         index: .ml-anomalies-shared
-        type: doc
   - do:
       catch: missing
       get:
         id: delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0
         index: .ml-anomalies-shared
-        type: doc
 
 ---
 "Test delete on _all forecasts not allow no forecasts":
@@ -141,5 +135,13 @@ setup:
       ml.delete_forecast:
         job_id: delete-forecast-job
         forecast_id: _all
+        allow_no_forecasts: true
+  - match: { acknowledged: true }
+
+---
+"Test delete all where no forecast_id is set":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
         allow_no_forecasts: true
   - match: { acknowledged: true }

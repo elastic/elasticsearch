@@ -6,8 +6,6 @@
 <titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
-beta[]
-
 Retrieves the current {ilm} ({ilm-init}) status.
 
 ==== Request

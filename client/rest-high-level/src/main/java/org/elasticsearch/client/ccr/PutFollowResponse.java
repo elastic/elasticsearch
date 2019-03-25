@@ -33,7 +33,7 @@ public final class PutFollowResponse {
     static final ParseField INDEX_FOLLOWING_STARTED = new ParseField("index_following_started");
 
     private static final ConstructingObjectParser<PutFollowResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "put_follow_response", args -> new PutFollowResponse((boolean) args[0], (boolean) args[1], (boolean) args[2]));
+        "put_follow_response", true, args -> new PutFollowResponse((boolean) args[0], (boolean) args[1], (boolean) args[2]));
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), FOLLOW_INDEX_CREATED);

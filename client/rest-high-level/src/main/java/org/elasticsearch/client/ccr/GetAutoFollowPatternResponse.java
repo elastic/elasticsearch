@@ -42,7 +42,7 @@ public final class GetAutoFollowPatternResponse {
     static final ParseField PATTERN_FIELD = new ParseField("pattern");
 
     private static final ConstructingObjectParser<Map.Entry<String, Pattern>, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-        "get_auto_follow_pattern_response", args -> new AbstractMap.SimpleEntry<>((String) args[0], (Pattern) args[1]));
+        "get_auto_follow_pattern_response", true, args -> new AbstractMap.SimpleEntry<>((String) args[0], (Pattern) args[1]));
 
     static {
         ENTRY_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -50,7 +50,7 @@ public final class GetAutoFollowPatternResponse {
     }
 
     private static final ConstructingObjectParser<GetAutoFollowPatternResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_auto_follow_pattern_response", args -> {
+        "get_auto_follow_pattern_response", true, args -> {
             @SuppressWarnings("unchecked")
             List<Map.Entry<String, Pattern>> entries = (List<Map.Entry<String, Pattern>>) args[0];
             return new GetAutoFollowPatternResponse(new TreeMap<>(entries.stream()
@@ -92,7 +92,7 @@ public final class GetAutoFollowPatternResponse {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Pattern, Void> PARSER = new ConstructingObjectParser<>(
-            "pattern", args -> new Pattern((String) args[0], (List<String>) args[1], (String) args[2]));
+            "pattern", true, args -> new Pattern((String) args[0], (List<String>) args[1], (String) args[2]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.REMOTE_CLUSTER_FIELD);

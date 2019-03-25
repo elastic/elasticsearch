@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
@@ -77,11 +78,11 @@ public class PipelineHttpResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testDoPublishTrue() {
-        assertPublishSucceeds(resource, "/_ingest/pipeline", pipelineName, ByteArrayEntity.class);
+        assertPublishSucceeds(resource, "/_ingest/pipeline", pipelineName, Collections.emptyMap(), ByteArrayEntity.class);
     }
 
     public void testDoPublishFalseWithException() {
-        assertPublishWithException(resource, "/_ingest/pipeline", pipelineName, ByteArrayEntity.class);
+        assertPublishWithException(resource, "/_ingest/pipeline", pipelineName, Collections.emptyMap(), ByteArrayEntity.class);
     }
 
     public void testParameters() {

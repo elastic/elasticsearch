@@ -7,16 +7,14 @@
             index:  test
             body:
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: polish
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: polish
 
     - do:
         index:
             index:  test
-            type:   type
             id:     1
             body:   { "text": "studenta był" }
     - do:

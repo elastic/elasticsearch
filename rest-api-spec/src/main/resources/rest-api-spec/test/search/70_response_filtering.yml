@@ -6,14 +6,12 @@
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test
-          type:   test
           id:     2
           body:   { foo: bar }
 
@@ -96,9 +94,9 @@
       bulk:
         refresh: true
         body: |
-          {"index": {"_index": "index-1", "_type": "type-1", "_id": "1"}}
+          {"index": {"_index": "index-1", "_id": "1"}}
           {"name": "First document", "properties": {"size": 123, "meta": {"foo": "bar"}}}
-          {"index": {"_index": "index-1", "_type": "type-1", "_id": "2"}}
+          {"index": {"_index": "index-1", "_id": "2"}}
           {"name": "Second document", "properties": {"size": 465, "meta": {"foo": "bar", "baz": "qux"}}}
 
   - do:

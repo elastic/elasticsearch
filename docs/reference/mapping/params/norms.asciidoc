@@ -20,7 +20,7 @@ Norms can be disabled (but not reenabled) after the fact, using the
 
 [source,js]
 ------------
-PUT my_index/_mapping/_doc
+PUT my_index/_mapping
 {
   "properties": {
     "title": {

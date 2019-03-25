@@ -6,15 +6,18 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
@@ -31,6 +34,7 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 
 import static java.util.Collections.nCopies;
 import static java.util.stream.Collectors.toList;
@@ -59,12 +63,53 @@ public class SqlParserTests extends ESTestCase {
 
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectCast() {
+        Cast f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")), Cast.class);
+        assertEquals("CAST(POWER(languages, 2) AS DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectCastOperator() {
+        Cast f = singleProjection(project(parseStatement("SELECT POWER(languages, 2)::DOUBLE FROM foo")), Cast.class);
+        assertEquals("POWER(languages, 2)::DOUBLE", f.sourceText());
+    }
+
+    public void testSelectCastWithSQLOperator() {
+        Cast f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")), Cast.class);
+        assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectAddWithParanthesis() {
+        Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
+        assertEquals("1 +  2", f.sourceText());
     }
 
     public void testSelectRightFunction() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT RIGHT()")), UnresolvedFunction.class);
-        assertEquals("RIGHT", f.functionName());
+        assertEquals("RIGHT()", f.sourceText());
+    }
+
+    public void testsSelectNonReservedKeywords() {
+        String[] reserved = new String[] {
+            "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
+            "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
+            "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
+            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TYPE", "TYPES", "VERIFY", "YEAR"};
+        StringJoiner sj = new StringJoiner(",");
+        for (String s : reserved) {
+            sj.add(s);
+        }
+
+        Project project = project(parseStatement("SELECT " + sj.toString() + " FROM foo"));
+        assertEquals(reserved.length, project.projections().size());
+
+        for (int i = 0; i < project.projections().size(); i++) {
+            NamedExpression ne = project.projections().get(i);
+            assertEquals(UnresolvedAttribute.class, ne.getClass());
+            assertEquals(reserved[i], ne.name());
+        }
     }
 
     public void testOrderByField() {
@@ -80,13 +125,13 @@ public class SqlParserTests extends ESTestCase {
 
     public void testOrderByScore() {
         Order.OrderDirection dir = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE()" + stringForDirection(dir)));
+        OrderBy ob = orderBy(parseStatement("SELECT * FROM foo ORDER BY SCORE( )" + stringForDirection(dir)));
         assertThat(ob.order(), hasSize(1));
         Order o = ob.order().get(0);
         assertEquals(dir, o.direction());
         assertThat(o.child(), instanceOf(UnresolvedFunction.class));
         UnresolvedFunction f = (UnresolvedFunction) o.child();
-        assertEquals("SCORE", f.functionName());
+        assertEquals("SCORE( )", f.sourceText());
     }
 
     public void testOrderByTwo() {
@@ -265,9 +310,18 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
-        int noChildren = 100_000;
+        int noChildren = 10_000;
         LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
-            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+            Joiner.on(",").join(nCopies(noChildren, "a + 10")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-(-a - 10)")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20.1234")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20.4321")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "1.1234E56")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-1.4321E-65")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'foo'")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'bar'")) + ")");
 
         assertEquals(With.class, plan.getClass());
         assertEquals(Project.class, ((With) plan).child().getClass());
@@ -276,8 +330,17 @@ public class SqlParserTests extends ESTestCase {
         assertEquals(In.class, filter.condition().getClass());
         In in = (In) filter.condition();
         assertEquals("?a", in.value().toString());
-        assertEquals(noChildren, in.list().size());
-        assertThat(in.list().get(0).toString(), startsWith("(a) + (b)#"));
+        assertEquals(noChildren * 2 + 8, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("Add[?a,10]#"));
+        assertThat(in.list().get(noChildren).toString(), startsWith("Neg[Sub[Neg[?a]#"));
+        assertEquals("20", in.list().get(noChildren * 2).toString());
+        assertEquals("-20", in.list().get(noChildren * 2 + 1).toString());
+        assertEquals("20.1234", in.list().get(noChildren * 2 + 2).toString());
+        assertEquals("-20.4321", in.list().get(noChildren * 2 + 3).toString());
+        assertEquals("1.1234E56", in.list().get(noChildren * 2 + 4).toString());
+        assertEquals("-1.4321E-65", in.list().get(noChildren * 2 + 5).toString());
+        assertEquals("'foo'=foo", in.list().get(noChildren * 2 + 6).toString());
+        assertEquals("'bar'=bar", in.list().get(noChildren * 2 + 7).toString());
     }
 
     public void testDecrementOfDepthCounter() {

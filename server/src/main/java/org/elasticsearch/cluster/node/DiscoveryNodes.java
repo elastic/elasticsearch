@@ -40,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -159,6 +160,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         nodes.removeAll(dataNodes.keys());
         nodes.removeAll(ingestNodes.keys());
         return nodes.build();
+    }
+
+    /**
+     * Returns a stream of all nodes, with master nodes at the front
+     */
+    public Stream<DiscoveryNode> mastersFirstStream() {
+        return Stream.concat(StreamSupport.stream(masterNodes.spliterator(), false).map(cur -> cur.value),
+            StreamSupport.stream(this.spliterator(), false).filter(n -> n.isMasterNode() == false));
     }
 
     /**

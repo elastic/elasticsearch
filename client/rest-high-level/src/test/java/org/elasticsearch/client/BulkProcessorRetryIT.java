@@ -143,7 +143,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME, "_doc", Integer.toString(i))
+            processor.add(new IndexRequest(INDEX_NAME).id(Integer.toString(i))
                 .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }

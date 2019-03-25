@@ -132,7 +132,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                         contextPreservingListener(new LdapSessionActionListener("authenticate", token.principal(), listener))), logger
         );
         threadPool.generic().execute(cancellableLdapRunnable);
-        threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
+        threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
     }
 
     @Override
@@ -147,7 +147,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
                     () -> sessionFactory.unauthenticatedSession(username,
                             contextPreservingListener(new LdapSessionActionListener("lookup", username, sessionListener))), logger);
             threadPool.generic().execute(cancellableLdapRunnable);
-            threadPool.schedule(executionTimeout, Names.SAME, cancellableLdapRunnable::maybeTimeout);
+            threadPool.schedule(cancellableLdapRunnable::maybeTimeout, executionTimeout, Names.SAME);
         } else {
             userActionListener.onResponse(null);
         }

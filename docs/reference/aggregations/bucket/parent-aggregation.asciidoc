@@ -14,16 +14,14 @@ For example, let's say we have an index of questions and answers. The answer typ
 PUT parent_example
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "join": {
-          "type": "join",
-          "relations": {
-            "question": "answer"
-          }
-        }
-      }
-    }
+     "properties": {
+       "join": {
+         "type": "join",
+         "relations": {
+           "question": "answer"
+         }
+       }
+     }
   }
 }
 --------------------------------------------------

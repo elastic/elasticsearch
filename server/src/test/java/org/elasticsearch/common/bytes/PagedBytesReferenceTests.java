@@ -120,8 +120,8 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         }
 
         // get refs & compare
-        BytesReference pbr = new PagedBytesReference(bigarrays, ba1, length);
-        BytesReference pbr2 = new PagedBytesReference(bigarrays, ba2, length);
+        BytesReference pbr = new PagedBytesReference(ba1, length);
+        BytesReference pbr2 = new PagedBytesReference(ba2, length);
         assertEquals(pbr, pbr2);
         int offsetToFlip = randomIntBetween(0, length - 1);
         int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));

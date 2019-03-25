@@ -35,6 +35,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -71,7 +72,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
     // intentionally not writing any docs
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), writer -> {}, agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN)));
+        testCase(new MatchAllDocsQuery(), writer -> {}, agg -> {
+            assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+            assertFalse(AggregationInspectionHelper.hasValue(agg));
+        });
     }
 
     public void testNoMatchingField() throws IOException {
@@ -81,7 +85,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
                 writer.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -94,7 +101,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 sample.add(point);
                 return singleton(new SortedNumericDocValuesField("number", point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -107,7 +117,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 sample.add(point);
                 return singleton(new NumericDocValuesField("number", point));
             }),
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(sample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -123,7 +136,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                     writer.addDocument(Arrays.asList(new IntPoint("number", point), new SortedNumericDocValuesField("number", point)));
                 }
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), closeToRelative(calculateMAD(filteredSample)));
+                assertTrue(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -134,7 +150,10 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
                 writer.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
                 writer.addDocument(Arrays.asList(new IntPoint("number", 2), new SortedNumericDocValuesField("number", 2)));
             },
-            agg -> assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN))
+            agg -> {
+                assertThat(agg.getMedianAbsoluteDeviation(), equalTo(Double.NaN));
+                assertFalse(AggregationInspectionHelper.hasValue(agg));
+            }
         );
     }
 
@@ -241,9 +260,15 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
         private static double calculateMedian(double[] sample) {
             final double[] sorted = Arrays.copyOf(sample, sample.length);
             Arrays.sort(sorted);
-
-            final int halfway =  (int) Math.ceil(sorted.length / 2d);
-            final double median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            final int halfway = (int) Math.ceil(sorted.length / 2d);
+            final double median;
+            if (sorted.length % 2 == 0) {
+                // even
+                median = (sorted[halfway - 1] + sorted[halfway]) / 2d;
+            } else {
+                // odd
+                median = (sorted[halfway - 1]);
+            }
             return median;
         }
 

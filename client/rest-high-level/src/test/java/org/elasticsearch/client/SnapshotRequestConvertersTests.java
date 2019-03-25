@@ -58,7 +58,7 @@ public class SnapshotRequestConvertersTests extends ESTestCase {
 
         GetRepositoriesRequest getRepositoriesRequest = new GetRepositoriesRequest();
         RequestConvertersTests.setRandomMasterTimeout(getRepositoriesRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getRepositoriesRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(getRepositoriesRequest::local, expectedParams);
 
         if (randomBoolean()) {
             String[] entries = new String[]{"a", "b", "c"};

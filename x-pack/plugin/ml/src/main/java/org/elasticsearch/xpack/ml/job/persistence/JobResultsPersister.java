@@ -46,7 +46,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 /**
  * Persists result types, Quantiles etc to Elasticsearch<br>
@@ -175,7 +174,7 @@ public class JobResultsPersister {
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
             try (XContentBuilder content = toXContentBuilder(resultDoc)) {
-                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
+                bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
             }
@@ -228,7 +227,7 @@ public class JobResultsPersister {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName()).actionGet();
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).actionGet();
     }
 
     /**
@@ -237,7 +236,7 @@ public class JobResultsPersister {
     public void persistQuantiles(Quantiles quantiles, WriteRequest.RefreshPolicy refreshPolicy, ActionListener<IndexResponse> listener) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.documentId(quantiles.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(AnomalyDetectorsIndex.jobStateIndexName(), listener);
+        persistable.persist(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), listener);
     }
 
     /**
@@ -305,7 +304,7 @@ public class JobResultsPersister {
      * @param jobId The job Id
      * */
     public void commitStateWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
@@ -349,7 +348,7 @@ public class JobResultsPersister {
             logCall(indexName);
 
             try (XContentBuilder content = toXContentBuilder(object)) {
-                IndexRequest indexRequest = new IndexRequest(indexName, DOC_TYPE, id).source(content).setRefreshPolicy(refreshPolicy);
+                IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);

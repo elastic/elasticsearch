@@ -28,6 +28,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class PhaseExecutionInfoTests extends AbstractXContentTestCase<PhaseExecutionInfo> {
 
@@ -54,8 +55,14 @@ public class PhaseExecutionInfoTests extends AbstractXContentTestCase<PhaseExecu
     }
 
     @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // actions are plucked from the named registry, and it fails if the action is not in the named registry
+        return (field) -> field.equals("phase_definition.actions");
+    }
+
+    @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

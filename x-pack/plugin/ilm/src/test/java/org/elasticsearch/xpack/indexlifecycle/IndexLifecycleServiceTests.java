@@ -19,14 +19,17 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -67,6 +70,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     private DiscoveryNode masterNode;
     private IndicesAdminClient indicesClient;
     private long now;
+    private ThreadPool threadPool;
 
     @Before
     public void prepareServices() {
@@ -88,6 +92,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s").build();
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings,
             Collections.singleton(LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING)));
+        when(clusterService.lifecycleState()).thenReturn(State.STARTED);
 
         Client client = mock(Client.class);
         AdminClient adminClient = mock(AdminClient.class);
@@ -96,14 +101,18 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesClient);
         when(client.settings()).thenReturn(Settings.EMPTY);
 
-        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, clock, () -> now, null);
+        threadPool = new TestThreadPool("test");
+        indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
+            clock, () -> now, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
 
     @After
     public void cleanup() {
+        when(clusterService.lifecycleState()).thenReturn(randomFrom(State.STOPPED, State.CLOSED));
         indexLifecycleService.close();
+        threadPool.shutdownNow();
     }
 
 

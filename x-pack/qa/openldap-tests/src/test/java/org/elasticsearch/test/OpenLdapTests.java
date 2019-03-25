@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -57,17 +56,16 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-    public static final String LDAPTRUST_PATH = "/idptrust.jks";
+    public static final String LDAPTRUST_PATH = "/ca.jks";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
     public static final String REALM_NAME = "oldap-test";
 
-    private boolean useGlobalSSL;
     private SSLService sslService;
     private ThreadPool threadPool;
     private Settings globalSettings;
 
     @Before
-    public void init() throws Exception {
+    public void init() {
         threadPool = new TestThreadPool("OpenLdapTests thread pool");
     }
 
@@ -89,32 +87,19 @@ public class OpenLdapTests extends ESTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        useGlobalSSL = randomBoolean();
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
-        if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
+        // fake realms so ssl will get loaded
+        builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
+        mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
+        builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
+        mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
+        builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
 
-            // configure realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
-        } else {
-            // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.truststore.secure_password", "changeit");
-            builder.put("xpack.security.authc.realms.ldap." + REALM_NAME + ".ssl.verification_mode", VerificationMode.CERTIFICATE);
-
-            // If not using global ssl, need to set the truststore for the "full verification" realm
-            builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
-            mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
-        }
+        builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.path", truststore);
+        mockSecureSettings.setString("xpack.security.authc.realms.ldap.vmode_full.ssl.truststore.secure_password", "changeit");
         builder.put("xpack.security.authc.realms.ldap.vmode_full.ssl.verification_mode", VerificationMode.FULL);
-
         globalSettings = builder.setSecureSettings(mockSecureSettings).build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);
@@ -174,26 +159,6 @@ public class OpenLdapTests extends ESTestCase {
         try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)) {
             assertThat(groups(ldap), hasItem(containsString("Geniuses")));
         }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29758")
-    public void testTcpTimeout() throws Exception {
-        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
-        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        Settings settings = Settings.builder()
-            .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(objectClass=*)")
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
-            .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
-            .build();
-        RealmConfig config = new RealmConfig(realmId, settings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
-
-        LDAPException expected = expectThrows(LDAPException.class,
-            () -> session(sessionFactory, "thor", PASSWORD_SECURE_STRING).groups(new PlainActionFuture<>()));
-        assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
     }
 
     public void testStandardLdapConnectionHostnameVerificationFailure() throws Exception {
@@ -290,11 +255,8 @@ public class OpenLdapTests extends ESTestCase {
         final String[] urls = {ldapUrl};
         final String[] templates = {userTemplate};
         Settings.Builder builder = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
+            .put(LdapTestCase.buildLdapSettings(realmId, urls, templates, groupSearchBase, scope, null, false));
         builder.put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "uid");
-        if (useGlobalSSL) {
-            return builder.build();
-        }
         return builder
             .put(getFullSettingKey(realmId, SSLConfigurationSettings.TRUST_STORE_PATH_REALM), getDataPath(LDAPTRUST_PATH))
             .put(getFullSettingKey(realmId, SSLConfigurationSettings.LEGACY_TRUST_STORE_PASSWORD_REALM), "changeit")

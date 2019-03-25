@@ -297,7 +297,7 @@ public class ObjectParserTests extends ESTestCase {
 
     enum TestEnum {
         FOO, BAR
-    };
+    }
 
     public void testParseEnumFromString() throws IOException {
         class TestStruct {

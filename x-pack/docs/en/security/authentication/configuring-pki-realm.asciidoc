@@ -90,7 +90,7 @@ In particular this means:
 * The interface must _trust_ the certificate that is presented by the client
   by configuring either the `truststore` or `certificate_authorities` paths,
   or by setting `verification_mode` to `none`. See 
-  <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of this 
+  <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of this
   setting.
 * The _protocols_ supported by the interface must be compatible with those
   used by the client.

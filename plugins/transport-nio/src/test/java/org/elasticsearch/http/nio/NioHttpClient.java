@@ -45,7 +45,7 @@ import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioGroup;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
@@ -88,11 +88,11 @@ class NioHttpClient implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(NioHttpClient.class);
 
-    private final NioGroup nioGroup;
+    private final NioSelectorGroup nioGroup;
 
     NioHttpClient() {
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "nio-http-client"), 1,
+            nioGroup = new NioSelectorGroup(daemonThreadFactory(Settings.EMPTY, "nio-http-client"), 1,
                 (s) -> new EventHandler(this::onException, s));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

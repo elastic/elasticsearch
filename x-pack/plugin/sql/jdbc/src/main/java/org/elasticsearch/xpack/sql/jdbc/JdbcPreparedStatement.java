@@ -367,7 +367,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
                 || x instanceof Time
                 || x instanceof java.util.Date)
         {
-            if (dataType == EsType.DATE) {
+            if (dataType == EsType.DATETIME) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
                 java.util.Date dateToSet;
                 if (x instanceof Timestamp) {

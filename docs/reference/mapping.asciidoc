@@ -133,22 +133,20 @@ an <<alias, `alias`>> field.
 [float]
 == Example mapping
 
-A mapping could be specified when creating an index, as follows:
+A mapping can be specified when creating an index, as follows:
 
 [source,js]
 ---------------------------------------
 PUT my_index <1>
 {
   "mappings": {
-    "_doc": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" },  <4>
-        "created":  {
-          "type":   "date", <4>
-          "format": "strict_date_optional_time||epoch_millis"
-        }
+    "properties": { <2>
+      "title":    { "type": "text"  }, <3>
+      "name":     { "type": "text"  }, <4>
+      "age":      { "type": "integer" },  <5>
+      "created":  {
+        "type":   "date", <6>
+        "format": "strict_date_optional_time||epoch_millis"
       }
     }
   }
@@ -156,10 +154,11 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add a mapping type called `doc`.
-<3> Specify fields or _properties_.
-<4> Specify the data `type` and mapping for each field.
-
+<2> Specify the fields or _properties_ in the mapping.
+<3> Specify that the `title` field contains `text` values.
+<4> Specify that the `name` field contains `text` values.
+<5> Specify that the `age` field contains `integer` values.
+<6> Specify that the `created` field contains `date` values in two possible formats.
 
 --
 

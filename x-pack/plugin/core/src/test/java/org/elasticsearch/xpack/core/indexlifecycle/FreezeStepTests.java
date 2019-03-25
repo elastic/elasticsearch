@@ -92,7 +92,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -135,7 +135,7 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

@@ -23,9 +23,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,15 +36,14 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.client.watcher.WatchStatusDateParser.parseDate;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus {
 
     private final State state;
 
     private final ExecutionState executionState;
-    private final DateTime lastChecked;
-    private final DateTime lastMetCondition;
+    private final ZonedDateTime lastChecked;
+    private final ZonedDateTime lastMetCondition;
     private final long version;
     private final Map<String, ActionStatus> actions;
     @Nullable private Map<String, String> headers;
@@ -51,8 +51,8 @@ public class WatchStatus {
     public WatchStatus(long version,
                        State state,
                        ExecutionState executionState,
-                       DateTime lastChecked,
-                       DateTime lastMetCondition,
+                       ZonedDateTime lastChecked,
+                       ZonedDateTime lastMetCondition,
                        Map<String, ActionStatus> actions,
                        Map<String, String> headers) {
         this.version = version;
@@ -72,11 +72,11 @@ public class WatchStatus {
         return lastChecked != null;
     }
 
-    public DateTime lastChecked() {
+    public ZonedDateTime lastChecked() {
         return lastChecked;
     }
 
-    public DateTime lastMetCondition() {
+    public ZonedDateTime lastMetCondition() {
         return lastMetCondition;
     }
 
@@ -123,8 +123,8 @@ public class WatchStatus {
     public static WatchStatus parse(XContentParser parser) throws IOException {
         State state = null;
         ExecutionState executionState = null;
-        DateTime lastChecked = null;
-        DateTime lastMetCondition = null;
+        ZonedDateTime lastChecked = null;
+        ZonedDateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
         Map<String, String> headers = Collections.emptyMap();
         long version = -1;
@@ -203,9 +203,9 @@ public class WatchStatus {
     public static class State {
 
         private final boolean active;
-        private final DateTime timestamp;
+        private final ZonedDateTime timestamp;
 
-        public State(boolean active, DateTime timestamp) {
+        public State(boolean active, ZonedDateTime timestamp) {
             this.active = active;
             this.timestamp = timestamp;
         }
@@ -214,7 +214,7 @@ public class WatchStatus {
             return active;
         }
 
-        public DateTime getTimestamp() {
+        public ZonedDateTime getTimestamp() {
             return timestamp;
         }
 
@@ -223,7 +223,7 @@ public class WatchStatus {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = DateTime.now(UTC);
+            ZonedDateTime timestamp = ZonedDateTime.now(ZoneOffset.UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

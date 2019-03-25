@@ -44,7 +44,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 
 [source,js]
 --------------------------------------------------
-PUT /index/_mapping/_doc
+PUT /index/_mapping
 {
   "properties" : {
     "title" : { "type" : "text", "similarity" : "my_similarity" }
@@ -214,12 +214,10 @@ PUT /index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }
@@ -386,12 +384,10 @@ PUT /index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "text",
-          "similarity": "scripted_tfidf"
-        }
+    "properties": {
+      "field": {
+        "type": "text",
+        "similarity": "scripted_tfidf"
       }
     }
   }

@@ -27,6 +27,8 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -120,6 +122,23 @@ public class TestingConventionsTasks extends DefaultTask {
 
     public void naming(Closure<TestingConventionRule> action) {
         naming.configure(action);
+    }
+
+    @Input
+    public Set<String> getMainClassNamedLikeTests() {
+        SourceSetContainer javaSourceSets = Boilerplate.getJavaSourceSets(getProject());
+        if (javaSourceSets.findByName(SourceSet.MAIN_SOURCE_SET_NAME) == null) {
+            // some test projects don't have a main source set
+            return Collections.emptySet();
+        }
+        return javaSourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME)
+            .getOutput().getClassesDirs().getAsFileTree()
+            .getFiles().stream()
+            .filter(file -> file.getName().endsWith(".class"))
+            .map(File::getName)
+            .map(name -> name.substring(0, name.length() - 6))
+            .filter(this::implementsNamingConvention)
+            .collect(Collectors.toSet());
     }
 
     @TaskAction
@@ -235,10 +254,12 @@ public class TestingConventionsTasks extends DefaultTask {
                             );
                         }).sorted()
                         .collect(Collectors.joining("\n"))
-                )
+                ),
                 // TODO: check that the testing tasks are included in the right task based on the name ( from the rule )
-                // TODO: check to make sure that the main source set doesn't have classes that match
-                //         the naming convention (just the names, don't load classes)
+                checkNoneExists(
+                    "Classes matching the test naming convention should be in test not main",
+                    getMainClassNamedLikeTests()
+                )
             );
         }
 
@@ -296,6 +317,18 @@ public class TestingConventionsTasks extends DefaultTask {
         }
     }
 
+    private String checkNoneExists(String message, Set<? extends String> candidates) {
+        String problem = candidates.stream()
+            .map(each -> "  * " + each)
+            .sorted()
+            .collect(Collectors.joining("\n"));
+        if (problem.isEmpty() == false) {
+            return message + ":\n" + problem;
+        } else {
+            return "";
+        }
+    }
+
     private String checkAtLeastOneExists(String message, Stream<? extends Class<?>> stream) {
         if (stream.findAny().isPresent()) {
             return "";
@@ -337,10 +370,14 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     private boolean implementsNamingConvention(Class<?> clazz) {
+        return implementsNamingConvention(clazz.getName());
+    }
+
+    private boolean implementsNamingConvention(String className) {
         if (naming.stream()
             .map(TestingConventionRule::getSuffix)
-            .anyMatch(suffix -> clazz.getName().endsWith(suffix))) {
-            getLogger().debug("{} is a test because it matches the naming convention", clazz.getName());
+            .anyMatch(suffix -> className.endsWith(suffix))) {
+            getLogger().debug("{} is a test because it matches the naming convention", className);
             return true;
         }
         return false;

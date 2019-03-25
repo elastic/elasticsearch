@@ -92,16 +92,16 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 11 is required to build Elasticsearch. You must have a JDK 11 installation
+JDK 12 is required to build Elasticsearch. You must have a JDK 12 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 11 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 12 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
-JDK 11 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 12 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, and
-`JAVA10_HOME` are available so that the tests can pass.
+> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
+and `JAVA11_HOME` available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.
@@ -202,14 +202,14 @@ Run all build commands from within the root directory:
 cd elasticsearch/
 ```
 
-To build a tar distribution, run this command:
+To build a darwin-tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/tar assemble --parallel
+./gradlew -p distribution/archives/darwin-tar assemble --parallel
 ```
 
 You will find the distribution under:
-`./distribution/archives/tar/build/distributions/`
+`./distribution/archives/darwin-tar/build/distributions/`
 
 To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
@@ -219,10 +219,10 @@ distributions in all formats, run this command:
 ```
 
 The package distributions (Debian and RPM) can be found under:
-`./distribution/packages/(deb|rpm)/build/distributions/`
+`./distribution/packages/(deb|rpm|oss-deb|oss-rpm)/build/distributions/`
 
 The archive distributions (tar and zip) can be found under:
-`./distribution/archives/(tar|zip)/build/distributions/`
+`./distribution/archives/(darwin-tar|linux-tar|windows-zip|oss-darwin-tar|oss-linux-tar|oss-windows-zip)/build/distributions/`
 
 ### Running The Full Test Suite
 

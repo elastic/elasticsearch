@@ -88,7 +88,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
         SetOnce<Boolean> completed = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed.set(complete);
@@ -129,7 +129,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("unexpected method call");

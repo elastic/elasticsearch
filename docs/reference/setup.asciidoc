@@ -49,6 +49,22 @@ include::setup/secure-settings.asciidoc[]
 
 include::setup/logging-config.asciidoc[]
 
+include::settings/audit-settings.asciidoc[]
+
+include::settings/ccr-settings.asciidoc[]
+
+include::settings/license-settings.asciidoc[]
+
+include::settings/ml-settings.asciidoc[]
+
+include::settings/monitoring-settings.asciidoc[]
+
+include::settings/security-settings.asciidoc[]
+
+include::settings/sql-settings.asciidoc[]
+
+include::settings/notification-settings.asciidoc[]
+
 include::setup/important-settings.asciidoc[]
 
 include::setup/sysconfig.asciidoc[]
@@ -58,3 +74,5 @@ include::setup/bootstrap-checks.asciidoc[]
 include::setup/starting.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+include::setup/add-nodes.asciidoc[]

@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private static final String RESULTS_INDEX = ".ml-anomalies-shared";
-    private static final String DOC = "doc";
 
     private static final String JOB_ID = "get-results-it-job";
 
@@ -100,7 +99,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addBucketIndexRequest(long timestamp, boolean isInterim, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         double bucketScore = randomDoubleBetween(0.0, 100.0, true);
         bucketStats.report(bucketScore);
         indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"bucket\", \"timestamp\": " + timestamp + "," +
@@ -122,7 +121,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addRecordIndexRequest(long timestamp, boolean isInterim, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         double recordScore = randomDoubleBetween(0.0, 100.0, true);
         recordStats.report(recordScore);
         double p = randomDoubleBetween(0.0, 0.05, false);
@@ -133,7 +132,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addCategoryIndexRequest(long categoryId, String categoryName, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"category_id\": " + categoryId + ", \"terms\": \"" +
             categoryName + "\",  \"regex\": \".*?" + categoryName + ".*\", \"max_matching_length\": 3, \"examples\": [\"" +
             categoryName + "\"]}", XContentType.JSON);
@@ -151,7 +150,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private void addModelSnapshotIndexRequests(BulkRequest bulkRequest) {
         {
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541587919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", \"snapshot_id\":\"1541587919\"," +
                 "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
@@ -162,7 +161,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             bulkRequest.add(indexRequest);
         }
         {
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541588919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T11:08:39+0000\", \"snapshot_id\":\"1541588919\"," +
                 "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
@@ -173,7 +172,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             bulkRequest.add(indexRequest);
         }
         {
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541589919000, " +
                 "\"description\":\"State persisted due to job close at 2018-11-07T11:25:19+0000\", \"snapshot_id\":\"1541589919\"," +
                 "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
@@ -752,7 +751,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (Bucket bucket : firstBuckets) {
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + anotherJobId + "\", \"result_type\":\"bucket\", \"timestamp\": " +
                     bucket.getTimestamp().getTime() + "," + "\"bucket_span\": 3600,\"is_interim\": " + bucket.isInterim()
                     + ", \"anomaly_score\": " + String.valueOf(bucket.getAnomalyScore() + 10.0) + "}", XContentType.JSON);
@@ -923,7 +922,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             // Last one score is higher
             double score = isLast ? 90.0 : 42.0;
 
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"influencer\", \"timestamp\": " +
                     timestamp + "," + "\"bucket_span\": 3600,\"is_interim\": " + isInterim + ", \"influencer_score\": " + score + ", " +
                     "\"influencer_field_name\":\"my_influencer\", \"influencer_field_value\": \"inf_1\", \"probability\":"

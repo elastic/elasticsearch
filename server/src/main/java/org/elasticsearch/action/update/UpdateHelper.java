@@ -69,8 +69,8 @@ public class UpdateHelper {
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.type(), request.id(), request.version(),
-            request.versionType());
+        final GetResult getResult = indexShard.getService().getForUpdate(
+            request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -164,19 +164,6 @@ public class UpdateHelper {
     }
 
     /**
-     * Calculate the version to use for the update request, using either the existing version if internal versioning is used, or the get
-     * result document's version if the version type is "FORCE".
-     */
-    static long calculateUpdateVersion(UpdateRequest request, GetResult getResult) {
-        if (request.versionType() != VersionType.INTERNAL) {
-            assert request.versionType() == VersionType.FORCE;
-            return request.version(); // remember, match_any is excluded by the conflict test
-        } else {
-            return getResult.getVersion();
-        }
-    }
-
-    /**
      * Calculate a routing value to be used, either the included index request's routing, or retrieved document's routing when defined.
      */
     @Nullable
@@ -195,7 +182,6 @@ public class UpdateHelper {
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -215,7 +201,8 @@ public class UpdateHelper {
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
                     .type(request.type()).id(request.id()).routing(routing)
-                    .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                    .source(updatedSourceAsMap, updateSourceContentType)
+                    .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
@@ -228,7 +215,6 @@ public class UpdateHelper {
      * primary and replicas.
      */
     Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -256,14 +242,16 @@ public class UpdateHelper {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing)
-                        .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                        .source(updatedSourceAsMap, updateSourceContentType)
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing)
-                        .version(updateVersion).versionType(request.versionType()).waitForActiveShards(request.waitForActiveShards())
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
+                        .waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:

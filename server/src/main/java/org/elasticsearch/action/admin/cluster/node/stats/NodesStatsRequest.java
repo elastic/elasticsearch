@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -296,11 +295,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         script = in.readBoolean();
         discovery = in.readBoolean();
         ingest = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            adaptiveSelection = in.readBoolean();
-        } else {
-            adaptiveSelection = false;
-        }
+        adaptiveSelection = in.readBoolean();
     }
 
     @Override
@@ -318,8 +313,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         out.writeBoolean(script);
         out.writeBoolean(discovery);
         out.writeBoolean(ingest);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(adaptiveSelection);
-        }
+        out.writeBoolean(adaptiveSelection);
     }
 }

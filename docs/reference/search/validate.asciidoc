@@ -6,7 +6,7 @@ without executing it. We'll use the following test data to explain _validate:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/_doc/_bulk?refresh
+PUT twitter/_bulk?refresh
 {"index":{"_id":1}}
 {"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
 {"index":{"_id":2}}

@@ -6,22 +6,21 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  str:
-                     type: keyword
-                  ip:
-                     type: ip
-                  boolean:
-                     type: boolean
-                  integer:
-                    type: long
-                  double:
-                    type: double
-                  number:
-                    type: long
-                  date:
-                    type: date
+              properties:
+                str:
+                   type: keyword
+                ip:
+                   type: ip
+                boolean:
+                   type: boolean
+                integer:
+                  type: long
+                double:
+                  type: double
+                number:
+                  type: long
+                date:
+                  type: date
 
   - do:
       indices.create:
@@ -30,10 +29,9 @@ setup:
             settings:
               number_of_replicas: 0
             mappings:
-              test:
-                properties:
-                  number:
-                    type: double
+              properties:
+                number:
+                  type: double
 
   - do:
       cluster.health:
@@ -44,21 +42,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
 
@@ -91,21 +86,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "ip": "::1" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "ip": "127.0.0.1" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "ip": "::1" }
 
@@ -169,21 +161,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "boolean": true }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "boolean": false }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "boolean": true }
 
@@ -216,21 +205,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "integer": 1234 }
 
@@ -263,21 +249,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "double": 1234.5 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "double": 5678.5 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "double": 1234.5 }
 
@@ -310,21 +293,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "date": "2016-05-03" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "date": "2014-09-01" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "date": "2016-05-03" }
 
@@ -384,21 +364,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "str": "bcd" }
 
@@ -441,21 +418,18 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: { "integer": 1234 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: { "integer": 5678 }
 
   - do:
       index:
         index: test_1
-        type: test
         id: 3
         body: { "integer": 1234 }
 
@@ -494,7 +468,6 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -520,7 +493,6 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -548,7 +520,6 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -576,7 +547,6 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -602,7 +572,6 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {}
 
@@ -628,35 +597,30 @@ setup:
   - do:
       index:
         index: test_1
-        type: test
         id: 1
         body: {"number": 100}
 
   - do:
       index:
         index: test_1
-        type: test
         id: 2
         body: {"number": 10}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 3
         body: {"number": 100.0}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 1
         body: {"number": 10.0}
 
   - do:
       index:
         index: test_2
-        type: test
         id: 2
         body: {"number": 14.6}
 
@@ -685,31 +649,34 @@ setup:
   - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
 
 ---
-"Deprecated _term order":
+"Global ordinals are not loaded with the map execution hint":
 
   - skip:
-      reason:  _term order deprecated in 6.0, replaced by _key
-      features: "warnings"
+      version: " - 6.99.99"
+      reason:  bug fixed in 7.0
 
   - do:
       index:
+        refresh: true
         index: test_1
-        type: test
         id: 1
+        routing: 1
         body: { "str": "abc" }
 
   - do:
       index:
+        refresh: true
         index: test_1
-        type: test
         id: 2
+        routing: 1
         body: { "str": "abc" }
 
   - do:
       index:
+        refresh: true
         index: test_1
-        type: test
         id: 3
+        routing: 1
         body: { "str": "bcd" }
 
   - do:
@@ -717,23 +684,37 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "order" :  { "_term" : "desc" } } } } }
-      warnings:
-        - "Deprecated aggregation order key [_term] used, replaced by [_key]"
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "map" } } } }
 
-  - match: { hits.total: 3 }
-
+  - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
 
-  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
 
-  - is_false: aggregations.str_terms.buckets.0.key_as_string
+  - match: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
-  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - do:
+      search:
+        index: test_1
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
 
-  - match: { aggregations.str_terms.buckets.1.key: "abc" }
+  - match: { hits.total.value: 3}
+  - length: { aggregations.str_terms.buckets: 2 }
 
-  - is_false: aggregations.str_terms.buckets.1.key_as_string
+  - do:
+      indices.stats:
+        index: test_1
+        metric: fielddata
+        fielddata_fields: str
 
-  - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
+  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+
+
+
+
+

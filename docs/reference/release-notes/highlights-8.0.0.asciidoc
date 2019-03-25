@@ -1,0 +1,9 @@
+[[release-highlights-8.0.0]]
+== 8.0.0 release highlights
+++++
+<titleabbrev>8.0.0</titleabbrev>
+++++
+
+coming[8.0.0]
+
+See also <<breaking-changes-8.0>> and <<release-notes-8.0.0-alpha1>>.

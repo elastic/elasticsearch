@@ -76,6 +76,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -107,6 +108,8 @@ final class RequestConverters {
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
+        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
         return request;
@@ -165,7 +168,9 @@ final class RequestConverters {
                         metadata.field("_index", action.index());
                     }
                     if (Strings.hasLength(action.type())) {
-                        metadata.field("_type", action.type());
+                        if (MapperService.SINGLE_MAPPING_NAME.equals(action.type()) == false) {
+                            metadata.field("_type", action.type());
+                        }
                     }
                     if (Strings.hasLength(action.id())) {
                         metadata.field("_id", action.id());
@@ -186,6 +191,11 @@ final class RequestConverters {
                         } else if (versionType == VersionType.FORCE) {
                             metadata.field("version_type", "force");
                         }
+                    }
+
+                    if (action.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        metadata.field("if_seq_no", action.ifSeqNo());
+                        metadata.field("if_primary_term", action.ifPrimaryTerm());
                     }
 
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
@@ -316,6 +326,8 @@ final class RequestConverters {
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
+        parameters.withIfSeqNo(indexRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(indexRequest.ifPrimaryTerm());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards());
@@ -396,6 +408,7 @@ final class RequestConverters {
         params.withPreference(searchRequest.preference());
         params.withIndicesOptions(searchRequest.indicesOptions());
         params.putParam("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
         if (searchRequest.requestCache() != null) {
             params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
@@ -879,6 +892,20 @@ final class RequestConverters {
         Params withVersionType(VersionType versionType) {
             if (versionType != VersionType.INTERNAL) {
                 return putParam("version_type", versionType.name().toLowerCase(Locale.ROOT));
+            }
+            return this;
+        }
+
+        Params withIfSeqNo(long ifSeqNo) {
+            if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return putParam("if_seq_no", Long.toString(ifSeqNo));
+            }
+            return this;
+        }
+
+        Params withIfPrimaryTerm(long ifPrimaryTerm) {
+            if (ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return putParam("if_primary_term", Long.toString(ifPrimaryTerm));
             }
             return this;
         }

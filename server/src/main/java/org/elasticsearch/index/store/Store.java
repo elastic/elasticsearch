@@ -38,6 +38,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteBufferIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -45,6 +46,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -87,6 +89,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -95,6 +98,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -126,6 +130,14 @@ import static java.util.Collections.unmodifiableMap;
  * </pre>
  */
 public class Store extends AbstractIndexShardComponent implements Closeable, RefCounted {
+    /**
+     * This is an escape hatch for lucenes internal optimization that checks if the IndexInput is an instance of ByteBufferIndexInput
+     * and if that's the case doesn't load the term dictionary into ram but loads it off disk iff the fields is not an ID like field.
+     * Since this optimization has been added very late in the release processes we add this setting to allow users to opt-out of
+     * this by exploiting lucene internals and wrapping the IndexInput in a simple delegate.
+     */
+    public static final Setting<Boolean> FORCE_RAM_TERM_DICT = Setting.boolSetting("index.force_memory_term_dictionary", false,
+        Property.IndexScope);
     static final String CODEC = "store";
     static final int VERSION_WRITE_THROWABLE= 2; // we write throwable since 2.0
     static final int VERSION_STACK_TRACE = 1; // we write the stack trace too since 1.4.0
@@ -160,7 +172,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
         ByteSizeCachingDirectory sizeCachingDir = new ByteSizeCachingDirectory(directory, refreshInterval);
-        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
+        this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId),
+            indexSettings.getValue(FORCE_RAM_TERM_DICT));
         this.shardLock = shardLock;
         this.onClose = onClose;
 
@@ -416,16 +429,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private void closeInternal() {
-        try {
+        // Leverage try-with-resources to close the shard lock for us
+        try (Closeable c = shardLock) {
             try {
                 directory.innerClose(); // this closes the distributorDirectory as well
             } finally {
                 onClose.accept(shardLock);
             }
         } catch (IOException e) {
-            logger.debug("failed to close directory", e);
-        } finally {
-            IOUtils.closeWhileHandlingException(shardLock);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -436,14 +448,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
                                                         Logger logger) throws IOException {
-        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+        try (ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             return new MetadataSnapshot(null, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
-            logger.info("Failed to open / find files while reading metadata snapshot");
+            logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {
             logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
@@ -457,7 +469,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public static void tryOpenIndex(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
                                         Logger logger) throws IOException, ShardLockObtainFailedException {
-        try (ShardLock lock = shardLocker.lock(shardId, TimeUnit.SECONDS.toMillis(5));
+        try (ShardLock lock = shardLocker.lock(shardId, "open index", TimeUnit.SECONDS.toMillis(5));
              Directory dir = new SimpleFSDirectory(indexLocation)) {
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
@@ -700,10 +712,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     static final class StoreDirectory extends FilterDirectory {
 
         private final Logger deletesLogger;
+        private final boolean forceRamTermDict;
 
-        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger) {
+        StoreDirectory(ByteSizeCachingDirectory delegateDirectory, Logger deletesLogger, boolean forceRamTermDict) {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
+            this.forceRamTermDict = forceRamTermDict;
         }
 
         /** Estimate the cumulative size of all files in this directory in bytes. */
@@ -728,6 +742,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private void innerClose() throws IOException {
             super.close();
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            IndexInput input = super.openInput(name, context);
+            if (name.endsWith(".tip") || name.endsWith(".cfs")) {
+                // only do this if we are reading cfs or tip file - all other files don't need this.
+                if (forceRamTermDict && input instanceof ByteBufferIndexInput) {
+                    return new DeoptimizingIndexInput(input.toString(), input);
+                }
+            }
+            return input;
         }
 
         @Override
@@ -1428,26 +1454,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
             final long maxSeqNo = Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO));
-            bootstrapNewHistory(maxSeqNo);
+            final long localCheckpoint = Long.parseLong(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            bootstrapNewHistory(localCheckpoint, maxSeqNo);
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
     /**
-     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * Marks an existing lucene index with a new history uuid and sets the given local checkpoint
      * as well as the maximum sequence number.
-     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * This is used to make sure no existing shard will recover from this index using ops based recovery.
      * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
      * @see SequenceNumbers#MAX_SEQ_NO
      */
-    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+    public void bootstrapNewHistory(long localCheckpoint, long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1520,7 +1547,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
-            final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -1545,7 +1573,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + startingIndexCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY) + "] is not equal to last commit's translog uuid ["
                     + translogUUID + "]");
             }
-            if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
+            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
                 try (IndexWriter writer = newAppendingIndexWriter(directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1602,4 +1630,126 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 .setMergePolicy(NoMergePolicy.INSTANCE);
     }
 
+    /**
+     * see {@link #FORCE_RAM_TERM_DICT} for details
+     */
+    private static final class DeoptimizingIndexInput extends IndexInput {
+
+        private final IndexInput in;
+
+        private DeoptimizingIndexInput(String resourceDescription, IndexInput in) {
+            super(resourceDescription);
+            this.in = in;
+        }
+
+        @Override
+        public IndexInput clone() {
+            return new DeoptimizingIndexInput(toString(), in.clone());
+        }
+
+        @Override
+        public void close() throws IOException {
+            in.close();
+        }
+
+        @Override
+        public long getFilePointer() {
+            return in.getFilePointer();
+        }
+
+        @Override
+        public void seek(long pos) throws IOException {
+            in.seek(pos);
+        }
+
+        @Override
+        public long length() {
+            return in.length();
+        }
+
+        @Override
+        public String toString() {
+            return in.toString();
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            return new DeoptimizingIndexInput(sliceDescription, in.slice(sliceDescription, offset, length));
+        }
+
+        @Override
+        public RandomAccessInput randomAccessSlice(long offset, long length) throws IOException {
+            return in.randomAccessSlice(offset, length);
+        }
+
+        @Override
+        public byte readByte() throws IOException {
+            return in.readByte();
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) throws IOException {
+            in.readBytes(b, offset, len);
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len, boolean useBuffer) throws IOException {
+            in.readBytes(b, offset, len, useBuffer);
+        }
+
+        @Override
+        public short readShort() throws IOException {
+            return in.readShort();
+        }
+
+        @Override
+        public int readInt() throws IOException {
+            return in.readInt();
+        }
+
+        @Override
+        public int readVInt() throws IOException {
+            return in.readVInt();
+        }
+
+        @Override
+        public int readZInt() throws IOException {
+            return in.readZInt();
+        }
+
+        @Override
+        public long readLong() throws IOException {
+            return in.readLong();
+        }
+
+        @Override
+        public long readVLong() throws IOException {
+            return in.readVLong();
+        }
+
+        @Override
+        public long readZLong() throws IOException {
+            return in.readZLong();
+        }
+
+        @Override
+        public String readString() throws IOException {
+            return in.readString();
+        }
+
+        @Override
+        public Map<String, String> readMapOfStrings() throws IOException {
+            return in.readMapOfStrings();
+        }
+
+        @Override
+        public Set<String> readSetOfStrings() throws IOException {
+            return in.readSetOfStrings();
+        }
+
+        @Override
+        public void skipBytes(long numBytes) throws IOException {
+            in.skipBytes(numBytes);
+        }
+    }
 }

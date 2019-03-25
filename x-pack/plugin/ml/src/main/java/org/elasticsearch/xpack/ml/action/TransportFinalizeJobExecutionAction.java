@@ -24,7 +24,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
@@ -71,8 +70,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
         Map<String, Object> update = Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date());
 
         for (String jobId: request.getJobIds()) {
-            UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(),
-                    ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+            UpdateRequest updateRequest = new UpdateRequest(AnomalyDetectorsIndex.configIndexName(), Job.documentId(jobId));
             updateRequest.retryOnConflict(3);
             updateRequest.doc(update);
             updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

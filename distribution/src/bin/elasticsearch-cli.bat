@@ -21,3 +21,5 @@ if defined ES_ADDITIONAL_CLASSPATH_DIRECTORIES (
   -cp "%ES_CLASSPATH%" ^
   "%ES_MAIN_CLASS%" ^
   %*
+  
+exit /b %ERRORLEVEL%

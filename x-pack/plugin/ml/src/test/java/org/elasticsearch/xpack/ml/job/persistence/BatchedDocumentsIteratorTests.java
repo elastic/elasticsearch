@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.junit.Before;
@@ -139,7 +140,7 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
         assertThat(searchRequest.types().length, equalTo(0));
         assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
-        assertThat(searchRequest.source().trackTotalHits(), is(true));
+        assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
     }
 
     private void assertSearchScrollRequests(int expectedCount) {

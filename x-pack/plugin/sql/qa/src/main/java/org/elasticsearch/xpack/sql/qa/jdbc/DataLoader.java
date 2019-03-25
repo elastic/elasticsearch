@@ -83,46 +83,46 @@ public class DataLoader {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("emp");
+            createIndex.startObject("properties");
             {
-                createIndex.startObject("properties");
-                {
-                    createIndex.startObject("emp_no").field("type", "integer");
-                    if (extraFields) {
-                        createIndex.field("copy_to", "extra_no");
-                    }
-                    createIndex.endObject();
-                    if (extraFields) {
-                        createIndex.startObject("extra_no").field("type", "integer").endObject();
-                    }
-                    createString("first_name", createIndex);
-                    createString("last_name", createIndex);
-                    createIndex.startObject("gender").field("type", "keyword");
-                    if (extraFields) {
-                        createIndex.field("copy_to", "extra_gender");
-                    }
-                    createIndex.endObject();
-
-                    if (extraFields) {
-                        createIndex.startObject("extra_gender").field("type", "keyword").endObject();
-                    }
-
-                    createIndex.startObject("birth_date").field("type", "date").endObject();
-                    createIndex.startObject("hire_date").field("type", "date").endObject();
-                    createIndex.startObject("salary").field("type", "integer").endObject();
-                    createIndex.startObject("languages").field("type", "byte").endObject();
-                    {
-                        createIndex.startObject("dep").field("type", "nested");
-                        createIndex.startObject("properties");
-                        createIndex.startObject("dep_id").field("type", "keyword").endObject();
-                        createString("dep_name", createIndex);
-                        createIndex.startObject("from_date").field("type", "date").endObject();
-                        createIndex.startObject("to_date").field("type", "date").endObject();
-                        createIndex.endObject();
-                        createIndex.endObject();
-                    }
+                createIndex.startObject("emp_no").field("type", "integer");
+                if (extraFields) {
+                    createIndex.field("copy_to", "extra_no");
                 }
                 createIndex.endObject();
+                if (extraFields) {
+                    createIndex.startObject("extra_no").field("type", "integer").endObject();
+                }
+                createString("first_name", createIndex);
+                createString("last_name", createIndex);
+                createIndex.startObject("gender").field("type", "keyword");
+                if (extraFields) {
+                    createIndex.field("copy_to", "extra_gender");
+                }
+                createIndex.endObject();
+
+                if (extraFields) {
+                    createIndex.startObject("extra_gender").field("type", "keyword").endObject();
+                    createIndex.startObject("extra.info.gender")
+                        .field("type", "alias")
+                        .field("path", "gender")
+                      .endObject();
+                }
+
+                createIndex.startObject("birth_date").field("type", "date").endObject();
+                createIndex.startObject("hire_date").field("type", "date").endObject();
+                createIndex.startObject("salary").field("type", "integer").endObject();
+                createIndex.startObject("languages").field("type", "byte").endObject();
+                {
+                    createIndex.startObject("dep").field("type", "nested");
+                    createIndex.startObject("properties");
+                    createIndex.startObject("dep_id").field("type", "keyword").endObject();
+                    createString("dep_name", createIndex);
+                    createIndex.startObject("from_date").field("type", "date").endObject();
+                    createIndex.startObject("to_date").field("type", "date").endObject();
+                    createIndex.endObject();
+                    createIndex.endObject();
+                }
             }
             createIndex.endObject();
         }
@@ -153,7 +153,7 @@ public class DataLoader {
             list.add(dep);
         });
 
-        request = new Request("POST", "/" + index + "/emp/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(fileName, (titles, fields) -> {
@@ -207,20 +207,16 @@ public class DataLoader {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("_doc");
+            createIndex.startObject("properties");
             {
-                createIndex.startObject("properties");
-                {
-                    createIndex.startObject("id").field("type", "integer").endObject();
-                    createIndex.startObject("@timestamp").field("type", "date").endObject();
-                    createIndex.startObject("bytes_in").field("type", "integer").endObject();
-                    createIndex.startObject("bytes_out").field("type", "integer").endObject();
-                    createIndex.startObject("client_ip").field("type", "ip").endObject();
-                    createIndex.startObject("client_port").field("type", "integer").endObject();
-                    createIndex.startObject("dest_ip").field("type", "ip").endObject();
-                    createIndex.startObject("status").field("type", "keyword").endObject();
-                }
-                createIndex.endObject();
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("@timestamp").field("type", "date").endObject();
+                createIndex.startObject("bytes_in").field("type", "integer").endObject();
+                createIndex.startObject("bytes_out").field("type", "integer").endObject();
+                createIndex.startObject("client_ip").field("type", "ip").endObject();
+                createIndex.startObject("client_port").field("type", "integer").endObject();
+                createIndex.startObject("dest_ip").field("type", "ip").endObject();
+                createIndex.startObject("status").field("type", "keyword").endObject();
             }
             createIndex.endObject();
         }
@@ -228,7 +224,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_doc/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
@@ -259,16 +255,12 @@ public class DataLoader {
         createIndex.endObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("book");
+            createIndex.startObject("properties");
             {
-                createIndex.startObject("properties");
-                {
-                    createString("name", createIndex);
-                    createString("author", createIndex);
-                    createIndex.startObject("release_date").field("type", "date").endObject();
-                    createIndex.startObject("page_count").field("type", "short").endObject();
-                }
-                createIndex.endObject();
+                createString("name", createIndex);
+                createString("author", createIndex);
+                createIndex.startObject("release_date").field("type", "date").endObject();
+                createIndex.startObject("page_count").field("type", "short").endObject();
             }
             createIndex.endObject();
         }
@@ -276,7 +268,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/book/_bulk?refresh=wait_for");
+        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("library", (titles, fields) -> {

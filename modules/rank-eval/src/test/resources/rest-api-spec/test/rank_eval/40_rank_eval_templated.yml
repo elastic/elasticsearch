@@ -10,42 +10,36 @@ setup:
   - do:
       index:
         index:   test
-        type:    _doc
         id:      1
         body:    { "text": "berlin", "title" : "Berlin, Germany" }
 
   - do:
       index:
         index:   test
-        type:    _doc
         id:      2
         body:   { "text": "amsterdam" }
 
   - do:
       index:
         index:   test
-        type:    _doc
         id:      3
         body:   { "text": "amsterdam" }
 
   - do:
       index:
         index:   test
-        type:    _doc
         id:      4
         body:   { "text": "amsterdam" }
 
   - do:
       index:
         index:   test
-        type:    _doc
         id:      5
         body:   { "text": "amsterdam" }
 
   - do:
       index:
         index:   test
-        type:    _doc
         id:      6
         body:   { "text": "amsterdam" }
 

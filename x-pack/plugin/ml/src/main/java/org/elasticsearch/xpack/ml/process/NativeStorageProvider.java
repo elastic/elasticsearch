@@ -111,6 +111,10 @@ public class NativeStorageProvider {
         }
     }
 
+    public ByteSizeValue getMinLocalStorageAvailable() {
+        return minLocalStorageAvailable;
+    }
+
     long getUsableSpace(Path path) throws IOException {
         long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
 

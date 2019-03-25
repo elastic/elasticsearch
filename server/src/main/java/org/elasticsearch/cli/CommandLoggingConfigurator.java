@@ -27,13 +27,13 @@ import org.elasticsearch.common.settings.Settings;
  * Holder class for method to configure logging without Elasticsearch configuration files for use in CLI tools that will not read such
  * files.
  */
-final class CommandLoggingConfigurator {
+public final class CommandLoggingConfigurator {
 
     /**
      * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
      * logging will be written to the console.
      */
-    static void configureLoggingWithoutConfig() {
+    public static void configureLoggingWithoutConfig() {
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();

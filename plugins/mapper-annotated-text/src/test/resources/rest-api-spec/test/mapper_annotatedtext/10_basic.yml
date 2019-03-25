@@ -15,18 +15,16 @@
             number_of_shards: "1"
             number_of_replicas: "0"
           mappings:
-            doc:
-              properties:
-                text:
-                  type: annotated_text
-                entityID:
-                  type: keyword
+            properties:
+              text:
+                type: annotated_text
+              entityID:
+                type: keyword
 
   - do:
       index:
         index: annotated
-        type: doc
-        body: 
+        body:
             "text" : "The [quick brown fox](entity_3789) is brown."
             "entityID": "entity_3789"
         refresh: true
@@ -44,3 +42,77 @@
         body: { "query" : {"term" : { "text" : "quick" } }, "highlight" : { "type" : "annotated", "require_field_match": false, "fields" : { "text" : {} } } }
 
   - match: {hits.hits.0.highlight.text.0: "The [quick](_hit_term=quick) brown fox is brown."}
+
+---
+"issue 39395 thread safety issue -requires multiple calls to reveal":
+  - skip:
+      version: " - 6.4.99"
+      reason: Annotated text type introduced in 6.5.0
+
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          settings:
+            number_of_shards: "5"
+            number_of_replicas: "0"
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body: 
+            "my_field" : "[A](~MARK0&~MARK0) [B](~MARK1)"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body: 
+            "my_field" : "[A](~MARK0) [C](~MARK2)"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+
+  - do:
+      search:
+        request_cache: false
+        body: { "query" : {"match_phrase" : { "my_field" : {"query": "~MARK0", "analyzer": "whitespace"} } }, "highlight" : { "type" : "annotated",  "fields" : { "my_field" : {} } } }
+  - match: {_shards.failed: 0}
+

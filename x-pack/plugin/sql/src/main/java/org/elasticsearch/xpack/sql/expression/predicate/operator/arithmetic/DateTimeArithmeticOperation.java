@@ -45,12 +45,15 @@ abstract class DateTimeArithmeticOperation extends ArithmeticOperation {
             if (DataTypeConversion.commonType(l, r) == null) {
                 return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
             } else {
-                return TypeResolution.TYPE_RESOLVED;
+                return resolveWithIntervals();
             }
         }
 
         // fall-back to default checks
         return super.resolveType();
     }
-    
+
+    protected TypeResolution resolveWithIntervals() {
+        return TypeResolution.TYPE_RESOLVED;
+    }
 }

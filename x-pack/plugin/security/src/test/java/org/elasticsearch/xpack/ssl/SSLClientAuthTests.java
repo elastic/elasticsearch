@@ -17,6 +17,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -31,14 +32,17 @@ import org.elasticsearch.xpack.security.LocalStateSecurity;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
-
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -54,13 +58,41 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+        Settings baseSettings = super.nodeSettings(nodeOrdinal);
+
+        Settings.Builder builder = Settings.builder().put(baseSettings);
+        baseSettings.getByPrefix("xpack.security.transport.ssl.")
+                .keySet()
+                .forEach(k -> {
+                    String httpKey = "xpack.security.http.ssl." + k;
+                    String value = baseSettings.get("xpack.security.transport.ssl." + k);
+                    if (value != null) {
+                        builder.put(httpKey, baseSettings.get("xpack.security.transport.ssl." + k));
+                    }
+                });
+
+        MockSecureSettings secureSettings = (MockSecureSettings) builder.getSecureSettings();
+        for (String key : new HashSet<>(secureSettings.getSettingNames())) {
+            SecureString value = secureSettings.getString(key);
+            if (value == null) {
+                try {
+                    if (key.startsWith("xpack.security.transport.ssl.")) {
+                        byte[] file = toByteArray(secureSettings.getFile(key));
+                        secureSettings.setFile(key.replace("xpack.security.transport.ssl.", "xpack.security.http.ssl."), file);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            } else if (key.startsWith("xpack.security.transport.ssl.")) {
+                secureSettings.setString(key.replace("xpack.security.transport.ssl.", "xpack.security.http.ssl."), value.toString());
+            }
+        }
+
+        return builder
                 // invert the require auth settings
-                .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                .put("transport.profiles.default.xpack.security.ssl.client_authentication", SSLClientAuth.NONE)
                 .build();
     }
 
@@ -109,13 +141,13 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
 
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testclient-client-profile");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testclient-client-profile");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
-            .put("xpack.ssl.key", keyPath)
-            .put("xpack.ssl.certificate", certPath)
-            .put("xpack.ssl.certificate_authorities", nodeCertPath)
+            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", nodeCertPath)
             .setSecureSettings(secureSettings)
             .put("cluster.name", internalCluster().getClusterName())
             .put(SecurityField.USER_SETTING.getKey(), transportClientUsername() + ":" + new String(transportClientPassword().getChars()))
@@ -144,5 +176,16 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize SSLContext", e);
         }
+    }
+
+    private byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] internalBuffer = new byte[1024];
+        int read = is.read(internalBuffer);
+        while (read != -1) {
+            baos.write(internalBuffer, 0, read);
+            read = is.read(internalBuffer);
+        }
+        return baos.toByteArray();
     }
 }

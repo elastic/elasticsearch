@@ -77,7 +77,8 @@ dependencies {
   compile "org.elasticsearch:elasticsearch-core:${version}"
   compile "org.elasticsearch:elasticsearch-secure-sm:${version}"
   compile "org.elasticsearch:elasticsearch-x-content:${version}"
-
+  compile "org.elasticsearch:elasticsearch-geo:${version}"
+  
   compileOnly project(':libs:plugin-classloader')
   testRuntime project(':libs:plugin-classloader')
 
@@ -338,4 +339,8 @@ if (isEclipse == false || project.path == ":server-tests") {
   }
   check.dependsOn integTest
   integTest.mustRunAfter test
+  task internalClusterTest {
+     dependsOn integTest    
+  }
 }
+

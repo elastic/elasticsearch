@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -52,7 +51,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("strictDateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -75,8 +74,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String TOTAL_SHARDS = "total_shards";
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
-
-    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_6_2_0;
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
@@ -296,9 +293,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             shardFailures = Collections.emptyList();
         }
         version = in.readBoolean() ? Version.readVersion(in) : null;
-        if (in.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
-            includeGlobalState = in.readOptionalBoolean();
-        }
+        includeGlobalState = in.readOptionalBoolean();
     }
 
     /**
@@ -691,9 +686,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
-            out.writeOptionalBoolean(includeGlobalState);
-        }
+        out.writeOptionalBoolean(includeGlobalState);
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

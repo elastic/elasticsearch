@@ -773,12 +773,16 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return con.createStatement().executeQuery("SYS CATALOGS");
+        // TABLE_CAT is the first column
+        Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '%'", 1);
+        return memorySet(con.cfg, columnInfo("", "TABLE_CAT"), data);
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        return con.createStatement().executeQuery("SYS TABLE TYPES");
+        // TABLE_TYPE (4)
+        Object[][] data = queryColumn(con, "SYS TABLES TYPE '%'", 4);
+        return memorySet(con.cfg, columnInfo("", "TABLE_TYPE"), data);
     }
 
     @Override
@@ -1114,6 +1118,26 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return false;
     }
 
+    //
+    // Utility methods
+    //
+
+    private static Object[][] queryColumn(JdbcConnection con, String query, int... cols) throws SQLException {
+        List<Object[]> data = new ArrayList<>();
+        try (ResultSet rs = con.createStatement().executeQuery(query)) {
+            while (rs.next()) {
+                Object[] row = new Object[cols.length];
+                for (int i = 0; i < cols.length; i++) {
+                    row[i] = rs.getObject(cols[i]);
+                }
+                data.add(row);
+            }
+        }
+        
+        return data.toArray(new Object[][] {});
+    }
+
+
     private static List<JdbcColumnInfo> columnInfo(String tableName, Object... cols) throws JdbcSQLException {
         List<JdbcColumnInfo> columns = new ArrayList<>();
 
@@ -1156,7 +1180,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return new JdbcResultSet(cfg, null, new InMemoryCursor(columns, data));
     }
 
-    static class InMemoryCursor implements Cursor {
+    private static class InMemoryCursor implements Cursor {
 
         private final List<JdbcColumnInfo> columns;
         private final Object[][] data;

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Settings;
 
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
@@ -32,8 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class CircuitBreakerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CircuitBreakerService.class);
 
-    protected CircuitBreakerService(Settings settings) {
-        super(settings);
+    protected CircuitBreakerService() {
     }
 
     /**

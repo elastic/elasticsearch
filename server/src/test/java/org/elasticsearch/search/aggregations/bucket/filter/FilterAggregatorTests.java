@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
 public class FilterAggregatorTests extends AggregatorTestCase {
@@ -57,6 +58,7 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         InternalFilter response = search(indexSearcher, new MatchAllDocsQuery(), builder,
                 fieldType);
         assertEquals(response.getDocCount(), 0);
+        assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
     }
@@ -83,21 +85,31 @@ public class FilterAggregatorTests extends AggregatorTestCase {
 
         IndexReader indexReader = DirectoryReader.open(directory);
         IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-        int value = randomInt(maxTerm - 1);
-        QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
-        FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
+        try {
 
-        for (boolean doReduce : new boolean[] {true, false}) {
-            final InternalFilter response;
-            if (doReduce) {
-                response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
+            int value = randomInt(maxTerm - 1);
+            QueryBuilder filter = QueryBuilders.termQuery("field", Integer.toString(value));
+            FilterAggregationBuilder builder = new FilterAggregationBuilder("test", filter);
+
+            for (boolean doReduce : new boolean[]{true, false}) {
+                final InternalFilter response;
+                if (doReduce) {
+                    response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder,
                         fieldType);
-            } else {
-                response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                } else {
+                    response = search(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+                }
+                assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+                if (expectedBucketCount[value] > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(response));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(response));
+                }
             }
-            assertEquals(response.getDocCount(), (long) expectedBucketCount[value]);
+        } finally {
+            indexReader.close();
+            directory.close();
         }
-        indexReader.close();
-        directory.close();
+
     }
 }

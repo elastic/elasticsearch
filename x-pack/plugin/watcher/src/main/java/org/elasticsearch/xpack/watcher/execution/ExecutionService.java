@@ -53,10 +53,11 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -72,7 +73,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
-import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService {
 
@@ -233,7 +233,7 @@ public class ExecutionService {
         final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
         final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         for (TriggerEvent event : events) {
             GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
@@ -282,7 +282,8 @@ public class ExecutionService {
                         if (resp.isExists() == false) {
                             throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
                         }
-                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON);
+                        return parser.parseWithSecrets(watchId, true, resp.getSourceAsBytesRef(), ctx.executionTime(), XContentType.JSON,
+                            resp.getSeqNo(), resp.getPrimaryTerm());
                     });
                 } catch (ResourceNotFoundException e) {
                     String message = "unable to find watch for record [" + ctx.id() + "]";
@@ -351,9 +352,10 @@ public class ExecutionService {
             .field(WatchField.STATUS.getPreferredName(), watch.status(), params)
             .endObject();
 
-        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, watch.id());
         updateRequest.doc(source);
-        updateRequest.version(watch.version());
+        updateRequest.setIfSeqNo(watch.getSourceSeqNo());
+        updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
@@ -482,7 +484,7 @@ public class ExecutionService {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                DateTime now = new DateTime(clock.millis(), UTC);
+                ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                 TriggeredExecutionContext ctx = new TriggeredExecutionContext(triggeredWatch.id().watchId(), now,
                     triggeredWatch.triggerEvent(), defaultThrottlePeriod, true);
                 executeAsync(ctx, triggeredWatch);
@@ -499,7 +501,7 @@ public class ExecutionService {
      */
     private GetResponse getWatch(String id) {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+            GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);
             return future.actionGet();
@@ -532,12 +534,12 @@ public class ExecutionService {
     // the watch execution task takes another runnable as parameter
     // the best solution would be to move the whole execute() method, which is handed over as ctor parameter
     // over into this class, this is the quicker way though
-    static final class WatchExecutionTask implements Runnable {
+    public static final class WatchExecutionTask implements Runnable {
 
         private final WatchExecutionContext ctx;
         private final Runnable runnable;
 
-        WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
+        public WatchExecutionTask(WatchExecutionContext ctx, Runnable runnable) {
             this.ctx = ctx;
             this.runnable = runnable;
         }

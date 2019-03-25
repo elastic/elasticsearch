@@ -21,7 +21,7 @@ restTestRunner {
 }
 
 restTestCluster {
-    distribution 'zip'
+    distribution 'default'
     setting 'xpack.ilm.enabled', 'true'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'

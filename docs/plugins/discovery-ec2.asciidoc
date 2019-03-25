@@ -1,7 +1,8 @@
 [[discovery-ec2]]
 === EC2 Discovery Plugin
 
-The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API]
+to identify the addresses of seed hosts.
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
 
@@ -11,23 +12,23 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-usage]]
 ==== Getting started with AWS
 
-The plugin provides a hosts provider for zen discovery named `ec2`. This hosts
-provider finds other Elasticsearch instances in EC2 through AWS metadata.
-Authentication is done using
+The plugin adds a seed hosts provider named `ec2`. This seed hosts provider
+finds other Elasticsearch instances in EC2 by querying the AWS metadata
+service.  Authentication is done using
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM
-Role] credentials by default. To enable the plugin, set the unicast host
-provider for Zen discovery to `ec2`:
+Role] credentials by default. To enable the plugin, configure {es} to use the
+`ec2` seed hosts provider:
 
 [source,yaml]
 ----
-discovery.zen.hosts_provider: ec2
+discovery.seed_providers: ec2
 ----
 
 ==== Settings
 
-EC2 host discovery supports a number of settings.  
-Some settings are sensitive and must be stored in the {ref}/secure-settings.html[elasticsearch keystore].
-For example, to use explicit AWS access keys:
+EC2 discovery supports a number of settings.  Some settings are sensitive and
+must be stored in the {ref}/secure-settings.html[elasticsearch keystore].  For
+example, to use explicit AWS access keys:
 
 [source,sh]
 ----
@@ -184,15 +185,18 @@ Management Console. It should look similar to this.
 [[discovery-ec2-filtering]]
 ===== Filtering by Tags
 
-The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings
-to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only
-filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
-to be set for the instance to be included.
+The ec2 discovery plugin can also filter machines to include in the cluster
+based on tags (and not just groups). The settings to use include the
+`discovery.ec2.tag.` prefix. For example, if you defined a tag `stage` in EC2
+and set it to `dev`, setting `discovery.ec2.tag.stage` to `dev` will only
+filter instances with a tag key set to `stage`, and a value of `dev`. Adding
+multiple `discovery.ec2.tag` settings will require all of those tags to be set
+for the instance to be included.
 
-One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running Elasticsearch. In
-this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase
-will end before it has found the cluster (which will result in it declaring itself master of a new cluster with the same
-name - highly undesirable). Tagging Elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
+One practical use for tag filtering is when an ec2 cluster contains many nodes
+that are not master-eligible {es} nodes. In this case, tagging the ec2
+instances that _are_ running the master-eligible {es} nodes, and then filtering
+by that tag, will help discovery to run more efficiently.
 
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes
@@ -229,7 +233,6 @@ Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elas
 
 ===== Networking
 * Networking throttling takes place on smaller instance types in both the form of https://lab.getbase.com/how-we-discovered-limitations-on-the-aws-tcp-stack/[bandwidth and number of connections]. Therefore if large number of connections are needed and networking is becoming a bottleneck, avoid https://aws.amazon.com/ec2/instance-types/[instance types] with networking labeled as `Moderate` or `Low`.
-* Multicast is not supported, even when in an VPC; the aws cloud plugin which joins by performing a security group lookup.
 * When running in multiple http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability zones] be sure to leverage {ref}/allocation-awareness.html[shard allocation awareness] so that not all copies of shard data reside in the same availability zone.
 * Do not span a cluster across regions.  If necessary, use a cross cluster search.
 

@@ -52,3 +52,44 @@ result of query.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+The following query finds all seats in a specific section that have not been
+sold and lowers the price by 2:
+
+[source,js]
+--------------------------------------------------
+POST /seats/_update_by_query
+{
+    "query": {
+        "bool": {
+            "filter": [
+            {
+                "range": {
+                    "row": {
+                        "lte": 3
+                    }
+                }
+            },
+            {
+                "match": {
+                    "sold": false
+                }
+            }]
+        }
+    },
+    "script": {
+        "source": "ctx._source.cost -= params.discount",
+        "lang": "painless",
+        "params": {
+            "discount": 2
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:seats]

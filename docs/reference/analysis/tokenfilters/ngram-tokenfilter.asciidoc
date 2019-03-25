@@ -1,9 +1,9 @@
 [[analysis-ngram-tokenfilter]]
 === NGram Token Filter
 
-A token filter of type `nGram`.
+A token filter of type `ngram`.
 
-The following are settings that can be set for a `nGram` token filter
+The following are settings that can be set for a `ngram` token filter
 type:
 
 [cols="<,<",options="header",]

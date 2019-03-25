@@ -42,14 +42,12 @@ import java.util.Objects;
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
-    public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
     private static final Header[] EMPTY_HEADERS = new Header[0];
 
     private final List<Node> nodes;
-    private int maxRetryTimeout = DEFAULT_MAX_RETRY_TIMEOUT_MILLIS;
     private Header[] defaultHeaders = EMPTY_HEADERS;
     private RestClient.FailureListener failureListener;
     private HttpClientConfigCallback httpClientConfigCallback;
@@ -99,20 +97,6 @@ public final class RestClientBuilder {
     public RestClientBuilder setFailureListener(RestClient.FailureListener failureListener) {
         Objects.requireNonNull(failureListener, "failureListener must not be null");
         this.failureListener = failureListener;
-        return this;
-    }
-
-    /**
-     * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
-     * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
-     *
-     * @throws IllegalArgumentException if {@code maxRetryTimeoutMillis} is not greater than 0
-     */
-    public RestClientBuilder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
-        if (maxRetryTimeoutMillis <= 0) {
-            throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");
-        }
-        this.maxRetryTimeout = maxRetryTimeoutMillis;
         return this;
     }
 
@@ -208,7 +192,7 @@ public final class RestClientBuilder {
                 return createHttpClient();
             }
         });
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, nodes,
+        RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
                 pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
         httpClient.start();
         return restClient;

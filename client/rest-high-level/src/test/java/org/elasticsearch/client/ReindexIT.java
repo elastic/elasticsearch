@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -32,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.function.BooleanSupplier;
 
 public class ReindexIT extends ESRestHighLevelClientTestCase {
 
@@ -82,7 +82,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testReindexTask() throws IOException, InterruptedException {
+    public void testReindexTask() throws Exception {
         final String sourceIndex = "source123";
         final String destinationIndex = "dest2";
         {
@@ -118,20 +118,14 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             String taskId = reindexSubmission.getTask(); // <3>
             // end::submit-reindex-task
 
-            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(taskId);
-            awaitBusy(hasUpgradeCompleted);
+            assertBusy(checkCompletionStatus(client(), taskId));
         }
     }
 
-    private BooleanSupplier checkCompletionStatus(String taskId) {
+    static CheckedRunnable<Exception> checkCompletionStatus(RestClient client, String taskId) {
         return () -> {
-            try {
-                Response response = client().performRequest(new Request("GET", "/_tasks/" + taskId));
-                return (boolean) entityAsMap(response).get("completed");
-            } catch (IOException e) {
-                fail(e.getMessage());
-                return false;
-            }
+            Response response = client.performRequest(new Request("GET", "/_tasks/" + taskId));
+            assertTrue((boolean) entityAsMap(response).get("completed"));
         };
     }
 }

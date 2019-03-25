@@ -155,8 +155,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
 
-        IndicesOptions lenientExpand = IndicesOptions.fromOptions(true, true, true, true);
-        IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.lenientExpandOpen(), lenientExpand};
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{IndicesOptions.lenientExpandOpen(), IndicesOptions.lenientExpand()};
         for (IndicesOptions options : indicesOptions) {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
             String[] results = indexNameExpressionResolver.concreteIndexNames(context, "foo");
@@ -199,7 +198,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(3, results.length);
 
-        context = new IndexNameExpressionResolver.Context(state, lenientExpand);
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpand());
         results = indexNameExpressionResolver.concreteIndexNames(context, Strings.EMPTY_ARRAY);
         assertEquals(Arrays.toString(results), 4, results.length);
 
@@ -208,7 +207,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertEquals(3, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foobar", "foofoo"));
 
-        context = new IndexNameExpressionResolver.Context(state, lenientExpand);
+        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpand());
         results = indexNameExpressionResolver.concreteIndexNames(context, "foofoo*");
         assertEquals(4, results.length);
         assertThat(results, arrayContainingInAnyOrder("foo", "foobar", "foofoo", "foofoo-closed"));

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -77,8 +80,8 @@ public class MockTransport implements Transport, LifecycleComponent {
     public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this, threadPool),
-            settings, this, threadPool);
+        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
+            settings, this);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
@@ -96,7 +99,8 @@ public class MockTransport implements Transport, LifecycleComponent {
             final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);
-                deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());
+                deliveredResponse = transportResponseHandler.read(
+                    new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writeableRegistry()));
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
             }
@@ -260,19 +264,14 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
         this.listener = listener;
     }
 
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        if (listener == this.listener) {
-            this.listener = null;
-            return true;
-        }
-        return false;
+    protected NamedWriteableRegistry writeableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 }

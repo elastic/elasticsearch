@@ -49,7 +49,7 @@ POST /sales/_search?size=0
     "aggs" : {
         "type_count" : {
             "cardinality" : {
-                "field" : "_doc",
+                "field" : "type",
                 "precision_threshold": 100 <1>
             }
         }
@@ -214,7 +214,7 @@ POST /sales/_search?size=0
                 "script" : {
                     "id": "my_script",
                     "params": {
-                        "type_field": "_doc",
+                        "type_field": "type",
                         "promoted_field": "promoted"
                     }
                 }

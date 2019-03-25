@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 public class ActionWrapperTests extends ESTestCase {
 
-    private DateTime now = DateTime.now(DateTimeZone.UTC);
+    private ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
     private Watch watch = mock(Watch.class);
     @SuppressWarnings("unchecked")
     private ExecutableAction<Action> executableAction = mock(ExecutableAction.class);

@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
-import org.joda.time.base.BaseDateTime;
 
 import java.util.List;
 import java.util.Map;
@@ -53,7 +51,7 @@ public abstract class ExtractedField {
     public abstract Object[] value(SearchHit hit);
 
     public String getDocValueFormat() {
-        return DocValueFieldsContext.USE_DEFAULT_FORMAT;
+        return null;
     }
 
     public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {
@@ -112,8 +110,6 @@ public abstract class ExtractedField {
             }
             if (value[0] instanceof String) { // doc_value field with the epoch_millis format
                 value[0] = Long.parseLong((String) value[0]);
-            } else if (value[0] instanceof BaseDateTime) { // script field
-                value[0] = ((BaseDateTime) value[0]).getMillis();
             } else if (value[0] instanceof Long == false) { // pre-6.0 field
                 throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
             }

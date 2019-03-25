@@ -3,8 +3,6 @@
 [[sql-functions-system]]
 === System Functions
 
-beta[]
-
 These functions return metadata type of information about the system being queried.
 
 [[sql-functions-system-database]]

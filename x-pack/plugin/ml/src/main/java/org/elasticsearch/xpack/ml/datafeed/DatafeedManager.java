@@ -16,20 +16,22 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.util.ArrayList;
@@ -39,7 +41,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -62,16 +63,17 @@ public class DatafeedManager {
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
-    private volatile boolean isolated;
+    private final AutodetectProcessManager autodetectProcessManager;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor) {
+                           Supplier<Long> currentTimeSupplier, Auditor auditor, AutodetectProcessManager autodetectProcessManager) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
+        this.autodetectProcessManager = autodetectProcessManager;
         clusterService.addListener(taskRunner);
     }
 
@@ -127,18 +129,20 @@ public class DatafeedManager {
      * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
      * the datafeed tasks in the "started" state, so that they get restarted on a different node.
      */
-    public void isolateAllDatafeedsOnThisNode() {
-        isolated = true;
+    public void isolateAllDatafeedsOnThisNodeBeforeShutdown() {
         Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
         while (iter.hasNext()) {
             Holder next = iter.next();
             next.isolateDatafeed();
-            next.setRelocating();
+            // TODO: it's not ideal that this "isolate" method does something a bit different to the one below
+            next.setNodeIsShuttingDown();
             iter.remove();
         }
     }
 
     public void isolateDatafeed(long allocationId) {
+        // This calls get() rather than remove() because we expect that the persistent task will
+        // be removed shortly afterwards and that operation needs to be able to find the holder
         Holder holder = runningDatafeedsOnThisNode.get(allocationId);
         if (holder != null) {
             holder.isolateDatafeed();
@@ -149,7 +153,8 @@ public class DatafeedManager {
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
     private void innerRun(Holder holder, long startTime, Long endTime) {
-        holder.future = threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
+        holder.cancellable =
+            Scheduler.wrapAsCancellable(threadPool.executor(MachineLearning.DATAFEED_THREAD_POOL_NAME).submit(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -191,7 +196,7 @@ public class DatafeedManager {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
-                if (isolated == false) {
+                if (holder.isIsolated() == false) {
                     if (next != null) {
                         doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                     } else {
@@ -200,14 +205,14 @@ public class DatafeedManager {
                     }
                 }
             }
-        });
+        }));
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
         if (holder.isRunning() && !holder.isIsolated()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, MachineLearning.DATAFEED_THREAD_POOL_NAME, new AbstractRunnable() {
+            holder.cancellable = threadPool.schedule(new AbstractRunnable() {
 
                 @Override
                 public void onFailure(Exception e) {
@@ -244,7 +249,7 @@ public class DatafeedManager {
                         doDatafeedRealtime(nextDelayInMsSinceEpoch, jobId, holder);
                     }
                 }
-            });
+            }, delay, MachineLearning.DATAFEED_THREAD_POOL_NAME);
         }
     }
 
@@ -254,6 +259,21 @@ public class DatafeedManager {
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, TransportStartDatafeedAction.DatafeedTask datafeedTask) {
         return MlTasks.getJobStateModifiedForReassignments(getJobId(datafeedTask), tasks);
+    }
+
+    private boolean jobHasOpenAutodetectCommunicator(PersistentTasksCustomMetaData tasks,
+                                                     TransportStartDatafeedAction.DatafeedTask datafeedTask) {
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(getJobId(datafeedTask), tasks);
+        if (jobTask == null) {
+            return false;
+        }
+
+        JobTaskState state = (JobTaskState) jobTask.getState();
+        if (state == null || state.isStatusStale(jobTask)) {
+            return false;
+        }
+
+        return autodetectProcessManager.hasOpenAutodetectCommunicator(jobTask.getAllocationId());
     }
 
     private TimeValue computeNextDelay(long next) {
@@ -278,8 +298,8 @@ public class DatafeedManager {
         private final boolean autoCloseJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
-        volatile Future<?> future;
-        private volatile boolean isRelocating;
+        volatile Scheduler.Cancellable cancellable;
+        private volatile boolean isNodeShuttingDown;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
                ProblemTracker problemTracker, Consumer<Exception> finishHandler) {
@@ -305,7 +325,7 @@ public class DatafeedManager {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
-            if (isRelocating) {
+            if (isNodeShuttingDown) {
                 return;
             }
 
@@ -322,12 +342,15 @@ public class DatafeedManager {
                     logger.info("[{}] stopping datafeed [{}] for job [{}], acquired [{}]...", source, datafeedId,
                             datafeedJob.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
-                    FutureUtils.cancel(future);
-                    auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    if (cancellable != null) {
+                        cancellable.cancel();
+                    }
+                    auditor.info(datafeedJob.getJobId(),
+                            Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
-                    if (autoCloseJob) {
+                    if (autoCloseJob && isIsolated() == false) {
                         closeJob();
                     }
                     if (acquired) {
@@ -340,16 +363,18 @@ public class DatafeedManager {
         }
 
         /**
-         * This stops a datafeed WITHOUT updating the corresponding persistent task.  It must ONLY be called
-         * immediately prior to shutting down a node.  Then the datafeed task can remain "started", and be
-         * relocated to a different node.  Calling this method at any other time will ruin the datafeed.
+         * This stops a datafeed WITHOUT updating the corresponding persistent task.  When called it
+         * will stop the datafeed from sending data to its job as quickly as possible.  The caller
+         * must do something sensible with the corresponding persistent task.  If the node is shutting
+         * down the task will automatically get reassigned.  Otherwise the caller must take action to
+         * remove or reassign the persistent task, or the datafeed will be left in limbo.
          */
         public void isolateDatafeed() {
             datafeedJob.isolate();
         }
 
-        public void setRelocating() {
-            isRelocating = true;
+        public void setNodeIsShuttingDown() {
+            isNodeShuttingDown = true;
         }
 
         private Long executeLookBack(long startTime, Long endTime) throws Exception {
@@ -446,7 +471,7 @@ public class DatafeedManager {
         private void runWhenJobIsOpened(TransportStartDatafeedAction.DatafeedTask datafeedTask) {
             ClusterState clusterState = clusterService.state();
             PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            if (getJobState(tasks, datafeedTask) == JobState.OPENED) {
+            if (getJobState(tasks, datafeedTask) == JobState.OPENED && jobHasOpenAutodetectCommunicator(tasks, datafeedTask)) {
                 runTask(datafeedTask);
             } else {
                 logger.info("Datafeed [{}] is waiting for job [{}] to be opened",
@@ -485,10 +510,10 @@ public class DatafeedManager {
                     continue;
                 }
                 JobState jobState = getJobState(currentTasks, datafeedTask);
-                if (jobState == JobState.OPENED) {
-                    runTask(datafeedTask);
-                } else if (jobState == JobState.OPENING) {
+                if (jobState == JobState.OPENING || jobHasOpenAutodetectCommunicator(currentTasks, datafeedTask) == false) {
                     remainingTasks.add(datafeedTask);
+                } else if (jobState == JobState.OPENED) {
+                    runTask(datafeedTask);
                 } else {
                     logger.warn("Datafeed [{}] is stopping because job [{}] state is [{}]",
                             datafeedTask.getDatafeedId(), getJobId(datafeedTask), jobState);

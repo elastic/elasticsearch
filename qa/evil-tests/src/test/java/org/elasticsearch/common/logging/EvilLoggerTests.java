@@ -126,7 +126,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a deprecation message");
         }
     }
@@ -200,7 +200,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(i),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + i);
         }
 
@@ -242,13 +242,13 @@ public class EvilLoggerTests extends ESTestCase {
         assertLogLine(
                 deprecationEvents.get(0),
                 Level.WARN,
-                "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                 "This is a maybe logged deprecation message");
         for (int k = 0; k < 128; k++) {
             assertLogLine(
                     deprecationEvents.get(1 + k),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "This is a maybe logged deprecation message" + k);
         }
     }
@@ -276,7 +276,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                     deprecationEvents.get(0),
                     Level.WARN,
-                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "org.elasticsearch.common.logging.DeprecationLogger\\$2\\.run",
                     "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
                             "See the breaking changes documentation for the next major version.");
         }

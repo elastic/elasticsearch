@@ -42,7 +42,7 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             histo.interval(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            histo.timeZone(randomDateTimeZone());
+            histo.timeZone(randomZone());
         }
         if (randomBoolean()) {
             histo.missingBucket(true);

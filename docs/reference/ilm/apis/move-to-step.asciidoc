@@ -6,8 +6,6 @@
 <titleabbrev>Move to step</titleabbrev>
 ++++
 
-beta[]
-
 Triggers execution of a specific step in the lifecycle policy.
 
 ==== Request

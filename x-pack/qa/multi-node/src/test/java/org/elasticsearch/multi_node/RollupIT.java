@@ -69,7 +69,7 @@ public class RollupIT extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("_doc")
+                builder.startObject("mappings")
                     .startObject("properties")
                     .startObject("timestamp")
                     .field("type", "date")
@@ -77,7 +77,6 @@ public class RollupIT extends ESRestTestCase {
                     .endObject()
                     .startObject("value")
                     .field("type", "integer")
-                    .endObject()
                     .endObject()
                     .endObject().endObject();
             }
@@ -92,7 +91,7 @@ public class RollupIT extends ESRestTestCase {
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"rollup-docs\",\"_type\":\"_doc\"}}\n");
+            bulk.append("{\"index\":{\"_index\":\"rollup-docs\"}}\n");
             ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochSecond(1531221196 + (60*i)), ZoneId.of("UTC"));
             String date = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
             bulk.append("{\"timestamp\":\"").append(date).append("\",\"value\":").append(i).append("}\n");

@@ -25,11 +25,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
 
 /**
  * Specialization of {@link AtomicNumericFieldData} for integers.
@@ -53,38 +48,14 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues<?> getLegacyFieldValues() {
-        switch (numericType) {
-            case DATE:
-                final ScriptDocValues.Dates realDV = new ScriptDocValues.Dates(getLongValues());
-                return new ScriptDocValues<DateTime>() {
-
-                    @Override
-                    public int size() {
-                        return realDV.size();
-                    }
-
-                    @Override
-                    public DateTime get(int index) {
-                        JodaCompatibleZonedDateTime dt = realDV.get(index);
-                        return new DateTime(dt.toInstant().toEpochMilli(), DateTimeZone.UTC);
-                    }
-
-                    @Override
-                    public void setNextDocId(int docId) throws IOException {
-                        realDV.setNextDocId(docId);
-                    }
-                };
-            default:
-                return getScriptValues();
-        }
-    }
-
-    @Override
     public final ScriptDocValues<?> getScriptValues() {
         switch (numericType) {
+        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
         case DATE:
-            return new ScriptDocValues.Dates(getLongValues());
+            return new ScriptDocValues.Dates(getLongValues(), false);
+        case DATE_NANOSECONDS:
+            assert this instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData;
+            return new ScriptDocValues.Dates(((SortedNumericDVIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
         case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
         default:

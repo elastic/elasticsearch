@@ -91,7 +91,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
 
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 actionCompleted.set(complete);
@@ -138,7 +138,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

@@ -55,7 +55,6 @@ statement
     | (DESCRIBE | DESC) (tableLike=likePattern | tableIdent=tableIdentifier)                              #showColumns
     | SHOW FUNCTIONS (likePattern)?                                                                       #showFunctions
     | SHOW SCHEMAS                                                                                        #showSchemas
-    | SYS CATALOGS                                                                                        #sysCatalogs
     | SYS TABLES (CATALOG clusterLike=likePattern)?
                  (tableLike=likePattern | tableIdent=tableIdentifier)?
                  (TYPE string (',' string)* )?                                                            #sysTables
@@ -63,7 +62,6 @@ statement
                   (TABLE tableLike=likePattern | tableIdent=tableIdentifier)?
                   (columnPattern=likePattern)?                                                            #sysColumns
     | SYS TYPES ((PLUS | MINUS)?  type=number)?                                                           #sysTypes
-    | SYS TABLE TYPES                                                                                     #sysTableTypes  
     ;
     
 query
@@ -212,6 +210,7 @@ valueExpression
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    | valueExpression CAST_OP dataType                                                  #castOperatorExpression
     ;
 
 primaryExpression
@@ -226,21 +225,22 @@ primaryExpression
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
+builtinDateTimeFunction
+    : name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    ;
+
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
     | convertTemplate
     | FUNCTION_ESC convertTemplate ESC_END
     ;
-    
+
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
 
-builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
-    ;
-    
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -339,10 +339,10 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS | CURRENT 
+    | CATALOGS | COLUMNS
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
-    | FIRST | FORMAT | FUNCTIONS 
+    | FIRST | FORMAT | FULL | FUNCTIONS
     | GRAPHVIZ
     | HOUR
     | INTERVAL
@@ -372,7 +372,7 @@ CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
-CURRENT: 'CURRENT';
+CURRENT_DATE : 'CURRENT_DATE';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';
@@ -458,6 +458,7 @@ GUID_ESC: '{GUID';
 
 ESC_END: '}';
 
+// Operators
 EQ  : '=';
 NULLEQ: '<=>';
 NEQ : '<>' | '!=';
@@ -471,6 +472,7 @@ MINUS: '-';
 ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
+CAST_OP: '::';
 CONCAT: '||';
 DOT: '.';
 PARAM: '?';
@@ -495,7 +497,7 @@ IDENTIFIER
     ;
 
 DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    : DIGIT (LETTER | DIGIT | '_' | '@')+
     ;
 
 TABLE_IDENTIFIER

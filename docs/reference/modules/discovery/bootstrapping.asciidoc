@@ -27,10 +27,6 @@ fully formed. It is therefore better to bootstrap using at least three
 master-eligible nodes, each with a `cluster.initial_master_nodes` setting
 containing all three nodes.
 
-NOTE: In alpha releases, all listed master-eligible nodes are required to be
-discovered before bootstrapping can take place. This requirement will be relaxed
-in production-ready releases.
-
 WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
 on each node on which it is set in order to be sure that only a single cluster
 forms during bootstrapping and therefore to avoid the risk of data loss.
@@ -94,6 +90,6 @@ If any of the following settings are configured then auto-bootstrapping will not
 take place, and you must configure `cluster.initial_master_nodes` as described
 in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 
-* `discovery.zen.hosts_provider`
-* `discovery.zen.ping.unicast.hosts`
+* `discovery.seed_providers`
+* `discovery.seed_hosts`
 * `cluster.initial_master_nodes`

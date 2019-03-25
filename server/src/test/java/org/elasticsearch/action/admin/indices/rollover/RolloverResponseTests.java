@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
@@ -58,7 +59,7 @@ public class RolloverResponseTests extends AbstractStreamableXContentTestCase<Ro
     private static final List<Supplier<Condition<?>>> conditionSuppliers = new ArrayList<>();
     static {
         conditionSuppliers.add(() -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
-        conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
+        conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
     }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.joda.time.format.DateTimeFormatter;
 
 import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
@@ -193,7 +193,7 @@ public class HttpExporter extends Exporter {
     private final AtomicBoolean clusterAlertsAllowed = new AtomicBoolean(false);
 
     private final ThreadContext threadContext;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final DateFormatter dateTimeFormatter;
 
     /**
      * Create an {@link HttpExporter}.
@@ -592,7 +592,8 @@ public class HttpExporter extends Exporter {
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
         }
 
-        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
+        // Add dummy templates (e.g. ".monitoring-es-6") to enable the ability to check which version of the actual
+        // index template (e.g. ".monitoring-es") should be applied.
         boolean createLegacyTemplates =
                 TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         if (createLegacyTemplates) {

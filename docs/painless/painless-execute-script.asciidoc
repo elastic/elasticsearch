@@ -74,11 +74,9 @@ index:: The name of an index containing a mapping that is compatible with the do
 PUT /my-index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "keyword"
-        }
+    "properties": {
+      "field": {
+        "type": "keyword"
       }
     }
   }
@@ -132,14 +130,12 @@ query:: If `_score` is used in the script then a query can specified that will b
 PUT /my-index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "field": {
-          "type": "keyword"
-        },
-        "rank": {
-          "type": "long"
-        }
+    "properties": {
+      "field": {
+        "type": "keyword"
+      },
+      "rank": {
+        "type": "long"
       }
     }
   }

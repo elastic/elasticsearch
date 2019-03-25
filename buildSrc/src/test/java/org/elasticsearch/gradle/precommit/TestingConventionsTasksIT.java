@@ -105,4 +105,15 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         assertTaskSuccessful(result, ":valid_setup_with_base:testingConventions");
     }
 
+    public void testTestsInMain() {
+        GradleRunner runner = getGradleRunner("testingConventions")
+            .withArguments("clean", ":tests_in_main:testingConventions", "-i", "-s");
+        BuildResult result = runner.buildAndFail();
+        assertOutputContains(result.getOutput(),
+          "Classes matching the test naming convention should be in test not main:",
+              "  * NamingConventionIT",
+              "  * NamingConventionTests"
+        );
+    }
+
 }

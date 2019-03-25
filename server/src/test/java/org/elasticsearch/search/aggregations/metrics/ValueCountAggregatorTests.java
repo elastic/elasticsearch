@@ -35,15 +35,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.ValueCount;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -60,7 +58,10 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         for (ValueType valueType : ValueType.values()) {
             testCase(new MatchAllDocsQuery(), valueType, iw -> {
                 // Intentionally not writing any docs
-            }, count -> assertEquals(0L, count.getValue()));
+            }, count -> {
+                assertEquals(0L, count.getValue());
+                assertFalse(AggregationInspectionHelper.hasValue(count));
+            });
         }
     }
 
@@ -68,7 +69,10 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), ValueType.LONG, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
-        }, count -> assertEquals(0L, count.getValue()));
+        }, count -> {
+            assertEquals(0L, count.getValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
@@ -76,14 +80,20 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
-        }, count -> assertEquals(2L, count.getValue()));
+        }, count -> {
+            assertEquals(2L, count.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
         testCase(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
-        }, count -> assertEquals(2L, count.getValue()));
+        }, count -> {
+            assertEquals(2L, count.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testQueryFiltering() throws IOException {
@@ -93,20 +103,26 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("level", 3), new SortedDocValuesField(FIELD_NAME, new BytesRef("foo"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 5), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 7), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
-        }, count -> assertEquals(4L, count.getValue()));
+        }, count -> {
+            assertEquals(4L, count.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     public void testQueryFiltersAll() throws IOException {
         testCase(IntPoint.newRangeQuery("level", -1, 0), ValueType.STRING, iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("level", 3), new SortedDocValuesField(FIELD_NAME, new BytesRef("foo"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 5), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
-        }, count -> assertEquals(0L, count.getValue()));
+        }, count -> {
+            assertEquals(0L, count.getValue());
+            assertFalse(AggregationInspectionHelper.hasValue(count));
+        });
     }
 
     private void testCase(Query query,
                           ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
-                          Consumer<ValueCount> verify) throws IOException {
+                          Consumer<InternalValueCount> verify) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -127,7 +143,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
-                verify.accept((ValueCount) aggregator.buildAggregation(0L));
+                verify.accept((InternalValueCount) aggregator.buildAggregation(0L));
             }
         }
     }

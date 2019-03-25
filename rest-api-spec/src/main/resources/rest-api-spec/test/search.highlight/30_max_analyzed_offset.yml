@@ -8,18 +8,16 @@ setup:
                   number_of_shards: 1
                   index.highlight.max_analyzed_offset: 10
               mappings:
-                  test_type:
-                      properties:
-                          field1:
-                              type: text
-                          field2:
-                              type: text
-                              index_options: offsets
+                  properties:
+                      field1:
+                          type: text
+                      field2:
+                          type: text
+                          index_options: offsets
 
   - do:
       index:
           index: test1
-          type:  test_type
           id:    1
           body:
               "field1" : "The quick brown fox went to the forest and saw another fox."

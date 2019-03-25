@@ -121,9 +121,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         nestedPath = in.readOptionalString();
         nestedFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        }
+        nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
     @Override
@@ -134,9 +132,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(nestedPath);
         out.writeOptionalNamedWriteable(nestedFilter);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalWriteable(nestedSort);
-        }
+        out.writeOptionalWriteable(nestedSort);
     }
 
     /**

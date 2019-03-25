@@ -82,7 +82,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,7 +101,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
-
     // This is the number of bytes necessary to read the message size
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
@@ -119,7 +117,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
 
-    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
+    private static final TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
+    private volatile TransportMessageListener messageListener = NOOP_LISTENER;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -129,7 +128,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
     private volatile BoundTransportAddress boundAddress;
-    private final String transportName;
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
@@ -141,9 +139,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final OutboundHandler outboundHandler;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings, Version version, ThreadPool threadPool,
-                        PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
-                        NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+    public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
+                        CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+                        NetworkService networkService) {
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.version = version;
@@ -152,7 +150,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        this.transportName = transportName;
         this.transportLogger = new TransportLogger();
         this.outboundHandler = new OutboundHandler(threadPool, bigArrays, transportLogger);
         this.handshaker = new TransportHandshaker(version, threadPool,
@@ -183,12 +180,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected void doStart() {
     }
 
-    public void addMessageListener(TransportMessageListener listener) {
-        messageListener.listeners.add(listener);
-    }
-
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        return messageListener.listeners.remove(listener);
+    @Override
+    public synchronized void setMessageListener(TransportMessageListener listener) {
+        if (messageListener == NOOP_LISTENER) {
+            messageListener = listener;
+        } else {
+            throw new IllegalStateException("Cannot set message listener twice");
+        }
     }
 
     @Override
@@ -1023,7 +1021,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 } else {
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features, profileName,
                     messageLengthBytes, message.isCompress());
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
@@ -1034,7 +1032,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features,
+                transportChannel = new TcpTransportChannel(this, channel, action, requestId, version, features,
                     profileName, 0, message.isCompress());
             }
             try {
@@ -1183,47 +1181,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             portOrRange = TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             publishPort = isDefaultProfile ? TransportSettings.PUBLISH_PORT.get(settings) :
                 TransportSettings.PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
-        }
-    }
-
-    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
-
-        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
-
-        @Override
-        public void onRequestReceived(long requestId, String action) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onRequestReceived(requestId, action);
-            }
-        }
-
-        @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
-            }
-        }
-
-        @Override
-        public void onResponseSent(long requestId, String action, Exception error) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, error);
-            }
-        }
-
-        @Override
-        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                  TransportRequestOptions finalOptions) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onRequestSent(node, requestId, action, request, finalOptions);
-            }
-        }
-
-        @Override
-        public void onResponseReceived(long requestId, ResponseContext holder) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
-            }
         }
     }
 

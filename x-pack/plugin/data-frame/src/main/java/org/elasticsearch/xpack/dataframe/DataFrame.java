@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
@@ -54,7 +55,9 @@ import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsS
 import org.elasticsearch.xpack.dataframe.action.TransportPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
@@ -96,6 +99,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
+    private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
     public DataFrame(Settings settings) {
@@ -148,6 +152,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         return Arrays.asList(
                 new ActionHandler<>(PutDataFrameTransformAction.INSTANCE, TransportPutDataFrameTransformAction.class),
                 new ActionHandler<>(StartDataFrameTransformAction.INSTANCE, TransportStartDataFrameTransformAction.class),
+                new ActionHandler<>(StartDataFrameTransformTaskAction.INSTANCE, TransportStartDataFrameTransformTaskAction.class),
                 new ActionHandler<>(StopDataFrameTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
@@ -177,8 +182,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client));
 
-        return Collections.singletonList(dataFrameTransformsConfigManager.get());
+        return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameTransformsCheckpointService.get());
     }
 
     @Override
@@ -204,10 +210,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
         // the transforms config manager should have been created
         assert dataFrameTransformsConfigManager.get() != null;
+        assert dataFrameTransformsCheckpointService.get() != null;
+
         return Collections.singletonList(new DataFrameTransformPersistentTasksExecutor(client, dataFrameTransformsConfigManager.get(),
-            schedulerEngine.get(), threadPool));
+                dataFrameTransformsCheckpointService.get(), schedulerEngine.get(), threadPool));
     }
-    
+
     @Override
     public void close() {
         if (schedulerEngine.get() != null) {

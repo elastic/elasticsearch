@@ -18,8 +18,8 @@ setup:
         transform_id: "airline-transform-start-stop"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-start-stop",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}

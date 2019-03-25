@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -52,7 +51,14 @@ public final class DateUtils {
      * Creates an date for SQL TIME type from the millis since epoch.
      */
     public static OffsetTime asTimeOnly(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalTime().atOffset(ZoneOffset.UTC);
+        return OffsetTime.ofInstant(Instant.ofEpochMilli(millis % DAY_IN_MILLIS), UTC);
+    }
+
+    /**
+     * Creates an date for SQL TIME type from the millis since epoch.
+     */
+    public static OffsetTime asTimeOnly(long millis, ZoneId zoneId) {
+        return OffsetTime.ofInstant(Instant.ofEpochMilli(millis % DAY_IN_MILLIS), zoneId);
     }
 
     /**

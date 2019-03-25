@@ -84,6 +84,10 @@ final class JdbcDateUtils {
         return new Time(utcMillisRemoveDate(timeAsMillisSinceEpoch(date)));
     }
 
+    static Timestamp asTimestamp(long millisSinceEpoch) {
+        return new Timestamp(millisSinceEpoch);
+    }
+
     static Timestamp asTimestamp(String date) {
         return new Timestamp(asMillisSinceEpoch(date));
     }

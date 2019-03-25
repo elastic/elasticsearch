@@ -32,6 +32,7 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XIndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lease.Releasable;
@@ -447,7 +448,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     protected static IndexSearcher newIndexSearcher(IndexReader indexReader) {
         if (randomBoolean()) {
-            return new AssertingIndexSearcher(random(), indexReader);
+            final IndexSearcher delegate = new IndexSearcher(indexReader);
+            final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
+            // this executes basic query checks and asserts that weights are normalized only once etc.
+            return new AssertingIndexSearcher(random(), indexReader) {
+                @Override
+                protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                    // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
+                    wrappedSearcher.search(leaves, weight, collector);
+                }
+             };
         } else {
             return new IndexSearcher(indexReader);
         }

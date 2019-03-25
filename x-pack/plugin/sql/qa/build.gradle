@@ -16,7 +16,16 @@ dependencies {
 
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-  compile "org.jline:jline:3.8.2"
+ 
+  // select just the parts of JLine that are needed
+  compile("org.jline:jline-terminal-jna:${jlineVersion}") {
+    exclude group: "net.java.dev.jna"
+  }
+  compile "org.jline:jline-terminal:${jlineVersion}"
+  compile "org.jline:jline-reader:${jlineVersion}"
+  compile "org.jline:jline-style:${jlineVersion}"
+
+  testRuntime "org.elasticsearch:jna:${versions.jna}"
 }
 
 /* disable unit tests because these are all integration tests used
@@ -30,49 +39,6 @@ dependenciesInfo.enabled = false
 forbiddenApisMain {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
-
-thirdPartyAudit.ignoreMissingClasses (
-    // jLine's optional dependencies
-    'org.apache.sshd.client.SshClient',
-    'org.apache.sshd.client.auth.keyboard.UserInteraction',
-    'org.apache.sshd.client.channel.ChannelShell',
-    'org.apache.sshd.client.channel.ClientChannel',
-    'org.apache.sshd.client.channel.ClientChannelEvent',
-    'org.apache.sshd.client.future.AuthFuture',
-    'org.apache.sshd.client.future.ConnectFuture',
-    'org.apache.sshd.client.future.OpenFuture',
-    'org.apache.sshd.client.session.ClientSession',
-    'org.apache.sshd.common.Factory',
-    'org.apache.sshd.common.channel.PtyMode',
-    'org.apache.sshd.common.config.keys.FilePasswordProvider',
-    'org.apache.sshd.common.util.io.NoCloseInputStream',
-    'org.apache.sshd.common.util.io.NoCloseOutputStream',
-    'org.apache.sshd.server.Command',
-    'org.apache.sshd.server.Environment',
-    'org.apache.sshd.server.ExitCallback',
-    'org.apache.sshd.server.SessionAware',
-    'org.apache.sshd.server.Signal',
-    'org.apache.sshd.server.SshServer',
-    'org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider',
-    'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
-    'org.apache.sshd.server.session.ServerSession',
-    'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
-    'org.fusesource.jansi.Ansi',
-    'org.fusesource.jansi.internal.CLibrary$Termios',
-    'org.fusesource.jansi.internal.CLibrary$WinSize',
-    'org.fusesource.jansi.internal.CLibrary',
-    'org.fusesource.jansi.internal.Kernel32$CHAR_INFO',
-    'org.fusesource.jansi.internal.Kernel32$CONSOLE_SCREEN_BUFFER_INFO',
-    'org.fusesource.jansi.internal.Kernel32$COORD',
-    'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$INPUT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$KEY_EVENT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$SMALL_RECT',
-    'org.fusesource.jansi.internal.Kernel32',
-    'org.fusesource.jansi.internal.WindowsSupport',
-    'org.mozilla.universalchardet.UniversalDetector',
-)
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
@@ -95,7 +61,7 @@ subprojects {
 
 
     // TODO check if needed
-    testRuntime("org.antlr:antlr4-runtime:4.5.3") {
+    testRuntime("org.antlr:antlr4-runtime:${antlrVersion}") {
       transitive = false
     }
 
@@ -104,7 +70,15 @@ subprojects {
     testRuntime (xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
-    testRuntime "org.jline:jline:3.8.2"
+
+    testRuntime("org.jline:jline-terminal-jna:${jlineVersion}") {
+      exclude group: "net.java.dev.jna"
+    }
+    testRuntime "org.jline:jline-terminal:${jlineVersion}"
+    testRuntime "org.jline:jline-reader:${jlineVersion}"
+    testRuntime "org.jline:jline-style:${jlineVersion}"
+
+    testRuntime "org.elasticsearch:jna:${versions.jna}"
   }
 
   if (project.name != 'security') {

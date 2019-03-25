@@ -119,6 +119,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public T docValues(boolean docValues) {
             this.fieldType.setHasDocValues(docValues);
             this.docValuesSet = true;
+            doSetDocValueType(docValues);
             return builder;
         }
 

@@ -315,15 +315,6 @@ public class BatchedDataIteratorTests extends ESTestCase {
             fields = new HashMap<>();
         }
 
-        public SearchHitBuilder addField(String name, Object value) {
-            return addField(name, Arrays.asList(value));
-        }
-
-        public SearchHitBuilder addField(String name, List<Object> values) {
-            fields.put(name, new DocumentField(name, values));
-            return this;
-        }
-
         public SearchHitBuilder setSource(String sourceJson) {
             hit.sourceRef(new BytesArray(sourceJson));
             return this;

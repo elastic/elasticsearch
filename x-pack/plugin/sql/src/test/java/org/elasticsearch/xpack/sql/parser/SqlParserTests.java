@@ -81,6 +81,11 @@ public class SqlParserTests extends ESTestCase {
         assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
     }
 
+    public void testSelectCastToEsType() {
+        Cast f = singleProjection(project(parseStatement("SELECT CAST('0.' AS SCALED_FLOAT)")), Cast.class);
+        assertEquals("CAST('0.' AS SCALED_FLOAT)", f.sourceText());
+    }
+
     public void testSelectAddWithParanthesis() {
         Add f = singleProjection(project(parseStatement("SELECT (1 +  2)")), Add.class);
         assertEquals("1 +  2", f.sourceText());

@@ -95,13 +95,8 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
-        delegate.addMessageListener(listener);
-    }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        return delegate.removeMessageListener(listener);
+    public void setMessageListener(TransportMessageListener listener) {
+        delegate.setMessageListener(listener);
     }
 
     @Override

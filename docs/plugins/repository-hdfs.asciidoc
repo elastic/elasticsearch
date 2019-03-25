@@ -62,7 +62,7 @@ The following settings are supported:
 
 `compress`::
 
-    Whether to compress the metadata or not. (Disabled by default)
+    Whether to compress the metadata or not. (Enabled by default)
 
 `chunk_size`::
 

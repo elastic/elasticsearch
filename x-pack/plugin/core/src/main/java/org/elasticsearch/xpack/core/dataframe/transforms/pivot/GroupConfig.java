@@ -139,9 +139,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
         XContentParser.Token token;
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            token = parser.currentToken();
-        } else {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: Expected START_OBJECT but was: " + token);

@@ -9,6 +9,8 @@ https://www.tableau.com/products/desktop[Tableau] is the most powerful, secure, 
 for your data.
 ____
 
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
 ==== Prerequisites
 
 * Tableau 2018 or higher

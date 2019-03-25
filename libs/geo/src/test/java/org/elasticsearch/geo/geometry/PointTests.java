@@ -26,13 +26,16 @@ import java.text.ParseException;
 
 public class PointTests extends BaseGeometryTestCase<Point> {
     @Override
-    protected Point createTestInstance() {
-        return randomPoint();
+    protected Point createTestInstance(boolean hasAlt) {
+        return randomPoint(hasAlt);
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
         assertEquals("point (20.0 10.0)", WellKnownText.toWKT(new Point(10, 20)));
         assertEquals(new Point(10, 20), WellKnownText.fromWKT("point (20.0 10.0)"));
+
+        assertEquals("point (20.0 10.0 100.0)", WellKnownText.toWKT(new Point(10, 20, 100)));
+        assertEquals(new Point(10, 20, 100), WellKnownText.fromWKT("point (20.0 10.0 100.0)"));
 
         assertEquals("point EMPTY", WellKnownText.toWKT(Point.EMPTY));
         assertEquals(Point.EMPTY, WellKnownText.fromWKT("point EMPTY)"));

@@ -1169,6 +1169,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
+        public Builder hashesOfConsistentSettings(Map<String, String> hashesOfConsistentSettings) {
+            this.hashesOfConsistentSettings = new DiffableStringMap(hashesOfConsistentSettings);
+            return this;
+        }
+
         public Builder version(long version) {
             this.version = version;
             return this;
@@ -1374,7 +1379,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                             builder.put(IndexMetaData.Builder.fromXContent(parser), false);
                         }
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(new DiffableStringMap(parser.mapStrings()));
+                        builder.hashesOfConsistentSettings(parser.mapStrings());
                     } else if ("templates".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             builder.put(IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName()));

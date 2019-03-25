@@ -22,10 +22,14 @@ package org.elasticsearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,12 +62,17 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
 
     public ConsistentSecureSettingsValidator(Settings settings, ClusterService clusterService, Set<SecureSetting<?>> consistentSecureSettings) {
         this.clusterService = clusterService;
+        // eagerly compute hashes for the secure settings
+        computeHashesOfLocalSecureSettingValues(settings, consistentSecureSettings);
+    }
+
+    private void computeHashesOfLocalSecureSettingValues(Settings settings, Set<SecureSetting<?>> consistentSecureSettings) {
         for (SecureSetting<?> secureSetting : consistentSecureSettings) {
             // compute unsalted hash to store in memory on the local node
             final char[] localHash = computeSecureSettingLocalHash(settings, secureSetting);
             localHashesOfConsistentSettings.put(secureSetting.getKey(), localHash);
             // salted hash (of the unsalted hash) suitable for cluster-wide publication
-            final String publicHash = computePublicHash(UUIDs.randomBase64UUID(), localHash);
+            final String publicHash = computePublicHash(localHash, UUIDs.randomBase64UUID());
             publicHashesOfConsistentSettings.put(secureSetting.getKey(), publicHash);
         }
     }
@@ -72,10 +81,14 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
         return allSecureSettingsConsistent;
     }
 
+    Map<String, String> publicHashesOfConsistentSettings() {
+        return publicHashesOfConsistentSettings;
+    }
+
     /**
      * Compute UNSALTED hash of a secure setting value for subsequent comparison with the master's reference. This values IS NOT to be
-     * published in the cluster state, but rather compared (and stored), on the local node, to the SALTED hash value published in the
-     * cluster state by the master node.
+     * published in the cluster state, but rather compared (and stored) locally, to the SALTED hash value published in the cluster state by
+     * the master node.
      */
     private static char[] computeSecureSettingLocalHash(Settings settings, SecureSetting<?> secureSetting) {
         final Object verbatimValue = secureSetting.get(settings);
@@ -131,13 +144,13 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
         }
     }
 
-    private static String computePublicHash(String salt, char[] localHash) {
+    private static String computePublicHash(char[] localHash, String salt) {
         final byte[] saltedHashBytes = computeSaltedHash(localHash, salt.getBytes(StandardCharsets.UTF_8));
         final String base64SaltedHashString = new String(saltedHashBytes, StandardCharsets.UTF_8);
         return salt + ":" + base64SaltedHashString;
     }
 
-    private boolean validatePublicHash(String publishedSettingName, String publishedHashWithSalt) {
+    private boolean checkPublicHashAgainstLocalValue(String publishedSettingName, String publishedHashWithSalt) {
         logger.trace("published hash for secure setting [{}] is [{}]", publishedSettingName, publishedHashWithSalt);
         if (publishedHashWithSalt == null || false == publishedHashWithSalt.contains(":")) {
             logger.trace("published hash [{}] for secure setting [{}] is invalid", publishedHashWithSalt, publishedSettingName);
@@ -154,7 +167,7 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
             return false;
         }
         final String publishedSalt = parts[0];
-        final String localHashWithSalt = computePublicHash(publishedSalt, localHash);
+        final String localHashWithSalt = computePublicHash(localHash, publishedSalt);
         logger.trace("local hash for secure setting [{}] is [{}]", publishedSettingName, localHashWithSalt);
         return publishedHashWithSalt.equals(localHashWithSalt);
     }
@@ -169,7 +182,7 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
             logger.debug("hashes of secure settings are identical to the master's");
         } else {
             for (Map.Entry<String, String> publishedSettingAndHash : publishedHashesOfConsistentSettings.entrySet()) {
-                if (false == validatePublicHash(publishedSettingAndHash.getKey(), publishedSettingAndHash.getValue())) {
+                if (false == checkPublicHashAgainstLocalValue(publishedSettingAndHash.getKey(), publishedSettingAndHash.getValue())) {
                     allConsistent = false;
                     if (logger.isDebugEnabled()) {
                         logger.debug("secure setting [{}] differs on the local node [{}] compared to master [{}].",
@@ -202,26 +215,28 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
 
     @Override
     public void onMaster() {
-        logger.trace("I have been elected master, publishing hashes of consistent secure settings' values");
-//        
-//        clusterService.submitStateUpdateTask(
-//                "clean up snapshot restore state",
-//                new CleanRestoreStateTaskExecutor.Task(entry.uuid()),
-//                ClusterStateTaskConfig.build(Priority.URGENT),
-//                cleanRestoreStateTaskExecutor,
-//                cleanRestoreStateTaskExecutor);
-//
-//        // Submit a job that will start after DEFAULT_STARTING_INTERVAL, and reschedule itself after running
-//        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
-//
-//        try {
-//            if (clusterService.state().getNodes().getDataNodes().size() > 1) {
-//                // Submit an info update job to be run immediately
-//                threadPool.executor(executorName()).execute(() -> maybeRefresh());
-//            }
-//        } catch (EsRejectedExecutionException ex) {
-//            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-//        }
+        clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final Map<String, String> publishedHashesOfConsistentSettings = currentState.metaData().hashesOfConsistentSettings();
+                final Map<String, String> publicHashesOfConsistentSettings = publicHashesOfConsistentSettings();
+                if (publicHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
+                    logger.debug("Nothing to publish, what is already published matches this master's view as well");
+                    return currentState;
+                } else {
+                    return ClusterState.builder(currentState)
+                            .metaData(MetaData.builder(currentState.metaData())
+                                    .hashesOfConsistentSettings(publicHashesOfConsistentSettings))
+                            .build();
+                }
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error("unable to install publish secure settings hashes", e);
+            }
+
+        });
     }
 
     @Override
@@ -231,7 +246,7 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
 
     @Override
     public String executorName() {
-        return ThreadPool.Names.MANAGEMENT;
+        return ThreadPool.Names.SAME;
     }
 
 }

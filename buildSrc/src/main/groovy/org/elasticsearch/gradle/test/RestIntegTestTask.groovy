@@ -187,6 +187,10 @@ public class RestIntegTestTask extends DefaultTask {
         clusterInit.mustRunAfter(tasks)
     }
 
+    public void runner(Closure configure) {
+        project.tasks.getByName("${name}Runner").configure(configure)
+    }
+
     /** Print out an excerpt of the log from the given node. */
     protected static void printLogExcerpt(NodeInfo nodeInfo) {
         File logFile = new File(nodeInfo.homeDir, "logs/${nodeInfo.clusterName}.log")

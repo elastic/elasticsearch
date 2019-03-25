@@ -71,7 +71,6 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
         static {
             FIELD_TYPE.setTokenized(false);
-//            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.setDimensions(2, Integer.BYTES);
             FIELD_TYPE.freeze();

@@ -174,7 +174,7 @@ public class JsonLoggerTests extends ESTestCase {
                     logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
 
                     //stacktrace field will have each json line will in a separate array element
-                    stacktraceWith(("java.lang.Exception: " + json).split("\n"))
+                    stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
                 )
             ));
         }

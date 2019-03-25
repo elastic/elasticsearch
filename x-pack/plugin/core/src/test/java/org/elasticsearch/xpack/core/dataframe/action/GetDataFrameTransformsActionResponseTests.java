@@ -6,23 +6,23 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class GetDataFrameTransformsActionResponseTests extends ESTestCase {
+public class GetDataFrameTransformsActionResponseTests extends AbstractWireSerializingDataFrameTestCase<Response> {
 
     public void testInvalidTransforms() throws IOException {
         List<DataFrameTransformConfig> transforms = new ArrayList<>();
@@ -65,5 +65,20 @@ public class GetDataFrameTransformsActionResponseTests extends ESTestCase {
             assertEquals(transforms.get(i).getSource(), XContentMapValues.extractValue("source", transformsResponse.get(i)));
             assertEquals(null, XContentMapValues.extractValue("headers", transformsResponse.get(i)));
         }
+    }
+
+    @Override
+    protected Response createTestInstance() {
+        List<DataFrameTransformConfig> configs = new ArrayList<>();
+        for (int i = 0; i < randomInt(10); ++i) {
+            configs.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+        }
+
+        return new Response(configs);
+    }
+
+    @Override
+    protected Reader<Response> instanceReader() {
+        return Response::new;
     }
 }

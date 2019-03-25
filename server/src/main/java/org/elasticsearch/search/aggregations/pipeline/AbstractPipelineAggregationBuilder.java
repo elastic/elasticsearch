@@ -89,7 +89,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
 
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     /**
      * Creates the pipeline aggregator
@@ -97,7 +97,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * @return The created aggregator
      */
     @Override
-    public final PipelineAggregator create() throws IOException {
+    public final PipelineAggregator create() {
         PipelineAggregator aggregator = createInternal(this.metaData);
         return aggregator;
     }

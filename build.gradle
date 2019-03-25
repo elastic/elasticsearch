@@ -46,6 +46,8 @@ allprojects {
   description = "Elasticsearch subproject ${project.path}"
 }
 
+BuildPlugin.configureRepositories(project)
+
 apply plugin: 'nebula.info-scm'
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
@@ -228,7 +230,6 @@ allprojects {
     "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${version}": ':modules:lang-painless:spi',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
-    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:archives:integ-test-zip',
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     "org.elasticsearch.xpack.test:feature-aware:${version}": ':x-pack:test:feature-aware',
     // for transport client

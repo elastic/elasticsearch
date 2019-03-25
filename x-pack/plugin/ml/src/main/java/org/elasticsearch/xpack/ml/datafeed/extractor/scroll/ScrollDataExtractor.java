@@ -78,6 +78,11 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     @Override
+    public long getEndTime() {
+        return context.end;
+    }
+
+    @Override
     public Optional<InputStream> next() throws IOException {
         if (!hasNext()) {
             throw new NoSuchElementException();

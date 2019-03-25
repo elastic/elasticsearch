@@ -536,6 +536,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
+                                // in case we previously reset engine, we need to forward MSU before replaying translog.
+                                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
@@ -1394,7 +1396,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         innerOpenEngineAndTranslog();
         final Engine engine = getEngine();
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
@@ -1434,6 +1436,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         updateRetentionLeasesOnReplica(loadRetentionLeases());
+        assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
+            : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
+            + "] but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1897,6 +1902,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
+    private void ensureSoftDeletesEnabled(String feature) {
+        if (indexSettings.isSoftDeleteEnabled() == false) {
+            String message = feature + " requires soft deletes but " + indexSettings.getIndex() + " does not have soft deletes enabled";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
      * Get all retention leases tracked on this shard.
      *
@@ -1943,6 +1956,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         try (Closeable ignore = acquireRetentionLock()) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -1964,6 +1978,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         try (Closeable ignore = acquireRetentionLock()) {
             final long actualRetainingSequenceNumber =
                     retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
@@ -1983,6 +1998,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         replicationTracker.removeRetentionLease(id, listener);
     }
 
@@ -2018,12 +2034,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
+    public boolean assertRetentionLeasesPersisted() throws IOException {
+        return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
+    }
+
     /**
      * Syncs the current retention leases to all replicas.
      */
     public void syncRetentionLeases() {
         assert assertPrimaryMode();
         verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
         final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
         if (retentionLeases.v1()) {
             logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());

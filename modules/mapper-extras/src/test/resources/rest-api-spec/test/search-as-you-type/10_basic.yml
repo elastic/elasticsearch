@@ -858,7 +858,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "qui"
 
   - match: { hits.total: 1 }
@@ -873,7 +873,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "quick b"
 
   - match: { hits.total: 1 }
@@ -888,7 +888,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "quick brown f"
 
   - match: { hits.total: 1 }
@@ -903,7 +903,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "quick brown fox ju"
 
   - match: { hits.total: 1 }
@@ -918,7 +918,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "quick brown fox jump la"
 
   - match: { hits.total: 1 }
@@ -933,7 +933,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "br"
 
   - match: { hits.total: 1 }
@@ -948,7 +948,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "brown f"
 
   - match: { hits.total: 1 }
@@ -963,7 +963,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "brown fox j"
 
   - match: { hits.total: 1 }
@@ -978,7 +978,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "brown fox jump la"
 
   - match: { hits.total: 1 }
@@ -993,7 +993,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "brown fox jump lazy d"
 
   - match: { hits.total: 1 }
@@ -1008,7 +1008,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "do"
 
   - match: { hits.total: 1 }
@@ -1023,7 +1023,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "fox jump brown do"
 
   - match: { hits.total: 1 }
@@ -1038,7 +1038,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "fox jump brown qui"
 
   - match: { hits.total: 1 }

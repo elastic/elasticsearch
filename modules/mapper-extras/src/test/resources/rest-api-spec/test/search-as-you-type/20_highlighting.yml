@@ -61,7 +61,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               a_field: "brown fo"
           highlight:
             fields:

@@ -46,7 +46,7 @@ setup:
                     script_score:
                         query: {match_all: {} }
                         script:
-                            source: "randomScore(String.valueOf(doc['_seq_no'].value), 100)"
+                            source: "randomScore(100, '_seq_no')"
     # stash ids to check for reproducibility of ranking
     - set: { hits.hits.0._id: id0 }
     - set: { hits.hits.1._id: id1 }
@@ -66,7 +66,7 @@ setup:
                     script_score:
                         query: {match_all: {} }
                         script:
-                            source: "randomScore(String.valueOf(doc['_seq_no'].value), 100)"
+                            source: "randomScore(100, '_seq_no')"
     - match: { hits.hits.0._id: $id0 }
     - match: { hits.hits.1._id: $id1 }
     - match: { hits.hits.2._id: $id2 }

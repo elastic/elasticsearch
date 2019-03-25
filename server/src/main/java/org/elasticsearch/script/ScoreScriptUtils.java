@@ -21,12 +21,14 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
@@ -49,39 +51,45 @@ public final class ScoreScriptUtils {
         return Math.pow(value,a) / (Math.pow(k,a) + Math.pow(value,a));
     }
 
-    // reproducible random
-    public static double randomScore(String seedValue, String indexName, int shardId, int seed) {
-        int salt = (indexName.hashCode() << 10) | shardId;
-        int saltedSeed = mix32(salt ^ seed);
-        int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
-        return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
-    }
-
     public static final class RandomScore {
-        private ScoreScript scoreScript;
-        public RandomScore(ScoreScript scoreScript) {
+        private final ScoreScript scoreScript;
+        private final ScriptDocValues docValues;
+        private final int saltedSeed;
+
+
+        public RandomScore(ScoreScript scoreScript, int seed, String fieldName) {
             this.scoreScript = scoreScript;
+            this.docValues = scoreScript.getDoc().get(fieldName);
+            int salt = (scoreScript._getIndex().hashCode() << 10) | scoreScript._getShardId();
+            this.saltedSeed = mix32(salt ^ seed);
+
         }
 
-        public double randomScore(String seedValue, int seed) {
-            int salt = (scoreScript.getIndex().hashCode() << 10) | scoreScript.getShardId();
-            int saltedSeed = mix32(salt ^ seed);
-            int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
-            return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+        public double randomScore() {
+            try {
+                docValues.setNextDocId(scoreScript._getDocId());
+                String seedValue = String.valueOf(docValues.get(0));
+                int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
+                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
     }
-
 
     // random score based on the internal Lucene document Ids
     public static final class RandomScoreDoc {
-        private ScoreScript scoreScript;
-        public RandomScoreDoc(ScoreScript scoreScript) {
+        private final ScoreScript scoreScript;
+        private final int saltedSeed;
+
+        public RandomScoreDoc(ScoreScript scoreScript, int seed) {
             this.scoreScript = scoreScript;
+            int salt = (scoreScript._getIndex().hashCode() << 10) | scoreScript._getShardId();
+            this.saltedSeed = mix32(salt ^ seed);
         }
-        public double randomScore(int seed) {
-            String seedValue = Integer.toString(scoreScript.getDocId());
-            int salt = (scoreScript.getIndex().hashCode() << 10) | scoreScript.getShardId();
-            int saltedSeed = mix32(salt ^ seed);
+
+        public double randomScore() {
+            String seedValue = Integer.toString(scoreScript._getDocBaseId());
             int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
             return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
         }

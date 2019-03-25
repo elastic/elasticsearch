@@ -120,17 +120,31 @@ public abstract class ScoreScript {
         return scoreSupplier.getAsDouble();
     }
 
+
     /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script
+     * It is only used within predefined painless functions.
      * @return the internal document ID
      */
-    public int getDocId() {
+    public int _getDocId() {
+        return docId;
+    }
+
+    /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script
+     * It is only used within predefined painless functions.
+     * @return the internal document ID with the base
+     */
+    public int _getDocBaseId() {
         return docBase + docId;
     }
 
     /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     *  It is only used within predefined painless functions.
      * @return shard id or throws an exception if shard is not set up for this script instance
      */
-    public int getShardId() {
+    public int _getShardId() {
         if (shardId > -1) {
             return shardId;
         } else {
@@ -139,9 +153,11 @@ public abstract class ScoreScript {
     }
 
     /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     *  It is only used within predefined painless functions.
      * @return index name or throws an exception if the index name is not set up for this script instance
      */
-    public String getIndex() {
+    public String _getIndex() {
         if (indexName != null) {
             return indexName;
         } else {
@@ -149,11 +165,17 @@ public abstract class ScoreScript {
         }
     }
 
-    public void setShard(int shardId) {
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     */
+    public void _setShard(int shardId) {
         this.shardId = shardId;
     }
 
-    public void setIndexName(String indexName) {
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     */
+    public void _setIndexName(String indexName) {
         this.indexName = indexName;
     }
 

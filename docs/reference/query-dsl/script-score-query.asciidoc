@@ -188,18 +188,19 @@ in the calculations of vector functions.
 from 0 up to but not including 1.
 
 `randomScore` function has the following syntax:
-`randomScore(String docValue, int seed)`.
-It requires a document value as a string, and a seed:
+`randomScore(<seed>, <fieldName>)`.
+It has a required parameter - `seed` as an integer value,
+and an optional parameter - `fieldName` as a string value.
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "randomScore(String.valueOf(doc['_seq_no'].value), 100)"
+    "source" : "randomScore(100, '_seq_no')"
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-`docValue` is an optional parameter, and if omitted the internal Lucene
+If the `fieldName` parameter is omitted, the internal Lucene
 document ids will be used as a source of randomness. This is very efficient,
 but unfortunately not reproducible since documents might be renumbered
 by merges.

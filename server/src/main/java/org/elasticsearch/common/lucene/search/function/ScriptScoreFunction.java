@@ -75,8 +75,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         final ScoreScript leafScript = script.newInstance(ctx);
         final CannedScorer scorer = new CannedScorer();
         leafScript.setScorer(scorer);
-        leafScript.setIndexName(indexName);
-        leafScript.setShard(shardId);
+        leafScript._setIndexName(indexName);
+        leafScript._setShard(shardId);
         return new LeafScoreFunction() {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {

@@ -187,7 +187,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(format, this.parsers.get(0), getRoundupParser());
+        return new JavaDateMathParser(format, this, getRoundupParser());
     }
 
     @Override

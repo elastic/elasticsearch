@@ -10,13 +10,14 @@ running the older version.
 Rolling upgrades are supported:
 
 * Between minor versions
-* https://www.elastic.co/guide/en/elastic-stack/6.7/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* From 6.7 to {version}
+* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* From {prev-major-version} to {version}
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from 6.7 to {version}:
+To perform a rolling upgrade from {prev-major-version} to {version}:
 
 . *Disable shard allocation*.
 +
@@ -177,4 +178,10 @@ In the unlikely case of a network malfunction during the upgrade process that
 isolates all remaining old nodes from the cluster, you must take the
 old nodes offline and upgrade them to enable them to join the cluster.
 
+Similarly, if you run a testing/development environment with only one master
+node, the master node should be upgraded last. Restarting a single master node
+forces the cluster to be reformed. The new cluster will initially only have the
+upgraded master node and will thus reject the older nodes when they re-join the
+cluster. Nodes that have already been upgraded will successfully re-join the 
+upgraded master. 
 ====================================================

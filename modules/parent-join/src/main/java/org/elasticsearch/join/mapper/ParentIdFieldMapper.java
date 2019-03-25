@@ -61,7 +61,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }

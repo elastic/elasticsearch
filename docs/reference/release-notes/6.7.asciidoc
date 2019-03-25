@@ -289,11 +289,11 @@ License::
 Machine Learning::
 * Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
 * Move ML Optimistic Concurrency Control to Seq No {pull}38278[#38278] (issues: {issue}10708[#10708], {issue}36148[#36148])
-* Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
+* Add explanation so far to file structure finder exceptions {pull}38191[#38191]
 * Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
 * Tighten up use of aliases rather than concrete indices {pull}37874[#37874]
 * Add support for single bucket aggs in Datafeeds {pull}37544[#37544] (issue: {issue}36838[#36838])
-* Migrate unallocated jobs and datafeeds {pull}37536[#37536] (issues: {issue}32905[#32905], {issue}36810[#36810], {issue}37430[#37430], {issue}37656[#37656])
+* Migrate unallocated jobs and datafeeds {pull}37536[#37536] (issue: {issue}32905[#32905])
 * Adjust seccomp filter for Fedora 29. {ml-pull}354[#354]
 
 Mapping::
@@ -525,18 +525,13 @@ Infra/Settings::
 
 Machine Learning::
 * Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
-* Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
+* Fix datafeed skipping first bucket after lookback when aggs are used {pull}39859[#39859] (issue: {issue}39842[#39842])
 * Refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
-* Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
 * Allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
 * Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
-* Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
-* Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
 * Prevent submit after autodetect worker is stopped {pull}37700[#37700] (issue: {issue}37108[#37108])
 * Fix ML datafeed CCS with wildcarded cluster name {pull}37470[#37470] (issue: {issue}36228[#36228])
 * Update error message for process update {pull}37363[#37363]
-* Wait for autodetect to be ready in the datafeed {pull}37349[#37349] (issues: {issue}36810[#36810], {issue}37227[#37227])
-* Stop datafeeds running when their jobs are stale {pull}37227[#37227] (issue: {issue}36810[#36810])
 * Make GetJobStats work with arbitrary wildcards and groups {pull}36683[#36683] (issue: {issue}34745[#34745])
 
 Mapping::

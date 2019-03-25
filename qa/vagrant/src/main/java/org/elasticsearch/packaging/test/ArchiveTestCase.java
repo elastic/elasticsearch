@@ -354,7 +354,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchNode + " -h");
             assertThat(result.stdout,
-                    containsString("A CLI tool to unsafely recover a cluster after the permanent loss of too many master-eligible nodes"));
+                    containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {

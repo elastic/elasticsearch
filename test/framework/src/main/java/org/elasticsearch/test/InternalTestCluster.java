@@ -1065,7 +1065,6 @@ public final class InternalTestCluster extends TestCluster {
             if (transportService instanceof MockTransportService) {
                 final MockTransportService mockTransportService = (MockTransportService) transportService;
                 mockTransportService.clearAllRules();
-                mockTransportService.clearTracers();
             }
         }
         randomlyResetClients();

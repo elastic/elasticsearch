@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
@@ -275,11 +277,17 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Arrays.asList(
-                // Persistent action requests
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(ShardFollowTask.NAME),
+                // auto-follow metadata, persisted into the cluster state as XContent
+                new NamedXContentRegistry.Entry(
+                        MetaData.Custom.class,
+                        new ParseField(AutoFollowMetadata.TYPE),
+                        AutoFollowMetadata::fromXContent),
+                // persistent action requests
+                new NamedXContentRegistry.Entry(
+                        PersistentTaskParams.class,
+                        new ParseField(ShardFollowTask.NAME),
                         ShardFollowTask::fromXContent),
-
-                // Task statuses
+                // task statuses
                 new NamedXContentRegistry.Entry(
                         ShardFollowNodeTaskStatus.class,
                         new ParseField(ShardFollowNodeTaskStatus.STATUS_PARSER_NAME),

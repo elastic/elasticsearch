@@ -147,7 +147,7 @@ public class ConsistentSecureSettingsValidatorService implements ClusterStateApp
 
     private static String computePublicHash(char[] localHash, String salt) {
         final byte[] saltedHashBytes = computeSaltedHash(localHash, salt.getBytes(StandardCharsets.UTF_8));
-        final String base64SaltedHashString = new String(saltedHashBytes, StandardCharsets.UTF_8);
+        final String base64SaltedHashString = new String(Base64.getEncoder().encode(saltedHashBytes), StandardCharsets.UTF_8);
         return salt + ":" + base64SaltedHashString;
     }
 

@@ -49,7 +49,7 @@ import java.util.stream.Stream;
  */
 public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
-    private static final ObjectParser<Builder, ExpressionParseContext> PARSER = new ObjectParser<>("role-mapping", Builder::new);
+    private static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
 
     /**
      * The Upgrade API added a 'type' field when converting from 5 to 6.
@@ -60,8 +60,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     static {
         PARSER.declareStringArray(Builder::roles, Fields.ROLES);
         PARSER.declareObjectArray(Builder::roleTemplates, (parser, ctx) -> TemplateRoleName.parse(parser), Fields.ROLE_TEMPLATES);
-        PARSER.declareField(Builder::rules, (parser, ctx) -> ExpressionParser.parseObject(parser, ctx.name), Fields.RULES,
-            ValueType.OBJECT);
+        PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
         BiConsumer<Builder, String> ignored = (b, v) -> {
@@ -141,8 +140,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     }
 
     /**
-     * The list of {@link RoleDescriptor roles} (specified by a template that evaluates to one or more names) that should be assigned
-     * to users that match the {@link #getExpression() expression} in this mapping.
+     * The list of {@link RoleDescriptor roles} (specified by a {@link TemplateRoleName template} that evaluates to one or more names)
+     * that should be assigned to users that match the {@link #getExpression() expression} in this mapping.
      */
     public List<TemplateRoleName> getRoleTemplates() {
         return Collections.unmodifiableList(roleTemplates);
@@ -200,16 +199,16 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         try (InputStream stream = source.streamInput();
              XContentParser parser = xContentType.xContent()
                 .createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return parse(name, parser, false);
+            return parse(name, parser);
         }
     }
 
     /**
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
-    public static ExpressionRoleMapping parse(String name, XContentParser parser, boolean fromIndex) throws IOException {
+    public static ExpressionRoleMapping parse(String name, XContentParser parser) throws IOException {
         try {
-            final Builder builder = PARSER.parse(parser, new ExpressionParseContext(name, fromIndex));
+            final Builder builder = PARSER.parse(parser, name);
             return builder.build(name);
         } catch (IllegalArgumentException | IllegalStateException e) {
             throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
@@ -310,16 +309,6 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
         private IllegalStateException missingField(String id, ParseField field) {
             return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
-        }
-    }
-
-    static class ExpressionParseContext {
-        final String name;
-        final boolean indexFormat;
-
-        ExpressionParseContext(String name, boolean indexFormat) {
-            this.name = name;
-            this.indexFormat = indexFormat;
         }
     }
 

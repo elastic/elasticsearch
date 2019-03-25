@@ -155,7 +155,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentType.JSON.xContent()
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return ExpressionRoleMapping.parse(id, parser, true);
+            return ExpressionRoleMapping.parse(id, parser);
         } catch (Exception e) {
             logger.warn(new ParameterizedMessage("Role mapping [{}] cannot be parsed and will be skipped", id), e);
             return null;

@@ -52,7 +52,7 @@ public class PutRoleMappingRequest extends ActionRequest
             validationException = addValidationError("role-mapping name is missing", validationException);
         }
         if (roles.isEmpty() && roleTemplates.isEmpty()) {
-            validationException = addValidationError("role-mapping roles are missing", validationException);
+            validationException = addValidationError("role-mapping roles or role-templates are missing", validationException);
         }
         if (roles.size() > 0 && roleTemplates.size() > 0) {
             validationException = addValidationError("role-mapping cannot have both roles and role-templates", validationException);

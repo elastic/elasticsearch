@@ -288,7 +288,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        final ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser, fromIndex);
+        final ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
         assertThat(mapping, notNullValue());
         assertThat(mapping.getName(), equalTo(name));
         return mapping;

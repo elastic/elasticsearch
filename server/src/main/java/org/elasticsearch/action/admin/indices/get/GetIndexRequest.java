@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -81,9 +80,7 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             features[i] = Feature.fromId(in.readByte());
         }
         humanReadable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            includeDefaults = in.readBoolean();
-        }
+        includeDefaults = in.readBoolean();
     }
 
     public GetIndexRequest features(Feature... features) {
@@ -155,9 +152,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
             out.writeByte(feature.id);
         }
         out.writeBoolean(humanReadable);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeBoolean(includeDefaults);
-        }
+        out.writeBoolean(includeDefaults);
     }
-
 }

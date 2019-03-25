@@ -546,7 +546,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
+        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), false);
 
         final int maxSeqNo = result.maxSeqNo;
 
@@ -1093,7 +1093,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), true);
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
         final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
@@ -1145,9 +1145,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
         if (shouldRollback) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Collections.max(
-                Arrays.asList(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes, globalCheckpoint, globalCheckpointOnReplica))
-            ));
+            // we conservatively roll MSU forward to maxSeqNo during restoreLocalHistory, ideally it should become just
+            // currentMaxSeqNoOfUpdates
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         } else {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes)));
         }
@@ -1159,7 +1159,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
+        // todo: all tests should run with allowUpdates=true, but this specific test sometimes fails during lucene commit when updates are
+        // added (seed = F37E9647ABE5928)
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), false);
 
         final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
@@ -1202,7 +1204,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(newMaxSeqNoOfUpdates));
         // ensure that after the local checkpoint throw back and indexing again, the local checkpoint advances
-        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));
+        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()), false);
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) result.localCheckpoint));
         closeShard(indexShard, false);
     }
@@ -1508,6 +1510,33 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+2));
+        closeShards(shard);
+    }
+
+    public void testExternalRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
+        long initialTotalTime = shard.refreshStats().getExternalTotalTimeInMillis();
+        // check time advances
+        for (int i = 1; shard.refreshStats().getExternalTotalTimeInMillis() == initialTotalTime; i++) {
+            indexDoc(shard, "_doc", "test");
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i - 1));
+            shard.refresh("test");
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+        }
+        long externalRefreshCount = shard.refreshStats().getExternalTotal();
+
+        indexDoc(shard, "_doc", "test");
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
+            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1));
+        }
+        indexDoc(shard, "_doc", "test");
+        shard.writeIndexingBuffer();
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2));
         closeShards(shard);
     }
 
@@ -2427,8 +2456,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2443,7 +2471,13 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxSeenAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
-                            ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
+                            ActionListener.wrap(
+                                r -> {
+                                    assertFalse(replica.isSyncNeeded());
+                                    listener.onResponse(r);
+                                },
+                                listener::onFailure
+                            ));
                 }
             }, true, true);
 
@@ -2544,8 +2578,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
                 @Override
                 public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -2599,13 +2632,16 @@ public class IndexShardTests extends IndexShardTestCase {
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         assertListenerCalled.accept(replica);
         recoverReplica(replica, primary, (shard, discoveryNode) ->
-            new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
-            }) {
+            new RecoveryTarget(shard, discoveryNode, recoveryListener) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
                 public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
-                    assertListenerCalled.accept(replica);
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps,
+                        ActionListener.wrap(
+                            r -> {
+                                assertListenerCalled.accept(replica);
+                                listener.onResponse(r);
+                            }, listener::onFailure));
                 }
 
                 @Override
@@ -2622,15 +2658,21 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
-                            ActionListener.map(listener, checkpoint -> {
-                                assertListenerCalled.accept(replica);
-                                return checkpoint;
-                            }));
+                            ActionListener.wrap(
+                                r -> {
+                                    assertListenerCalled.accept(replica);
+                                    listener.onResponse(r);
+                                }, listener::onFailure));
                 }
 
                 @Override
                 public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
-                    super.finalizeRecovery(globalCheckpoint, ActionListener.runAfter(listener, () -> assertListenerCalled.accept(replica)));
+                    super.finalizeRecovery(globalCheckpoint,
+                        ActionListener.wrap(
+                            r -> {
+                                assertListenerCalled.accept(replica);
+                                listener.onResponse(r);
+                            }, listener::onFailure));
                 }
             }, false, true);
 
@@ -3124,19 +3166,25 @@ public class IndexShardTests extends IndexShardTestCase {
      * @param indexShard the shard
      * @param operations the number of operations
      * @param offset     the starting sequence number
+     * @param allowUpdates whether updates should be added.
      * @return a pair of the maximum sequence number and whether or not a gap was introduced
      * @throws IOException if an I/O exception occurs while indexing on the shard
      */
     private Result indexOnReplicaWithGaps(
             final IndexShard indexShard,
             final int operations,
-            final int offset) throws IOException {
+            final int offset,
+            boolean allowUpdates) throws IOException {
         int localCheckpoint = offset;
         int max = offset;
         boolean gap = false;
+        Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
             if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
-                final String id = Integer.toString(i);
+                final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
+                if (allowUpdates && ids.add(id) == false) { // this is an update
+                    indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
+                }
                 SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", id,
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i, 1,
@@ -3591,7 +3639,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testResetEngine() throws Exception {
         IndexShard shard = newStartedShard(false);
-        indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
+        indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()), false);
         final long globalCheckpoint = randomLongBetween(shard.getGlobalCheckpoint(), shard.getLocalCheckpoint());
         shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
         Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()
@@ -3631,7 +3679,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
         final IndexShard replica = newStartedShard(false);
-        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()), false);
 
         final int nbTermUpdates = randomIntBetween(1, 5);
 

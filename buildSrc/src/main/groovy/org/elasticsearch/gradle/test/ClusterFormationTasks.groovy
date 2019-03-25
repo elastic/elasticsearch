@@ -115,7 +115,8 @@ class ClusterFormationTasks {
             String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
-                if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
+                if (project.bwcVersions.unreleased.contains(config.bwcVersion) && 
+                    (project.version != elasticsearchVersion)) {
                     elasticsearchVersion += "-SNAPSHOT"
                 }
                 distro = bwcDistro
@@ -298,6 +299,12 @@ class ClusterFormationTasks {
         // sets up any extra config files that need to be copied over to the ES instance;
         // its run after plugins have been installed, as the extra config files may belong to plugins
         setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
+
+        // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
+        if (project.inFipsJvm){
+            node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
+            node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
+        }
 
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
@@ -684,6 +691,13 @@ class ClusterFormationTasks {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    // Having no TMP on Windows defaults to C:\Windows and permission errors
+                    // Since we configure ant to run with a new  environment above, we need to set this to a dir we have access to
+                    File tmpDir = new File(node.baseDir, "tmp")
+                    tmpDir.mkdirs()
+                    env(key: "TMP", value: tmpDir.absolutePath)
+                }
             }
         }
 

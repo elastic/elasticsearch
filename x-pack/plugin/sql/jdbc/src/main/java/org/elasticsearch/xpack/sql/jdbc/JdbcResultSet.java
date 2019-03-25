@@ -35,7 +35,6 @@ import java.util.function.Function;
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asMillisSinceEpoch;
-import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.utcMillisRemoveTime;
 
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
@@ -89,6 +88,10 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             throw new SQLException("Invalid column label [" + columnName + "]");
         }
         return index.intValue();
+    }
+
+    private EsType columnType(int columnIndex) {
+        return cursor.columns().get(columnIndex - 1).type;
     }
 
     void checkOpen() throws SQLException {
@@ -175,17 +178,17 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        return getDate(columnIndex, null);
+        return asDate(columnIndex);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        return getTime(columnIndex, null);
+        return asTime(columnIndex);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(columnIndex, null);
+        return asTimeStamp(columnIndex);
     }
 
     @Override
@@ -241,9 +244,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         return getDate(column(columnLabel));
     }
 
-    private Long dateTime(int columnIndex) throws SQLException {
+    private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
-        EsType type = cursor.columns().get(columnIndex - 1).type;
+        EsType type = columnType(columnIndex);
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -258,12 +261,67 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
                 return asDateTimeField(val, JdbcDateUtils::asMillisSinceEpoch, Function.identity());
             }
             if (EsType.DATE == type) {
-                return utcMillisRemoveTime(asMillisSinceEpoch(val.toString()));
+                return asMillisSinceEpoch(val.toString());
             }
             return val == null ? null : (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
                     format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
+        }
+    }
+
+    private Date asDate(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        try {
+            return JdbcDateUtils.asDate(val.toString());
+        } catch (Exception e) {
+            EsType type = columnType(columnIndex);
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
+        }
+    }
+
+    private Time asTime(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        EsType type = columnType(columnIndex);
+        if (type == EsType.DATE) {
+            return new Time(0L);
+        }
+
+        try {
+            return JdbcDateUtils.asTime(val.toString());
+        } catch (Exception e) {
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
+        }
+    }
+
+    private Timestamp asTimeStamp(int columnIndex) throws SQLException {
+        Object val = column(columnIndex);
+
+        if (val == null) {
+            return null;
+        }
+
+        try {
+            if (val instanceof Number) {
+                return JdbcDateUtils.asTimestamp(((Number) val).longValue());
+            }
+            return JdbcDateUtils.asTimestamp(val.toString());
+        } catch (Exception e) {
+            EsType type = columnType(columnIndex);
+            throw new SQLException(
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
         }
     }
 
@@ -273,7 +331,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertDate(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertDate(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -283,7 +341,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTime(dateTime(columnIndex), safeCalendar(cal));
+        EsType type = columnType(columnIndex);
+        if (type == EsType.DATE) {
+            return new Time(0L);
+        }
+        return TypeConverter.convertTime(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -293,7 +355,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        return TypeConverter.convertTimestamp(dateTime(columnIndex), safeCalendar(cal));
+        return TypeConverter.convertTimestamp(dateTimeAsMillis(columnIndex), safeCalendar(cal));
     }
 
     @Override
@@ -337,7 +399,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return null;
         }
 
-        EsType columnType = cursor.columns().get(columnIndex - 1).type;
+        EsType columnType = columnType(columnIndex);
         String typeString = type != null ? type.getSimpleName() : columnType.getName();
 
         return TypeConverter.convert(val, columnType, type, typeString);

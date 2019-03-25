@@ -28,14 +28,17 @@ import java.io.IOException;
 public class RefreshStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
-        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
         StreamInput input = out.bytes().streamInput();
         RefreshStats read = new RefreshStats(input);
         assertEquals(-1, input.read());
         assertEquals(stats.getTotal(), read.getTotal());
+        assertEquals(stats.getExternalTotal(), read.getExternalTotal());
         assertEquals(stats.getListeners(), read.getListeners());
         assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
+        assertEquals(stats.getExternalTotalTimeInMillis(), read.getExternalTotalTimeInMillis());
     }
 }

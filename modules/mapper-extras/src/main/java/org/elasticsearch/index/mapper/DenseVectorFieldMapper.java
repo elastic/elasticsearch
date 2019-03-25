@@ -70,6 +70,11 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
 
         @Override
+        public void doSetDocValueType(boolean docValues) {
+            fieldType().setDocValuesType(docValues ? DocValuesType.BINARY : DocValuesType.NONE);
+        }
+
+        @Override
         public DenseVectorFieldType fieldType() {
             return (DenseVectorFieldType) super.fieldType();
         }

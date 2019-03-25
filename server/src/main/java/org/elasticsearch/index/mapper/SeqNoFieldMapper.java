@@ -111,6 +111,11 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public void doSetDocValueType(boolean docValues) {
+            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED : DocValuesType.NONE);
+        }
+
+        @Override
         public SeqNoFieldMapper build(BuilderContext context) {
             return new SeqNoFieldMapper(context.indexSettings());
         }

@@ -95,6 +95,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void doSetDocValueType(boolean docValues) {
+            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED_NUMERIC : DocValuesType.NONE);
+        }
+
+        @Override
         public Builder indexOptions(IndexOptions indexOptions) {
             throw new MapperParsingException(
                     "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");

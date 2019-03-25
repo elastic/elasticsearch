@@ -100,7 +100,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         static {
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }

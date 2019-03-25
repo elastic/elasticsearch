@@ -19,6 +19,7 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -51,7 +52,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(false);
+            FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }

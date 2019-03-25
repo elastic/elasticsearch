@@ -27,6 +27,7 @@ import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -211,7 +212,7 @@ public class RangeFieldMapper extends FieldMapper {
             super();
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);
-            setHasDocValues(true);
+            setDocValuesType(DocValuesType.BINARY);
             setOmitNorms(true);
             if (rangeType == RangeType.DATE) {
                 setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);

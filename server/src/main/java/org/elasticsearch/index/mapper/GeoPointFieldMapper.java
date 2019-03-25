@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -70,7 +71,8 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
         static {
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setHasDocValues(true);
+//            FIELD_TYPE.setHasDocValues(true);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.setDimensions(2, Integer.BYTES);
             FIELD_TYPE.freeze();
         }

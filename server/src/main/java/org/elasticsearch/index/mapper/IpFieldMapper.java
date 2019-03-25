@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -129,7 +130,7 @@ public class IpFieldMapper extends FieldMapper {
         public IpFieldType() {
             super();
             setTokenized(false);
-            setHasDocValues(true);
+            setDocValuesType(DocValuesType.SORTED_SET);
         }
 
         IpFieldType(IpFieldType other) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -266,7 +267,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
         defaultFieldType.setIndexOptions(IndexOptions.NONE);
-        defaultFieldType.setHasDocValues(false);
+        defaultFieldType.setDocValuesType(DocValuesType.NONE);
         return defaultFieldType;
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.size;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -53,14 +54,14 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             SIZE_FIELD_TYPE.setName(NAME);
             SIZE_FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             SIZE_FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            SIZE_FIELD_TYPE.setHasDocValues(true);
+            SIZE_FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             SIZE_FIELD_TYPE.freeze();
         }
     }
 
     private static MappedFieldType defaultFieldType(Version indexCreated) {
         MappedFieldType defaultFieldType = Defaults.SIZE_FIELD_TYPE.clone();
-        defaultFieldType.setHasDocValues(true);
+        defaultFieldType.setDocValuesType(DocValuesType.NUMERIC);
         return defaultFieldType;
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
@@ -220,7 +221,7 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public boolean hasDocValues() {
-        return docValues;
+        return docValuesType() != DocValuesType.NONE || docValues;
     }
 
     public void setHasDocValues(boolean hasDocValues) {

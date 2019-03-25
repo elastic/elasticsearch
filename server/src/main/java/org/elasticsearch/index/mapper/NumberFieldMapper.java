@@ -889,7 +889,6 @@ public class NumberFieldMapper extends FieldMapper {
             super();
             this.type = Objects.requireNonNull(type);
             setTokenized(false);
-            setHasDocValues(true);
             setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setOmitNorms(true);
         }

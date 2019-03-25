@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -255,7 +256,7 @@ public final class DateFieldMapper extends FieldMapper {
         DateFieldType() {
             super();
             setTokenized(false);
-            setHasDocValues(true);
+            setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setOmitNorms(true);
             setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
             setResolution(Resolution.MILLISECONDS);

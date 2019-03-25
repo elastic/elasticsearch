@@ -83,6 +83,9 @@ public class ClusterBootstrapService {
                 throw new IllegalArgumentException("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() +
                     "] is not allowed for single-node discovery type");
             }
+            if (DiscoveryNode.isMasterNode(settings) == false) {
+                throw new IllegalArgumentException("node with single-node discovery type must be master-eligible");
+            }
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
             unconfiguredBootstrapTimeout = null;
         } else {

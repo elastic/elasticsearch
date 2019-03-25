@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportRequest;
@@ -497,5 +498,16 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
             transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
             containsString("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed for single-node discovery type"));
+    }
+
+    public void testFailBootstrapNonMasterEligibleNodeWithSingleNodeDiscovery() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+
+        assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
+                transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
+            containsString("node with single-node discovery type must be master-eligible"));
     }
 }

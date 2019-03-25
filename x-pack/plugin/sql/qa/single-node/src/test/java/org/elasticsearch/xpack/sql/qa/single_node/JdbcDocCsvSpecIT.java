@@ -53,7 +53,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/docs.csv-spec", parser);
+        return readScriptSpec("/docs/docs.csv-spec", parser);
     }
 
     public JdbcDocCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {

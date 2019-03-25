@@ -21,12 +21,14 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +36,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +47,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -133,10 +136,7 @@ public class ReplicationOperation<
         for (String allocationId : replicationGroup.getUnavailableInSyncShards()) {
             pendingActions.incrementAndGet();
             replicasProxy.markShardCopyAsStaleIfNeeded(replicaRequest.shardId(), allocationId,
-                ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                ReplicationOperation.this::onPrimaryDemoted,
-                throwable -> decPendingAndFinishIfNeeded()
-            );
+                ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
         }
     }
 
@@ -192,20 +192,40 @@ public class ReplicationOperation<
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                 }
                 String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                replicasProxy.failShardIfNeeded(shard, message,
-                    replicaException, ReplicationOperation.this::decPendingAndFinishIfNeeded,
-                    ReplicationOperation.this::onPrimaryDemoted, throwable -> decPendingAndFinishIfNeeded());
+                replicasProxy.failShardIfNeeded(shard, message, replicaException,
+                    ActionListener.wrap(r -> decPendingAndFinishIfNeeded(), ReplicationOperation.this::onNoLongerPrimary));
+            }
+
+            @Override
+            public String toString() {
+                return "[" + replicaRequest + "][" + shard + "]";
             }
         });
     }
 
-    private void onPrimaryDemoted(Exception demotionFailure) {
-        String primaryFail = String.format(Locale.ROOT,
-            "primary shard [%s] was demoted while failing replica shard",
-            primary.routingEntry());
-        // we are no longer the primary, fail ourselves and start over
-        primary.failShard(primaryFail, demotionFailure);
-        finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), primaryFail, demotionFailure));
+    private void onNoLongerPrimary(Exception failure) {
+        final Throwable cause = ExceptionsHelper.unwrapCause(failure);
+        final boolean nodeIsClosing = cause instanceof NodeClosedException
+            || (cause instanceof TransportException &&
+                ("TransportService is closed stopped can't send request".equals(cause.getMessage())
+                || "transport stopped, action: internal:cluster/shard/failure".equals(cause.getMessage())));
+        final String message;
+        if (nodeIsClosing) {
+            message = String.format(Locale.ROOT,
+                "node with primary [%s] is shutting down while failing replica shard", primary.routingEntry());
+            // We prefer not to fail the primary to avoid unnecessary warning log
+            // when the node with the primary shard is gracefully shutting down.
+        } else {
+            if (Assertions.ENABLED) {
+                if (failure instanceof ShardStateAction.NoLongerPrimaryShardException == false) {
+                    throw new AssertionError("unexpected failure", failure);
+                }
+            }
+            // we are no longer the primary, fail ourselves and start over
+            message = String.format(Locale.ROOT, "primary shard [%s] was demoted while failing replica shard", primary.routingEntry());
+            primary.failShard(message, failure);
+        }
+        finishAsFailed(new RetryOnPrimaryException(primary.routingEntry().shardId(), message, failure));
     }
 
     /**
@@ -365,31 +385,23 @@ public class ReplicationOperation<
          * of active shards. Whether a failure is needed is left up to the
          * implementation.
          *
-         * @param replica          shard to fail
-         * @param message          a (short) description of the reason
-         * @param exception        the original exception which caused the ReplicationOperation to request the shard to be failed
-         * @param onSuccess        a callback to call when the shard has been successfully removed from the active set.
-         * @param onPrimaryDemoted a callback to call when the shard can not be failed because the current primary has been demoted
-         *                         by the master.
-         * @param onIgnoredFailure a callback to call when failing a shard has failed, but it that failure can be safely ignored and the
+         * @param replica   shard to fail
+         * @param message   a (short) description of the reason
+         * @param exception the original exception which caused the ReplicationOperation to request the shard to be failed
+         * @param listener  a listener that will be notified when the failing shard has been removed from the in-sync set
          */
-        void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
-                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener);
 
         /**
          * Marks shard copy as stale if needed, removing its allocation id from
          * the set of in-sync allocation ids. Whether marking as stale is needed
          * is left up to the implementation.
          *
-         * @param shardId          shard id
-         * @param allocationId     allocation id to remove from the set of in-sync allocation ids
-         * @param onSuccess        a callback to call when the allocation id has been successfully removed from the in-sync set.
-         * @param onPrimaryDemoted a callback to call when the request failed because the current primary was already demoted
-         *                         by the master.
-         * @param onIgnoredFailure a callback to call when the request failed, but the failure can be safely ignored.
+         * @param shardId      shard id
+         * @param allocationId allocation id to remove from the set of in-sync allocation ids
+         * @param listener     a listener that will be notified when the failing shard has been removed from the in-sync set
          */
-        void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                          Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+        void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener);
     }
 
     /**

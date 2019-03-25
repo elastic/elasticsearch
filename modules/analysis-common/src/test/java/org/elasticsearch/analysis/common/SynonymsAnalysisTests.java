@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -42,8 +43,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -163,23 +167,21 @@ public class SynonymsAnalysisTests extends ESTestCase {
             new int[]{ 1, 0 });
     }
 
-    public void testKeywordRepeatAndSynonyms() throws IOException {
+    public void testPreconfigured() throws IOException {
         Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
-            .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
-            .put("index.analysis.filter.my_english.type", "stemmer")
-            .put("index.analysis.filter.my_english.language", "porter2")
-            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "keyword_repeat", "my_english", "synonyms")
+            .putList("index.analysis.filter.synonyms.synonyms", "würst, sausage")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "asciifolding", "synonyms")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
 
-        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("synonymAnalyzer"), "programmers",
-            new String[]{ "programmers", "programm", "develop" },
-            new int[]{ 1, 0, 0 });
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("my_analyzer"), "würst",
+            new String[]{ "wurst", "sausage"},
+            new int[]{ 1, 0 });
     }
 
     public void testChainedSynonymFilters() throws IOException {
@@ -246,6 +248,58 @@ public class SynonymsAnalysisTests extends ESTestCase {
             }
         }
 
+    }
+
+    public void testPreconfiguredTokenFilters() throws IOException {
+        Set<String> disallowedFilters = new HashSet<>(Arrays.asList(
+            "common_grams", "edge_ngram", "edgeNGram", "keyword_repeat", "ngram", "nGram",
+            "shingle", "word_delimiter", "word_delimiter_graph"
+        ));
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put("path.home", createTempDir().toString())
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+
+        for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
+            if (disallowedFilters.contains(tf.getName())) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    "Expected exception for factory " + tf.getName(), () -> {
+                        tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                    });
+                assertEquals(tf.getName(), "Token filter [" + tf.getName()
+                        + "] cannot be used to parse synonyms",
+                    e.getMessage());
+            }
+            else {
+                tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+            }
+        }
+
+        Settings settings2 = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+            .put("path.home", createTempDir().toString())
+            .putList("common_words", "a", "b")
+            .put("output_unigrams", "true")
+            .build();
+        IndexSettings idxSettings2 = IndexSettingsModule.newIndexSettings("index", settings2);
+
+        List<String> expectedWarnings = new ArrayList<>();
+        for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
+            if (disallowedFilters.contains(tf.getName())) {
+                tf.get(idxSettings2, null, tf.getName(), settings2).getSynonymFilter();
+                expectedWarnings.add("Token filter [" + tf.getName() + "] will not be usable to parse synonyms after v7.0");
+            }
+            else {
+                tf.get(idxSettings2, null, tf.getName(), settings2).getSynonymFilter();
+            }
+        }
+        assertWarnings(expectedWarnings.toArray(new String[0]));
     }
 
     public void testDisallowedTokenFilters() throws IOException {

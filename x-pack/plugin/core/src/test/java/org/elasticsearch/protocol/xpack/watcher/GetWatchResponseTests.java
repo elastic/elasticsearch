@@ -6,6 +6,7 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,9 +24,6 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -126,15 +124,15 @@ public class GetWatchResponseTests extends
 
     private static WatchStatus randomWatchStatus() {
         long version = randomLongBetween(-1, Long.MAX_VALUE);
-        WatchStatus.State state = new WatchStatus.State(randomBoolean(), nowWithMillisResolution());
+        WatchStatus.State state = new WatchStatus.State(randomBoolean(), DateUtils.nowWithMillisResolution());
         ExecutionState executionState = randomFrom(ExecutionState.values());
-        ZonedDateTime lastChecked = rarely() ? null : nowWithMillisResolution();
-        ZonedDateTime lastMetCondition = rarely() ? null : nowWithMillisResolution();
+        ZonedDateTime lastChecked = rarely() ? null : DateUtils.nowWithMillisResolution();
+        ZonedDateTime lastMetCondition = rarely() ? null : DateUtils.nowWithMillisResolution();
         int size = randomIntBetween(0, 5);
         Map<String, ActionStatus> actionMap = new HashMap<>();
         for (int i = 0; i < size; i++) {
             ActionStatus.AckStatus ack = new ActionStatus.AckStatus(
-                nowWithMillisResolution(),
+                DateUtils.nowWithMillisResolution(),
                 randomFrom(ActionStatus.AckStatus.State.values())
             );
             ActionStatus actionStatus = new ActionStatus(
@@ -154,16 +152,16 @@ public class GetWatchResponseTests extends
     }
 
     private static ActionStatus.Throttle randomThrottle() {
-        return new ActionStatus.Throttle(nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
+        return new ActionStatus.Throttle(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
     }
 
     private static ActionStatus.Execution randomExecution() {
         if (randomBoolean()) {
             return null;
         } else if (randomBoolean()) {
-            return ActionStatus.Execution.failure(nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
+            return ActionStatus.Execution.failure(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
         } else {
-            return ActionStatus.Execution.successful(nowWithMillisResolution());
+            return ActionStatus.Execution.successful(DateUtils.nowWithMillisResolution());
         }
     }
 
@@ -228,9 +226,5 @@ public class GetWatchResponseTests extends
 
     private static ActionStatus.Throttle convertHlrcToInternal(org.elasticsearch.client.watcher.ActionStatus.Throttle throttle) {
         return new ActionStatus.Throttle(throttle.timestamp(), throttle.reason());
-    }
-
-    private static ZonedDateTime nowWithMillisResolution() {
-        return Instant.ofEpochMilli(Clock.systemUTC().millis()).atZone(ZoneOffset.UTC);
     }
 }

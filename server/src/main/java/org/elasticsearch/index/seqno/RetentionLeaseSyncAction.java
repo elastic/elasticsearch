@@ -25,13 +25,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -121,29 +123,30 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(final Request request, final IndexShard primary) {
+    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
+            final Request request,
+            final IndexShard primary) throws WriteStateException {
+        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
         Objects.requireNonNull(request);
         Objects.requireNonNull(primary);
-        // we flush to ensure that retention leases are committed
-        flush(primary);
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, logger);
+        primary.persistRetentionLeases();
+        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
     }
 
     @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(final Request request, final IndexShard replica) {
+    protected WriteReplicaResult<Request> shardOperationOnReplica(
+            final Request request,
+            final IndexShard replica) throws WriteStateException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        // we flush to ensure that retention leases are committed
-        flush(replica);
-        return new WriteReplicaResult<>(request, null, null, replica, logger);
+        replica.persistRetentionLeases();
+        return new WriteReplicaResult<>(request, null, null, replica, getLogger());
     }
 
-    private void flush(final IndexShard indexShard) {
-        final FlushRequest flushRequest = new FlushRequest();
-        flushRequest.force(true);
-        flushRequest.waitIfOngoing(true);
-        indexShard.flush(flushRequest);
+    @Override
+    public ClusterBlockLevel indexBlockLevel() {
+        return null;
     }
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
@@ -161,6 +164,7 @@ public class RetentionLeaseSyncAction extends
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
             super(Objects.requireNonNull(shardId));
             this.retentionLeases = Objects.requireNonNull(retentionLeases);
+            waitForActiveShards(ActiveShardCount.NONE);
         }
 
         @Override

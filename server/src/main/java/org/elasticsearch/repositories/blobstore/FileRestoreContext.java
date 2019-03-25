@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -62,14 +61,14 @@ import static java.util.Collections.unmodifiableMap;
  */
 public abstract class FileRestoreContext {
 
-    private static final Logger logger = LogManager.getLogger(FileRestoreContext.class);
+    protected static final Logger logger = LogManager.getLogger(FileRestoreContext.class);
 
-    private final String repositoryName;
-    private final IndexShard indexShard;
-    private final RecoveryState recoveryState;
-    private final SnapshotId snapshotId;
-    private final ShardId shardId;
-    private final int bufferSize;
+    protected final String repositoryName;
+    protected final IndexShard indexShard;
+    protected final RecoveryState recoveryState;
+    protected final SnapshotId snapshotId;
+    protected final ShardId shardId;
+    protected final int bufferSize;
 
     /**
      * Constructs new restore context
@@ -119,7 +118,7 @@ public abstract class FileRestoreContext {
                 // store can still have existing files but they will be deleted just before being
                 // restored.
                 recoveryTargetMetadata = indexShard.snapshotStoreMetadata();
-            } catch (IndexNotFoundException e) {
+            } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens when restore to an empty shard, not a big deal
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
@@ -183,7 +182,6 @@ public abstract class FileRestoreContext {
                 // list of all existing store files
                 final List<String> deleteIfExistFiles = Arrays.asList(store.directory().listAll());
 
-                // restore the files from the snapshot to the Lucene store
                 for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                     // if a file with a same physical name already exist in the store we need to delete it
                     // before restoring it from the snapshot. We could be lenient and try to reuse the existing
@@ -196,10 +194,9 @@ public abstract class FileRestoreContext {
                         logger.trace("[{}] [{}] deleting pre-existing file [{}]", shardId, snapshotId, physicalName);
                         store.directory().deleteFile(physicalName);
                     }
-
-                    logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                    restoreFile(fileToRecover, store);
                 }
+
+                restoreFiles(filesToRecover, store);
             } catch (IOException ex) {
                 throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
             }
@@ -231,6 +228,14 @@ public abstract class FileRestoreContext {
             }
         } finally {
             store.decRef();
+        }
+    }
+
+    protected void restoreFiles(List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover, Store store) throws IOException {
+        // restore the files from the snapshot to the Lucene store
+        for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
+            logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
+            restoreFile(fileToRecover, store);
         }
     }
 

@@ -22,6 +22,8 @@ dependencies {
 
     // baz - this goes away after we separate out the actions #27759
     testCompile "org.elasticsearch.plugin:x-pack-watcher:${version}"
+
+    testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
 }
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"

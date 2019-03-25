@@ -39,25 +39,24 @@ The following table lists the possible settings that can be configured:
 
 [[transform-script-settings]]
 .Script Transform Settings
-[options="header,footer"]
+[options="header"]
 |======
 | Name      |Required | Default    | Description
 
-| `inline`  | yes*    | -          | When using an inline script, this field holds
+| `inline`  | yes     | -          | When using an inline script, this field holds
                                      the script itself.
 
-| `id`      | yes*    | -          | When referring to a stored script, this
+| `id`      | yes     | -          | When referring to a stored script, this
                                      field holds the id of the script.
 
 | `lang`    | no      | `painless` | The script language
 
 | `params`  | no      | -          | Additional parameters/variables that are
                                      accessible by the script
-
 |======
 
 When using the object notation of the script, one (and only one) of `inline`,
-or `id` fields must be defined
+or `id` fields must be defined.
 
 NOTE: In addition to the provided `params`, the scripts also have access to the
       <<watch-execution-context, Standard Watch Execution Context Parameters>>.

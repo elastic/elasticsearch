@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -105,6 +106,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveRefs(),
                 new ResolveOrdinalInOrderByAndGroupBy(),
                 new ResolveMissingRefs(),
+                new ResolveFilterRefs(),
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
@@ -762,6 +764,68 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    //
+    // Resolve aliases defined in SELECT that are referred inside the WHERE clause:
+    // SELECT int AS i FROM t WHERE i > 10
+    //
+    // As such, identify all project and aggregates that have a Filter child
+    // and look at any resoled aliases that match and replace them.
+    private class ResolveFilterRefs extends AnalyzeRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof Project) {
+                Project p = (Project) plan;
+                if (p.child() instanceof Filter) {
+                    Filter f = (Filter) p.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, p.projections());
+                        if (newCondition != condition) {
+                            return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
+                        }
+                    }
+                }
+            }
+
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                if (a.child() instanceof Filter) {
+                    Filter f = (Filter) a.child();
+                    Expression condition = f.condition();
+                    if (condition.resolved() == false && f.childrenResolved() == true) {
+                        Expression newCondition = replaceAliases(condition, a.aggregates());
+                        if (newCondition != condition) {
+                            return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
+                                    a.aggregates());
+                        }
+                    }
+                }
+            }
+
+            return plan;
+        }
+
+        private Expression replaceAliases(Expression condition, List<? extends NamedExpression> named) {
+            List<Alias> aliases = new ArrayList<>();
+            named.forEach(n -> {
+                if (n instanceof Alias) {
+                    aliases.add((Alias) n);
+                }
+            });
+
+            return condition.transformDown(u -> {
+                boolean qualified = u.qualifier() != null;
+                for (Alias alias : aliases) {
+                    if (qualified ? Objects.equals(alias.qualifiedName(), u.qualifiedName()) : Objects.equals(alias.name(), u.name())) {
+                        return alias;
+                    }
+                }
+                return u;
+             }, UnresolvedAttribute.class);
+        }
+    }
+
     // to avoid creating duplicate functions
     // this rule does two iterations
     // 1. collect all functions
@@ -785,9 +849,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {
                     if (seenFunction != f && f.arguments().equals(seenFunction.arguments())) {
+                        // TODO: we should move to always compare the functions directly
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
-                        if (seenFunction instanceof Count) {
+                        // Same for LIKE/RLIKE: the equals function also compares the pattern of LIKE/RLIKE
+                        if (seenFunction instanceof Count || seenFunction instanceof RegexMatch) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;
                             }

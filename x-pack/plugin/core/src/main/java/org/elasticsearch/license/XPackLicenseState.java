@@ -554,6 +554,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Data Frame is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isDataFrameAllowed() {
+        return status.active;
+    }
+
+    /**
      * Rollup is always available as long as there is a valid license
      *
      * @return true if the license is active

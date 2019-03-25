@@ -238,12 +238,13 @@ public class NioSelector implements Closeable {
             }
 
             if (channelContext.isConnectComplete()) {
-                if ((ops & SelectionKey.OP_WRITE) != 0) {
-                    handleWrite(channelContext);
-                }
-
-                if ((ops & SelectionKey.OP_READ) != 0) {
-                    handleRead(channelContext);
+                if (channelContext.selectorShouldClose() == false) {
+                    if ((ops & SelectionKey.OP_WRITE) != 0) {
+                        handleWrite(channelContext);
+                    }
+                    if (channelContext.selectorShouldClose() == false && (ops & SelectionKey.OP_READ) != 0) {
+                        handleRead(channelContext);
+                    }
                 }
             }
             eventHandler.postHandling(channelContext);
@@ -264,11 +265,15 @@ public class NioSelector implements Closeable {
     private void handleScheduledTasks(long nanoTime) {
         Runnable task;
         while ((task = taskScheduler.pollTask(nanoTime)) != null) {
-            try {
-                task.run();
-            } catch (Exception e) {
-                eventHandler.taskException(e);
-            }
+            handleTask(task);
+        }
+    }
+
+    private void handleTask(Runnable task) {
+        try {
+            eventHandler.handleTask(task);
+        } catch (Exception e) {
+            eventHandler.taskException(e);
         }
     }
 
@@ -336,7 +341,9 @@ public class NioSelector implements Closeable {
         }
 
         if (shouldFlushAfterQueuing) {
-            handleWrite(context);
+            if (context.selectorShouldClose() == false) {
+                handleWrite(context);
+            }
             eventHandler.postHandling(context);
         }
     }
@@ -350,11 +357,7 @@ public class NioSelector implements Closeable {
      */
     public <V> void executeListener(BiConsumer<V, Exception> listener, V value) {
         assertOnSelectorThread();
-        try {
-            listener.accept(value, null);
-        } catch (Exception e) {
-            eventHandler.taskException(e);
-        }
+        handleTask(() -> listener.accept(value, null));
     }
 
     /**
@@ -366,11 +369,7 @@ public class NioSelector implements Closeable {
      */
     public <V> void executeFailedListener(BiConsumer<V, Exception> listener, Exception exception) {
         assertOnSelectorThread();
-        try {
-            listener.accept(null, exception);
-        } catch (Exception e) {
-            eventHandler.taskException(e);
-        }
+        handleTask(() -> listener.accept(null, exception));
     }
 
     private void cleanupPendingWrites() {
@@ -434,7 +433,11 @@ public class NioSelector implements Closeable {
     private void closePendingChannels() {
         ChannelContext<?> channelContext;
         while ((channelContext = channelsToClose.poll()) != null) {
-            eventHandler.handleClose(channelContext);
+            try {
+                eventHandler.handleClose(channelContext);
+            } catch (Exception e) {
+                eventHandler.closeException(channelContext, e);
+            }
         }
     }
 

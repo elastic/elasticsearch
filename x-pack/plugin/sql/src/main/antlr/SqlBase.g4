@@ -210,6 +210,7 @@ valueExpression
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
+    | valueExpression CAST_OP dataType                                                  #castOperatorExpression
     ;
 
 primaryExpression
@@ -224,22 +225,22 @@ primaryExpression
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
-castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
-    | convertTemplate
-    | FUNCTION_ESC convertTemplate ESC_END
-    ;
-    
-castTemplate
-    : CAST '(' expression AS dataType ')'
-    ;
-
 builtinDateTimeFunction
     : name=CURRENT_DATE ('(' ')')?
     | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
     ;
-    
+
+castExpression
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
+    | convertTemplate
+    | FUNCTION_ESC convertTemplate ESC_END
+    ;
+
+castTemplate
+    : CAST '(' expression AS dataType ')'
+    ;
+
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -457,6 +458,7 @@ GUID_ESC: '{GUID';
 
 ESC_END: '}';
 
+// Operators
 EQ  : '=';
 NULLEQ: '<=>';
 NEQ : '<>' | '!=';
@@ -470,6 +472,7 @@ MINUS: '-';
 ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
+CAST_OP: '::';
 CONCAT: '||';
 DOT: '.';
 PARAM: '?';
@@ -494,7 +497,7 @@ IDENTIFIER
     ;
 
 DIGIT_IDENTIFIER
-    : DIGIT (LETTER | DIGIT | '_' | '@' | ':')+
+    : DIGIT (LETTER | DIGIT | '_' | '@')+
     ;
 
 TABLE_IDENTIFIER

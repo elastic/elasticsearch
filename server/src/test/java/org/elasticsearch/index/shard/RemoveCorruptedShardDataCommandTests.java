@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -107,11 +108,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
-        indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {
-                    }, EMPTY_EVENT_LISTENER),
-            true);
+        indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,
+            new InternalEngineFactory(), () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER), true);
 
         translogPath = shardPath.resolveTranslog();
         indexPath = shardPath.resolveIndex();
@@ -371,8 +369,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
-        return newShard(shardRouting, shardPath, metaData, storeProvider, null,
-            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        return newShard(shardRouting, shardPath, metaData, storeProvider, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
     }
 
     private int indexDocs(IndexShard indexShard, boolean flushLast) throws IOException {

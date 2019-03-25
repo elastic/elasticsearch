@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
@@ -73,7 +74,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[6];
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -123,7 +124,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                     rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
                 }
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
@@ -180,7 +181,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         // only create four hits
         SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();

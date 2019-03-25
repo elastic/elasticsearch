@@ -14,9 +14,6 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
-import java.util.Locale;
-
-import static java.lang.String.format;
 
 /**
  * In a SQL statement, an Expression is whatever a user specifies inside an
@@ -37,10 +34,6 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public TypeResolution(String message) {
             this(true, message);
-        }
-
-        TypeResolution(String message, Object... args) {
-            this(true, format(Locale.ROOT, message, args));
         }
 
         private TypeResolution(boolean unresolved, String message) {

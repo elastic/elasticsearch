@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -124,9 +123,7 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        // soft deletes are enabled by default on indices created on 7.0.0 or later
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
             return;

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -285,7 +287,7 @@ public class IndexActionTests extends ESTestCase {
                 refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
-        ZonedDateTime executionTime = ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
         Payload payload;
 
         if (customId && docIdAsParam == false) {
@@ -325,7 +327,7 @@ public class IndexActionTests extends ESTestCase {
 
         if (timestampField != null) {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(2)));
-            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, executionTime.toString()));
+            assertThat(indexRequest.sourceAsMap(), hasEntry(timestampField, WatcherDateTimeUtils.formatDate(executionTime)));
         } else {
             assertThat(indexRequest.sourceAsMap().keySet(), is(hasSize(1)));
         }

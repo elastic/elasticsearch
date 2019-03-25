@@ -3,8 +3,6 @@
 [[sql-odbc-setup]]
 === Configuration
 
-experimental[]
-
 Once the driver has been installed, in order for an application to be able to connect to {es} through ODBC, a set of configuration parameters must be provided to the driver. Depending on the application, there are generally three ways of providing these parameters:
 
 * through a connection string;
@@ -63,7 +61,7 @@ Such a file can be then shared among multiple systems and the user will need to 
 The configuration steps are similar for all the above points. Following is an example of configuring a System DSN.
 
 [float]
-===== 2.1 Launch {product} DSN Editor
+===== 2.1 Launch {odbc} DSN Editor
 Click on the _System DSN_ tab, then on the _Add..._ button:
 
 [[system_add]]
@@ -76,10 +74,10 @@ A new window will open, listing all available installed drivers. Click on _{es} 
 .Launch the DSN Editor
 image:images/sql/odbc/administrator_launch_editor.png[]
 
-This action closes the previously opened second window and open a new one instead, {product}'s DSN Editor:
+This action closes the previously opened second window and open a new one instead, {odbc}'s DSN Editor:
 
 [[dsn_editor]]
-.{product} DSN Editor
+.{odbc} DSN Editor
 image:images/sql/odbc/dsn_editor_basic.png[]
 
 This new window has three tabs, each responsible for a set of configuration parameters, as follows.
@@ -173,7 +171,7 @@ image:images/sql/odbc/dsn_editor_security_cert.png[]
 
 [float]
 ===== 2.4 Logging parameters
-For troubleshooting purposes, the {product} offers functionality to log the API calls that an application makes; this is enabled in the Administrator application:
+For troubleshooting purposes, the {odbc} offers functionality to log the API calls that an application makes; this is enabled in the Administrator application:
 
 [[administrator_tracing]]
 .Enable Application ODBC API logging
@@ -241,7 +239,7 @@ image:images/sql/odbc/administrator_system_added.png[]
 Due to the specification of the ODBC API, the driver will receive the configured DSN parameters - including the logging ones - only once a
 connection API is invoked (such as _SQLConnect_ or _SQLDriverConnect_). The _Driver Manager_ will however always make a set of API calls
 into the driver before attempting to establish a connection. To capture those calls as well, one needs to pass logging configuration
-parameters in an alternative way. The {product} will use an environment variable for this purpose.
+parameters in an alternative way. The {odbc} will use an environment variable for this purpose.
 
 Configuring an environment variable is OS specific and not detailed in this guide. Whether the variable should be configured system-wide
 or user-specific depends on the way the ODBC-enabled application is being run and if logging should affect the current user only or not.

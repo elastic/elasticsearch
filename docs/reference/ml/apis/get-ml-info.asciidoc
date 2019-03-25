@@ -58,4 +58,4 @@ This is a possible response:
   "limits" : { }
 }
 ----
-// TESTRESPONSE
+// TESTRESPONSE[s/"upgrade_mode": false/"upgrade_mode": $body.upgrade_mode/]

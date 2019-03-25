@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -57,7 +58,8 @@ public abstract class RemoteClusterAware {
 
     static {
         // remove search.remote.* settings in 8.0.0
-        assert Version.CURRENT.major < 8;
+        // TODO https://github.com/elastic/elasticsearch/issues/38556
+        // assert Version.CURRENT.major < 8;
     }
 
     public static final Setting.AffixSetting<List<String>> SEARCH_REMOTE_CLUSTERS_SEEDS =
@@ -282,21 +284,38 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
+    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
+        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
+        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    }
+
+    void updateRemoteCluster(String clusterAlias, Settings settings) {
+        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
+            .getConcreteSettingForNamespace(clusterAlias)
+            .get(settings);
+
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    }
+
     /**
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
      * empty the cluster alias is unregistered and should be removed.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy);
+    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
+                                                TimeValue pingSchedule);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        clusterSettings.addAffixUpdateConsumer(
-                RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-                RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-                (key, value) -> updateRemoteCluster(key, value.v2(), value.v1()),
-                (namespace, value) -> {});
+        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
+            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
         clusterSettings.addAffixUpdateConsumer(
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,

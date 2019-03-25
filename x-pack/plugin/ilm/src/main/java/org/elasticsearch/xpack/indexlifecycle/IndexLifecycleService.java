@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,8 +54,6 @@ public class IndexLifecycleService
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
-    private final ThreadPool threadPool;
-    private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
@@ -63,13 +62,11 @@ public class IndexLifecycleService
                                  LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
         super();
         this.settings = settings;
-        this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.threadPool = threadPool;
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
@@ -158,14 +155,21 @@ public class IndexLifecycleService
         return scheduledJob;
     }
 
-    private void maybeScheduleJob() {
+    private synchronized void maybeScheduleJob() {
         if (this.isMaster) {
             if (scheduler.get() == null) {
-                scheduler.set(new SchedulerEngine(settings, clock));
-                scheduler.get().register(this);
+                // don't create scheduler if the node is shutting down
+                if (isClusterServiceStoppedOrClosed() == false) {
+                    scheduler.set(new SchedulerEngine(settings, clock));
+                    scheduler.get().register(this);
+                }
             }
-            scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
-            scheduler.get().add(scheduledJob);
+
+            // scheduler could be null if the node might be shutting down
+            if (scheduler.get() != null) {
+                scheduledJob = new SchedulerEngine.Job(XPackField.INDEX_LIFECYCLE, new TimeValueSchedule(pollInterval));
+                scheduler.get().add(scheduledJob);
+            }
         }
     }
 
@@ -254,7 +258,11 @@ public class IndexLifecycleService
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        // this assertion is here to ensure that the check we use in maybeScheduleJob is accurate for detecting a shutdown in
+        // progress, which is that the cluster service is stopped and closed at some point prior to closing plugins
+        assert isClusterServiceStoppedOrClosed() : "close is called by closing the plugin, which is expected to happen after " +
+            "the cluster service is stopped";
         SchedulerEngine engine = scheduler.get();
         if (engine != null) {
             engine.stop();
@@ -264,5 +272,14 @@ public class IndexLifecycleService
     public void submitOperationModeUpdate(OperationMode mode) {
         clusterService.submitStateUpdateTask("ilm_operation_mode_update",
             new OperationModeUpdateTask(mode));
+    }
+
+    /**
+     * Method that checks if the lifecycle state of the cluster service is stopped or closed. This
+     * enhances the readability of the code.
+     */
+    private boolean isClusterServiceStoppedOrClosed() {
+        final State state = clusterService.lifecycleState();
+        return state == State.STOPPED || state == State.CLOSED;
     }
 }

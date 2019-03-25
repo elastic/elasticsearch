@@ -29,8 +29,10 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -576,5 +578,17 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         // start another node so cluster consistency checks won't time out due to the lack of state
         internalCluster().startNode();
+    }
+
+    public void testMessyElectionsStillMakeClusterGoGreen() throws Exception {
+        internalCluster().startNodes(3,
+            Settings.builder().put(ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING.getKey(),
+                "2ms").build());
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms").build());
+        ensureGreen("test");
+        internalCluster().fullRestart();
+        ensureGreen("test");
     }
 }

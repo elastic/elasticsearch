@@ -25,7 +25,6 @@ esplugin {
 versions << [
   'tika': '1.19.1',
   'pdfbox': '2.0.12',
-  'bouncycastle': '1.59',
   'poi': '4.0.0',
   'mime4j': '0.8.2'
 ]

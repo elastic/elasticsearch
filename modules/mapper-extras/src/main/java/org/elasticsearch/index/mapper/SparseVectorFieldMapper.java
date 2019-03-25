@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -119,8 +120,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support sorting, scripting or aggregating");
+            return new VectorDVIndexFieldData.Builder(false);
         }
 
         @Override

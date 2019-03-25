@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -164,13 +162,6 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
                 assertThat(sourceNode.get("timestamp"), equalTo(MonitoringDoc.toUTC(node.getTimestamp())));
             }
         }
-    }
-
-    public void testToUTC() {
-        final long timestamp = System.currentTimeMillis();
-        final String expected = Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC).toString();
-
-        assertEquals(expected, MonitoringDoc.toUTC(timestamp));
     }
 
     public void testMonitoringNodeConstructor() {

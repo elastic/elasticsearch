@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -118,7 +117,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         /**
          * Forced manually to allocate
          */
-        MANUAL_ALLOCATION
+        MANUAL_ALLOCATION,
+        /**
+         * Unassigned as a result of closing an index.
+         */
+        INDEX_CLOSED
     }
 
     /**
@@ -159,11 +162,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         AllocationStatus(byte id) {
             this.id = id;
-        }
-
-        // package private for testing
-        byte getId() {
-            return id;
         }
 
         @Override
@@ -267,11 +265,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_6_0_0_beta2) && reason == Reason.MANUAL_ALLOCATION) {
-            out.writeByte((byte) Reason.ALLOCATION_FAILED.ordinal());
-        } else {
-            out.writeByte((byte) reason.ordinal());
-        }
+        out.writeByte((byte) reason.ordinal());
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);
@@ -279,10 +273,6 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-    }
-
-    public UnassignedInfo readFrom(StreamInput in) throws IOException {
-        return new UnassignedInfo(in);
     }
 
     /**

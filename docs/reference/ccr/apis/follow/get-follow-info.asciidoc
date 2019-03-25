@@ -6,8 +6,6 @@
 <titleabbrev>Get follower info</titleabbrev>
 ++++
 
-beta[]
-
 Retrieves information about all follower indices.
 
 ==== Description

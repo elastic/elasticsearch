@@ -164,7 +164,7 @@ format corresponds to the primary timestamp, but you do not want to specify the
 full `grok_pattern`.
 
 If this parameter is not specified, the structure finder chooses the best format from
-the formats it knows, which are these Java time formats and their Joda equivalents:
+the formats it knows, which are these Java time formats:
 
 * `dd/MMM/yyyy:HH:mm:ss XX`
 * `EEE MMM dd HH:mm zzz yyyy`

@@ -52,7 +52,7 @@ public class VersionUtils {
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         //assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<Version> oldVersions = majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList());
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));
         List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
 
@@ -78,12 +78,21 @@ public class VersionUtils {
                 moveLastToUnreleased(stableVersions, unreleasedVersions);
             }
             // remove the next bugfix
-            moveLastToUnreleased(stableVersions, unreleasedVersions);
+            if (stableVersions.isEmpty() == false) {
+                moveLastToUnreleased(stableVersions, unreleasedVersions);
+            }
         }
 
-        List<Version> releasedVersions = Stream.concat(oldVersions.stream(),
-            Stream.concat(previousMajor.stream(), currentMajor.stream()).flatMap(List::stream))
-            .collect(Collectors.toList());
+        // If none of the previous major was released, then the last minor and bugfix of the old version was not released either.
+        if (previousMajor.isEmpty()) {
+            assert currentMajor.isEmpty() : currentMajor;
+            // minor of the old version is being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+            // bugix of the old version is also being staged
+            moveLastToUnreleased(oldVersions, unreleasedVersions);
+        }
+        List<Version> releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)
+            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());
         Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
         return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
     }

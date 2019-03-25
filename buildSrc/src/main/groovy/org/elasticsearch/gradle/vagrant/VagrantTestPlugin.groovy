@@ -4,7 +4,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -25,8 +25,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -60,7 +60,15 @@ class VagrantTestPlugin implements Plugin<Project> {
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
-            'packages:oss-deb'
+            'packages:oss-deb',
+            'archives:no-jdk-linux-tar',
+            'archives:oss-no-jdk-linux-tar',
+            'archives:no-jdk-windows-zip',
+            'archives:oss-no-jdk-windows-zip',
+            'packages:no-jdk-rpm',
+            'packages:oss-no-jdk-rpm',
+            'packages:no-jdk-deb',
+            'packages:oss-no-jdk-deb'
     ])
 
     /** Packages onboarded for upgrade tests **/
@@ -191,26 +199,32 @@ class VagrantTestPlugin implements Plugin<Project> {
             dependencies.add(project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
-        // The version of elasticsearch that we upgrade *from*
-        VersionCollection.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
-        if (unreleasedInfo != null) {
-            // handle snapshots pointing to bwc build
-            UPGRADE_FROM_ARCHIVES.each {
-                dependencies.add(project.dependencies.project(
-                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: it))
-                if (upgradeFromVersion.onOrAfter('6.3.0')) {
+        if (project.ext.bwc_tests_enabled) {
+            // The version of elasticsearch that we upgrade *from*
+            // we only add them as dependencies if the bwc tests are enabled, so we don't trigger builds otherwise
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
+            if (unreleasedInfo != null) {
+                // handle snapshots pointing to bwc build
+                UPGRADE_FROM_ARCHIVES.each {
                     dependencies.add(project.dependencies.project(
-                            path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: "oss-${it}"))
+                            path: "${unreleasedInfo.gradleProjectPath}", configuration: it))
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add(project.dependencies.project(
+                                path: "${unreleasedInfo.gradleProjectPath}", configuration: "oss-${it}"))
+                    }
+                }
+            } else {
+                UPGRADE_FROM_ARCHIVES.each {
+                    // The version of elasticsearch that we upgrade *from*
+                    dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                    }
                 }
             }
         } else {
-            UPGRADE_FROM_ARCHIVES.each {
-                // The version of elasticsearch that we upgrade *from*
-                dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-                if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                    dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
-                }
-            }
+            // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests.
+            upgradeFromVersion = Version.fromString(project.version)
         }
 
         for (Object dependency : dependencies) {

@@ -546,6 +546,27 @@ public class GeoUtils {
     }
 
     /**
+     * Parse a {@link GeoPoint} from a string. The string must have one of the following forms:
+     *
+     * <ul>
+     *     <li>Latitude, Longitude form: <pre>&quot;<i>&lt;latitude&gt;</i>,<i>&lt;longitude&gt;</i>&quot;</pre></li>
+     *     <li>Geohash form:: <pre>&quot;<i>&lt;geohash&gt;</i>&quot;</pre></li>
+     * </ul>
+     *
+     * @param val a String to parse the value from
+     * @return new parsed {@link GeoPoint}
+     */
+    public static GeoPoint parseFromString(String val) {
+        GeoPoint point = new GeoPoint();
+        boolean ignoreZValue = false;
+        if (val.contains(",")) {
+            return point.resetFromString(val, ignoreZValue);
+        } else {
+            return parseGeoHash(point, val, EffectivePoint.BOTTOM_LEFT);
+        }
+    }
+
+    /**
      * Parse a precision that can be expressed as an integer or a distance measure like "1km", "10m".
      *
      * The precision is expressed as a number between 1 and 12 and indicates the length of geohash

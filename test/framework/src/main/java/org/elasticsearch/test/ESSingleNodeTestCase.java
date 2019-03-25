@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,7 +51,6 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -62,7 +62,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -119,7 +119,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
@@ -127,6 +127,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
+        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
+            indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {
             assert NODE != null;
             stopNode();
@@ -308,8 +311,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService);
+        return new TestSearchContext(bigArrays, indexService);
     }
 
     /**

@@ -1,11 +1,13 @@
-:version:               7.0.0-alpha2
-:major-version:         7.x
+:version:               8.0.0-alpha1
+:major-version:         8.x
+:prev-major-version:    7.x
 :lucene_version:        8.0.0
 :lucene_version_path:   8_0_0
 :branch:                master
 :jdk:                   1.8.0_131
 :jdk_major:             8
 :build_flavor:          default
+:build_type:            tar
 
 //////////
 release-state can be: released | prerelease | unreleased

@@ -35,9 +35,9 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
-import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,22 +65,15 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     private Result runWithoutJava(String script) {
-        // on windows, removing java from PATH and removing JAVA_HOME is less involved than changing the permissions of the java
-        // executable. we also don't check permissions in the windows scripts anyway
-        final String originalPath = sh.run("$Env:PATH").stdout.trim();
-        final String newPath = Arrays.stream(originalPath.split(";"))
-            .filter(path -> path.contains("Java") == false)
-            .collect(joining(";"));
+        final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
 
-        // note the lack of a $ when clearing the JAVA_HOME env variable - with a $ it deletes the java home directory
-        // https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/providers/environment-provider?view=powershell-6
-        //
-        // this won't persist to another session so we don't have to reset anything
-        return sh.runIgnoreExitCode(
-            "$Env:PATH = '" + newPath + "'; " +
-                "Remove-Item Env:JAVA_HOME; " +
-                script
-        );
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+            return sh.runIgnoreExitCode(script);
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     private void assertService(String id, String status, String displayName) {
@@ -135,7 +128,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     public void test13InstallMissingJava() throws IOException {
         Result result = runWithoutJava(serviceScript + " install");
         assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
+        assertThat(result.stderr, containsString("could not find java in JAVA_HOME or bundled"));
     }
 
     public void test14RemoveNotInstalled() {

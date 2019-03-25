@@ -47,7 +47,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -245,7 +244,7 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ClusterBlockLevel indexBlockLevel() {
+    public ClusterBlockLevel indexBlockLevel() {
         return ClusterBlockLevel.WRITE;
     }
 
@@ -376,20 +375,17 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception,
-                                      Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+            shardStateAction.remoteShardFailed(
+                replica.shardId(), replica.allocationId().getId(), primaryTerm, true, message, exception, listener);
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, Runnable onSuccess,
-                                                 Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }
 }

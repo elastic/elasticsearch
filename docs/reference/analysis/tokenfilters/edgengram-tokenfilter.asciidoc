@@ -1,9 +1,9 @@
 [[analysis-edgengram-tokenfilter]]
 === Edge NGram Token Filter
 
-A token filter of type `edgeNGram`.
+A token filter of type `edge_ngram`.
 
-The following are settings that can be set for a `edgeNGram` token
+The following are settings that can be set for a `edge_ngram` token
 filter type:
 
 [cols="<,<",options="header",]

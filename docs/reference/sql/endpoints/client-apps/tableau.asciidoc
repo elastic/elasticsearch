@@ -3,13 +3,13 @@
 [[sql-client-apps-tableau]]
 === Tableau Desktop
 
-experimental[]
-
 [quote, https://www.tableau.com/products/what-is-tableau]
 ____
 https://www.tableau.com/products/desktop[Tableau] is the most powerful, secure, and flexible end-to-end analytics platform
 for your data.
 ____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 

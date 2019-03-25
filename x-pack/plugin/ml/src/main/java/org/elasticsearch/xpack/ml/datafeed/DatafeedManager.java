@@ -64,7 +64,6 @@ public class DatafeedManager {
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
-    private volatile boolean isolated;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
                            Supplier<Long> currentTimeSupplier, Auditor auditor, AutodetectProcessManager autodetectProcessManager) {
@@ -130,18 +129,20 @@ public class DatafeedManager {
      * This is used before the JVM is killed.  It differs from stopAllDatafeedsOnThisNode in that it leaves
      * the datafeed tasks in the "started" state, so that they get restarted on a different node.
      */
-    public void isolateAllDatafeedsOnThisNode() {
-        isolated = true;
+    public void isolateAllDatafeedsOnThisNodeBeforeShutdown() {
         Iterator<Holder> iter = runningDatafeedsOnThisNode.values().iterator();
         while (iter.hasNext()) {
             Holder next = iter.next();
             next.isolateDatafeed();
-            next.setRelocating();
+            // TODO: it's not ideal that this "isolate" method does something a bit different to the one below
+            next.setNodeIsShuttingDown();
             iter.remove();
         }
     }
 
     public void isolateDatafeed(long allocationId) {
+        // This calls get() rather than remove() because we expect that the persistent task will
+        // be removed shortly afterwards and that operation needs to be able to find the holder
         Holder holder = runningDatafeedsOnThisNode.get(allocationId);
         if (holder != null) {
             holder.isolateDatafeed();
@@ -195,7 +196,7 @@ public class DatafeedManager {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
-                if (isolated == false) {
+                if (holder.isIsolated() == false) {
                     if (next != null) {
                         doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
                     } else {
@@ -298,7 +299,7 @@ public class DatafeedManager {
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> finishHandler;
         volatile Scheduler.Cancellable cancellable;
-        private volatile boolean isRelocating;
+        private volatile boolean isNodeShuttingDown;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
                ProblemTracker problemTracker, Consumer<Exception> finishHandler) {
@@ -324,7 +325,7 @@ public class DatafeedManager {
         }
 
         public void stop(String source, TimeValue timeout, Exception e) {
-            if (isRelocating) {
+            if (isNodeShuttingDown) {
                 return;
             }
 
@@ -344,11 +345,12 @@ public class DatafeedManager {
                     if (cancellable != null) {
                         cancellable.cancel();
                     }
-                    auditor.info(datafeedJob.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
+                    auditor.info(datafeedJob.getJobId(),
+                            Messages.getMessage(isIsolated() ? Messages.JOB_AUDIT_DATAFEED_ISOLATED : Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     finishHandler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeedId, datafeedJob.getJobId(),
                             acquired ? "" : ", but there may be pending tasks as the timeout [" + timeout.getStringRep() + "] expired");
-                    if (autoCloseJob) {
+                    if (autoCloseJob && isIsolated() == false) {
                         closeJob();
                     }
                     if (acquired) {
@@ -361,16 +363,18 @@ public class DatafeedManager {
         }
 
         /**
-         * This stops a datafeed WITHOUT updating the corresponding persistent task.  It must ONLY be called
-         * immediately prior to shutting down a node.  Then the datafeed task can remain "started", and be
-         * relocated to a different node.  Calling this method at any other time will ruin the datafeed.
+         * This stops a datafeed WITHOUT updating the corresponding persistent task.  When called it
+         * will stop the datafeed from sending data to its job as quickly as possible.  The caller
+         * must do something sensible with the corresponding persistent task.  If the node is shutting
+         * down the task will automatically get reassigned.  Otherwise the caller must take action to
+         * remove or reassign the persistent task, or the datafeed will be left in limbo.
          */
         public void isolateDatafeed() {
             datafeedJob.isolate();
         }
 
-        public void setRelocating() {
-            isRelocating = true;
+        public void setNodeIsShuttingDown() {
+            isNodeShuttingDown = true;
         }
 
         private Long executeLookBack(long startTime, Long endTime) throws Exception {

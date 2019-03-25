@@ -197,13 +197,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                 (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty() &&
 
-                            // Datafeeds to wait for a non-"Awaiting upgrade" assignment and for the job task allocations to converge
-                            // If we do not wait, deleting datafeeds, or attempting to unallocate them again causes issues as the
-                            // job's task allocationId could have changed during either process.
+                            // Wait for datafeeds to not be "Awaiting upgrade"
                             persistentTasksCustomMetaData.findTasks(DATAFEED_TASK_NAME,
-                                (t) ->
-                                    t.getAssignment().equals(AWAITING_UPGRADE) ||
-                                    t.getAssignment().getExplanation().contains("state is stale"))
+                                (t) -> t.getAssignment().equals(AWAITING_UPGRADE))
                                 .isEmpty(),
                         request.timeout(),
                         ActionListener.wrap(r -> wrappedListener.onResponse(new AcknowledgedResponse(true)), wrappedListener::onFailure)
@@ -263,6 +259,9 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
             .collect(Collectors.toList());
 
+        logger.info("Un-assigning persistent tasks : " +
+            datafeedAndJobTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]")));
+
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor =
             new TypedChainTaskExecutor<>(client.threadPool().executor(executor()),
                 r -> true,
@@ -287,6 +286,7 @@ public class TransportSetUpgradeModeAction extends TransportMasterNodeAction<Set
                                   ActionListener<List<IsolateDatafeedAction.Response>> listener) {
         Set<String> datafeedsToIsolate = MlTasks.startedDatafeedIds(tasksCustomMetaData);
 
+        logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor =
             new TypedChainTaskExecutor<>(client.threadPool().executor(executor()), r -> true, ex -> true);
 

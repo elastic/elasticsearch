@@ -25,9 +25,10 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,8 +39,8 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.install;
 import static org.elasticsearch.packaging.util.Packages.remove;
-import static org.elasticsearch.packaging.util.Packages.runInstallCommand;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
+import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -60,41 +61,63 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test05InstallFailsWhenJavaMissing() {
-        final Shell sh = new Shell();
-        final Result java = sh.run("command -v java");
-
-        final Path originalJavaPath = Paths.get(java.stdout.trim());
-        final Path relocatedJavaPath = originalJavaPath.getParent().resolve("java.relocated");
-        try {
-            mv(originalJavaPath, relocatedJavaPath);
-            final Result installResult = runInstallCommand(distribution());
-            assertThat(installResult.exitCode, is(1));
-            assertThat(installResult.stderr, containsString("could not find java; set JAVA_HOME or ensure java is in PATH"));
-        } finally {
-            mv(relocatedJavaPath, originalJavaPath);
-        }
-    }
-
-    public void test10InstallPackage() {
+    public void test10InstallPackage() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
-        final Shell sh = new Shell();
-        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
+        assertThat(newShell().run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
     public void test30InstallDoesNotStartServer() {
         assumeThat(installation, is(notNullValue()));
 
-        final Shell sh = new Shell();
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(newShell().run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+    }
+
+    public void assertRunsWithJavaHome() throws IOException {
+        Shell sh = newShell();
+
+        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
+        try {
+            Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.APPEND);
+            startElasticsearch();
+            runElasticsearchTests();
+            stopElasticsearch();
+        } finally {
+            Files.write(installation.envFile, originalEnvFile);
+        }
+
+        Path log = installation.logs.resolve("elasticsearch.log");
+        assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
+    }
+
+    public void test31JavaHomeOverride() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+        // we always run with java home when no bundled jdk is included, so this test would be repetitive
+        assumeThat(distribution().hasJdk, is(true));
+
+        assertRunsWithJavaHome();
+    }
+
+    public void test42BundledJdkRemoved() throws IOException {
+        assumeThat(installation, is(notNullValue()));
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test40StartServer() throws IOException {
@@ -102,7 +125,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
         startElasticsearch();
         runElasticsearchTests();
-        verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
+        verifyPackageInstallation(installation, distribution(), newShell()); // check startup script didn't change permissions
     }
 
     public void test50Remove() {
@@ -111,7 +134,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        final Shell sh = new Shell();
+        final Shell sh = newShell();
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
@@ -156,12 +179,12 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertFalse(Files.exists(SYSTEMD_SERVICE));
     }
 
-    public void test60Reinstall() {
+    public void test60Reinstall() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         remove(distribution());
         assertRemoved(distribution());

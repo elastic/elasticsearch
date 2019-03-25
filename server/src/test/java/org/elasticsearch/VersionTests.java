@@ -367,10 +367,9 @@ public class VersionTests extends ESTestCase {
                                 () -> new IllegalStateException("expected previous minor version for [" + currentOrNextMajorVersion + "]"));
         final Version previousMinorVersion = VersionUtils.getPreviousMinorVersion();
 
-        assert previousMinorVersion.major == currentOrNextMajorVersion.major
-                || previousMinorVersion.major == lastMinorFromPreviousMajor.major;
-        boolean isCompatible = previousMinorVersion.major == currentOrNextMajorVersion.major
-                || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
+        boolean isCompatible =
+                previousMinorVersion.major == currentOrNextMajorVersion.major
+                        || previousMinorVersion.minor == lastMinorFromPreviousMajor.minor;
 
         final String message = String.format(
                 Locale.ROOT,

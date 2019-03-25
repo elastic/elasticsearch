@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -57,7 +56,7 @@ public class OpenLdapTests extends ESTestCase {
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-    public static final String LDAPTRUST_PATH = "/idptrust.jks";
+    public static final String LDAPTRUST_PATH = "/ca.jks";
     private static final SecureString PASSWORD_SECURE_STRING = new SecureString(PASSWORD.toCharArray());
     public static final String REALM_NAME = "oldap-test";
 
@@ -160,26 +159,6 @@ public class OpenLdapTests extends ESTestCase {
         try (LdapSession ldap = session(sessionFactory, "selvig", PASSWORD_SECURE_STRING)) {
             assertThat(groups(ldap), hasItem(containsString("Geniuses")));
         }
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/29758")
-    public void testTcpTimeout() throws Exception {
-        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
-        String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
-        Settings settings = Settings.builder()
-            .put(buildLdapSettings(realmId, OPEN_LDAP_DNS_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-            .put(getFullSettingKey(realmId.getName(), SearchGroupsResolverSettings.FILTER), "(objectClass=*)")
-            .put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
-            .put(getFullSettingKey(realmId, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING), "1ms")
-            .build();
-        RealmConfig config = new RealmConfig(realmId, settings,
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
-
-        LDAPException expected = expectThrows(LDAPException.class,
-            () -> session(sessionFactory, "thor", PASSWORD_SECURE_STRING).groups(new PlainActionFuture<>()));
-        assertThat(expected.getMessage(), containsString("A client-side timeout was encountered while waiting"));
     }
 
     public void testStandardLdapConnectionHostnameVerificationFailure() throws Exception {

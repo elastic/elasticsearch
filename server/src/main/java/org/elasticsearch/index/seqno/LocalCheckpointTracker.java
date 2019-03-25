@@ -82,6 +82,15 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Marks the provided sequence number as seen and updates the max_seq_no if needed.
+     */
+    public synchronized void advanceMaxSeqNo(long seqNo) {
+        if (seqNo >= nextSeqNo) {
+            nextSeqNo = seqNo + 1;
+        }
+    }
+
+    /**
      * Marks the processing of the provided sequence number as completed as updates the checkpoint if possible.
      *
      * @param seqNo the sequence number to mark as completed
@@ -157,11 +166,11 @@ public class LocalCheckpointTracker {
             return true;
         }
         final long bitSetKey = getBitSetKey(seqNo);
-        final CountedBitSet bitSet;
+        final int bitSetOffset = seqNoToBitSetOffset(seqNo);
         synchronized (this) {
-            bitSet = processedSeqNo.get(bitSetKey);
+            final CountedBitSet bitSet = processedSeqNo.get(bitSetKey);
+            return bitSet != null && bitSet.get(bitSetOffset);
         }
-        return bitSet != null && bitSet.get(seqNoToBitSetOffset(seqNo));
     }
 
     /**

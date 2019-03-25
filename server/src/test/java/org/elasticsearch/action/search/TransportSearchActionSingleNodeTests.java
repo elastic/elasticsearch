@@ -46,7 +46,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(), Strings.EMPTY_ARRAY,
                 "local", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -58,7 +58,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("1", hit.getId());
         }
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(new SearchRequest(), Strings.EMPTY_ARRAY,
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(), Strings.EMPTY_ARRAY,
                 "", nowInMillis, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -100,13 +100,13 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(0, searchResponse.getTotalShards());
         }
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             searchRequest.indices("<test-{now/d}>");
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
@@ -114,7 +114,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
         }
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(new SearchRequest(),
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(new SearchRequest(),
                 Strings.EMPTY_ARRAY, "", 0, randomBoolean());
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             RangeQueryBuilder rangeQuery = new RangeQueryBuilder("date");
@@ -156,7 +156,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
         source.aggregation(terms);
 
         {
-            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.withLocalReduction(originalRequest,
+            SearchRequest searchRequest = randomBoolean() ? originalRequest : SearchRequest.crossClusterSearch(originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);
@@ -165,7 +165,7 @@ public class TransportSearchActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(1, longTerms.getBuckets().size());
         }
         {
-            SearchRequest searchRequest = SearchRequest.withLocalReduction(originalRequest,
+            SearchRequest searchRequest = SearchRequest.crossClusterSearch(originalRequest,
                 Strings.EMPTY_ARRAY, "remote", nowInMillis, false);
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             assertEquals(2, searchResponse.getHits().getTotalHits().value);

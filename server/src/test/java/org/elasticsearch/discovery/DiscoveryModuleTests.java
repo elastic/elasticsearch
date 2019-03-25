@@ -30,8 +30,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -65,10 +63,10 @@ public class DiscoveryModuleTests extends ESTestCase {
     private GatewayMetaState gatewayMetaState;
 
     public interface DummyHostsProviderPlugin extends DiscoveryPlugin {
-        Map<String, Supplier<UnicastHostsProvider>> impl();
+        Map<String, Supplier<SeedHostsProvider>> impl();
         @Override
-        default Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                                 NetworkService networkService) {
+        default Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                              NetworkService networkService) {
             return impl();
         }
     }
@@ -107,7 +105,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertEquals("Unknown discovery type [dne]", e.getMessage());
     }
 
-    public void testHostsProvider() {
+    public void testSeedProviders() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "custom").build();
         AtomicBoolean created = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
@@ -118,35 +116,14 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created.get());
     }
 
-    public void testLegacyHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
-        AtomicBoolean created = new AtomicBoolean(false);
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
-            created.set(true);
-            return hostsResolver -> Collections.emptyList();
-        });
-        newModule(settings, Collections.singletonList(plugin));
-        assertTrue(created.get());
-        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
-    }
-
-    public void testLegacyAndNonLegacyProvidersRejected() {
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
-            .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(settings, Collections.emptyList()));
-        assertEquals("it is forbidden to set both [discovery.seed_providers] and [discovery.zen.hosts_provider]", e.getMessage());
-    }
-
-    public void testUnknownHostsProvider() {
+    public void testUnknownSeedsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
         assertEquals("Unknown seed providers [dne]", e.getMessage());
     }
 
-    public void testDuplicateHostsProvider() {
+    public void testDuplicateSeedsProvider() {
         DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("dup", () -> null);
         DummyHostsProviderPlugin plugin2 = () -> Collections.singletonMap("dup", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
@@ -154,14 +131,14 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertEquals("Cannot register seed provider [dup] twice", e.getMessage());
     }
 
-    public void testSettingsHostsProvider() {
+    public void testSettingsSeedsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("settings", () -> null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin)));
         assertEquals("Cannot register seed provider [settings] twice", e.getMessage());
     }
 
-    public void testMultiHostsProvider() {
+    public void testMultipleSeedsProviders() {
         AtomicBoolean created1 = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("provider1", () -> {
             created1.set(true);
@@ -185,7 +162,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created3.get());
     }
 
-    public void testLazyConstructionHostsProvider() {
+    public void testLazyConstructionSeedsProvider() {
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom",
             () -> {
                 throw new AssertionError("created hosts provider which was not selected");
@@ -195,15 +172,14 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        // TODO: move to zen2 once join validators are implemented
         DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
+            DiscoveryModule.ZEN2_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;
             }
         }));
-        ZenDiscovery discovery = (ZenDiscovery) module.getDiscovery();
+        Coordinator discovery = (Coordinator) module.getDiscovery();
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));

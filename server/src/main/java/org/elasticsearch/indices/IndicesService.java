@@ -62,6 +62,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -85,6 +86,7 @@ import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
@@ -124,6 +126,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -189,11 +192,12 @@ public class IndicesService extends AbstractLifecycleComponent
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
-    private final IndicesRequestCache indicesRequestCache;
+    final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
+    final AbstractRefCounted indicesRefCount; // pkg-private for testing
 
     @Override
     protected void doStart() {
@@ -249,6 +253,27 @@ public class IndicesService extends AbstractLifecycleComponent
         }
 
         this.indexStoreFactories = indexStoreFactories;
+        // doClose() is called when shutting down a node, yet there might still be ongoing requests
+        // that we need to wait for before closing some resources such as the caches. In order to
+        // avoid closing these resources while ongoing requests are still being processed, we use a
+        // ref count which will only close them when both this service and all index services are
+        // actually closed
+        indicesRefCount = new AbstractRefCounted("indices") {
+            @Override
+            protected void closeInternal() {
+                try {
+                    IOUtils.close(
+                            analysisRegistry,
+                            indexingMemoryController,
+                            indicesFieldDataCache,
+                            cacheCleaner,
+                            indicesRequestCache,
+                            indicesQueryCache);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
     }
 
     @Override
@@ -280,14 +305,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    protected void doClose() {
-        IOUtils.closeWhileHandlingException(
-            analysisRegistry,
-            indexingMemoryController,
-            indicesFieldDataCache,
-            cacheCleaner,
-            indicesRequestCache,
-            indicesQueryCache);
+    protected void doClose() throws IOException {
+        indicesRefCount.decRef();
     }
 
     /**
@@ -456,8 +475,16 @@ public class IndicesService extends AbstractLifecycleComponent
         List<IndexEventListener> finalListeners = new ArrayList<>(builtInListeners);
         final IndexEventListener onStoreClose = new IndexEventListener() {
             @Override
+            public void onStoreCreated(ShardId shardId) {
+                indicesRefCount.incRef();
+            }
+            @Override
             public void onStoreClosed(ShardId shardId) {
-                indicesQueryCache.onClose(shardId);
+                try {
+                    indicesQueryCache.onClose(shardId);
+                } finally {
+                    indicesRefCount.decRef();
+                }
             }
         };
         finalListeners.add(onStoreClose);
@@ -526,6 +553,12 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {
+        final IndexMetaData indexMetaData = idxSettings.getIndexMetaData();
+        if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            // NoOpEngine takes precedence as long as the index is closed
+            return NoOpEngine::new;
+        }
+
         final List<Optional<EngineFactory>> engineFactories =
                 engineFactoryProviders
                         .stream()
@@ -868,6 +901,9 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
+                if (metaData == null) {
+                    return null;
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
                     "folders will be left on disk", index), e);
@@ -1025,7 +1061,7 @@ public class IndicesService extends AbstractLifecycleComponent
             throws IOException, InterruptedException, ShardLockObtainFailedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, "process pending deletes", timeout.millis());
         int numRemoved = 0;
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();

@@ -48,9 +48,8 @@ import java.util.Map;
  */
 public class ShardSearchTransportRequest extends TransportRequest implements ShardSearchRequest, IndicesRequest {
 
-    private OriginalIndices originalIndices;
-
-    private ShardSearchLocalRequest shardSearchLocalRequest;
+    private final OriginalIndices originalIndices;
+    private final ShardSearchLocalRequest shardSearchLocalRequest;
 
     public ShardSearchTransportRequest(OriginalIndices originalIndices, SearchRequest searchRequest, ShardId shardId, int numberOfShards,
                                        AliasFilter aliasFilter, float indexBoost, long nowInMillis,
@@ -62,8 +61,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
 
     public ShardSearchTransportRequest(StreamInput in) throws IOException {
         super(in);
-        shardSearchLocalRequest = new ShardSearchLocalRequest();
-        shardSearchLocalRequest.innerReadFrom(in);
+        shardSearchLocalRequest = new ShardSearchLocalRequest(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -72,10 +70,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
         super.writeTo(out);
         shardSearchLocalRequest.innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
-    }
-
-    public void searchType(SearchType searchType) {
-        shardSearchLocalRequest.setSearchType(searchType);
     }
 
     @Override
@@ -177,16 +171,6 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     @Override
     public BytesReference cacheKey() throws IOException {
         return shardSearchLocalRequest.cacheKey();
-    }
-
-    @Override
-    public void setProfile(boolean profile) {
-        shardSearchLocalRequest.setProfile(profile);
-    }
-
-    @Override
-    public boolean isProfile() {
-        return shardSearchLocalRequest.isProfile();
     }
 
     @Override

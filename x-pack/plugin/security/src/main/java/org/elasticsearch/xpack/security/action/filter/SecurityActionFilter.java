@@ -152,7 +152,15 @@ public class SecurityActionFilter implements ActionFilter {
          */
         final String securityAction = actionMapper.action(action, request);
         authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
-                ActionListener.wrap((authc) -> authorizeRequest(authc, securityAction, request, listener), listener::onFailure));
+                ActionListener.wrap((authc) -> {
+                    if (authc != null) {
+                        authorizeRequest(authc, securityAction, request, listener);
+                    } else if (licenseState.isAuthAllowed() == false) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                    }
+                }, listener::onFailure));
     }
 
     private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,

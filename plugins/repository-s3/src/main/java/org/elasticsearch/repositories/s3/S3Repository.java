@@ -19,8 +19,8 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -123,14 +123,8 @@ class S3Repository extends BlobStoreRepository {
             new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
-     * files that are already compressed by default. Defaults to false.
-     */
-    static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
-
-    /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
-     * standard_ia. Defaults to standard.
+     * standard_ia and intelligent_tiering. Defaults to standard.
      */
     static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
 
@@ -154,8 +148,6 @@ class S3Repository extends BlobStoreRepository {
     private final ByteSizeValue bufferSize;
 
     private final ByteSizeValue chunkSize;
-
-    private final boolean compress;
 
     private final BlobPath basePath;
 
@@ -187,7 +179,6 @@ class S3Repository extends BlobStoreRepository {
 
         this.bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
-        this.compress = COMPRESS_SETTING.get(metadata.settings());
 
         // We make sure that chunkSize is bigger or equal than/to bufferSize
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
@@ -243,11 +234,6 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

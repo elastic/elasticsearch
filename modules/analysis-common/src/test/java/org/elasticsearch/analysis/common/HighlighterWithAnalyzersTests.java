@@ -81,7 +81,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.tokenizer.autocomplete.max_gram", 20)
                         .put("analysis.tokenizer.autocomplete.min_gram", 1)
                         .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.autocomplete.type", "nGram")
+                        .put("analysis.tokenizer.autocomplete.type", "ngram")
                         .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                         .putList("analysis.filter.wordDelimiter.type_table",
                                 "& => ALPHANUM", "| => ALPHANUM", "! => ALPHANUM",

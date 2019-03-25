@@ -36,16 +36,19 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ -x "$JAVA_HOME/bin/java" ]; then
+if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
-  set +e
-  JAVA=`which java`
-  set -e
+  if [ "$(uname -s)" = "Darwin" ]; then
+    # OSX has a different structure
+    JAVA="$ES_HOME/jdk/Contents/Home/bin/java"
+  else
+    JAVA="$ES_HOME/jdk/bin/java"
+  fi
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH" >&2
+  echo "could not find java in JAVA_HOME or bundled at $JAVA" >&2
   exit 1
 fi
 
@@ -83,3 +86,5 @@ ES_DISTRIBUTION_TYPE=${es.distribution.type}
 if [ -z "$ES_TMPDIR" ]; then
   ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
+
+cd "$ES_HOME"

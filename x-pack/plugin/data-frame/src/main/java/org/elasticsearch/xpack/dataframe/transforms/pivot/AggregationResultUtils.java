@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
+
 final class AggregationResultUtils {
     private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
 
@@ -30,30 +32,38 @@ final class AggregationResultUtils {
      * @param agg The aggregation result
      * @param groups The original groupings used for querying
      * @param aggregationBuilders the aggregation used for querying
-     * @param dataFrameIndexerTransformStats stats collector
+     * @param fieldTypeMap A Map containing "field-name": "type" entries to determine the appropriate type for the aggregation results.
+     * @param stats stats collector
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-                                                                     GroupConfig groups,
-                                                                     Collection<AggregationBuilder> aggregationBuilders,
-                                                                     DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                                                 GroupConfig groups,
+                                                                                 Collection<AggregationBuilder> aggregationBuilders,
+                                                                                 Map<String, String> fieldTypeMap,
+                                                                                 DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
-            dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
+            stats.incrementNumDocuments(bucket.getDocCount());
 
             Map<String, Object> document = new HashMap<>();
-            groups.getGroups().keySet().forEach(destinationFieldName -> {
-                document.put(destinationFieldName, bucket.getKey().get(destinationFieldName));
-            });
+            groups.getGroups().keySet().forEach(destinationFieldName ->
+                document.put(destinationFieldName, bucket.getKey().get(destinationFieldName)));
 
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
                 String aggName = aggregationBuilder.getName();
+                final String fieldType = fieldTypeMap.get(aggName);
 
                 // TODO: support other aggregation types
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
 
                 if (aggResult instanceof NumericMetricsAggregation.SingleValue) {
                     NumericMetricsAggregation.SingleValue aggResultSingleValue = (SingleValue) aggResult;
-                    document.put(aggName, aggResultSingleValue.value());
+                    // If the type is numeric, simply gather the `value` type, otherwise utilize `getValueAsString` so we don't lose
+                    // formatted outputs.
+                    if (isNumericType(fieldType)) {
+                        document.put(aggName, aggResultSingleValue.value());
+                    } else {
+                        document.put(aggName, aggResultSingleValue.getValueAsString());
+                    }
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible

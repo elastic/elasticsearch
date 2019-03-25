@@ -38,32 +38,28 @@ public class DataFrameTransformConfig implements ToXContentObject {
     public static final ParseField ID = new ParseField("id");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DEST = new ParseField("dest");
-    public static final ParseField QUERY = new ParseField("query");
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
     private final String id;
-    private final String source;
-    private final String dest;
-    private final QueryConfig queryConfig;
+    private final SourceConfig source;
+    private final DestConfig dest;
     private final PivotConfig pivotConfig;
 
     public static final ConstructingObjectParser<DataFrameTransformConfig, String> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
                 (args) -> {
                     String id = (String) args[0];
-                    String source = (String) args[1];
-                    String dest = (String) args[2];
-                    QueryConfig queryConfig = (QueryConfig) args[3];
-                    PivotConfig pivotConfig = (PivotConfig) args[4];
-                    return new DataFrameTransformConfig(id, source, dest, queryConfig, pivotConfig);
+                    SourceConfig source = (SourceConfig) args[1];
+                    DestConfig dest = (DestConfig) args[2];
+                    PivotConfig pivotConfig = (PivotConfig) args[3];
+                    return new DataFrameTransformConfig(id, source, dest, pivotConfig);
                 });
 
     static {
         PARSER.declareString(constructorArg(), ID);
-        PARSER.declareString(constructorArg(), SOURCE);
-        PARSER.declareString(constructorArg(), DEST);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
+        PARSER.declareObject(constructorArg(), (p, c) -> SourceConfig.PARSER.apply(p, null), SOURCE);
+        PARSER.declareObject(constructorArg(), (p, c) -> DestConfig.PARSER.apply(p, null), DEST);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
     }
 
@@ -73,14 +69,12 @@ public class DataFrameTransformConfig implements ToXContentObject {
 
 
     public DataFrameTransformConfig(final String id,
-                                    final String source,
-                                    final String dest,
-                                    final QueryConfig queryConfig,
+                                    final SourceConfig source,
+                                    final DestConfig dest,
                                     final PivotConfig pivotConfig) {
         this.id = id;
         this.source = source;
         this.dest = dest;
-        this.queryConfig = queryConfig;
         this.pivotConfig = pivotConfig;
     }
 
@@ -88,20 +82,16 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return id;
     }
 
-    public String getSource() {
+    public SourceConfig getSource() {
         return source;
     }
 
-    public String getDestination() {
+    public DestConfig getDestination() {
         return dest;
     }
 
     public PivotConfig getPivotConfig() {
         return pivotConfig;
-    }
-
-    public QueryConfig getQueryConfig() {
-        return queryConfig;
     }
 
     @Override
@@ -110,12 +100,11 @@ public class DataFrameTransformConfig implements ToXContentObject {
         if (id != null) {
             builder.field(ID.getPreferredName(), id);
         }
-        builder.field(SOURCE.getPreferredName(), source);
+        if (source != null) {
+            builder.field(SOURCE.getPreferredName(), source);
+        }
         if (dest != null) {
             builder.field(DEST.getPreferredName(), dest);
-        }
-        if (queryConfig != null) {
-            builder.field(QUERY.getPreferredName(), queryConfig);
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
@@ -139,13 +128,12 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return Objects.equals(this.id, that.id)
                 && Objects.equals(this.source, that.source)
                 && Objects.equals(this.dest, that.dest)
-                && Objects.equals(this.queryConfig, that.queryConfig)
                 && Objects.equals(this.pivotConfig, that.pivotConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, queryConfig, pivotConfig);
+        return Objects.hash(id, source, dest, pivotConfig);
     }
 
     @Override

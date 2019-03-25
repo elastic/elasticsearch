@@ -86,18 +86,14 @@ class JavaDateFormatter implements DateFormatter {
 
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
         if (format.contains("||") == false) {
-            builder.append(firstParser());
+            builder.append(this.parsers.get(0));
         }
         roundupParserConsumer.accept(builder);
-        DateTimeFormatter roundupFormatter = builder.toFormatter(firstParser().getLocale());
+        DateTimeFormatter roundupFormatter = builder.toFormatter(locale());
         if (printer.getZone() != null) {
-            roundupFormatter = roundupFormatter.withZone(printer.getZone());
+            roundupFormatter = roundupFormatter.withZone(zone());
         }
         this.roundupParser = roundupFormatter;
-    }
-
-    private DateTimeFormatter firstParser() {
-        return this.parsers.get(0);
     }
 
     DateTimeFormatter getRoundupParser() {
@@ -121,6 +117,14 @@ class JavaDateFormatter implements DateFormatter {
         }
     }
 
+    /**
+     * Attempt parsing the input without throwing exception. This is needed because java-time requires ordering on optional (composite)
+     * patterns. Joda does not suffer from this.
+     * https://bugs.openjdk.java.net/browse/JDK-8188771
+     *
+     * @param input An arbitrary string resembling the string representation of a date or time
+     * @return true if parsing was successful, false if parsing failed
+     */
     private TemporalAccessor doParse(String input) {
         if (parsers.size() > 1) {
             for (DateTimeFormatter formatter : parsers) {
@@ -132,7 +136,7 @@ class JavaDateFormatter implements DateFormatter {
             }
             throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
         }
-        return firstParser().parse(input);
+        return this.parsers.get(0).parse(input);
     }
 
     private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
@@ -142,7 +146,7 @@ class JavaDateFormatter implements DateFormatter {
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
         // shortcurt to not create new objects unnecessarily
-        if (zoneId.equals(firstParser().getZone())) {
+        if (zoneId.equals(zone())) {
             return this;
         }
 
@@ -153,7 +157,7 @@ class JavaDateFormatter implements DateFormatter {
     @Override
     public DateFormatter withLocale(Locale locale) {
         // shortcurt to not create new objects unnecessarily
-        if (locale.equals(firstParser().getLocale())) {
+        if (locale.equals(locale())) {
             return this;
         }
 
@@ -183,7 +187,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(format, this, getRoundupParser());
+        return new JavaDateMathParser(format, this.parsers.get(0), getRoundupParser());
     }
 
     @Override

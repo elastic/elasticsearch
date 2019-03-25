@@ -357,7 +357,7 @@ GET /customer/external/1?pretty
 --------------------------------------------------
 // TESTRESPONSE
 
-여기서 특이한 점이라면 `found`라는 필드인데, 요청된 ID 1에 해당하는 문서를 찾았다고 알려줍니다. 또 다른 필드 `_source` 는 이전 단계에서 색인화한 전체 JSON 문서를 반환합니다.
+여기서 특이한 점이라면 `found` 라는 필드인데, 요청된 ID 1에 해당하는 문서를 찾았다고 알려줍니다. 또 다른 필드 `_source` 는 이전 단계에서 색인화한 전체 JSON 문서를 반환합니다.
 
 [[gs-delete-index]]
 === 색인 삭제
@@ -703,7 +703,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-URI에서는 `q=*`를 전달했지만 여기서는 `_search` API에 JSON 스타일의 쿼리 요청 본문을 POST합니다. 다음 섹션에서 이 JSON 쿼리에 대해 살펴볼 것입니다.
+URI에서는 `q=*` 를 전달했지만 여기서는 `_search` API에 JSON 스타일의 쿼리 요청 본문을 POST합니다. 다음 섹션에서 이 JSON 쿼리에 대해 살펴볼 것입니다.
 
 ////
 Hidden response just so we can assert that it is indeed the same but don't have

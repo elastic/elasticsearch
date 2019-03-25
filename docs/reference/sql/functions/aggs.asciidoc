@@ -29,7 +29,7 @@ Returns the https://en.wikipedia.org/wiki/Arithmetic_mean[Average] (arithmetic m
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggAvg]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggAvg]
 --------------------------------------------------
 
 [[sql-functions-aggs-count]]
@@ -58,7 +58,7 @@ In case of `COUNT(<field_name>)` `null` values are not considered.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggCountStar]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountStar]
 --------------------------------------------------
 
 
@@ -83,7 +83,7 @@ Returns the total number (count) of all _non-null_ input values. `COUNT(<field_n
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggCountAll]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountAll]
 --------------------------------------------------
 
 
@@ -108,7 +108,7 @@ Returns the total number of _distinct non-null_ values in input values.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountDistinct]
 --------------------------------------------------
 
 [[sql-functions-aggs-first]]
@@ -175,29 +175,29 @@ s| FIRST(a, b)
 
 ["source","sql",subs="attributes,macros"]
 -----------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[firstWithOneArg]
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstWithOneArg]
 -----------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[firstWithOneArgAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstWithOneArgAndGroupBy]
 --------------------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 -----------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgs]
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstWithTwoArgs]
 -----------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 ---------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[firstWithTwoArgsAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstWithTwoArgsAndGroupBy]
 ---------------------------------------------------------------------
 
 `FIRST_VALUE` is a name alias and can be used instead of `FIRST`, e.g.:
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
 --------------------------------------------------------------------------
 
 [NOTE]
@@ -270,29 +270,29 @@ s| LAST(a, b)
 
 ["source","sql",subs="attributes,macros"]
 -----------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[lastWithOneArg]
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastWithOneArg]
 -----------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 -------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[lastWithOneArgAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastWithOneArgAndGroupBy]
 -------------------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 -----------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgs]
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastWithTwoArgs]
 -----------------------------------------------------------
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[lastWithTwoArgsAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastWithTwoArgsAndGroupBy]
 --------------------------------------------------------------------
 
 `LAST_VALUE` is a name alias and can be used instead of `LAST`, e.g.:
 
 ["source","sql",subs="attributes,macros"]
 -------------------------------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
+include-tagged::{sql-specs}/docs/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
 -------------------------------------------------------------------------
 
 [NOTE]
@@ -322,7 +322,7 @@ Returns the maximum value across input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggMax]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggMax]
 --------------------------------------------------
 
 [NOTE]
@@ -350,7 +350,7 @@ Returns the minimum value across input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggMin]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggMin]
 --------------------------------------------------
 
 [NOTE]
@@ -378,7 +378,7 @@ Returns the sum of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggSum]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggSum]
 --------------------------------------------------
 
 ==== Statistics
@@ -404,7 +404,7 @@ https://en.wikipedia.org/wiki/Kurtosis[Quantify] the shape of the distribution o
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggKurtosis]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggKurtosis]
 --------------------------------------------------
 
 [[sql-functions-aggs-mad]]
@@ -428,7 +428,7 @@ https://en.wikipedia.org/wiki/Median_absolute_deviation[Measure] the variability
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggMad]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggMad]
 --------------------------------------------------
 
 [[sql-functions-aggs-percentile]]
@@ -454,7 +454,7 @@ of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggPercentile]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 --------------------------------------------------
 
 [[sql-functions-aggs-percentile-rank]]
@@ -480,7 +480,7 @@ of input values in the field `field_name`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggPercentileRank]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 --------------------------------------------------
 
 [[sql-functions-aggs-skewness]]
@@ -504,7 +504,7 @@ https://en.wikipedia.org/wiki/Skewness[Quantify] the asymmetric distribution of 
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggSkewness]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggSkewness]
 --------------------------------------------------
 
 [[sql-functions-aggs-stddev-pop]]
@@ -528,7 +528,7 @@ Returns the https://en.wikipedia.org/wiki/Standard_deviations[population standar
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggStddevPop]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPop]
 --------------------------------------------------
 
 [[sql-functions-aggs-sum-squares]]
@@ -552,7 +552,7 @@ Returns the https://en.wikipedia.org/wiki/Total_sum_of_squares[sum of squares] o
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggSumOfSquares]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumOfSquares]
 --------------------------------------------------
 
 [[sql-functions-aggs-var-pop]]
@@ -576,5 +576,5 @@ Returns the https://en.wikipedia.org/wiki/Variance[population variance] of input
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[aggVarPop]
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarPop]
 --------------------------------------------------

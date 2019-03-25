@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -180,7 +181,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public ScaledFloatFieldType() {
             super();
             setTokenized(false);
-            setHasDocValues(true);
+            setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setOmitNorms(true);
         }
 

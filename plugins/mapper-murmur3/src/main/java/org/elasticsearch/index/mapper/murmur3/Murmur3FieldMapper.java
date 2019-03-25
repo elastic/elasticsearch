@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.murmur3;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -75,7 +76,8 @@ public class Murmur3FieldMapper extends FieldMapper {
             fieldType.setIndexOptions(IndexOptions.NONE);
             defaultFieldType.setIndexOptions(IndexOptions.NONE);
             fieldType.setHasDocValues(true);
-            defaultFieldType.setHasDocValues(true);
+            fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            defaultFieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
         }
     }
 

@@ -232,6 +232,8 @@ final class TypeConverter {
             case INTERVAL_HOUR_TO_SECOND:
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
+            case IP:
+                return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
 

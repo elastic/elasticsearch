@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
@@ -95,8 +96,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -133,8 +134,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-                + " \"source\": \"reviews\","
-                + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
                 + "   \"group_by\": {"
@@ -208,8 +209,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -244,7 +245,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"}  ,";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -265,6 +266,52 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             Set<String> keys = p.keySet();
             assertThat(keys, equalTo(expectedFields));
         });
+    }
+
+    public void testPivotWithMaxOnDateField() throws Exception {
+        String transformId = "simpleDateHistogramPivotWithMaxTime";
+        String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\": \"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config +="    \"pivot\": { \n" +
+            "        \"group_by\": {\n" +
+            "            \"by_day\": {\"date_histogram\": {\n" +
+            "                \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"\n" +
+            "            }}\n" +
+            "        },\n" +
+            "    \n" +
+            "    \"aggs\" :{\n" +
+            "        \"avg_rating\": {\n" +
+            "            \"avg\": {\"field\": \"stars\"}\n" +
+            "        },\n" +
+            "        \"timestamp\": {\n" +
+            "            \"max\": {\"field\": \"timestamp\"}\n" +
+            "        }\n" +
+            "    }}"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertTrue(indexExists(dataFrameIndex));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        // we expect 21 documents as there shall be 21 days worth of docs
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=by_day:2017-01-15");
+        String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
+        // Do `containsString` as actual ending timestamp is indeterminate due to how data is generated
+        assertThat(actual, containsString("2017-01-15T20:"));
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

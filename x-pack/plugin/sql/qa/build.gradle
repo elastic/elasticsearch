@@ -16,8 +16,12 @@ dependencies {
 
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
-  compile "org.orbisgis:h2gis-ext:1.3.2"
- 
+  
+  // H2GIS testing dependencies
+  compile ("org.orbisgis:h2gis:1.5.0") {
+    exclude group: "org.locationtech.jts"
+  }
+
   // select just the parts of JLine that are needed
   compile("org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
@@ -41,12 +45,8 @@ forbiddenApisMain {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
-
-thirdPartyAudit.ignoreMissingClasses (
-    // TODO: Temporary solution until core removes JTS as a dependency
-    'org.h2gis.functions.factory.H2GISFunctions',
-    'org.h2gis.network.functions.NetworkFunctions',
-)
+// just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
+thirdPartyAudit.enabled = false
 
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
@@ -63,8 +63,13 @@ subprojects {
 
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
-    testRuntime "com.h2database:h2:1.4.196"
-    testRuntime "org.orbisgis:h2gis-ext:1.3.2"
+    testRuntime "com.h2database:h2:1.4.197"
+    
+    // H2GIS testing dependencies
+    testRuntime ("org.orbisgis:h2gis:1.5.0") {
+      exclude group: "org.locationtech.jts"
+    }
+    
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
     testRuntime xpackProject('plugin:sql:sql-client')
 
@@ -87,16 +92,6 @@ subprojects {
     testRuntime "org.jline:jline-style:${jlineVersion}"
 
     testRuntime "org.elasticsearch:jna:${versions.jna}"
-  }
-
-  // TODO: Temporary solution until core removes JTS as a dependency
-  configurations {
-    testRuntime {
-      exclude group: 'org.locationtech.jts', module: 'jts-core'
-    }
-    testCompile {
-      exclude group: 'org.locationtech.jts', module: 'jts-core'
-    }
   }
 
   if (project.name != 'security') {

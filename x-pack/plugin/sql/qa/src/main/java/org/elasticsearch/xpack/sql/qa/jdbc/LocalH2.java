@@ -5,22 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.SuppressForbidden;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Calendar;
-import java.util.Locale;
 import java.util.Properties;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
-    private final Logger logger = LogManager.getLogger(getClass());
 
     /*
      * The syntax on the connection string is fairly particular:
@@ -60,7 +54,6 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     private final String url;
     // H2 in-memory will keep the db alive as long as this connection is opened
     private Connection keepAlive;
-    Locale locale;
 
     private CheckedConsumer<Connection, SQLException> initializer;
 
@@ -70,14 +63,7 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     }
 
     @Override
-    @SuppressForbidden(reason = "H2 gets really confused with non Gregorian calendars")
     protected void before() throws Throwable {
-        if ("japanese".equals(Calendar.getInstance().getCalendarType())) {
-            logger.info("Japanese calendar is detected. Overriding locale.");
-            locale = Locale.getDefault();
-            Locale.setDefault(locale.stripExtensions()); // removes the calendar setting
-            assert "gregory".equals(Calendar.getInstance().getCalendarType());
-        }
         keepAlive = get();
         initializer.accept(keepAlive);
     }
@@ -88,11 +74,6 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
             keepAlive.close();
         } catch (SQLException ex) {
             // close
-        }
-        if (locale != null) {
-            logger.info("Restoring locale.");
-            Locale.setDefault(locale);
-            locale = null;
         }
     }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
-import org.h2gis.ext.H2GISExtension;
+import org.h2gis.functions.factory.H2GISFunctions;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -32,7 +32,7 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
     @ClassRule
     public static LocalH2 H2 = new LocalH2((c) -> {
         // Load GIS extensions
-        H2GISExtension.load(c);
+        H2GISFunctions.load(c);
         c.createStatement().execute("RUNSCRIPT FROM 'classpath:/ogc/sqltsch.sql'");
         c.createStatement().execute("RUNSCRIPT FROM 'classpath:/geo/setup_test_geo.sql'");
     });

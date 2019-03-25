@@ -257,14 +257,7 @@ public class JdbcAssert {
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                        if (expected.getClass().getName().equals("org.h2.jdbc.JdbcResultSet")) {
-                            // TODO: This is a hack to work around no support for getTimestamp in H2 v1.4.196
-                            // I will remove it before merging when I can upgrade the branch to 1.4.197
-                            assertEquals(msg, expected.getTime(column, UTC_CALENDAR).getTime(),
-                                actual.getTime(column, UTC_CALENDAR).getTime());
-                        } else {
-                            assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
-                        }
+                        assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
                     }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {

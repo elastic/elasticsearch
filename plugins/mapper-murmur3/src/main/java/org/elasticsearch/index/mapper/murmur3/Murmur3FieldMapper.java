@@ -75,7 +75,6 @@ public class Murmur3FieldMapper extends FieldMapper {
             super.setupFieldType(context);
             fieldType.setIndexOptions(IndexOptions.NONE);
             defaultFieldType.setIndexOptions(IndexOptions.NONE);
-            fieldType.setHasDocValues(true);
             fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             defaultFieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
         }

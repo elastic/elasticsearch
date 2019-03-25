@@ -165,23 +165,24 @@ public abstract class JdbcTestUtils {
      * Returns the classpath resources matching a simple pattern ("*.csv").
      * It supports folders separated by "/" (e.g. "/some/folder/*.txt").
      * 
-     *  Currently able to resolve resources inside the classpath that are stored in folders on the file-system,
-     *  and inside jars.
+     * Currently able to resolve resources inside the classpath either from:
+     * folders in the file-system (typically IDEs) or
+     * inside jars (gradle).
      */
     public static List<URL> classpathResources(String pattern) throws Exception {
         ClassLoader cl = JdbcTestUtils.class.getClassLoader();
 
-        while(pattern.startsWith("/")) {
+        while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);
         }
-        
+
         Tuple<String, String> split = pathAndName(pattern);
 
         // the root folder searched inside the classpath - default is the root classpath
         // default file match
         final String root = split.v1();
         final String filePattern = split.v2();
-        
+
         List<URL> resources = null;
 
         if (cl instanceof URLClassLoader) {
@@ -203,7 +204,8 @@ public abstract class JdbcTestUtils {
             }
 
             // check whether we're dealing with a jar
-            // Java 7 FileSystem can be used by it's not that efficient, memory wise
+            // Java 7 java.nio.fileFileSystem can be used on top of ZIPs/JARs but consumes more memory
+            // hence the use of the JAR API
             if (path.toString().endsWith(".jar")) {
                 try (JarInputStream jar = getJarStream(resource)) {
                     ZipEntry entry = null;
@@ -239,7 +241,7 @@ public abstract class JdbcTestUtils {
         return new JarInputStream(con.getInputStream());
     }
 
-    private static Tuple<String, String> pathAndName(String string) {
+    static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
         int lastIndexOf = string.lastIndexOf("/");

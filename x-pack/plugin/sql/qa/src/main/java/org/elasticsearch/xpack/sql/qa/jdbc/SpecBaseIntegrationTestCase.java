@@ -165,10 +165,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         return results;
     }
 
-
     private static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
-        String fileName = source.getFile().substring(source.getFile().lastIndexOf("/") + 1);
-        String groupName = fileName.substring(fileName.lastIndexOf('/') + 1, fileName.lastIndexOf("."));
+        String fileName = JdbcTestUtils.pathAndName(source.getFile()).v2();
+        String groupName = fileName.substring(0, fileName.lastIndexOf("."));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();

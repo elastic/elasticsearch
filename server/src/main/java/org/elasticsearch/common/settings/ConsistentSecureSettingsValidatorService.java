@@ -52,18 +52,23 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-public class ConsistentSecureSettingsValidator implements ClusterStateApplier, LocalNodeMasterListener {
-    private static final Logger logger = LogManager.getLogger(ConsistentSecureSettingsValidator.class);
+public class ConsistentSecureSettingsValidatorService implements ClusterStateApplier, LocalNodeMasterListener {
+    private static final Logger logger = LogManager.getLogger(ConsistentSecureSettingsValidatorService.class);
 
     private final ClusterService clusterService;
     private final Map<String, char[]> localHashesOfConsistentSettings = new HashMap<>();
     private volatile Map<String, String> publicHashesOfConsistentSettings = new HashMap<>();
     private volatile boolean allSecureSettingsConsistent = true;
 
-    public ConsistentSecureSettingsValidator(Settings settings, ClusterService clusterService, Set<SecureSetting<?>> consistentSecureSettings) {
+    public ConsistentSecureSettingsValidatorService(Settings settings, ClusterService clusterService,
+                                                    Set<SecureSetting<?>> consistentSecureSettings) {
         this.clusterService = clusterService;
         // eagerly compute hashes for the secure settings
         computeHashesOfLocalSecureSettingValues(settings, consistentSecureSettings);
+        // this cross checks the published hashes against the local ones
+        clusterService.addStateApplier(this);
+        // when this node is the master it publishes hashes
+        clusterService.addLocalNodeMasterListener(this);
     }
 
     private void computeHashesOfLocalSecureSettingValues(Settings settings, Set<SecureSetting<?>> consistentSecureSettings) {
@@ -79,10 +84,6 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
 
     public boolean allSecureSettingsConsistent() {
         return allSecureSettingsConsistent;
-    }
-
-    Map<String, String> publicHashesOfConsistentSettings() {
-        return publicHashesOfConsistentSettings;
     }
 
     /**
@@ -170,6 +171,10 @@ public class ConsistentSecureSettingsValidator implements ClusterStateApplier, L
         final String localHashWithSalt = computePublicHash(localHash, publishedSalt);
         logger.trace("local hash for secure setting [{}] is [{}]", publishedSettingName, localHashWithSalt);
         return publishedHashWithSalt.equals(localHashWithSalt);
+    }
+
+    Map<String, String> publicHashesOfConsistentSettings() {
+        return publicHashesOfConsistentSettings;
     }
 
     @Override

@@ -176,7 +176,7 @@ public final class DateFieldMapper extends FieldMapper {
             return this;
         }
 
-        Builder withResolution(Resolution resolution) {
+        public Builder withResolution(Resolution resolution) {
             this.resolution = resolution;
             return this;
         }

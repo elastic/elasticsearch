@@ -8,29 +8,28 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsAction.Response>{
 
@@ -49,61 +48,45 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         return new Response();
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
-        private String id;
+    public static class Request extends AbstractGetResourcesRequest implements ToXContent {
+
+        private static final int MAX_SIZE_RETURN = 1000;
 
         public Request(String id) {
-            if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
-            } else {
-                this.id = id;
-            }
+            super(id, PageParams.defaultParams(), true);
         }
 
         public Request() {
+            super(null, PageParams.defaultParams(), true);
         }
 
         public Request(StreamInput in) throws IOException {
-            super(in);
-            id = in.readString();
+            readFrom(in);
         }
 
         public String getId() {
-            return id;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(id);
+            return getResourceId();
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException exception = null;
+            if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
+                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
+                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+            }
+            return exception;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
+            builder.field(DataFrameField.ID.getPreferredName(), getResourceId());
             return builder;
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(id);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+        public String getResourceIdField() {
+            return DataFrameField.ID.getPreferredName();
         }
     }
 
@@ -114,19 +97,17 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
     }
 
-    public static class Response extends ActionResponse implements Writeable, ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<DataFrameTransformConfig> implements Writeable, ToXContentObject {
 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
 
-        private List<DataFrameTransformConfig> transformConfigurations;
-
         public Response(List<DataFrameTransformConfig> transformConfigs) {
-            this.transformConfigurations = transformConfigs;
+            super(new QueryPage<>(transformConfigs, transformConfigs.size(), DataFrameField.TRANSFORMS));
         }
 
         public Response() {
-            this.transformConfigurations = Collections.emptyList();
+            super();
         }
 
         public Response(StreamInput in) throws IOException {
@@ -134,30 +115,18 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public List<DataFrameTransformConfig> getTransformConfigurations() {
-            return transformConfigurations;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            transformConfigurations = in.readList(DataFrameTransformConfig::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeList(transformConfigurations);
+            return getResources().results();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
-            builder.field(DataFrameField.COUNT.getPreferredName(), transformConfigurations.size());
+            builder.field(DataFrameField.COUNT.getPreferredName(), getResources().count());
             // XContentBuilder does not support passing the params object for Iterables
             builder.field(DataFrameField.TRANSFORMS.getPreferredName());
             builder.startArray();
-            for (DataFrameTransformConfig configResponse : transformConfigurations) {
+            for (DataFrameTransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
                 if (configResponse.isValid() == false) {
                     invalidTransforms.add(configResponse.getId());
@@ -177,27 +146,8 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(transformConfigurations);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-
-            final Response that = (Response) other;
-            return Objects.equals(this.transformConfigurations, that.transformConfigurations);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<DataFrameTransformConfig> getReader() {
+            return DataFrameTransformConfig::new;
         }
     }
 }

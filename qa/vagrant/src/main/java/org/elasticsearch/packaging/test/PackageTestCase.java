@@ -93,7 +93,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
     public void test30DaemonIsNotEnabledOnRestart() {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
-            String isEnabledOutput = sh.run("systemctl is-enabled elasticsearch.service").stdout.trim();
+            String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout.trim();
             assertThat(isEnabledOutput,equalTo("disabled"));
         }
     }

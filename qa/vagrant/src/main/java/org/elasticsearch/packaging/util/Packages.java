@@ -310,28 +310,5 @@ public class Packages {
         }
 
         waitForElasticsearch();
-
-//        assertStatuses();
     }
-
-    public static void recreateTempFiles(Shell sh) {
-        //only systemd
-        if (isSystemd()) {
-            sh.run("systemd-tmpfiles --create");
-        }
-    }
-
-    public static void maskSysctl(Shell sh) {
-        if (isSystemd()) {
-            sh.run("systemctl mask systemd-sysctl.service");
-        }
-    }
-
-
-    public static void unmaskSysctl(Shell sh) {
-        if (isSystemd()) {
-            sh.run("systemctl unmask systemd-sysctl.service");
-        }
-    }
-
 }

@@ -189,13 +189,13 @@ public class FileUtils {
         Arrays.stream(paths).forEach(path -> assertTrue(path + " should exist", Files.exists(path)));
     }
 
-    public static Matcher<Path> fileWithRegexExist(String regex) throws IOException {
+    public static Matcher<Path> fileWithGlobExist(String glob) throws IOException {
         return new FeatureMatcher<Path,Iterable<Path>>(not(emptyIterable()),"File with pattern exist", "file with pattern"){
 
             @Override
             protected Iterable<Path> featureValueOf(Path actual) {
                 try {
-                    return Files.newDirectoryStream(actual,regex);
+                    return Files.newDirectoryStream(actual,glob);
                 } catch (IOException e) {
                     return Collections.emptyList();
                 }

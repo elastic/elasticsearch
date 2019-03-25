@@ -38,7 +38,9 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
+import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
 import static org.elasticsearch.packaging.util.FileUtils.cp;
+import static org.elasticsearch.packaging.util.FileUtils.fileWithGlobExist;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
@@ -47,13 +49,10 @@ import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.install;
-import static org.elasticsearch.packaging.util.Packages.maskSysctl;
-import static org.elasticsearch.packaging.util.Packages.recreateTempFiles;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
-import static org.elasticsearch.packaging.util.Packages.unmaskSysctl;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
@@ -70,34 +69,42 @@ import static org.junit.Assume.assumeTrue;
 
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public abstract class PackageTestCase extends PackagingTestCase {
+    private Shell sh;
 
     @Before
     public void onlyCompatibleDistributions() {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
+        sh = newShell();
     }
 
     public void test10InstallPackage() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
         assumeThat(installation, is(notNullValue()));
 
-        assertThat(newShell().run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
+        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
-    public void test30InstallDoesNotStartServer() {
+    public void test30DaemonIsNotEnabledOnRestart() {
+        if (isSystemd()) {
+            sh.run("systemctl daemon-reload");
+            String isEnabledOutput = sh.run("systemctl is-enabled elasticsearch.service").stdout.trim();
+            assertThat(isEnabledOutput,equalTo("disabled"));
+        }
+    }
+
+    public void test31InstallDoesNotStartServer() {
         assumeThat(installation, is(notNullValue()));
 
-        assertThat(newShell().run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
     public void assertRunsWithJavaHome() throws IOException {
-        Shell sh = newShell();
-
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
@@ -114,7 +121,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertThat(new String(Files.readAllBytes(log), StandardCharsets.UTF_8), containsString(systemJavaHome));
     }
 
-    public void test31JavaHomeOverride() throws IOException {
+    public void test32JavaHomeOverride() throws IOException {
         assumeThat(installation, is(notNullValue()));
         // we always run with java home when no bundled jdk is included, so this test would be repetitive
         assumeThat(distribution().hasJdk, is(true));
@@ -138,9 +145,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
     public void test40StartServer() throws IOException {
         assumeThat(installation, is(notNullValue()));
 
-        startElasticsearch(newShell());
+        startElasticsearch(sh);
         runElasticsearchTests();
-        verifyPackageInstallation(installation, distribution(), newShell()); // check startup script didn't change permissions
+        verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
     }
 
     public void test50Remove() {
@@ -149,7 +156,6 @@ public abstract class PackageTestCase extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        final Shell sh = newShell();
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
@@ -199,45 +205,48 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), newShell());
+        verifyPackageInstallation(installation, distribution(), sh);
 
         remove(distribution());
         assertRemoved(distribution());
     }
 
     public void test70RestartServer() throws IOException {
-        installation = install(distribution());
-        assertInstalled(distribution());
+        try {
+            installation = install(distribution());
+            assertInstalled(distribution());
 
-        Shell sh = newShell();
-        startElasticsearch(sh);
-        restartElasticsearch(sh);
-        runElasticsearchTests();
-        stopElasticsearch(sh);
+            startElasticsearch(sh);
+            restartElasticsearch(sh);
+            runElasticsearchTests();
+            stopElasticsearch(sh);
+        } finally {
+            cleanup();
+        }
     }
-
 
 
     public void test72TestRuntimeDirectory() throws IOException {
-        cleanup();
-        installation = install(distribution());
-        FileUtils.rm(installation.pidDir);
-        startElasticsearch(newShell());
-        FileUtils.assertPathsExist(installation.pidDir);
-        stopElasticsearch(newShell());
+        try {
+            installation = install(distribution());
+            FileUtils.rm(installation.pidDir);
+            startElasticsearch(sh);
+            assertPathsExist(installation.pidDir);
+            stopElasticsearch(sh);
+        } finally {
+            cleanup();
+        }
     }
 
     public void test73gcLogsExist() throws IOException {
-        cleanup();
         installation = install(distribution());
-        startElasticsearch(newShell());
+        startElasticsearch(sh);
         // it can be gc.log or gc.log.0.current
-        assertThat(installation.logs, FileUtils.fileWithRegexExist("gc.log*"));
-        stopElasticsearch(newShell());
+        assertThat(installation.logs, fileWithGlobExist("gc.log*"));
+        stopElasticsearch(sh);
     }
 
     // TEST CASES FOR SYSTEMD ONLY
-
 
 
     /**
@@ -248,11 +257,10 @@ public abstract class PackageTestCase extends PackagingTestCase {
      */
     public void test80DeletePID_DIRandRestart() throws IOException {
         assumeTrue(isSystemd());
-        Shell sh = newShell();
 
         rm(installation.pidDir);
 
-        recreateTempFiles(sh);
+        sh.run("systemd-tmpfiles --create");
 
         startElasticsearch(sh);
 
@@ -266,10 +274,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
     public void test81CustomPathConfAndJvmOptions() throws IOException {
         assumeTrue(isSystemd());
 
-        assumeThat(installation, CoreMatchers.is(notNullValue()));
-        FileUtils.assertPathsExist(installation.envFile);
+        assumeThat(installation, is(notNullValue()));
+        assertPathsExist(installation.envFile);
 
-        Shell sh = newShell();
         stopElasticsearch(sh);
 
         // The custom config directory is not under /tmp or /var/tmp because
@@ -311,32 +318,31 @@ public abstract class PackageTestCase extends PackagingTestCase {
             rm(installation.envFile);
             cp(tempConf.resolve("elasticsearch.bk"), installation.envFile);
             rm(tempConf);
+            cleanup();
         }
     }
 
     public void test82SystemdMask() throws IOException {
-        assumeTrue(isSystemd());
+        try {
+            assumeTrue(isSystemd());
 
-        cleanup();
+            sh.run("systemctl mask systemd-sysctl.service");
 
-        Shell sh = newShell();
-        maskSysctl(sh);
+            installation = install(distribution());
 
-        installation = install(distribution());
-
-        unmaskSysctl(sh);
+            sh.run("systemctl unmask systemd-sysctl.service");
+        } finally {
+            cleanup();
+        }
     }
 
     public void test83serviceFileSetsLimits() throws IOException {
         // Limits are changed on systemd platforms only
         assumeTrue(isSystemd());
-        final Shell sh = newShell();
-
-        cleanup();
 
         installation = install(distribution());
 
-        startElasticsearch(newShell());
+        startElasticsearch(sh);
 
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
         assertTrue(Files.exists(pidFile));
@@ -353,6 +359,6 @@ public abstract class PackageTestCase extends PackagingTestCase {
         String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
-        stopElasticsearch(newShell());
+        stopElasticsearch(sh);
     }
 }

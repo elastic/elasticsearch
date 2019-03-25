@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 
-import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -86,19 +85,15 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     }
 
     private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
-                             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
-        try {
-            tokenService.createUserToken(authentication, originatingAuth, ActionListener.wrap(tuple -> {
-                final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
-                final String scope = getResponseScopeValue(request.getScope());
-
-                final CreateTokenResponse response =
-                    new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
-                listener.onResponse(response);
-            }, listener::onFailure), Collections.emptyMap(), includeRefreshToken);
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+            boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
+        tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
+                ActionListener.wrap(tuple -> {
+                    final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
+                    final String scope = getResponseScopeValue(request.getScope());
+                    final CreateTokenResponse response = new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope,
+                            tuple.v2());
+                    listener.onResponse(response);
+                }, listener::onFailure));
     }
 
     static String getResponseScopeValue(String requestScope) {

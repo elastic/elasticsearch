@@ -35,7 +35,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         indicesCreated = true;
     }
 
-    public void testUsage() throws IOException {
+    public void testUsage() throws Exception {
         Response usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 
         Map<?, ?> usageAsMap = entityAsMap(usageResponse);
@@ -47,12 +47,20 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
 
         // create a transform
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
+        usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
+        usageAsMap = entityAsMap(usageResponse);
+        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
+
+        // TODO remove as soon as stats are stored in an index instead of ClusterState with the task
+        startAndWaitForTransform("test_usage", "pivot_reviews");
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
 
         usageAsMap = entityAsMap(usageResponse);
         // we should see some stats
         assertEquals(1, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
+        assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
         assertEquals(0, XContentMapValues.extractValue("data_frame.stats.index_failures", usageAsMap));
     }
 }

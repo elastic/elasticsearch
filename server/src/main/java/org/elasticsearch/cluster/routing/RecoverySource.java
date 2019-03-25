@@ -97,6 +97,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         return false;
     }
 
+    public boolean expectEmptyRetentionLeases() {
+        return true;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -180,6 +184,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public String toString() {
             return "existing store recovery; bootstrap_history_uuid=" + bootstrapNewHistoryUUID;
+        }
+
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return bootstrapNewHistoryUUID;
         }
     }
 
@@ -316,6 +325,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public String toString() {
             return "peer recovery";
+        }
+
+        @Override
+        public boolean expectEmptyRetentionLeases() {
+            return false;
         }
     }
 }

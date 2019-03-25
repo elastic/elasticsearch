@@ -20,16 +20,17 @@ public class DataFrameMessages {
     public static final String REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION =
             "Failed to validate data frame configuration";
     public static final String REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist data frame configuration";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_TARGET_MAPPINGS = "Failed to deduce target mappings";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_CREATE_TARGET_INDEX = "Failed to create target index";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_START_PERSISTENT_TASK =
-            "Failed to start persistent task, configuration has been cleaned up: [{0}]";
+    public static final String REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
+    public static final String REST_PUT_DATA_FRAME_FAILED_TO_CREATE_DEST_INDEX = "Failed to create dest index";
+    public static final String REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS = "dest index [{0}] already exists";
+    public static final String REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
     public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
 
+    public static final String DATA_FRAME_CONFIG_INVALID = "Data frame transform configuration is invalid [{0}]";
     public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
 
-    public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform[{1}]";
+    public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION =
             "Failed to load data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
@@ -44,13 +45,16 @@ public class DataFrameMessages {
             "Failed to create composite aggregation from pivot function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
             "Data frame transform configuration [{0}] has invalid elements";
-
+    public static final String DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY =
             "Failed to parse group_by for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
+
+    public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
+            "Failed to parse transform checkpoints for [{0}]";
 
     private DataFrameMessages() {
     }

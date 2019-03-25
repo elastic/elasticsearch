@@ -159,6 +159,9 @@ public class NativePrivilegeStore {
     }
 
     private QueryBuilder getApplicationNameQuery(Collection<String> applications) {
+        if (applications.contains("*")) {
+            return QueryBuilders.existsQuery(APPLICATION.getPreferredName());
+        }
         final List<String> rawNames = new ArrayList<>(applications.size());
         final List<String> wildcardNames = new ArrayList<>(applications.size());
         for (String name : applications) {

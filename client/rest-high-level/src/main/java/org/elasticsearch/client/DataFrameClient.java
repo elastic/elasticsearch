@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
@@ -120,6 +122,45 @@ public final class DataFrameClient {
                 Collections.emptySet());
     }
 
+    /**
+     * Preview the result of a data frame transform
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Preview Data Frame transform documentation</a>
+     *
+     * @param request The preview data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return A response containing the results of the applied transform
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PreviewDataFrameTransformResponse previewDataFrameTransform(PreviewDataFrameTransformRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                DataFrameRequestConverters::previewDataFrameTransform,
+                options,
+                PreviewDataFrameTransformResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Preview the result of a data frame transform asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Preview Data Frame transform documentation</a>
+     *
+     * @param request The preview data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void previewDataFrameTransformAsync(PreviewDataFrameTransformRequest request, RequestOptions options,
+                                             ActionListener<PreviewDataFrameTransformResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                DataFrameRequestConverters::previewDataFrameTransform,
+                options,
+                PreviewDataFrameTransformResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
 
     /**
      * Start a data frame transform

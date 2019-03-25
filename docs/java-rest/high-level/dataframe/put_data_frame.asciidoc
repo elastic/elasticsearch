@@ -32,16 +32,25 @@ configuration and contains the following arguments:
 include-tagged::{doc-tests-file}[{api}-config]
 --------------------------------------------------
 <1> The {dataframe-transform} ID
-<2> The source index or index pattern
+<2> The source indices and query from which to gather data
 <3> The destination index
-<4> Optionally a QueryConfig
-<5> The PivotConfig
+<4> The PivotConfig
 
 [id="{upid}-{api}-query-config"]
-==== QueryConfig
+
+==== SourceConfig
+
+The indices and the query from which to collect data.
+If query is not set, a `match_all` query is used by default.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-config]
+--------------------------------------------------
+
+===== QueryConfig
 
 The query with which to select data from the source.
-If not set a `match_all` query is used by default.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

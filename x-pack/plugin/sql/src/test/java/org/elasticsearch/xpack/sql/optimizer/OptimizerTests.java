@@ -1226,7 +1226,7 @@ public class OptimizerTests extends ESTestCase {
         List<Order> order = ((OrderBy) result).order();
         assertEquals(2, order.size());
         assertEquals(First.class, order.get(0).child().getClass());
-        assertEquals(min2, order.get(1).child());;
+        assertEquals(min2, order.get(1).child());
         First first = (First) order.get(0).child();
 
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
@@ -1249,7 +1249,7 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
         assertEquals(Last.class, order.get(0).child().getClass());
-        assertEquals(max2, order.get(1).child());;
+        assertEquals(max2, order.get(1).child());
         Last last = (Last) order.get(0).child();
 
         assertTrue(((OrderBy) result).child() instanceof Aggregate);
@@ -1288,8 +1288,8 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, groupings.size());
         assertTrue(groupings.get(0) instanceof FieldAttribute);
         assertTrue(groupings.get(1) instanceof FieldAttribute);
-        assertEquals(firstField, ((FieldAttribute) groupings.get(0)));
-        assertEquals(secondField, ((FieldAttribute) groupings.get(1)));
+        assertEquals(firstField, groupings.get(0));
+        assertEquals(secondField, groupings.get(1));
     }
     
     public void testSortAggregateOnOrderByOnlyAliases() {
@@ -1320,7 +1320,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, groupings.size());
         assertTrue(groupings.get(0) instanceof Alias);
         assertTrue(groupings.get(1) instanceof Alias);
-        assertEquals(firstAlias, ((Alias) groupings.get(0)));
-        assertEquals(secondAlias, ((Alias) groupings.get(1)));
+        assertEquals(firstAlias, groupings.get(0));
+        assertEquals(secondAlias, groupings.get(1));
     }
 }

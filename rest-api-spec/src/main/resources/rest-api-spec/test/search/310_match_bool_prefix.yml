@@ -58,7 +58,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               my_field1: "brown fox jump"
 
   - match: { hits.total: 3 }
@@ -75,7 +75,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               my_field1: "brown fox ju"
 
   - match: { hits.total: 3 }
@@ -95,7 +95,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               my_field1:
                 query: "brown fox jump"
                 minimum_should_match: 3
@@ -113,7 +113,7 @@ setup:
         index: test
         body:
           query:
-            bool_prefix:
+            match_bool_prefix:
               my_field1:
                 query: "BROWN dog"
                 analyzer: whitespace                # this analyzer doesn't lowercase terms

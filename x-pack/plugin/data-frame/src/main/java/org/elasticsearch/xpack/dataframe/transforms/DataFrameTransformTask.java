@@ -54,6 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
+    // TODO consider moving to dynamic cluster setting
     private static final int MAX_CONTINUOUS_FAILURES = 10;
     private static final IndexerState[] RUNNING_STATES = new IndexerState[]{IndexerState.STARTED, IndexerState.INDEXING};
     public static final String SCHEDULE_NAME = DataFrameField.TASK_NAME + "/schedule";
@@ -159,7 +160,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             indexer.getPosition(),
             generation.get(),
             null);
-        auditor.info(transform.getId(), "");
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
         persistStateToClusterState(state, ActionListener.wrap(

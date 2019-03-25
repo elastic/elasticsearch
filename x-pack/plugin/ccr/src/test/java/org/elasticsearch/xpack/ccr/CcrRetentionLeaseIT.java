@@ -43,7 +43,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -615,7 +614,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39509")
-    @TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
     public void testRetentionLeaseRenewalIsCancelledWhenFollowingIsPaused() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -870,7 +868,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                     removeLeaseLatch.countDown();
                                     unfollowLatch.await();
 
-                                    senderTransportService.transport().addMessageListener(new TransportMessageListener() {
+                                    senderTransportService.addMessageListener(new TransportMessageListener() {
 
                                         @SuppressWarnings("rawtypes")
                                         @Override
@@ -882,7 +880,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                                         new RetentionLeaseNotFoundException(retentionLeaseId);
                                                 context.handler().handleException(new RemoteTransportException(e.getMessage(), e));
                                                 responseLatch.countDown();
-                                                senderTransportService.transport().removeMessageListener(this);
+                                                senderTransportService.removeMessageListener(this);
                                             }
                                         }
 

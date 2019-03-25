@@ -20,11 +20,10 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -132,10 +131,8 @@ public final class AnalysisRegistry implements Closeable {
                         }}
             );
         } else if ("standard_html_strip".equals(analyzer)) {
-            if (Version.CURRENT.onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
-                    "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
-            }
+            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
+                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }
 
         return analyzerProvider.get(environment, analyzer).get();

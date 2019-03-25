@@ -21,10 +21,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,6 +38,11 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
     // - if parsing fails (e.g. query uses removed functionality), the source can be retrieved
     private final Map<String, Object> source;
     private final QueryBuilder query;
+
+    static QueryConfig matchAll() {
+        return new QueryConfig(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap()),
+            new MatchAllQueryBuilder());
+    }
 
     public QueryConfig(final Map<String, Object> source, final QueryBuilder query) {
         this.source = Objects.requireNonNull(source);

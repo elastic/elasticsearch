@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
 public class GetCalendarEventsActionRequestTests extends AbstractStreamableXContentTestCase<GetCalendarEventsAction.Request> {
 

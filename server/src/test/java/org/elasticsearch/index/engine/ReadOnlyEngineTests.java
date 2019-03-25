@@ -96,7 +96,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             // Close and reopen the main engine
             InternalEngineTests.trimUnsafeCommits(config);
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                recoveringEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -131,8 +131,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.syncTranslog();
                 engine.flushAndClose();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
-                Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), randomBoolean());
-                assertEquals(flush, readOnlyEngine.flush(randomBoolean(), randomBoolean()));
+                Engine.CommitId flush = readOnlyEngine.flush(randomBoolean(), true);
+                assertEquals(flush, readOnlyEngine.flush(randomBoolean(), true));
             } finally {
                 IOUtils.close(readOnlyEngine);
             }
@@ -235,7 +235,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+                readOnlyEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));

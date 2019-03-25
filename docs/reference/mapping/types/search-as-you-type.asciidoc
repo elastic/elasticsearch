@@ -79,7 +79,7 @@ PUT my_index/_doc/1?refresh
 
 The most efficient way of querying to serve a search-as-you-type use case is
 usually a <<query-dsl-multi-match-query,`multi_match`>> query of type
-<<query-dsl-bool-prefix-query,`bool_prefix`>> that targets the root
+<<query-dsl-match-bool-prefix-query,`bool_prefix`>> that targets the root
 `search_as_you_type` field and its shingle subfields. This can match the query
 terms in any order, but will score documents higher if they contain the terms
 in order in a shingle subfield.
@@ -144,7 +144,7 @@ search using other properties of phrase queries, use a
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>> on the root
 field. A <<query-dsl-match-query-phrase,`match_phrase` query>> can also be used
 if the last term should be matched exactly, and not as a prefix. Using phrase
-queries may be less efficient than using the `bool_prefix` query.
+queries may be less efficient than using the `match_bool_prefix` query.
 
 [source,js]
 --------------------------------------------------

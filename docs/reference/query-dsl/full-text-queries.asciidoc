@@ -19,6 +19,11 @@ The queries in this group are:
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
 
     Like the `match_phrase` query, but does a wildcard search on the final word.
+
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::
+
+    Creates a `bool` query that matches each term as a `term` query, except for
+    the last term, which is matched as a `prefix` query
     
 <<query-dsl-multi-match-query,`multi_match` query>>::
 
@@ -44,16 +49,13 @@ The queries in this group are:
     A full text query that allows fine-grained control of the ordering and
     proximity of matching terms
 
-<<query-dsl-bool-prefix-query,`bool_prefix` query>>::
-
-    Creates a `bool` query that matches each term as a `term` query, except for
-    the last term, which is matched as a `prefix` query
-
 include::match-query.asciidoc[]
 
 include::match-phrase-query.asciidoc[]
 
 include::match-phrase-prefix-query.asciidoc[]
+
+include::match-bool-prefix-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]
 
@@ -64,5 +66,3 @@ include::query-string-query.asciidoc[]
 include::simple-query-string-query.asciidoc[]
 
 include::intervals-query.asciidoc[]
-
-include::bool-prefix-query.asciidoc[]

@@ -6,13 +6,13 @@
 
 package org.elasticsearch.xpack.dataframe.transforms;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.TreeMap;
 
 /**
  * ID Generator for creating unique but deterministic document ids.
@@ -21,30 +21,25 @@ import java.util.Base64;
  */
 public final class IDGenerator {
     private static final byte[] NULL_VALUE = "__NULL_VALUE__".getBytes(StandardCharsets.UTF_8);
-    private static final BytesRef DELIM = new BytesRef("$");
+    private static final byte DELIM = '$';
     private static final long SEED = 19;
     private static final int MAX_FIRST_BYTES = 5;
 
-    private final BytesRefBuilder buffer = new BytesRefBuilder();
-    private final BytesRefBuilder firstBytes =  new BytesRefBuilder();
+    private final TreeMap<String, Object> objectsForIDGeneration = new TreeMap<>();
 
     public IDGenerator() {
     }
 
     /**
      * Add a value to the generator
+     * @param key object identifier, to be used for consistent sorting
      * @param value the value
      */
-    public void add(Object value) {
-        byte[] v = getBytes(value);
-
-        buffer.append(v, 0, v.length);
-        buffer.append(DELIM);
-
-        // keep the 1st byte of every object
-        if (firstBytes.length() <= MAX_FIRST_BYTES) {
-            firstBytes.append(v[0]);
+    public void add(String key, Object value) {
+        if (objectsForIDGeneration.containsKey(key)) {
+            throw new IllegalArgumentException("Keys must be unique");
         }
+        objectsForIDGeneration.put(key, value);
     }
 
     /**
@@ -53,16 +48,28 @@ public final class IDGenerator {
      * @return a document id as string
      */
     public String getID() {
-        if (buffer.length() == 0) {
+        if (objectsForIDGeneration.size() == 0) {
             throw new RuntimeException("Add at least 1 object before generating the ID");
         }
 
+        BytesRefBuilder buffer = new BytesRefBuilder();
+        BytesRefBuilder hashedBytes = new BytesRefBuilder();
+
+        for (Object value : objectsForIDGeneration.values()) {
+            byte[] v = getBytes(value);
+
+            buffer.append(v, 0, v.length);
+            buffer.append(DELIM);
+
+            // keep the 1st byte of every object
+            if (hashedBytes.length() <= MAX_FIRST_BYTES) {
+                hashedBytes.append(v[0]);
+            }
+        }
         MurmurHash3.Hash128 hasher = MurmurHash3.hash128(buffer.bytes(), 0, buffer.length(), SEED, new MurmurHash3.Hash128());
-        byte[] hashedBytes = new byte[16 + firstBytes.length()];
-        System.arraycopy(firstBytes.bytes(), 0, hashedBytes, 0, firstBytes.length());
-        System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, firstBytes.length(), 8);
-        System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, firstBytes.length() + 8, 8);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashedBytes);
+        hashedBytes.append(Numbers.longToBytes(hasher.h1), 0, 8);
+        hashedBytes.append(Numbers.longToBytes(hasher.h2), 0, 8);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(hashedBytes.bytes());
     }
 
     /**

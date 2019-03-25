@@ -12,33 +12,35 @@ public class IDGeneratorTests extends ESTestCase {
 
     public void testSupportedTypes() {
         IDGenerator idGen = new IDGenerator();
-        idGen.add("key1");
+        idGen.add("key1", "value1");
         String id = idGen.getID();
-        idGen.add(null);
+        idGen.add("key2", null);
         assertNotEquals(id, idGen.getID());
         id = idGen.getID();
-        idGen.add("key2");
+        idGen.add("key3", "value3");
         assertNotEquals(id, idGen.getID());
         id = idGen.getID();
-        idGen.add(12L);
+        idGen.add("key4", 12L);
         assertNotEquals(id, idGen.getID());
         id = idGen.getID();
-        idGen.add(44.444);
+        idGen.add("key5", 44.444);
+        assertNotEquals(id, idGen.getID());
+        idGen.add("key6", 13);
         assertNotEquals(id, idGen.getID());
     }
 
-    public void testOrderDependence() {
+    public void testOrderIndependence() {
         IDGenerator idGen = new IDGenerator();
-        idGen.add("key1");
-        idGen.add("key2");
+        idGen.add("key1", "value1");
+        idGen.add("key2", "value2");
         String id1 = idGen.getID();
 
         idGen = new IDGenerator();
-        idGen.add("key2");
-        idGen.add("key1");
+        idGen.add("key2", "value2");
+        idGen.add("key1", "value1");
         String id2 = idGen.getID();
 
-        assertNotEquals(id1, id2);
+        assertEquals(id1, id2);
     }
 
     public void testEmptyThrows() {
@@ -47,6 +49,15 @@ public class IDGeneratorTests extends ESTestCase {
         RuntimeException e = expectThrows(RuntimeException.class, () -> idGen.getID());
 
         assertEquals("Add at least 1 object before generating the ID", e.getMessage());
+    }
+
+    public void testDuplicatedKeyThrows() {
+        IDGenerator idGen = new IDGenerator();
+        idGen.add("key1", "value1");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> idGen.add("key1", "some_other_value"));
+
+        assertEquals("Keys must be unique", e.getMessage());
     }
 
 }

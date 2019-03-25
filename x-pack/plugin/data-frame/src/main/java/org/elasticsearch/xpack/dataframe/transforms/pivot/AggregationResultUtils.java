@@ -51,10 +51,9 @@ final class AggregationResultUtils {
             // - update documents
             IDGenerator idGen = new IDGenerator();
 
-            // important: the order is important for creating the document id, therefore we ensure order by sorting
-            groups.getGroups().keySet().stream().sorted().forEach(destinationFieldName -> {
+            groups.getGroups().keySet().forEach(destinationFieldName -> {
                 Object value = bucket.getKey().get(destinationFieldName);
-                idGen.add(value);
+                idGen.add(destinationFieldName, value);
                 document.put(destinationFieldName, value);
             });
 

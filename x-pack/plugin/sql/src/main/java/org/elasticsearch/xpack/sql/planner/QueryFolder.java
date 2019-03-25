@@ -404,7 +404,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // COUNT(<field_name>)
                 } else if (!c.distinct()) {
                     LeafAgg leafAgg = toAgg(functionId, f);
-                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count"));
+                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", false));
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                     return new Tuple<>(queryC, a);
                 }
@@ -430,14 +430,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // FIXME: concern leak - hack around MatrixAgg which is not
                 // generalized (afaik)
                 aggInput = new AggPathInput(f,
-                        new MetricAggRef(cAggPath, ia.innerName(), ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null));
+                        new MetricAggRef(cAggPath, ia.innerName(),
+                            ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
+                            ia.dataType().isDateBased()));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
                 if (f instanceof TopHits) {
                     aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
                 } else {
-                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id()));
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType().isDateBased()));
                 }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }

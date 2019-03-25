@@ -243,6 +243,8 @@ final class TypeConverter {
                 } catch (IOException | ParseException ex) {
                     throw new SQLException("Cannot parse geo_shape", ex);
                 }
+            case IP:
+                return v.toString();
             default:
                 throw new SQLException("Unexpected column type [" + typeString + "]");
 

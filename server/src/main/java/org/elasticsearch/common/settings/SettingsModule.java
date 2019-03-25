@@ -191,7 +191,8 @@ public class SettingsModule implements Module {
                         throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                     }
                 }
-            } else if (setting.hasIndexScope()) {
+            }
+            if (setting.hasIndexScope()) {
                 Setting<?> existingSetting = indexSettings.get(setting.getKey());
                 if (existingSetting != null) {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");

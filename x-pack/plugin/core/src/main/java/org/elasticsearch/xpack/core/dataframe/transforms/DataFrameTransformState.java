@@ -33,7 +33,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class DataFrameTransformState implements Task.Status, PersistentTaskState {
     public static final String NAME = DataFrameField.TASK_NAME;
 
-    private final DataFrameTransformTaskState state;
+    private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
     private final long generation;
 
@@ -42,8 +42,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     @Nullable
     private final String reason;
 
-    private static final ParseField STATE = new ParseField("state");
-    private static final ParseField TRANSFORM_STATE = new ParseField("transform_state");
+    private static final ParseField TASK_STATE = new ParseField("task_state");
+    private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
     private static final ParseField GENERATION = new ParseField("generation");
     private static final ParseField REASON = new ParseField("reason");
@@ -63,14 +63,14 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                 return DataFrameTransformTaskState.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        }, TASK_STATE, ObjectParser.ValueType.STRING);
         PARSER.declareField(constructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return IndexerState.fromString(p.text());
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
 
-        }, TRANSFORM_STATE, ObjectParser.ValueType.STRING);
+        }, INDEXER_STATE, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();
@@ -84,12 +84,12 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         PARSER.declareString(optionalConstructorArg(), REASON);
     }
 
-    public DataFrameTransformState(DataFrameTransformTaskState state,
+    public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
                                    long generation,
                                    @Nullable String reason) {
-        this.state = state;
+        this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
         this.generation = generation;
@@ -97,15 +97,15 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     }
 
     public DataFrameTransformState(StreamInput in) throws IOException {
-        state = DataFrameTransformTaskState.fromStream(in);
+        taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
         generation = in.readLong();
         reason = in.readOptionalString();
     }
 
-    public DataFrameTransformTaskState getState() {
-        return state;
+    public DataFrameTransformTaskState getTaskState() {
+        return taskState;
     }
 
     public IndexerState getIndexerState() {
@@ -135,8 +135,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(STATE.getPreferredName(), state.value());
-        builder.field(TRANSFORM_STATE.getPreferredName(), indexerState.value());
+        builder.field(TASK_STATE.getPreferredName(), taskState.value());
+        builder.field(INDEXER_STATE.getPreferredName(), indexerState.value());
         if (currentPosition != null) {
             builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
         }
@@ -155,7 +155,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        state.writeTo(out);
+        taskState.writeTo(out);
         indexerState.writeTo(out);
         out.writeBoolean(currentPosition != null);
         if (currentPosition != null) {
@@ -177,7 +177,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
         DataFrameTransformState that = (DataFrameTransformState) other;
 
-        return Objects.equals(this.state, that.state) &&
+        return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
             Objects.equals(this.currentPosition, that.currentPosition) &&
             this.generation == that.generation &&
@@ -186,7 +186,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     @Override
     public int hashCode() {
-        return Objects.hash(state, indexerState, currentPosition, generation, reason);
+        return Objects.hash(taskState, indexerState, currentPosition, generation, reason);
     }
 
     @Override

@@ -89,7 +89,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         Map<String, Object> initialPosition = null;
         logger.info("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
-            initialTaskState = state.getState();
+            initialTaskState = state.getTaskState();
             initialReason = state.getReason();
             final IndexerState existingState = state.getIndexerState();
             logger.info("[{}] Loading existing state: [{}], position [{}]", transform.getId(), existingState, state.getPosition());
@@ -159,10 +159,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             indexer.getPosition(),
             generation.get(),
             null);
+        auditor.info(transform.getId(), "");
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
         persistStateToClusterState(state, ActionListener.wrap(
-            task -> listener.onResponse(new StartDataFrameTransformTaskAction.Response(true)),
+            task -> {
+                auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
+                listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
+            },
             exc -> {
                 indexer.stop();
                 listener.onFailure(new ElasticsearchException("Error while updating state for data frame transform ["
@@ -196,7 +200,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 generation.get(),
                 stateReason.get());
             persistStateToClusterState(state, ActionListener.wrap(
-                task -> listener.onResponse(new StopDataFrameTransformAction.Response(true)),
+                task -> {
+                    auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
+                    listener.onResponse(new StopDataFrameTransformAction.Response(true));
+                },
                 exc -> listener.onFailure(new ElasticsearchException(
                     "Error while updating state for data frame transform [{}] to [{}]", exc,
                     transform.getId(),

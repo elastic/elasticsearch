@@ -63,7 +63,8 @@ The API returns the following results:
     {
       "id" : "ecommerce_transform",
       "state" : {
-        "transform_state" : "started",
+        "indexer_state" : "started",
+        "task_state": "started",
         "current_position" : {
           "customer_id" : "9"
         },

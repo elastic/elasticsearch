@@ -63,7 +63,7 @@ public class TransportStopDataFrameTransformAction extends
     protected void taskOperation(StopDataFrameTransformAction.Request request, DataFrameTransformTask transformTask,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
-            if (transformTask.getState().getState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+            if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException("Unable to stop data frame transform [" + request.getId()
                         + "] as it is in a failed state with reason: [" + transformTask.getState().getReason() +

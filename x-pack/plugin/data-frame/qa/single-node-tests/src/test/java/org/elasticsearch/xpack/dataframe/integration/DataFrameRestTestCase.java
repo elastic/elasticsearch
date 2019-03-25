@@ -235,12 +235,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected static String getDataFrameIndexerState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
         return transformStatsAsMap == null ? null :
-            (String) XContentMapValues.extractValue("state.transform_state", transformStatsAsMap);
+            (String) XContentMapValues.extractValue("state.indexer_state", transformStatsAsMap);
     }
 
     protected static String getDataFrameTaskState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
-        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state.state", transformStatsAsMap);
+        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state.task_state", transformStatsAsMap);
     }
 
     protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {

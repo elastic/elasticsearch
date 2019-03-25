@@ -32,21 +32,23 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         Map<?, ?> fullState = getDataFrameState(transformId);
 
         // Verify we have failed for the expected reason
-        assertThat(XContentMapValues.extractValue("state.reason", fullState), equalTo("no such index [reviews]"));
-        assertThat(XContentMapValues.extractValue("state.transform_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("state.reason", fullState),
+            equalTo("task encountered irrecoverable failure: no such index [reviews]"));
+        assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), equalTo("started"));
 
         // Verify that we cannot stop or start the transform when the task is in a failed state
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
             equalTo("Unable to stop data frame transform [failure_pivot_1] as it is in a failed state with reason: [" +
-                "no such index [reviews]]. Use force stop to stop the data frame transform."));
+                "task encountered irrecoverable failure: no such index [reviews]]. Use force stop to stop the data frame transform."));
 
         ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
             equalTo("Unable to start data frame transform [failure_pivot_1] as it is in a failed state with failure: [" +
-                "no such index [reviews]]. Use force start to restart data frame transform once error is resolved."));
+                "task encountered irrecoverable failure: no such index [reviews]]. " +
+                "Use force start to restart data frame transform once error is resolved."));
 
         // Correct the failure by creating the reviews index again
         createReviewsIndex();
@@ -59,8 +61,8 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify that we have started and that our reason is cleared
         fullState = getDataFrameState(transformId);
         assertThat(XContentMapValues.extractValue("state.reason", fullState), is(nullValue()));
-        assertThat(XContentMapValues.extractValue("state.state", fullState), equalTo("started"));
-        assertThat(XContentMapValues.extractValue("state.transform_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("state.task_state", fullState), equalTo("started"));
+        assertThat(XContentMapValues.extractValue("state.indexer_state", fullState), equalTo("started"));
         assertThat(XContentMapValues.extractValue("stats.search_failures", fullState), equalTo(1));
 
         // get and check some users to verify we restarted

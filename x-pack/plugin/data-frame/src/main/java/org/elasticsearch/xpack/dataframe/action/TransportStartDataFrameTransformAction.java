@@ -121,17 +121,17 @@ public class TransportStartDataFrameTransformAction extends
                         persistentTaskActionListener);
                 } else {
                     DataFrameTransformState transformState = (DataFrameTransformState)existingTask.getState();
-                    if(transformState.getState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+                    if(transformState.getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
                         listener.onFailure(new ElasticsearchStatusException(
                             "Unable to start data frame transform [" + config.getId() +
                                 "] as it is in a failed state with failure: [" + transformState.getReason() +
                             "]. Use force start to restart data frame transform once error is resolved.",
                             RestStatus.CONFLICT));
-                    } else if (transformState.getState() != DataFrameTransformTaskState.STOPPED &&
-                               transformState.getState() != DataFrameTransformTaskState.FAILED) {
+                    } else if (transformState.getTaskState() != DataFrameTransformTaskState.STOPPED &&
+                               transformState.getTaskState() != DataFrameTransformTaskState.FAILED) {
                         listener.onFailure(new ElasticsearchStatusException(
                             "Unable to start data frame transform [" + config.getId() +
-                                "] as it is in state [" + transformState.getState()  + "]", RestStatus.CONFLICT));
+                                "] as it is in state [" + transformState.getTaskState()  + "]", RestStatus.CONFLICT));
                     } else {
                         persistentTaskActionListener.onResponse(existingTask);
                     }

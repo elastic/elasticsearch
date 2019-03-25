@@ -62,7 +62,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 DataFrameTransformTask.SCHEDULE_NAME + "_" + params.getId(), next());
 
         DataFrameTransformState transformState = (DataFrameTransformState) state;
-        if (transformState != null && transformState.getState() == DataFrameTransformTaskState.FAILED) {
+        if (transformState != null && transformState.getTaskState() == DataFrameTransformTaskState.FAILED) {
             logger.warn("Tried to start failed transform [" + params.getId() + "] failure reason: " + transformState.getReason());
             return;
         }

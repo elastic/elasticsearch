@@ -22,7 +22,6 @@ package org.elasticsearch.client.dataframe;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.client.dataframe.transforms.QueryConfigTests;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -41,8 +40,7 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
     public void testValidate() {
         assertFalse(createTestInstance().validate().isPresent());
 
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
 
         Optional<ValidationException> error = new PutDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

@@ -22,7 +22,6 @@ package org.elasticsearch.client.dataframe;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.client.dataframe.transforms.QueryConfigTests;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,6 +33,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
 
+import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.containsString;
 
 public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestCase<PreviewDataFrameTransformRequest> {
@@ -65,14 +65,13 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
                 containsString("preview requires a non-null data frame config"));
 
         // null id and destination is valid
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, "source", null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, randomSourceConfig(), null,
+            PivotConfigTests.randomPivotConfig());
 
         assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
 
         // null source is not valid
-        config = new DataFrameTransformConfig(null, null, null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
 
         Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

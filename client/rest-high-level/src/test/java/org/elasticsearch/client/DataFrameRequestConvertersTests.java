@@ -165,4 +165,12 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         assertEquals("0", request.getParameters().get("from"));
         assertEquals("10", request.getParameters().get("size"));
     }
+
+    public void testGetDataFrameTransform_givenMulitpleIds() {
+        GetDataFrameTransformRequest getRequest = new GetDataFrameTransformRequest("foo", "bar", "baz");
+        Request request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo,bar,baz"));
+    }
 }

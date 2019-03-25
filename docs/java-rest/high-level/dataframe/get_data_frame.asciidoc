@@ -12,8 +12,8 @@ The API accepts a +{request}+ object and returns a +{response}+.
 [id="{upid}-{api}-request"]
 ==== Get Data Frame Request
 
-A +{request}+ requires a data frame transform id or the special wildcard `_all`
-to get all {dataframe-transform}s
+A +{request}+ requires either a data frame transform id, a comma separated list of ids or
+the special wildcard `_all` to get all {dataframe-transform}s
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

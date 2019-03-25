@@ -22,21 +22,31 @@ package org.elasticsearch.client.dataframe;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public class GetDataFrameTransformRequest implements Validatable {
 
-    private final String id;
+    private final List<String> ids;
     private Integer from;
     private Integer size;
 
-    public GetDataFrameTransformRequest(String id) {
-        this.id = id;
+    /**
+     * Helper method to create a request that will get ALL Data Frame Transforms
+     * @return new {@link GetDataFrameTransformRequest} object for the id "_all"
+     */
+    public static GetDataFrameTransformRequest getAllDataFrameTransformsRequest() {
+        return new GetDataFrameTransformRequest("_all");
     }
 
-    public String getId() {
-        return id;
+    public GetDataFrameTransformRequest(String... ids) {
+        this.ids = Arrays.asList(ids);
+    }
+
+    public List<String> getId() {
+        return ids;
     }
 
     public Integer getFrom() {
@@ -57,7 +67,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public Optional<ValidationException> validate() {
-        if (id == null) {
+        if (ids == null || ids.isEmpty()) {
             ValidationException validationException = new ValidationException();
             validationException.addValidationError("data frame transform id must not be null");
             return Optional.of(validationException);
@@ -68,7 +78,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(ids);
     }
 
     @Override
@@ -81,6 +91,6 @@ public class GetDataFrameTransformRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformRequest other = (GetDataFrameTransformRequest) obj;
-        return Objects.equals(id, other.id);
+        return Objects.equals(ids, other.ids);
     }
 }

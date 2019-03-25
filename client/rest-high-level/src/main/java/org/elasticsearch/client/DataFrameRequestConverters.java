@@ -30,6 +30,7 @@ import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
@@ -53,7 +54,7 @@ final class DataFrameRequestConverters {
     static Request getDataFrameTransform(GetDataFrameTransformRequest getRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_data_frame", "transforms")
-                .addPathPart(getRequest.getId())
+                .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         if (getRequest.getFrom() != null) {

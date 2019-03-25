@@ -223,6 +223,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());
         assertThat(getResponse.getTransformConfigurations(), hasSize(1));
+
+        GetDataFrameTransformRequest getMulitple = new GetDataFrameTransformRequest("test-get-all-1", "test-get-all-2");
+        getResponse = execute(getMulitple, client::getDataFrameTransform,
+                client::getDataFrameTransformAsync);
+        assertNull(getResponse.getInvalidTransforms());
+        assertThat(getResponse.getTransformConfigurations(), hasSize(2));
     }
 
     public void testGetMissingTransform() {

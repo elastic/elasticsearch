@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.containsString;
 public class GetDataFrameTransformRequestTests extends ESTestCase {
     public void testValidate() {
         assertFalse(new GetDataFrameTransformRequest("valid-id").validate().isPresent());
-        assertThat(new GetDataFrameTransformRequest(null).validate().get().getMessage(),
+        assertThat(new GetDataFrameTransformRequest(new String[0]).validate().get().getMessage(),
                 containsString("data frame transform id must not be null"));
     }
 }

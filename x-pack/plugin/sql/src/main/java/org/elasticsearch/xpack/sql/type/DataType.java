@@ -13,6 +13,7 @@ import java.sql.Types;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Elasticsearch SQL data types.
@@ -73,57 +74,77 @@ public enum DataType {
     INTERVAL_MINUTE_TO_SECOND(ExtTypes.INTERVAL_MINUTE_TO_SECOND,Long.BYTES,      23,   23,  false, false, false);
     // @formatter:on
 
-    private static final Map<String, DataType> odbcToEs;
+    private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(36);
     static {
-        odbcToEs = new HashMap<>(36);
-
         // Numeric
-        odbcToEs.put("SQL_BIT", BOOLEAN);
-        odbcToEs.put("SQL_TINYINT", BYTE);
-        odbcToEs.put("SQL_SMALLINT", SHORT);
-        odbcToEs.put("SQL_INTEGER", INTEGER);
-        odbcToEs.put("SQL_BIGINT", LONG);
-        odbcToEs.put("SQL_FLOAT", FLOAT);
-        odbcToEs.put("SQL_REAL", FLOAT);
-        odbcToEs.put("SQL_DOUBLE", DOUBLE);
-        odbcToEs.put("SQL_DECIMAL", DOUBLE);
-        odbcToEs.put("SQL_NUMERIC", DOUBLE);
+        ODBC_TO_ES.put("SQL_BIT", BOOLEAN);
+        ODBC_TO_ES.put("SQL_TINYINT", BYTE);
+        ODBC_TO_ES.put("SQL_SMALLINT", SHORT);
+        ODBC_TO_ES.put("SQL_INTEGER", INTEGER);
+        ODBC_TO_ES.put("SQL_BIGINT", LONG);
+        ODBC_TO_ES.put("SQL_REAL", FLOAT);
+        ODBC_TO_ES.put("SQL_FLOAT", DOUBLE);
+        ODBC_TO_ES.put("SQL_DOUBLE", DOUBLE);
+        ODBC_TO_ES.put("SQL_DECIMAL", DOUBLE);
+        ODBC_TO_ES.put("SQL_NUMERIC", DOUBLE);
 
         // String
-        odbcToEs.put("SQL_GUID", KEYWORD);
-        odbcToEs.put("SQL_CHAR", KEYWORD);
-        odbcToEs.put("SQL_WCHAR", KEYWORD);
-        odbcToEs.put("SQL_VARCHAR", TEXT);
-        odbcToEs.put("SQL_WVARCHAR", TEXT);
-        odbcToEs.put("SQL_LONGVARCHAR", TEXT);
-        odbcToEs.put("SQL_WLONGVARCHAR", TEXT);
+        ODBC_TO_ES.put("SQL_GUID", KEYWORD);
+        ODBC_TO_ES.put("SQL_CHAR", KEYWORD);
+        ODBC_TO_ES.put("SQL_WCHAR", KEYWORD);
+        ODBC_TO_ES.put("SQL_VARCHAR", TEXT);
+        ODBC_TO_ES.put("SQL_WVARCHAR", TEXT);
+        ODBC_TO_ES.put("SQL_LONGVARCHAR", TEXT);
+        ODBC_TO_ES.put("SQL_WLONGVARCHAR", TEXT);
 
         // Binary
-        odbcToEs.put("SQL_BINARY", BINARY);
-        odbcToEs.put("SQL_VARBINARY", BINARY);
-        odbcToEs.put("SQL_LONGVARBINARY", BINARY);
+        ODBC_TO_ES.put("SQL_BINARY", BINARY);
+        ODBC_TO_ES.put("SQL_VARBINARY", BINARY);
+        ODBC_TO_ES.put("SQL_LONGVARBINARY", BINARY);
 
         // Date
-        odbcToEs.put("SQL_DATE", DATE);
-        odbcToEs.put("SQL_TIME", DATETIME);
-        odbcToEs.put("SQL_TIMESTAMP", DATETIME);
+        ODBC_TO_ES.put("SQL_DATE", DATE);
+        ODBC_TO_ES.put("SQL_TIME", DATETIME);
+        ODBC_TO_ES.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
-        odbcToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
-        odbcToEs.put("SQL_INTERVAL_HOUR_TO_SECOND", INTERVAL_HOUR_TO_SECOND);
-        odbcToEs.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
-        odbcToEs.put("SQL_INTERVAL_MONTH", INTERVAL_MONTH);
-        odbcToEs.put("SQL_INTERVAL_YEAR", INTERVAL_YEAR);
-        odbcToEs.put("SQL_INTERVAL_YEAR_TO_MONTH", INTERVAL_YEAR_TO_MONTH);
-        odbcToEs.put("SQL_INTERVAL_DAY", INTERVAL_DAY);
-        odbcToEs.put("SQL_INTERVAL_HOUR", INTERVAL_HOUR);
-        odbcToEs.put("SQL_INTERVAL_MINUTE", INTERVAL_MINUTE);
-        odbcToEs.put("SQL_INTERVAL_SECOND", INTERVAL_SECOND);
-        odbcToEs.put("SQL_INTERVAL_DAY_TO_HOUR", INTERVAL_DAY_TO_HOUR);
-        odbcToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
-        odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_MINUTE", INTERVAL_HOUR_TO_MINUTE);
+        ODBC_TO_ES.put("SQL_INTERVAL_HOUR_TO_SECOND", INTERVAL_HOUR_TO_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_MONTH", INTERVAL_MONTH);
+        ODBC_TO_ES.put("SQL_INTERVAL_YEAR", INTERVAL_YEAR);
+        ODBC_TO_ES.put("SQL_INTERVAL_YEAR_TO_MONTH", INTERVAL_YEAR_TO_MONTH);
+        ODBC_TO_ES.put("SQL_INTERVAL_DAY", INTERVAL_DAY);
+        ODBC_TO_ES.put("SQL_INTERVAL_HOUR", INTERVAL_HOUR);
+        ODBC_TO_ES.put("SQL_INTERVAL_MINUTE", INTERVAL_MINUTE);
+        ODBC_TO_ES.put("SQL_INTERVAL_SECOND", INTERVAL_SECOND);
+        ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_HOUR", INTERVAL_DAY_TO_HOUR);
+        ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_MINUTE", INTERVAL_DAY_TO_MINUTE);
+        ODBC_TO_ES.put("SQL_INTERVAL_DAY_TO_SECOND", INTERVAL_DAY_TO_SECOND);
     }
 
+
+    private static final Map<String, DataType> SQL_TO_ES = new HashMap<>(45);
+    static {
+        // first add ES types
+        for (DataType type : DataType.values()) {
+            if (type.isPrimitive()) {
+                SQL_TO_ES.put(type.name(), type);
+            }
+        }
+
+        // reuse the ODBC definition (without SQL_)
+        // note that this will override existing types in particular FLOAT
+        for (Entry<String, DataType> entry : ODBC_TO_ES.entrySet()) {
+            SQL_TO_ES.put(entry.getKey().substring(4), entry.getValue());
+        }
+
+
+        // special ones
+        SQL_TO_ES.put("BOOL", DataType.BOOLEAN);
+        SQL_TO_ES.put("INT", DataType.INTEGER);
+        SQL_TO_ES.put("STRING", DataType.KEYWORD);
+    }
 
     /**
      * Type's name used for error messages and column info for the clients
@@ -234,9 +255,13 @@ public enum DataType {
     }
     
     public static DataType fromOdbcType(String odbcType) {
-        return odbcToEs.get(odbcType);
+        return ODBC_TO_ES.get(odbcType);
     }
     
+    public static DataType fromSqlOrEsType(String typeName) {
+        return SQL_TO_ES.get(typeName.toUpperCase(Locale.ROOT));
+    }
+
     /**
      * Creates returns DataType enum corresponding to the specified es type
      */

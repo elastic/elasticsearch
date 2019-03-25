@@ -387,44 +387,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public DataType visitPrimitiveDataType(PrimitiveDataTypeContext ctx) {
-        String type = visitIdentifier(ctx.identifier()).toLowerCase(Locale.ROOT);
-
-        switch (type) {
-            case "bit":
-            case "bool":
-            case "boolean":
-                return DataType.BOOLEAN;
-            case "tinyint":
-            case "byte":
-                return DataType.BYTE;
-            case "smallint":
-            case "short":
-                return DataType.SHORT;
-            case "int":
-            case "integer":
-                return DataType.INTEGER;
-            case "long":
-            case "bigint":
-                return DataType.LONG;
-            case "real":
-                return DataType.FLOAT;
-            case "float":
-            case "double":
-                return DataType.DOUBLE;
-            case "date":
-                return DataType.DATE;
-            case "datetime":
-            case "timestamp":
-                return DataType.DATETIME;
-            case "char":
-            case "varchar":
-            case "string":
-                return DataType.KEYWORD;
-            case "ip":
-                return DataType.IP;
-            default:
-                throw new ParsingException(source(ctx), "Does not recognize type [{}]", ctx.getText());
-        }
+        String type = visitIdentifier(ctx.identifier());
+        DataType dataType = DataType.fromSqlOrEsType(type);
+        if (dataType == null) {
+            throw new ParsingException(source(ctx), "Does not recognize type [{}]", type);        }
+        return dataType;
     }
 
     //

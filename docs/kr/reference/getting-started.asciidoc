@@ -200,7 +200,7 @@ cd elasticsearch-{version}/bin
 
 기본적인 상태 확인부터 시작하겠습니다. 이 확인을 통해 클러스터가 어떻게 작동하고 있는지 알아볼 수 있습니다. 여기서는 curl을 사용하겠지만, HTTP/REST 호출을 지원하는 어떤 툴도 사용 가능합니다. Elasticsearch를 시작한 노드에 아직 있다고 가정하고 다른 명령 셸 창을  열겠습니다.
 
-클러스터 상태를 확인하기 위해 {ref}/cat.html[`_cat` API]를 사용합니다. {kibana}/console-kibana.html[Kibana 콘솔]에서 아래의 명령을 실행할 수 있습니다. "VIEW IN CONSOLE"을 클릭하거나 `curl`을 사용할 경우에는 아래의 "COPY AS CURL" 링크를 클릭하고 터미널에 붙여 넣으면 됩니다.
+클러스터 상태를 확인하기 위해 {ref}/cat.html[`_cat` API]를 사용합니다. {kibana}/console-kibana.html[Kibana 콘솔]에서 아래의 명령을 실행할 수 있습니다. "VIEW IN CONSOLE"을 클릭하거나 `curl` 을 사용할 경우에는 아래의 "COPY AS CURL" 링크를 클릭하고 터미널에 붙여 넣으면 됩니다.
 
 [source,js]
 --------------------------------------------------

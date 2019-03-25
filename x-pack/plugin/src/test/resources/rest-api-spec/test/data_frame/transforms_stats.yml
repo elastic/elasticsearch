@@ -18,8 +18,8 @@ setup:
         transform_id: "airline-transform-stats"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-stats",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -75,8 +75,8 @@ teardown:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-stats-dos",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -113,8 +113,8 @@ teardown:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-stats-dos",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -146,8 +146,8 @@ teardown:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-stats-dos",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-dos" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}

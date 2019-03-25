@@ -139,13 +139,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId, authHeader);
 
         String config = "{"
-                + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-                + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         if (query != null) {
-            config += "\"query\": {"
-                    + query
-                    + "},";
+            config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\", \"query\":{" + query + "}},";
+        } else {
+            config += " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},";
         }
 
         config += " \"pivot\": {"

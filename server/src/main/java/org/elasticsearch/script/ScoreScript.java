@@ -121,18 +121,16 @@ public abstract class ScoreScript {
     }
 
     /**
-     * Accessed as _doc in the painless script
      * @return the internal document ID
      */
-    public int get_doc() {
+    public int getDocId() {
         return docBase + docId;
     }
 
     /**
-     * Accessed as _shard in the painless script
      * @return shard id or throws an exception if shard is not set up for this script instance
      */
-    public int get_shard() {
+    public int getShardId() {
         if (shardId > -1) {
             return shardId;
         } else {
@@ -141,10 +139,9 @@ public abstract class ScoreScript {
     }
 
     /**
-     * Accessed as _index in the painless script
      * @return index name or throws an exception if the index name is not set up for this script instance
      */
-    public String get_index() {
+    public String getIndex() {
         if (indexName != null) {
             return indexName;
         } else {

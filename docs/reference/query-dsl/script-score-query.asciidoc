@@ -188,38 +188,38 @@ in the calculations of vector functions.
 from 0 up to but not including 1.
 
 `randomScore` function has the following syntax:
-`randomScore(String docValue, String indexName, int shardId, int seed)`.
-It requires a document value,  an index name, shard id,  and a seed.
-For the document value, you can use `_doc` which represents
-the internal Lucene doc ids; for the index name, you can use `_index`
-which represents the index name of a corresponding document;
-and for the shard id, you can use `_shard` which represents
-the shard id of a corresponding document.
+`randomScore(String docValue, int seed)`.
+It requires a document value as a string, and a seed:
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "randomScore(String.valueOf(_doc), _index, _shard, 100)"
+    "source" : "randomScore(String.valueOf(doc['_seq_no'].value), 100)"
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-Using the internal Lucene doc ids as a source of randomness is very efficient,
+`docValue` is an optional parameter, and if omitted the internal Lucene
+document ids will be used as a source of randomness. This is very efficient,
 but unfortunately not reproducible since documents might be renumbered
-by merges. Note that documents that are within the same shard and have the
+by merges.
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomScore(100)"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+Note that documents that are within the same shard and have the
 same value for field will get the same score, so it is usually desirable
 to use a field that has unique values for all documents across a shard.
 A good default choice might be to use the `_seq_no`
 field, whose only drawback is that scores will change if the document is
-updated since update operations also update the value of the _seq_no field.
+updated since update operations also update the value of the `_seq_no` field.
 
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "randomScore(String.valueOf(doc['_seq_no'].value), _index, _shard, 100)"
-}
---------------------------------------------------
-// NOTCONSOLE
 
 [[decay-functions]]
 ===== Decay functions for numeric fields

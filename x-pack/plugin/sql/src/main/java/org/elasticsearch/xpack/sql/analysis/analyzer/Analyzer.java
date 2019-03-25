@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
@@ -852,8 +852,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // TODO: we should move to always compare the functions directly
                         // Special check for COUNT: an already seen COUNT function will be returned only if its DISTINCT property
                         // matches the one from the unresolved function to be checked.
-                        // Same for LIKE: the equals function also compares the pattern of LIKE
-                        if (seenFunction instanceof Count || seenFunction instanceof Like) {
+                        // Same for LIKE/RLIKE: the equals function also compares the pattern of LIKE/RLIKE
+                        if (seenFunction instanceof Count || seenFunction instanceof RegexMatch) {
                             if (seenFunction.equals(f)){
                                 return seenFunction;
                             }

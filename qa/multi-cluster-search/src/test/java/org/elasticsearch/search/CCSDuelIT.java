@@ -455,6 +455,28 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
+    public void testSortByFieldOneClusterHasNoShards() throws Exception {
+        assumeMultiClusterSetup();
+        SearchRequest searchRequest = new SearchRequest(INDEX_NAME, "my_remote_cluster:does_not_exist_*");
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.sort("type.keyword", SortOrder.ASC);
+        sourceBuilder.sort("creationDate", SortOrder.DESC);
+        sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        searchRequest.source(sourceBuilder);
+        duelSearch(searchRequest, response -> {
+            assertMultiClusterSearchResponse(response, 1);
+            assertThat(response.getHits().getTotalHits().value, greaterThan(0L));
+            assertEquals(0, response.getFailedShards());
+            assertThat(response.getHits().getHits().length, greaterThan(0));
+            SearchHit[] hits = response.getHits().getHits();
+            for (SearchHit hit : hits) {
+                assertEquals(3, hit.getSortValues().length);
+                assertEquals(INDEX_NAME, hit.getIndex());
+                assertNull(hit.getClusterAlias());
+            }
+        });
+    }
+
     public void testFieldCollapsingOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
@@ -763,10 +785,14 @@ public class CCSDuelIT extends ESRestTestCase {
     }
 
     private static void assertMultiClusterSearchResponse(SearchResponse searchResponse) {
+        assertMultiClusterSearchResponse(searchResponse, 2);
+    }
+
+    private static void assertMultiClusterSearchResponse(SearchResponse searchResponse, int minNumShards) {
         assertEquals(2, searchResponse.getClusters().getTotal());
         assertEquals(2, searchResponse.getClusters().getSuccessful());
-        assertThat(searchResponse.getTotalShards(), greaterThan(1));
-        assertThat(searchResponse.getSuccessfulShards(), greaterThan(1));
+        assertThat(searchResponse.getTotalShards(), greaterThanOrEqualTo(minNumShards));
+        assertThat(searchResponse.getSuccessfulShards(), greaterThanOrEqualTo(minNumShards));
     }
 
     private static void assertHits(SearchResponse response) {

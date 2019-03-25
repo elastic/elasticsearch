@@ -479,7 +479,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
         assertEquals("1:8: first argument of [TRUNCATE('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [numeric], found value ['bar'] type [keyword]",
+        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 

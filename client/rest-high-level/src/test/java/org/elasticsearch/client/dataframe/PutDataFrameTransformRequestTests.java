@@ -19,8 +19,10 @@
 
 package org.elasticsearch.client.dataframe;
 
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,8 +31,28 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Optional;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<PutDataFrameTransformRequest> {
+
+    public void testValidate() {
+        assertFalse(createTestInstance().validate().isPresent());
+
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
+
+        Optional<ValidationException> error = new PutDataFrameTransformRequest(config).validate();
+        assertTrue(error.isPresent());
+        assertThat(error.get().getMessage(), containsString("data frame transform id cannot be null"));
+        assertThat(error.get().getMessage(), containsString("data frame transform source cannot be null"));
+        assertThat(error.get().getMessage(), containsString("data frame transform destination cannot be null"));
+
+        error = new PutDataFrameTransformRequest(null).validate();
+        assertTrue(error.isPresent());
+        assertThat(error.get().getMessage(), containsString("put requires a non-null data frame config"));
+    }
+
     @Override
     protected PutDataFrameTransformRequest createTestInstance() {
         return new PutDataFrameTransformRequest(DataFrameTransformConfigTests.randomDataFrameTransformConfig());

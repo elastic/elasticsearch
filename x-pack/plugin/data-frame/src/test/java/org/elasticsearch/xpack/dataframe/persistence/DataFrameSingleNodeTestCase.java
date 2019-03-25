@@ -11,6 +11,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -43,7 +44,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateDataFrame.class);
+        return pluginList(LocalStateDataFrame.class, ReindexPlugin.class);
     }
 
     protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,

@@ -430,7 +430,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
-            joinCallback.onFailure(new IllegalStateException("cannot join node with single-node discovery"));
+            joinCallback.onFailure(new IllegalStateException("cannot join node with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                "] set to [" + DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE  + "] discovery"));
             return;
         }
 
@@ -650,7 +651,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (singleNodeDiscovery &&
                 votingConfiguration.isEmpty() == false &&
                 votingConfiguration.hasQuorum(Collections.singleton(getLocalNode().getId())) == false) {
-                throw new IllegalStateException("cannot start with single-node discovery when local node " + getLocalNode() +
+                throw new IllegalStateException("cannot start with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + "] when local node " + getLocalNode() +
                     " does not have quorum in voting configuration " + votingConfiguration);
             }
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))

@@ -130,7 +130,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         && event.getThrown().getClass() == RemoteTransportException.class
                         && event.getThrown().getCause() != null
                         && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown().getCause().getMessage().contains("cannot join node with single-node discovery");
+                        && event.getThrown().getCause().getMessage().contains(
+                            "cannot join node with [discovery.type] set to [single-node]");
                 }
             });
         final TransportService service = internalCluster().getInstance(TransportService.class);

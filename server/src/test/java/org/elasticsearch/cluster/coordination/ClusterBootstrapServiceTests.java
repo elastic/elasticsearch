@@ -497,7 +497,8 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
             transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
-            containsString("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed for single-node discovery type"));
+            containsString("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " +
+                "to [single-node]"));
     }
 
     public void testFailBootstrapNonMasterEligibleNodeWithSingleNodeDiscovery() {
@@ -508,6 +509,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
 
         assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
                 transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
-            containsString("node with single-node discovery type must be master-eligible"));
+            containsString("node with [discovery.type] set to [single-node] must be master-eligible"));
     }
 }

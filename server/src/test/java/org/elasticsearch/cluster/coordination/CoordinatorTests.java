@@ -1138,7 +1138,7 @@ public class CoordinatorTests extends ESTestCase {
                 cn.restartedNode(Function.identity(), Function.identity(), Settings.builder()
                     .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE).build()) :
                 cn));
-        assertThat(ise.getMessage(), containsString("cannot start with single-node discovery when local node"));
+        assertThat(ise.getMessage(), containsString("cannot start with [discovery.type] set to [single-node] when local node"));
         assertThat(ise.getMessage(), containsString("does not have quorum in voting configuration"));
     }
 

@@ -81,10 +81,12 @@ public class ClusterBootstrapService {
         if (DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
             if (INITIAL_MASTER_NODES_SETTING.exists(settings)) {
                 throw new IllegalArgumentException("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() +
-                    "] is not allowed for single-node discovery type");
+                    "] is not allowed when [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] is set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + "]");
             }
             if (DiscoveryNode.isMasterNode(settings) == false) {
-                throw new IllegalArgumentException("node with single-node discovery type must be master-eligible");
+                throw new IllegalArgumentException("node with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE +  "] must be master-eligible");
             }
             bootstrapRequirements = Collections.singleton(Node.NODE_NAME_SETTING.get(settings));
             unconfiguredBootstrapTimeout = null;

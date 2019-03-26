@@ -66,6 +66,10 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         }
 
         if (randomBoolean()) {
+            queryBuilder.operator(randomFrom(Operator.values()));
+        }
+
+        if (randomBoolean()) {
             queryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
         }
         return queryBuilder;
@@ -81,8 +85,6 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             assertThat(prefixQuery.getPrefix().text(), equalToIgnoringCase((String) queryBuilder.value()));
         } else {
             final BooleanQuery booleanQuery = (BooleanQuery) query;
-            assertThat(booleanQuery.clauses(), everyItem(hasProperty("occur", equalTo(BooleanClause.Occur.SHOULD))));
-
             // all queries except the last should be TermQuery or SynonymQuery
             assertThat(
                 IntStream.range(0, booleanQuery.clauses().size() - 1)
@@ -96,8 +98,10 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             assertThat(shouldBePrefixQuery, instanceOf(PrefixQuery.class));
 
             if (queryBuilder.minimumShouldMatch() != null) {
-                assertThat(booleanQuery.getMinimumNumberShouldMatch(),
-                    equalTo(Queries.calculateMinShouldMatch(booleanQuery.clauses().size(), queryBuilder.minimumShouldMatch())));
+                final int optionalClauses =
+                    (int) booleanQuery.clauses().stream().filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD).count();
+                final int expected = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
+                assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(expected));
             }
         }
     }
@@ -133,6 +137,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                 "\"match_bool_prefix\": {" +
                     "\"fieldName\": {" +
                         "\"query\": \"fieldValue\"," +
+                        "\"operator\": \"OR\"," +
                         "\"boost\": 1.0" +
                     "}" +
                 "}" +
@@ -149,6 +154,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                     "\"fieldName\": {" +
                         "\"query\": \"fieldValue\"," +
                         "\"analyzer\": \"simple\"," +
+                        "\"operator\": \"AND\"," +
                         "\"minimum_should_match\": \"2\"," +
                         "\"boost\": 2.0" +
                     "}" +

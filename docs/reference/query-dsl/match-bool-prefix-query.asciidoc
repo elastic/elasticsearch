@@ -48,30 +48,15 @@ An important difference between the `match_bool_prefix` query and
 match a field containing the term `quick`, the term `brown` and a term
 starting with `f`, appearing in any position.
 
-`match_bool_prefix` queries support the
-<<query-dsl-minimum-should-match,`minimum_should_match`>> parameter, applying
-the setting to the constructed `bool` query. The number of clauses in the
-constructed `bool` query will roughly be the number of terms produced by
-analysis of the query text. The type of clause used in the constructed `bool`
-query cannot be configured, and will always be `should`. This setting can be
-used to exclude matching documents that contain fewer than desired matching
-terms.
+==== Parameters
 
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "match_bool_prefix" : {
-            "message": {
-                "query": "quick brown f",
-                "minimum_should_match": 2
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
+`match_bool_prefix` queries support the
+<<query-dsl-minimum-should-match,`minimum_should_match`>> and `operator`
+parameters as described for the
+<<query-dsl-match-query-boolean,`match` query>>, applying the setting to the
+constructed `bool` query. The number of clauses in the constructed `bool`
+query will in most cases be the number of terms produced by analysis of the
+query text.
 
 By default, `match_bool_prefix` queries' input text will be analyzed using the
 analyzer from the queried field's mapping. A different search analyzer can be

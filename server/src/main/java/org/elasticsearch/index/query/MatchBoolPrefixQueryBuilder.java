@@ -32,6 +32,8 @@ import org.elasticsearch.index.search.MatchQuery;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
+
 /**
  * The boolean prefix query analyzes the input text and creates a boolean query containing a Term query for each term, except
  * for the last term, which is used to create a prefix query
@@ -40,11 +42,15 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     public static final String NAME = "match_bool_prefix";
 
+    private static final Operator DEFAULT_OPERATOR = Operator.OR;
+
     private final String fieldName;
 
     private final Object value;
 
     private String analyzer;
+
+    private Operator operator = DEFAULT_OPERATOR;
 
     private String minimumShouldMatch;
 
@@ -64,6 +70,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         fieldName = in.readString();
         value = in.readGenericValue();
         analyzer = in.readOptionalString();
+        operator = Operator.readFromStream(in);
         minimumShouldMatch = in.readOptionalString();
     }
 
@@ -72,6 +79,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         out.writeString(fieldName);
         out.writeGenericValue(value);
         out.writeOptionalString(analyzer);
+        operator.writeTo(out);
         out.writeOptionalString(minimumShouldMatch);
     }
 
@@ -99,6 +107,20 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         return this;
     }
 
+    /** Sets the operator to use when using a boolean query. Defaults to {@code OR}. */
+    public MatchBoolPrefixQueryBuilder operator(Operator operator) {
+        if (operator == null) {
+            throw new IllegalArgumentException("[" + NAME + "] requires operator to be non-null");
+        }
+        this.operator = operator;
+        return this;
+    }
+
+    /** Returns the operator to use in a boolean query.*/
+    public Operator operator() {
+        return this.operator;
+    }
+
     /** Sets optional minimumShouldMatch value to apply to the query */
     public MatchBoolPrefixQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
@@ -118,6 +140,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
+        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
         if (minimumShouldMatch != null) {
             builder.field(MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
@@ -131,6 +154,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         Object value = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String analyzer = null;
+        Operator operator = DEFAULT_OPERATOR;
         String minimumShouldMatch = null;
         String queryName = null;
         XContentParser.Token token;
@@ -149,6 +173,8 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
                             value = parser.objectText();
                         } else if (MatchQueryBuilder.ANALYZER_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             analyzer = parser.text();
+                        } else if (OPERATOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                            operator = Operator.fromString(parser.text());
                         } else if (MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             minimumShouldMatch = parser.textOrNull();
                         } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -173,6 +199,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
         MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value);
         queryBuilder.analyzer(analyzer);
+        queryBuilder.operator(operator);
         queryBuilder.minimumShouldMatch(minimumShouldMatch);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
@@ -189,6 +216,7 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         if (analyzer != null) {
             matchQuery.setAnalyzer(analyzer);
         }
+        matchQuery.setOccur(operator.toBooleanClauseOccur());
 
         final Query query = matchQuery.parse(MatchQuery.Type.BOOLEAN_PREFIX, fieldName, value);
         return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -199,12 +227,13 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         return Objects.equals(fieldName, other.fieldName) &&
             Objects.equals(value, other.value) &&
             Objects.equals(analyzer, other.analyzer) &&
+            Objects.equals(operator, other.operator) &&
             Objects.equals(minimumShouldMatch, other.minimumShouldMatch);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, analyzer, minimumShouldMatch);
+        return Objects.hash(fieldName, value, analyzer, operator, minimumShouldMatch);
     }
 
     @Override

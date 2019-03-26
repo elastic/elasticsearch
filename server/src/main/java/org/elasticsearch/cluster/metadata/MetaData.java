@@ -949,15 +949,20 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
         private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetaData> indices;
+        private final ImmutableOpenMap.Builder<String, IndexMetaData> indicesBuilder;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
+        private final SortedMap<String, AliasOrIndex> previousAliasAndIndexLookup;
+        private final ImmutableOpenMap<String, IndexMetaData> previousIndices;
+
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
+            indicesBuilder = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
+            previousAliasAndIndexLookup = new TreeMap<>();
+            previousIndices = ImmutableOpenMap.<String, IndexMetaData>builder().build();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
         }
 
@@ -968,33 +973,35 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             this.transientSettings = metaData.transientSettings;
             this.persistentSettings = metaData.persistentSettings;
             this.version = metaData.version;
-            this.indices = ImmutableOpenMap.builder(metaData.indices);
+            this.indicesBuilder = ImmutableOpenMap.builder(metaData.indices);
             this.templates = ImmutableOpenMap.builder(metaData.templates);
             this.customs = ImmutableOpenMap.builder(metaData.customs);
+            this.previousAliasAndIndexLookup = metaData.aliasAndIndexLookup;
+            this.previousIndices = metaData.indices;
         }
 
         public Builder put(IndexMetaData.Builder indexMetaDataBuilder) {
             // we know its a new one, increment the version and store
             indexMetaDataBuilder.version(indexMetaDataBuilder.version() + 1);
             IndexMetaData indexMetaData = indexMetaDataBuilder.build();
-            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
+            indicesBuilder.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
         public Builder put(IndexMetaData indexMetaData, boolean incrementVersion) {
-            if (indices.get(indexMetaData.getIndex().getName()) == indexMetaData) {
+            if (indicesBuilder.get(indexMetaData.getIndex().getName()) == indexMetaData) {
                 return this;
             }
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
                 indexMetaData = IndexMetaData.builder(indexMetaData).version(indexMetaData.getVersion() + 1).build();
             }
-            indices.put(indexMetaData.getIndex().getName(), indexMetaData);
+            indicesBuilder.put(indexMetaData.getIndex().getName(), indexMetaData);
             return this;
         }
 
         public IndexMetaData get(String index) {
-            return indices.get(index);
+            return indicesBuilder.get(index);
         }
 
         public IndexMetaData getSafe(Index index) {
@@ -1011,17 +1018,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public Builder remove(String index) {
-            indices.remove(index);
+            indicesBuilder.remove(index);
             return this;
         }
 
         public Builder removeAllIndices() {
-            indices.clear();
+            indicesBuilder.clear();
             return this;
         }
 
         public Builder indices(ImmutableOpenMap<String, IndexMetaData> indices) {
-            this.indices.putAll(indices);
+            this.indicesBuilder.putAll(indices);
             return this;
         }
 
@@ -1075,10 +1082,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indicesBuilder.keys().toArray(String.class);
             }
             for (String index : indices) {
-                IndexMetaData indexMetaData = this.indices.get(index);
+                IndexMetaData indexMetaData = this.indicesBuilder.get(index);
                 if (indexMetaData == null) {
                     throw new IndexNotFoundException(index);
                 }
@@ -1097,7 +1104,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
          */
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             for (String index : indices) {
-                IndexMetaData indexMetaData = this.indices.get(index);
+                IndexMetaData indexMetaData = this.indicesBuilder.get(index);
                 if (indexMetaData == null) {
                     throw new IndexNotFoundException(index);
                 }
@@ -1152,6 +1159,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         }
 
         public MetaData build() {
+            final ImmutableOpenMap<String, IndexMetaData> indices = indicesBuilder.build();
+
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will only be rebuilded when needed. Now during serializing we rebuild these datastructures
             //    while these datastructures aren't even used.
@@ -1190,7 +1199,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
 
             }
 
-            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup());
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = Collections.unmodifiableSortedMap(buildAliasAndIndexLookup(indices));
 
 
             // build all concrete indices arrays:
@@ -1202,32 +1211,38 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             String[] allClosedIndicesArray = allClosedIndices.toArray(new String[allClosedIndices.size()]);
 
             return new MetaData(clusterUUID, clusterUUIDCommitted, version, coordinationMetaData, transientSettings, persistentSettings,
-                    indices.build(), templates.build(), customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray,
+                    indices, templates.build(), customs.build(), allIndicesArray, allOpenIndicesArray, allClosedIndicesArray,
                     aliasAndIndexLookup);
         }
 
-        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup() {
-            SortedMap<String, AliasOrIndex> aliasAndIndexLookup = new TreeMap<>();
-            for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
-                IndexMetaData indexMetaData = cursor.value;
-                AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(), new AliasOrIndex.Index(indexMetaData));
-                assert existing == null : "duplicate for " + indexMetaData.getIndex();
+        private SortedMap<String, AliasOrIndex> buildAliasAndIndexLookup(final ImmutableOpenMap<String, IndexMetaData> indices) {
+            SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
+            if(!indices.equals(previousIndices)) {
+                aliasAndIndexLookup = new TreeMap<>();
+                for (ObjectCursor<IndexMetaData> cursor : indices.values()) {
+                    IndexMetaData indexMetaData = cursor.value;
+                    AliasOrIndex existing = aliasAndIndexLookup.put(indexMetaData.getIndex().getName(),
+                        new AliasOrIndex.Index(indexMetaData));
+                    assert existing == null : "duplicate for " + indexMetaData.getIndex();
 
-                for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
-                    AliasMetaData aliasMetaData = aliasCursor.value;
-                    aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
-                        if (alias == null) {
-                            return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
-                        } else {
-                            assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
-                            ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
-                            return alias;
-                        }
-                    });
+                    for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
+                        AliasMetaData aliasMetaData = aliasCursor.value;
+                        aliasAndIndexLookup.compute(aliasMetaData.getAlias(), (aliasName, alias) -> {
+                            if (alias == null) {
+                                return new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
+                            } else {
+                                assert alias instanceof AliasOrIndex.Alias : alias.getClass().getName();
+                                ((AliasOrIndex.Alias) alias).addIndex(indexMetaData);
+                                return alias;
+                            }
+                        });
+                    }
                 }
+                aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
+                    .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex());
+            } else {
+                aliasAndIndexLookup = previousAliasAndIndexLookup;
             }
-            aliasAndIndexLookup.values().stream().filter(AliasOrIndex::isAlias)
-                .forEach(alias -> ((AliasOrIndex.Alias) alias).computeAndValidateWriteIndex());
             return aliasAndIndexLookup;
         }
 

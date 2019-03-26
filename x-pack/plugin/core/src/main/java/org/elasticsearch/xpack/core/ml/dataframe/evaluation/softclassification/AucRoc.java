@@ -154,7 +154,7 @@ public class AucRoc implements SoftClassificationMetric {
 
     private static double[] percentilesArray(Percentiles percentiles) {
         double[] result = new double[99];
-        percentiles.iterator().forEachRemaining(percentile -> result[((int) percentile.getPercent()) - 1] = percentile.getValue());
+        percentiles.forEach(percentile -> result[((int) percentile.getPercent()) - 1] = percentile.getValue());
         return result;
     }
 
@@ -162,13 +162,8 @@ public class AucRoc implements SoftClassificationMetric {
      * Visible for testing
      */
     static List<AucRocPoint> buildAucRocCurve(double[] tpPercentiles, double[] fpPercentiles) {
-        if (tpPercentiles.length != fpPercentiles.length) {
-            throw new IllegalArgumentException("True positive percentiles length [" + tpPercentiles.length
-                + "] does not match false positive percentiles length [" + fpPercentiles.length + "]");
-        }
-        if (tpPercentiles.length != 99) {
-            throw new IllegalArgumentException("expected 99 percentiles; got [" + tpPercentiles.length + "]");
-        }
+        assert tpPercentiles.length == fpPercentiles.length;
+        assert tpPercentiles.length == 99;
 
         List<AucRocPoint> aucRocCurve = new ArrayList<>();
         aucRocCurve.add(new AucRocPoint(0.0, 0.0, 1.0));

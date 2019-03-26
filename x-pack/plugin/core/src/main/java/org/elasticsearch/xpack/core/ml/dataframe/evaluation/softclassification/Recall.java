@@ -71,7 +71,7 @@ public class Recall extends AbstractConfusionMatrixMetric {
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (ClassInfo classInfo: classInfos) {
             aggs.add(AggregationBuilders.filter(tpAggName(classInfo, threshold), buildTpQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(fnAggName(classInfo, threshold),buildFnQuery(classInfo, threshold)));
+            aggs.add(AggregationBuilders.filter(fnAggName(classInfo, threshold), buildFnQuery(classInfo, threshold)));
         }
         return aggs;
     }

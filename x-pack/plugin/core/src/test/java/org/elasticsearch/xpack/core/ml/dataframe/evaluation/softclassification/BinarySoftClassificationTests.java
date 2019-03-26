@@ -74,6 +74,6 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
     public void testConstructor_GivenEmptyMetrics() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new BinarySoftClassification("foo", "bar", Collections.emptyList()));
-        assertThat(e.getMessage(), equalTo("[binary_soft_classification] expects 1 or more metrics"));
+        assertThat(e.getMessage(), equalTo("[binary_soft_classification] must have one or more metrics"));
     }
 }

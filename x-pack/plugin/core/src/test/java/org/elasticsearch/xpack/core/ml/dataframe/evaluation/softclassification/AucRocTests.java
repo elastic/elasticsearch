@@ -38,20 +38,6 @@ public class AucRocTests extends AbstractSerializingTestCase<AucRoc> {
         return new AucRoc(randomBoolean() ? randomBoolean() : null);
     }
 
-    public void testBuildAucRocCurve_GivenPercentilesOfDifferentLength() {
-        double[] tpPercentiles = new double[1];
-        double[] fpPercentiles = new double[2];
-
-        expectThrows(IllegalArgumentException.class, () -> AucRoc.buildAucRocCurve(tpPercentiles, fpPercentiles));
-    }
-
-    public void testBuildAucRocCurve_GivenPercentilesOfUnexpectedLength() {
-        double[] tpPercentiles = new double[100];
-        double[] fpPercentiles = new double[100];
-
-        expectThrows(IllegalArgumentException.class, () -> AucRoc.buildAucRocCurve(tpPercentiles, fpPercentiles));
-    }
-
     public void testCalculateAucScore_GivenZeroPercentiles() {
         double[] tpPercentiles = zeroPercentiles();
         double[] fpPercentiles = zeroPercentiles();

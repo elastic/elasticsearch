@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -55,6 +56,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
     private final Auditor<DataFrameAuditMessage> auditor;
+    private final DataFrameIndexerTransformStats previousStats;
 
     // the generation of this data frame, for v1 there will be only
     // 0: data frame not created or still indexing
@@ -94,6 +96,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
             new AtomicReference<>(initialState), initialPosition, client, auditor);
         this.generation = new AtomicReference<Long>(initialGeneration);
+        this.previousStats = new DataFrameIndexerTransformStats(transform.getId());
     }
 
     public String getTransformId() {
@@ -112,8 +115,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return new DataFrameTransformState(indexer.getState(), indexer.getPosition(), generation.get());
     }
 
+    void initializePreviousStats(DataFrameIndexerTransformStats stats) {
+        previousStats.merge(stats);
+    }
+
     public DataFrameIndexerTransformStats getStats() {
-        return indexer.getStats();
+        return new DataFrameIndexerTransformStats(previousStats).merge(indexer.getStats());
     }
 
     public long getGeneration() {
@@ -239,6 +246,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
         private final Auditor<DataFrameAuditMessage> auditor;
+        private volatile DataFrameIndexerTransformStats previouslyPersistedStats = null;
         private Map<String, String> fieldMappings = null;
 
         private DataFrameTransformConfig transformConfig = null;
@@ -247,7 +255,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                       DataFrameTransformsCheckpointService transformsCheckpointService,
                                       AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client,
                                       Auditor<DataFrameAuditMessage> auditor) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition);
+            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition,
+                new DataFrameIndexerTransformStats(transformId));
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
             this.transformsCheckpointService = transformsCheckpointService;
@@ -349,10 +358,39 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             final DataFrameTransformState state = new DataFrameTransformState(indexerState, getPosition(), generation.get());
             logger.info("Updating persistent state of transform [" + transform.getId() + "] to [" + state.toString() + "]");
 
-            updatePersistentTaskState(state, ActionListener.wrap(task -> next.run(), exc -> {
-                logger.error("Updating persistent state of transform [" + transform.getId() + "] failed", exc);
-                next.run();
-            }));
+            // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
+            // only every-so-often when doing the bulk indexing calls
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
+                task -> {
+                    // Make a copy of the previousStats so that they the stats are not constantly updated when `merge` is called
+                    // as `merge` mutates the calling class. See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
+                    DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats);
+                    // Only persist the stats if something has actually changed, the IndexerState could potentially fluctuate
+                    // while nothing new has actually occurred
+                    if (previouslyPersistedStats == null || previouslyPersistedStats.equals(tempStats) == false) {
+                        transformsConfigManager.putOrUpdateTransformStats(tempStats.merge(getStats()),
+                            ActionListener.wrap(
+                                r -> {
+                                    previouslyPersistedStats = tempStats;
+                                    next.run();
+                                },
+                                statsExc -> {
+                                    logger.error("Updating stats of trasform [" + transform.getId() + "] failed", statsExc);
+                                    next.run();
+                                }
+                            ));
+                    // The stats that we have previously written to the doc is the same as as it is now, no need to update it
+                    } else {
+                        next.run();
+                    }
+                },
+                exc -> {
+                    logger.error("Updating persistent state of transform [" + transform.getId() + "] failed", exc);
+                    next.run();
+                }
+            );
+
+            updatePersistentTaskState(state, updateClusterStateListener);
         }
 
         @Override

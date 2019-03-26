@@ -17,9 +17,13 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,18 +33,26 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
@@ -173,6 +185,77 @@ public class DataFrameTransformsConfigManager {
     }
 
     /**
+     * Given some expression, queries our internal index for the transform Ids that match the expression.
+     * <p>
+     * They sorted in ascending order
+     *
+     * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
+     * @param pageParams             The paging params
+     * @param foundIdsListener       The listener on signal on success or failure
+     */
+    public void expandTransformIds(String transformIdsExpression, PageParams pageParams, ActionListener<List<String>> foundIdsListener) {
+        String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
+
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME));
+        if (Strings.isAllOrWildcard(idTokens) == false) {
+            List<String> terms = new ArrayList<>();
+            BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
+            for (String token : idTokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    shouldQueries.should(QueryBuilders.wildcardQuery(DataFrameField.ID.getPreferredName(), token));
+                } else {
+                    terms.add(token);
+                }
+            }
+            if (terms.isEmpty() == false) {
+                shouldQueries.should(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), terms));
+            }
+
+            if (shouldQueries.should().isEmpty() == false) {
+                queryBuilder.filter(shouldQueries);
+            }
+        }
+        SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+            .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
+            .setFrom(pageParams.getFrom())
+            .setSize(pageParams.getSize())
+            .setQuery(QueryBuilders.constantScoreQuery(queryBuilder))
+            .setFetchSource(DataFrameField.ID.getPreferredName(), "").request();
+
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, true);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
+            ActionListener.<SearchResponse>wrap(
+                searchResponse -> {
+                    List<String> ids = new ArrayList<>(searchResponse.getHits().getHits().length);
+                    for (SearchHit hit : searchResponse.getHits().getHits()) {
+                        BytesReference source = hit.getSourceRef();
+                        try (InputStream stream = source.streamInput();
+                             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+                                 LoggingDeprecationHandler.INSTANCE, stream)) {
+                            ids.add((String) parser.map().get(DataFrameField.ID.getPreferredName()));
+                        } catch (IOException e) {
+                            foundIdsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
+                            return;
+                        }
+                    }
+                    requiredMatches.filterMatchedIds(ids);
+                    if (requiredMatches.hasUnmatchedIds()) {
+                        // some required Ids were not found
+                        foundIdsListener.onFailure(
+                            new ResourceNotFoundException(
+                                DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM,
+                                    requiredMatches.unmatchedIdsString())));
+                        return;
+                    }
+                    foundIdsListener.onResponse(ids);
+                },
+                foundIdsListener::onFailure
+            ), client::search);
+    }
+
+    /**
      * This deletes the configuration and all other documents corresponding to the transform id (e.g. checkpoints).
      *
      * @param transformId the transform id
@@ -202,6 +285,58 @@ public class DataFrameTransformsConfigManager {
                         DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
             } else {
                 listener.onFailure(e);
+            }
+        }));
+    }
+
+    public void putOrUpdateTransformStats(DataFrameIndexerTransformStats stats, ActionListener<Boolean> listener) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+
+            IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(DataFrameIndexerTransformStats.documentId(stats.getTransformId()))
+                .source(source);
+
+            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                r -> listener.onResponse(true),
+                e -> listener.onFailure(new RuntimeException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                    e))
+            ));
+        } catch (IOException e) {
+            // not expected to happen but for the sake of completeness
+            listener.onFailure(new ElasticsearchParseException(
+                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                e));
+        }
+    }
+
+    public void getTransformStats(String transformId, ActionListener<DataFrameIndexerTransformStats> resultListener) {
+        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameIndexerTransformStats.documentId(transformId));
+        executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+
+            if (getResponse.isExists() == false) {
+                resultListener.onFailure(new ResourceNotFoundException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
+                return;
+            }
+            BytesReference source = getResponse.getSourceAsBytesRef();
+            try (InputStream stream = source.streamInput();
+                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                resultListener.onResponse(DataFrameIndexerTransformStats.fromXContent(parser));
+            } catch (Exception e) {
+                logger.error(
+                    DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION, transformId), e);
+                resultListener.onFailure(e);
+            }
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                resultListener.onFailure(new ResourceNotFoundException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
+            } else {
+                resultListener.onFailure(e);
             }
         }));
     }

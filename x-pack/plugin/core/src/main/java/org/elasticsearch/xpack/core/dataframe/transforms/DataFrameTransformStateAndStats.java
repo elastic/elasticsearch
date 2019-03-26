@@ -40,9 +40,13 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
+        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
         return new DataFrameTransformStateAndStats(id,
             new DataFrameTransformState(IndexerState.STOPPED, null, 0),
-            new DataFrameIndexerTransformStats());
+            indexerTransformStats);
     }
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {

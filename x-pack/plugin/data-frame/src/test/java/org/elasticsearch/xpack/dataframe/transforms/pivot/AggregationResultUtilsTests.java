@@ -408,7 +408,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     private void executeTest(GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders, Map<String, Object> input,
             Map<String, String> fieldTypeMap, List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats("test-transform");
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 

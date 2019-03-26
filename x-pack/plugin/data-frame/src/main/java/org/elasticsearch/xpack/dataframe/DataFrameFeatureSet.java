@@ -69,8 +69,10 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled == false) {
-            listener.onResponse(
-                    new DataFrameFeatureSetUsage(available(), enabled(), Collections.emptyMap(), new DataFrameIndexerTransformStats()));
+            listener.onResponse(new DataFrameFeatureSetUsage(available(),
+                enabled(),
+                Collections.emptyMap(),
+                DataFrameIndexerTransformStats.withNullTransformId()));
             return;
         }
 
@@ -87,7 +89,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                                                 List<DataFrameTransformStateAndStats> transformsStateAndStats) {
 
         Map<String, Long> transformsCountByState = new HashMap<>();
-        DataFrameIndexerTransformStats accumulatedStats = new DataFrameIndexerTransformStats();
+        DataFrameIndexerTransformStats accumulatedStats = DataFrameIndexerTransformStats.withNullTransformId();
         transformsStateAndStats.forEach(singleResult -> {
             transformsCountByState.merge(singleResult.getTransformState().getIndexerState().value(), 1L, Long::sum);
             accumulatedStats.merge(singleResult.getTransformStats());

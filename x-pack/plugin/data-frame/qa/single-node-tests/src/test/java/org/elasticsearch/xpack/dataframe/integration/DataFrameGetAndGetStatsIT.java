@@ -60,6 +60,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // check all the different ways to retrieve all stats
         Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        System.out.println("GOT STATS: " + stats);
         assertEquals(2, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_all/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));

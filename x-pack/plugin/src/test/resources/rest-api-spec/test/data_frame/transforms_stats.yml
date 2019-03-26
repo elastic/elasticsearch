@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: airline-data
@@ -29,6 +31,40 @@ setup:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-stats"
 
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-stats-with-doc"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-stats-with-doc" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .data-frame-internal-1
+        id: data_frame_indexer_transform_stats-airline-transform-stats-with-doc
+        body: >
+          {
+            "id": "airline-transform-stats-with-doc",
+            "doc_type": "data_frame_indexer_transform_stats",
+            "pages_processed" : 2,
+            "documents_processed" : 1000,
+            "documents_indexed" : 250,
+            "trigger_count" : 1,
+            "index_time_in_ms" : 200,
+            "index_total" : 250,
+            "index_failures" : 0,
+            "search_time_in_ms" : 57,
+            "search_total" : 2,
+            "search_failures" : 0
+          }
+
 ---
 teardown:
   - do:
@@ -38,6 +74,10 @@ teardown:
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stats"
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-stats-with-doc"
 
 ---
 "Test get transform stats":
@@ -87,16 +127,18 @@ teardown:
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "*"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.2.id: "airline-transform-stats-with-doc" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "_all"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
+  - match: { transforms.2.id: "airline-transform-stats-with-doc" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -119,53 +161,74 @@ teardown:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "*"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.0.state.transform_state: "started" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.transform_state: "stopped" }
+  - match: { transforms.2.id: "airline-transform-stats-with-doc" }
+  - match: { transforms.2.state.transform_state: "stopped" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "_all"
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.0.state.transform_state: "started" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
   - match: { transforms.1.state.transform_state: "stopped" }
+  - match: { transforms.2.id: "airline-transform-stats-with-doc" }
+  - match: { transforms.2.state.transform_state: "stopped" }
 
----
-"Test get single transform stats when it does not have a task":
-
-  - do:
-      data_frame.put_data_frame_transform:
-        transform_id: "airline-transform-stats-dos"
-        body: >
-          {
-            "source": { "index": "airline-data" },
-            "dest": { "index": "airline-data-by-airline-stats-dos" },
-            "pivot": {
-              "group_by": { "airline": {"terms": {"field": "airline"}}},
-              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
-            }
-          }
   - do:
       data_frame.get_data_frame_transform_stats:
-        transform_id: "airline-transform-stats-dos"
+        transform_id: "airline-transform-stats-with*,airline-transform-stats"
+  - match: { count: 2 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.1.id: "airline-transform-stats-with-doc" }
+  - match: { transforms.1.state.transform_state: "stopped" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "*"
+        size: 1
+        from: 0
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats" }
+  - match: { transforms.0.state.transform_state: "started" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "*"
+        size: 2
+        from: 1
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.1.id: "airline-transform-stats-with-doc" }
+  - match: { transforms.1.state.transform_state: "stopped" }
+
+---
+"Test get single transform stats when it does not have a task but has stats":
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-stats-with-doc"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-stats-with-doc" }
+  - match: { transforms.0.state.transform_state: "stopped" }
   - match: { transforms.0.state.generation: 0 }
-  - match: { transforms.0.stats.pages_processed: 0 }
-  - match: { transforms.0.stats.documents_processed: 0 }
-  - match: { transforms.0.stats.documents_indexed: 0 }
-  - match: { transforms.0.stats.trigger_count: 0 }
-  - match: { transforms.0.stats.index_time_in_ms: 0 }
-  - match: { transforms.0.stats.index_total: 0 }
+  - match: { transforms.0.stats.pages_processed: 2 }
+  - match: { transforms.0.stats.documents_processed: 100 }
+  - match: { transforms.0.stats.documents_indexed: 250 }
+  - match: { transforms.0.stats.trigger_count: 1 }
+  - match: { transforms.0.stats.index_time_in_ms: 200 }
+  - match: { transforms.0.stats.index_total: 250 }
   - match: { transforms.0.stats.index_failures: 0 }
-  - match: { transforms.0.stats.search_time_in_ms: 0 }
-  - match: { transforms.0.stats.search_total: 0 }
+  - match: { transforms.0.stats.search_time_in_ms: 57 }
+  - match: { transforms.0.stats.search_total: 2 }
   - match: { transforms.0.stats.search_failures: 0 }

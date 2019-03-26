@@ -81,7 +81,7 @@ public class TransportPreviewDataFrameTransformAction extends
                     ActionListener.wrap(
                         r -> {
                             final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                            DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+                            DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withNullTransformId();
                             listener.onResponse(pivot.extractResults(agg, deducedMappings, stats).collect(Collectors.toList()));
                         },
                         listener::onFailure

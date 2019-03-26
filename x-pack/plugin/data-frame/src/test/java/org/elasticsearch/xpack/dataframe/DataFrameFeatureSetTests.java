@@ -118,7 +118,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
                 stateCounts.forEach((k, v) -> assertEquals(v, XContentMapValues.extractValue("transforms." + k, usageAsMap)));
 
                 // use default constructed stats object for assertions if transformsStateAndStats is empty
-                DataFrameIndexerTransformStats combinedStats = new DataFrameIndexerTransformStats();
+                DataFrameIndexerTransformStats combinedStats = DataFrameIndexerTransformStats.withNullTransformId();
                 if (transformsStateAndStats.isEmpty() == false) {
                     combinedStats = transformsStateAndStats.stream().map(x -> x.getTransformStats()).reduce((l, r) -> l.merge(r)).get();
                 }

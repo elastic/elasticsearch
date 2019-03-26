@@ -16,12 +16,29 @@ testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpCertificate(type: Copy) {
-    from idpFixtureProject.file('idp/shibboleth-idp/credentials/idp-browser.pem');
+task copyIdpFiles(type: Copy) {
+    from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml');
     into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
-integTestCluster.dependsOn copyIdpCertificate
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
+
+task setupPorts {
+    dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+    doLast {
+        String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
+        int ephemeralPort = Integer.valueOf(portString)
+        File idpMetaFile = file(outputDir + '/idp-metadata.xml')
+        List<String> lines = idpMetaFile.readLines("UTF-8")
+        StringBuilder content = new StringBuilder()
+        for (String line : lines) {
+            content.append(line.replace("localhost:4443", "localhost:" + ephemeralPort))
+        }
+        idpMetaFile.delete()
+        idpMetaFile.createNewFile()
+        idpMetaFile.write(content.toString(), "UTF-8")
+    }
+}
+integTestCluster.dependsOn setupPorts
 
 integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
@@ -51,8 +68,9 @@ integTestCluster {
   setting 'xpack.security.authc.realms.native.native.order', '3'
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
-  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("idp/shibboleth-idp/metadata/idp-metadata.xml")
+  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
 
   setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"

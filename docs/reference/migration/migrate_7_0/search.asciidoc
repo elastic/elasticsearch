@@ -3,7 +3,6 @@
 === Search and Query DSL changes
 
 [float]
-//tag::notable-breaking-changes[]
 ==== Off-heap terms index
 
 The terms dictionary is the part of the inverted index that records all terms
@@ -27,7 +26,6 @@ requests if both below conditions are met:
 
 This change affects both existing indices created with Elasticsearch 6.x and new
 indices created with Elasticsearch 7.x.
-//end::notable-breaking-changes[]
 
 [float]
 ==== Changes to queries

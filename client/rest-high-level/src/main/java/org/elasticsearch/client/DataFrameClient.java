@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -78,6 +80,46 @@ public final class DataFrameClient {
                 DataFrameRequestConverters::putDataFrameTransform,
                 options,
                 AcknowledgedResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Get the running statistics of a Data Frame Transform
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Get Data Frame transform stats documentation</a>
+     *
+     * @param request Specifies the which transforms to get the stats for
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The Data Frame Transform stats
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetDataFrameTransformStatsResponse getDataFrameTransformStats(GetDataFrameTransformStatsRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                DataFrameRequestConverters::getDataFrameTransformStats,
+                options,
+                GetDataFrameTransformStatsResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Get the running statistics of a Data Frame Transform asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Get Data Frame transform stats documentation</a>
+     *
+     * @param request Specifies the which transforms to get the stats for
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameTransformStatsAsync(GetDataFrameTransformStatsRequest request, RequestOptions options,
+                                           ActionListener<GetDataFrameTransformStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                DataFrameRequestConverters::getDataFrameTransformStats,
+                options,
+                GetDataFrameTransformStatsResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

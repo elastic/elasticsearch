@@ -68,6 +68,7 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    public static final int CLEAN_WORKDIR_RETRIES = 3;
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
@@ -209,10 +210,6 @@ public class ElasticsearchNode {
         if (Files.isDirectory(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
         }
-        services.sync(spec -> {
-            spec.from(distroArtifact);
-            spec.into(workingDir);
-        });
 
         try {
             createWorkingDir(distroArtifact);
@@ -397,15 +394,55 @@ public class ElasticsearchNode {
     }
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
-        services.sync(spec -> {
-            spec.from(distroExtractDir.toFile());
-            spec.into(workingDir.toFile());
-        });
+        syncWithLinks(distroExtractDir, workingDir);
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
         Files.createDirectories(confPathLogs);
         Files.createDirectories(tmpDir);
+    }
+
+    /**
+     * Does the equivalent of `cp -lr` and `chmod -r a-w` to save space and improve speed.
+     * We remove write permissions to make sure files are note mistakenly edited ( e.x. the config file ) and changes
+     * reflected across all copies. Permissions are retained to be able to replace the links.
+     *
+     * @param sourceRoot where to copy from
+     * @param destinationRoot destination to link to
+     */
+    private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
+        if (Files.exists(destinationRoot)) {
+            services.delete(destinationRoot);
+        }
+
+        try (Stream<Path> stream = Files.walk(sourceRoot)) {
+            stream.forEach(source -> {
+                Path destination = destinationRoot.resolve(sourceRoot.relativize(source));
+                if (Files.isDirectory(source)) {
+                    try {
+                        Files.createDirectories(destination);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    }
+                } else {
+                    try {
+                        Files.createDirectories(destination.getParent());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
+                    }
+                    try {
+                        Files.createLink(destination, source);
+                    } catch (IOException e) {
+                        // Note does not work for network drives, e.g. Vagrant
+                        throw new UncheckedIOException(
+                            "Failed to create hard link " + destination + " pointing to " + source, e
+                        );
+                    }
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
+        }
     }
 
     private void createConfiguration()  {
@@ -434,6 +471,9 @@ public class ElasticsearchNode {
             config.put("cluster.initial_master_nodes", "[" + nodeName + "]");
         }
         try {
+            // We create hard links  for the distribution, so we need to remove the config file before writing it
+            // to prevent the changes to reflect across all copies.
+            Files.delete(configFile);
             Files.write(
                 configFile,
                 config.entrySet().stream()

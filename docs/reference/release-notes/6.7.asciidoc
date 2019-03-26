@@ -289,7 +289,6 @@ License::
 Machine Learning::
 * Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
 * Move ML Optimistic Concurrency Control to Seq No {pull}38278[#38278] (issues: {issue}10708[#10708], {issue}36148[#36148])
-* Add explanation so far to file structure finder exceptions {pull}38191[#38191]
 * Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
 * Tighten up use of aliases rather than concrete indices {pull}37874[#37874]
 * Add support for single bucket aggs in Datafeeds {pull}37544[#37544] (issue: {issue}36838[#36838])

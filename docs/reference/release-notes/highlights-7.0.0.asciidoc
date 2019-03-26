@@ -16,100 +16,100 @@ See also <<breaking-changes-7.0,Breaking changes>> and
 === Adaptive replica selection enabled by default
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Skip shard refreshes if a shard is "search idle"
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Default to one shard
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Lucene 8
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Introduce the ability to minimize round-trips in {ccs}
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === New cluster coordination implementation
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Real memory circuit breaker
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === {ccr} is production-ready
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === {ilm} is production-ready
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === {sql} is production-ready
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === High-level REST client is feature-complete
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Support nanosecond timestamps
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Faster retrieval of top hits
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Support for TLS 1.3
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Bundle JDK in Elasticsearch distribution
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Removal of types
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 === Rank feature fields
 
 Words.
-/end::notable-highlights[]
+//end::notable-highlights[]

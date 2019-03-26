@@ -68,7 +68,6 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    public static final int CLEAN_WORKDIR_RETRIES = 3;
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();

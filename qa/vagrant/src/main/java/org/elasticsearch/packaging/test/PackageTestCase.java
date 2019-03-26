@@ -94,7 +94,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout.trim();
-            assertThat(isEnabledOutput,equalTo("disabled"));
+            assertThat(isEnabledOutput, equalTo("disabled"));
         }
     }
 
@@ -143,9 +143,18 @@ public abstract class PackageTestCase extends PackagingTestCase {
     }
 
     public void test40StartServer() throws IOException {
+        String start = sh.runIgnoreExitCode("date ").stdout.trim();
         assumeThat(installation, is(notNullValue()));
 
         startElasticsearch(sh);
+
+        String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
+            "--since \"" + start + "\" --output cat | wc -l").stdout.trim();
+        assertThat(journalEntries, equalTo("0"));
+
+        assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
+        assertPathsExist(installation.logs.resolve("elasticsearch.json"));
+
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
     }

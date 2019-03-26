@@ -39,6 +39,7 @@ import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -466,13 +467,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // tag::get-data-frame-transform-stats-response
             DataFrameTransformStateAndStats stateAndStats =
                     response.getTransformsStateAndStats().get(0);   // <1>
+            DataFrameTransformTaskState taskState =
+                stateAndStats.getTransformState().getTaskState(); // <2>
             IndexerState indexerState =
-                    stateAndStats.getTransformState().getIndexerState();  // <2>
+                    stateAndStats.getTransformState().getIndexerState();  // <3>
             DataFrameIndexerTransformStats transformStats =
-                    stateAndStats.getTransformStats();              // <3>
+                    stateAndStats.getTransformStats();              // <4>
             // end::get-data-frame-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);
+            assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
             assertNotNull(transformStats);
         }
         {

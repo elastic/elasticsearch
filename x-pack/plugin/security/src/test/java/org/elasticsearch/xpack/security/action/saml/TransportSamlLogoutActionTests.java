@@ -239,7 +239,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                 new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
 
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, tokenMetaData, true);
+        tokenService.createOAuth2Tokens(authentication, authentication, tokenMetaData, true, future);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, false, client);
         final String tokenString = tokenService.getAccessTokenAsString(userToken);

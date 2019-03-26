@@ -85,7 +85,7 @@ Words.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-=== Disabling hit counts by default
+=== Faster retrieval of top hits
 
 Words.
 // end::notable-highlights[]

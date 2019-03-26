@@ -11,6 +11,7 @@ your application to Elasticsearch 6.7.
 * <<breaking_67_plugin_changes>>
 * <<breaking_67_settings_changes>>
 * <<breaking_67_api_changes>>
+* <<breaking_67_security_changes>>
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
@@ -94,3 +95,19 @@ backwards compatibility flag via the system property
 `-Des.cluster_state.size=true` which will return to the previous 6.0.0--6.6.2
 behavior.  Computing this metric and displaying this field will be completely
 removed in 7.0.0, and using this backwards compatibility flag will fail.
+
+[float]
+[[breaking_67_security_changes]]
+=== Security changes
+
+[float]
+==== Removed support for pre v6.2 tokens
+
+The token service no longer accepts tokens that were generated on an {es} version
+earlier than 6.2.0
+
+No applications in the {stack} made use of {es} tokens prior to 6.2.0, so this
+change does not affect access to {kib} or any official {es} clients.
+If you have an application that uses {es} tokens, and a token from 6.1 or earlier
+is presented for authentication, {es} will reject the token with a `401` status code.
+

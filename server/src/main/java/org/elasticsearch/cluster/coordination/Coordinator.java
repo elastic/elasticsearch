@@ -62,9 +62,10 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
+import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
-import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
@@ -1013,20 +1014,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(new Runnable() {
-                    @Override
-                    public void run() {
-                        synchronized (mutex) {
-                            publication.cancel("timed out after " + publishTimeout);
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "scheduled timeout for " + publication;
-                    }
-                }, publishTimeout, Names.GENERIC);
-
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
@@ -1194,6 +1181,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
         private final PublicationTransportHandler.PublicationContext publicationContext;
+        private final Scheduler.ScheduledCancellable scheduledCancellable;
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
@@ -1234,6 +1222,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
+            this.scheduledCancellable = transportService.getThreadPool().schedule(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (mutex) {
+                        cancel("timed out after " + publishTimeout);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "scheduled timeout for " + this;
+                }
+            }, publishTimeout, Names.GENERIC);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1275,6 +1276,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
+                                scheduledCancellable.cancel();
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
                             }
@@ -1304,6 +1306,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
                                 }
+                                scheduledCancellable.cancel();
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -1314,6 +1317,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 public void onFailure(Exception e) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
+                    scheduledCancellable.cancel();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.

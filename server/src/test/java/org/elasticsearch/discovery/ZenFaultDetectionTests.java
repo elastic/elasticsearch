@@ -43,7 +43,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportMessageListener;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
@@ -291,8 +294,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
         PingProbe pingProbeA = new PingProbe(minExpectedPings);
         PingProbe pingProbeB = new PingProbe(minExpectedPings);
 
-        serviceA.addTracer(pingProbeA);
-        serviceB.addTracer(pingProbeB);
+        serviceA.addMessageListener(pingProbeA);
+        serviceB.addMessageListener(pingProbeB);
 
         MasterFaultDetection masterFDNodeA = new MasterFaultDetection(Settings.builder().put(settingsA).put(settings).build(),
             threadPool, serviceA, clusterStateSupplierA::get, null, clusterName);
@@ -321,7 +324,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                 "release! See the breaking changes documentation for the next major version.");
     }
 
-    private static class PingProbe extends MockTransportService.Tracer {
+    private static class PingProbe implements TransportMessageListener {
         private final Set<Tuple<DiscoveryNode, Long>> inflightPings = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final Set<Tuple<DiscoveryNode, Long>> completedPings = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final CountDownLatch waitForPings;
@@ -331,16 +334,17 @@ public class ZenFaultDetectionTests extends ESTestCase {
         }
 
         @Override
-        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+        public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                  TransportRequestOptions options) {
             if (MasterFaultDetection.MASTER_PING_ACTION_NAME.equals(action)) {
                 inflightPings.add(Tuple.tuple(node, requestId));
             }
         }
 
         @Override
-        public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
-            if (MasterFaultDetection.MASTER_PING_ACTION_NAME.equals(action)) {
-                Tuple<DiscoveryNode, Long> ping = Tuple.tuple(sourceNode, requestId);
+        public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+            if (MasterFaultDetection.MASTER_PING_ACTION_NAME.equals(context.action())) {
+                Tuple<DiscoveryNode, Long> ping = Tuple.tuple(context.connection().getNode(), requestId);
                 if (inflightPings.remove(ping)) {
                     completedPings.add(ping);
                     waitForPings.countDown();

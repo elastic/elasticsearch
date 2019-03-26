@@ -52,7 +52,6 @@ indices created with Elasticsearch 7.x.
 *   Attempts to set `boost` on inner span queries will now throw a parsing exception.
 
 [float]
-//tag::notable-breaking-changes[]
 ==== Adaptive replica selection enabled by default
 
 Adaptive replica selection has been enabled by default. If you wish to return to
@@ -69,7 +68,6 @@ PUT /_cluster/settings
 }
 --------------------------------------------------
 // CONSOLE
-//end::notable-breaking-changes[]
 
 [float]
 ==== Search API returns `400` for invalid requests

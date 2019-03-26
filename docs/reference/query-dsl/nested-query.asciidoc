@@ -1,12 +1,10 @@
 [[query-dsl-nested-query]]
 === Nested Query
 
-Nested query allows to query nested objects / docs (see
-<<nested,nested mapping>>). The
-query is executed against the nested objects / docs as if they were
-indexed as separate docs (they are, internally) and resulting in the
-root parent doc (or parent nested mapping). Here is a sample mapping we
-will work with:
+A nested query allows you to query nested objects / docs (see
+<<nested,nested mapping>>), executing against each object as a separate doc. This offers the ability to query each object independently while maintaining the relationship between fields in a record, for example, a user's first name, last name, and address.
+
+Here is a sample mapping we will work with:
 
 [source,js]
 --------------------------------------------------
@@ -55,16 +53,44 @@ direct path, and joining with the root parent docs. Note that any
 fields referenced inside the query must use the complete path (fully
 qualified).
 
-The `score_mode` allows to set how inner children matching affects
+The `score_mode` allows you to set how inner children matching affects
 scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
 `max` and `none`.
 
-There is also an `ignore_unmapped` option which, when set to `true` will
+There is also an `ignore_unmapped` option, which when set to `true` will
 ignore an unmapped `path` and will not match any documents for this query.
 This can be useful when querying multiple indexes which might have different
 mappings. When set to `false` (the default value) the query will throw an
 exception if the `path` is not mapped.
 
-Multi level nesting is automatically supported, and detected, resulting
-in an inner nested query to automatically match the relevant nesting
+==== Multi-level nesting
+
+Multi-level nesting is automatically supported and detected, resulting
+in an inner nested query that automatically matches the relevant nesting
 level (and not root) if it exists within another nested query.
+
+To set up a multi-level nested query, use this example. Notice that each level within the nest is separated by a dot (name.state.city).
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "nested": {
+            "path": "name",
+            "query": {
+                "nested" : {
+                    "path" :  "name.state",
+                    "query" :  {
+                       "match": {
+                           "name.state.city": "Atlanta"
+                        }
+                    }
+                }
+            },
+            "inner_hits": {}
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

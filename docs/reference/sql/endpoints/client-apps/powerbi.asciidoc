@@ -9,6 +9,8 @@ https://powerbi.microsoft.com/en-us/desktop/[Power BI] is a business analytics s
 insights across your organization, or embed them in your app or website.
 ____
 
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
 ==== Prerequisites
 
 * Microsoft Power BI Desktop 2.63 or higher

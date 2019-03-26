@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.client.dataframe;
 
-public class BindingTest {
-    public int state;
+import org.elasticsearch.test.ESTestCase;
 
-    public BindingTest(int state0, int state1) {
-        this.state = state0 + state1;
-    }
+import static org.hamcrest.Matchers.containsString;
 
-    public int testAddWithState(int istateless, double dstateless) {
-        return istateless + state + (int)dstateless;
+public class GetDataFrameTransformStatsRequestTests extends ESTestCase {
+    public void testValidate() {
+        assertFalse(new GetDataFrameTransformStatsRequest("valid-id").validate().isPresent());
+        assertThat(new GetDataFrameTransformStatsRequest(null).validate().get().getMessage(),
+                containsString("data frame transform id must not be null"));
     }
 }

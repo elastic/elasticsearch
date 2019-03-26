@@ -36,7 +36,7 @@ include::synced-flush.asciidoc[]
 
 --
 
-. *Stop any machine learning jobs that are running.*
+. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
 include::close-ml.asciidoc[]

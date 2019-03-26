@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle.action;
+package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -17,8 +17,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,11 +47,11 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
 
         private String[] lifecycleIds;
 
-        Request(String... lifecycleIds) {
+        public Request(String... lifecycleIds) {
             this.lifecycleIds = Objects.requireNonNull(lifecycleIds, "ids may not be null");
         }
 
-        Request() {
+        public Request() {
             this.lifecycleIds = Strings.EMPTY_ARRAY;
         }
 

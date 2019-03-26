@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -391,8 +390,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
                     indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
-                } else if (entry.getValue() instanceof ArrayList) {
-                    indices((ArrayList<String>) entry.getValue());
+                } else if (entry.getValue() instanceof List) {
+                    indices((List<String>) entry.getValue());
                 } else {
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }

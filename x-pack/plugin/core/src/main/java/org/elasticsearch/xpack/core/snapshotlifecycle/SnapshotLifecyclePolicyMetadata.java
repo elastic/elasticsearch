@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle;
+package org.elasticsearch.xpack.core.snapshotlifecycle;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
@@ -57,6 +57,10 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_STRING);
+    }
+
+    public static SnapshotLifecyclePolicyMetadata parse(XContentParser parser, String name) {
+        return PARSER.apply(parser, name);
     }
 
     public SnapshotLifecyclePolicyMetadata(SnapshotLifecyclePolicy policy, Map<String, String> headers, long version, long modifiedDate) {

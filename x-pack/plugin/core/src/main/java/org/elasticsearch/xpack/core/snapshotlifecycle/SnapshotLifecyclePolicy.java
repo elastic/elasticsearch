@@ -4,13 +4,18 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle;
+package org.elasticsearch.xpack.core.snapshotlifecycle;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,6 +26,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,6 +50,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
+    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
+        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
@@ -103,8 +113,29 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return null;
     }
 
+    /**
+     * Since snapshots need to be uniquely named, this method will resolve any date math used in
+     * the provided name, as well as appending a unique identifier so expressions that may overlap
+     * still result in unique snapshot names.
+     */
+    public String generateSnapshotName(Context context) {
+        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(this.name));
+        if (candidates.size() != 1) {
+            throw new IllegalStateException("resolving snapshot name " + this.name + " generated more than one candidate: " + candidates);
+        }
+        // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
+        return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Generate a new create snapshot request from this policy. The name of the snapshot is
+     * generated at this time based on any date math expressions in the "name" field.
+     */
     public CreateSnapshotRequest toRequest() {
-        throw new UnsupportedOperationException("implement me");
+        CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(new ResolverContext()));
+        req.source(configuration);
+        req.waitForCompletion(false);
+        return req;
     }
 
     public static SnapshotLifecyclePolicy parse(XContentParser parser, String id) {
@@ -156,5 +187,30 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    /**
+     * This is a context for the DateMathExpressionResolver, which does not require
+     * {@code IndicesOptions} or {@code ClusterState} since it only uses the start
+     * time to resolve expressions
+     */
+    public static final class ResolverContext extends Context {
+        public ResolverContext() {
+            this(System.currentTimeMillis());
+        }
+
+        public ResolverContext(long startTime) {
+            super(null, null, startTime, false, false);
+        }
+
+        @Override
+        public ClusterState getState() {
+            throw new UnsupportedOperationException("should never be called");
+        }
+
+        @Override
+        public IndicesOptions getOptions() {
+            throw new UnsupportedOperationException("should never be called");
+        }
     }
 }

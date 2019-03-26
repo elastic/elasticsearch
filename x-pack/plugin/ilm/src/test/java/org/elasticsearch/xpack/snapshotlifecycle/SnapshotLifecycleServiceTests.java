@@ -17,6 +17,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 
 import java.util.ArrayList;
@@ -191,7 +194,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         private final Consumer<SchedulerEngine.Event> onTriggered;
 
         FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered) {
-            super(null);
+            super(null, null);
             this.onTriggered = onTriggered;
         }
 
@@ -211,11 +214,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             .build();
     }
 
-    public SnapshotLifecyclePolicy createPolicy(String id) {
+    public static SnapshotLifecyclePolicy createPolicy(String id) {
         return createPolicy(id, randomSchedule());
     }
 
-    public SnapshotLifecyclePolicy createPolicy(String id, String schedule) {
+    public static SnapshotLifecyclePolicy createPolicy(String id, String schedule) {
         Map<String, Object> config = new HashMap<>();
         config.put("ignore_unavailable", randomBoolean());
         List<String> indices = new ArrayList<>();
@@ -225,7 +228,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config);
     }
 
-    private String randomSchedule() {
+    private static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";

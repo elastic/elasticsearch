@@ -80,11 +80,12 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportRemoveIndexLifecyc
 import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
-import org.elasticsearch.xpack.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.snapshotlifecycle.action.GetSnapshotLifecycleAction;
-import org.elasticsearch.xpack.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestPutSnapshotLifecycleAction;
@@ -153,7 +154,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
-            () -> new SnapshotLifecycleTask(client), clusterService, getClock()));
+            () -> new SnapshotLifecycleTask(client, clusterService), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get());
     }
 
@@ -168,6 +169,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             // Custom Metadata
             new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(IndexLifecycleMetadata.TYPE),
                 parser -> IndexLifecycleMetadata.PARSER.parse(parser, null)),
+            new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(SnapshotLifecycleMetadata.TYPE),
+                parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)),
             // Lifecycle Types
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
                 (p, c) -> TimeseriesLifecycleType.INSTANCE),

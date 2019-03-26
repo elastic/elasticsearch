@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.snapshotlifecycle.action;
+package org.elasticsearch.xpack.core.snapshotlifecycle.action;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,12 +45,12 @@ public class PutSnapshotLifecycleAction extends Action<PutSnapshotLifecycleActio
         private String lifecycleId;
         private SnapshotLifecyclePolicy lifecycle;
 
-        Request(String lifecycleId, SnapshotLifecyclePolicy lifecycle) {
+        public Request(String lifecycleId, SnapshotLifecyclePolicy lifecycle) {
             this.lifecycleId = lifecycleId;
             this.lifecycle = lifecycle;
         }
 
-        Request() { }
+        public Request() { }
 
         public String getLifecycleId() {
             return this.lifecycleId;

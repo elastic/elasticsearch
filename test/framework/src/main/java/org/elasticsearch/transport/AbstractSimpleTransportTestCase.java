@@ -34,12 +34,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -47,11 +45,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -63,7 +59,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.MockNioTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -2001,34 +1996,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
-        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-
-        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-            new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
-            new NoneCircuitBreakerService()) {
-            @Override
-            protected void handleRequest(TcpChannel channel, InboundMessage.Request request, int messageLengthBytes)
-                throws IOException {
-                // we flip the isHandshake bit back and act like the handler is not found
-                byte status = (byte) (request.status & ~(1 << 3));
-                Version version = request.getVersion();
-                InboundMessage.Request nonHandshakeRequest = new InboundMessage.Request(request.threadContext, version,
-                    status, request.getRequestId(), request.getActionName(), request.getFeatures(), request.getStreamInput());
-                super.handleRequest(channel, nonHandshakeRequest, messageLengthBytes);
-            }
-        };
-
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, Version.CURRENT, threadPool,
-            null, Collections.emptySet())) {
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            service.addMessageListener(new TransportMessageListener() {
+                @Override
+                public void onRequestReceived(long requestId, String action) {
+                    if (TransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action)) {
+                        throw new ActionNotFoundTransportException(action);
+                    }
+                }
+            });
             service.start();
             service.acceptIncomingRequests();
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertTrue(exception.getCause() instanceof IllegalStateException);
-            assertEquals("handshake failed", exception.getCause().getMessage());
+            assertTrue(exception.getCause() instanceof TransportException);
+            assertEquals("handshake failed because connection reset", exception.getCause().getMessage());
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
@@ -2036,7 +2020,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
                 version0);
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-            originalTransport.openConnection(node, connectionProfile, future);
+            serviceA.getOriginalTransport().openConnection(node, connectionProfile, future);
             try (Transport.Connection connection = future.actionGet()) {
                 assertEquals(connection.getVersion(), Version.CURRENT);
             }

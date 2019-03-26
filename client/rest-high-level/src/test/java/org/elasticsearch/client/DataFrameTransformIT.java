@@ -39,6 +39,7 @@ import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -277,6 +278,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         assertEquals(1, statsResponse.getTransformsStateAndStats().size());
         DataFrameTransformStateAndStats stats = statsResponse.getTransformsStateAndStats().get(0);
+        assertEquals(DataFrameTransformTaskState.STOPPED, stats.getTransformState().getTaskState());
         assertEquals(IndexerState.STOPPED, stats.getTransformState().getIndexerState());
 
         DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
@@ -288,6 +290,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
             DataFrameTransformStateAndStats stateAndStats = response.getTransformsStateAndStats().get(0);
+            assertEquals(DataFrameTransformTaskState.STARTED, stats.getTransformState().getTaskState());
             assertEquals(IndexerState.STARTED, stateAndStats.getTransformState().getIndexerState());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
         });

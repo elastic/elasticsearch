@@ -35,5 +35,6 @@ The returned +{response}+ contains the requested {dataframe-transform} statistic
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The response contains a list of `DataFrameTransformStateAndStats` objects
-<2> The running state of the transform e.g `started`
-<3> The transform progress statistics recording the number of documents indexed etc
+<2> The running state of the transform task e.g `started`
+<3> The running state of the transform indexer e.g `started`, `indexing`, etc.
+<4> The transform progress statistics recording the number of documents indexed etc

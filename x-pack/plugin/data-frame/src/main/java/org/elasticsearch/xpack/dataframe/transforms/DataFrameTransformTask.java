@@ -427,6 +427,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onFailure(Exception exc) {
+            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (exc.getMessage().equals(lastAuditedExceptionMessage) == false) {
                 auditor.warning(transform.getId(), "Data frame transform encountered an exception: " + exc.getMessage());
                 lastAuditedExceptionMessage = exc.getMessage();

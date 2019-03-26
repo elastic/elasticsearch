@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -72,6 +74,27 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         if (randomBoolean()) {
             queryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
         }
+
+        if (randomBoolean()) {
+            queryBuilder.fuzziness(randomFuzziness(fieldName));
+        }
+
+        if (randomBoolean()) {
+            queryBuilder.prefixLength(randomIntBetween(0, 10));
+        }
+
+        if (randomBoolean()) {
+            queryBuilder.maxExpansions(randomIntBetween(1, 1000));
+        }
+
+        if (randomBoolean()) {
+            queryBuilder.fuzzyTranspositions(randomBoolean());
+        }
+
+        if (randomBoolean()) {
+            queryBuilder.fuzzyRewrite(getRandomRewriteMethod());
+        }
+
         return queryBuilder;
     }
 
@@ -84,14 +107,27 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             final PrefixQuery prefixQuery = (PrefixQuery) query;
             assertThat(prefixQuery.getPrefix().text(), equalToIgnoringCase((String) queryBuilder.value()));
         } else {
+            assertThat(query, instanceOf(BooleanQuery.class));
             final BooleanQuery booleanQuery = (BooleanQuery) query;
             // all queries except the last should be TermQuery or SynonymQuery
-            assertThat(
-                IntStream.range(0, booleanQuery.clauses().size() - 1)
-                    .mapToObj(booleanQuery.clauses()::get)
-                    .map(BooleanClause::getQuery)
-                    .collect(Collectors.toSet()),
-                everyItem(anyOf(instanceOf(TermQuery.class), instanceOf(SynonymQuery.class)))); // here
+            final Set<Query> allQueriesExceptLast = IntStream.range(0, booleanQuery.clauses().size() - 1)
+                .mapToObj(booleanQuery.clauses()::get)
+                .map(BooleanClause::getQuery)
+                .collect(Collectors.toSet());
+            assertThat(allQueriesExceptLast, anyOf(
+                everyItem(instanceOf(TermQuery.class)),
+                everyItem(instanceOf(SynonymQuery.class)),
+                everyItem(instanceOf(FuzzyQuery.class))
+            ));
+
+            if (allQueriesExceptLast.stream().anyMatch(subQuery -> subQuery instanceof FuzzyQuery)) {
+                assertThat(queryBuilder.fuzziness(), notNullValue());
+            }
+            allQueriesExceptLast.stream().filter(subQuery -> subQuery instanceof FuzzyQuery).forEach(subQuery -> {
+                final FuzzyQuery fuzzyQuery = (FuzzyQuery) subQuery;
+                assertThat(fuzzyQuery.getPrefixLength(), equalTo(queryBuilder.prefixLength()));
+                assertThat(fuzzyQuery.getTranspositions(), equalTo(queryBuilder.fuzzyTranspositions()));
+            });
 
             // the last query should be PrefixQuery
             final Query shouldBePrefixQuery = booleanQuery.clauses().get(booleanQuery.clauses().size() - 1).getQuery();
@@ -138,6 +174,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                     "\"fieldName\": {" +
                         "\"query\": \"fieldValue\"," +
                         "\"operator\": \"OR\"," +
+                        "\"prefix_length\": 0," +
+                        "\"max_expansions\": 50," +
+                        "\"fuzzy_transpositions\": true," +
                         "\"boost\": 1.0" +
                     "}" +
                 "}" +
@@ -156,6 +195,11 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                         "\"analyzer\": \"simple\"," +
                         "\"operator\": \"AND\"," +
                         "\"minimum_should_match\": \"2\"," +
+                        "\"fuzziness\": \"1\"," +
+                        "\"prefix_length\": 1," +
+                        "\"max_expansions\": 10," +
+                        "\"fuzzy_transpositions\": false," +
+                        "\"fuzzy_rewrite\": \"constant_score\"," +
                         "\"boost\": 2.0" +
                     "}" +
                 "}" +

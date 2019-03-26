@@ -141,6 +141,28 @@ setup:
   - match: { hits.hits.0._source.my_field1: "brown fox jump" }
 
 ---
+"fuzziness":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match_bool_prefix:
+              my_field2:
+                query: "xylophoen foo"
+                fuzziness: 1
+                prefix_length: 1
+                max_expansions: 10
+                fuzzy_transpositions: true
+                fuzzy_rewrite: constant_score
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.my_field2: "xylophone" }
+  - match: { hits.hits.1._source.my_field2: "xylophone" }
+
+---
 "multi_match single field complete term":
 
   - do:

@@ -547,7 +547,7 @@ The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
 `zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as
 explained in <<query-dsl-match-query, match query>> are supported. The
 `fuzziness`, `prefix_length`, `max_expansions`, `rewrite`, and
-`fuzzy transpositions` parameters are supported for the terms that are used to
+`fuzzy_transpositions` parameters are supported for the terms that are used to
 construct term queries, but do not have an effect on the prefix query
 constructed from the final term.
 

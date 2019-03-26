@@ -456,8 +456,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::get-data-frame-transform-stats-execute
             GetDataFrameTransformStatsResponse response =
-                    client.dataFrame()
-                            .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
+                client.dataFrame()
+                    .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
             // end::get-data-frame-transform-stats-execute
 
             assertThat(response.getTransformsStateAndStats(), hasSize(1));

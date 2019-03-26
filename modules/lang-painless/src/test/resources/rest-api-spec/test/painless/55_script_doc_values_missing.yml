@@ -1,0 +1,171 @@
+setup:
+    - do:
+        indices.create:
+            index: test_index
+            body:
+                settings:
+                    number_of_shards: 1
+                mappings:
+                    properties:
+                        boolean:
+                            type: boolean
+                        date:
+                            type: date
+                        geo_point:
+                            type: geo_point
+                        keyword:
+                            type: keyword
+                        long:
+                            type: long
+                        double:
+                            type: double
+
+    - do:
+        bulk:
+            refresh: true
+            body:
+                - '{"index": {"_index": "test_index", "_id" : "1"}}'
+                - '{"boolean": false, "date": "2019-01-01T00:00:00", "geo_point": "41.11,-71.31", "keyword": "keyword1", "long": 101, "double": 100.1}'
+                - '{"index": {"_index": "test_index", "_id" : "2"}}'
+                - '{"boolean": true, "date": "2019-01-02T00:00:00", "geo_point": "41.11,-71.32", "keyword": "keyword2", "long": 102, "double": 100.2}'
+                - '{"index": {"_index": "test_index", "_id" : "3"}}'
+                - '{}'
+                - '{"index": {"_index": "test_index", "_id" : "4"}}'
+                - '{"boolean": true, "date": "2019-01-04T00:00:00", "geo_point": "41.11,-71.34", "keyword": "keyword4", "long": 104, "double": 100.4}'
+
+---
+"Testing missing boolean doc values":
+    - do:
+        catch: bad_request # fail request on missing values
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['boolean'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['boolean'].size()==0 ? false: doc['boolean'].get(0)"
+    - match: { hits.hits.0.fields.field.0: false }
+    - match: { hits.hits.1.fields.field.0: true }
+    - match: { hits.hits.2.fields.field.0: false }
+    - match: { hits.hits.3.fields.field.0: true }
+
+---
+"Testing missing date doc values":
+    - do:
+        catch: bad_request
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['date'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['date'].size()==0 ? '2019-01-03T00:00:00.000Z': doc['date'].get(0)"
+    - match: { hits.hits.0.fields.field.0: '2019-01-01T00:00:00.000Z' }
+    - match: { hits.hits.1.fields.field.0: '2019-01-02T00:00:00.000Z' }
+    - match: { hits.hits.2.fields.field.0: '2019-01-03T00:00:00.000Z' }
+    - match: { hits.hits.3.fields.field.0: '2019-01-04T00:00:00.000Z' }
+
+---
+"Testing missing geo point doc values":
+    - do:
+        catch: bad_request
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['geo_point'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['geo_point'].size()==0 ? '41.11,-71.33': doc['geo_point'].get(0)"
+    - match: { hits.hits.2.fields.field.0: '41.11,-71.33' }
+
+---
+"Testing missing String doc values":
+    - do:
+        catch: bad_request
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['keyword'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['keyword'].size()==0 ? 'keyword3': doc['keyword'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 'keyword1' }
+    - match: { hits.hits.1.fields.field.0: 'keyword2' }
+    - match: { hits.hits.2.fields.field.0: 'keyword3' }
+    - match: { hits.hits.3.fields.field.0: 'keyword4' }
+
+
+---
+"Testing missing long doc values":
+    - do:
+        catch: bad_request
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['long'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['long'].size()==0 ? 103: doc['long'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 101 }
+    - match: { hits.hits.1.fields.field.0: 102 }
+    - match: { hits.hits.2.fields.field.0: 103 }
+    - match: { hits.hits.3.fields.field.0: 104 }
+
+
+---
+"Testing missing double doc values":
+    - do:
+        catch: bad_request
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['double'].get(0)"
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['double'].size()==0 ? 100.3 : doc['double'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 100.1 }
+    - match: { hits.hits.1.fields.field.0: 100.2 }
+    - match: { hits.hits.2.fields.field.0: 100.3 }
+    - match: { hits.hits.3.fields.field.0: 100.4 }

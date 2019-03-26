@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.dataframe.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -16,14 +17,20 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SingleCheckpointStats;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * DataFrameTransform Checkpoint Service
@@ -35,12 +42,24 @@ import java.util.TreeMap;
  */
 public class DataFrameTransformsCheckpointService {
 
+    private class Checkpoints {
+        DataFrameTransformCheckpoint currentCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+        DataFrameTransformCheckpoint inProgressCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+        DataFrameTransformCheckpoint sourceCheckpoint = DataFrameTransformCheckpoint.EMPTY;
+    }
+
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsCheckpointService.class);
 
-    private final Client client;
+    // timeout for retrieving checkpoint information
+    private static final int CHECKPOINT_STATS_TIMEOUT_SECONDS = 5;
 
-    public DataFrameTransformsCheckpointService(final Client client) {
+    private final Client client;
+    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+
+    public DataFrameTransformsCheckpointService(final Client client,
+            final DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
         this.client = client;
+        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
     }
 
     /**
@@ -94,6 +113,57 @@ public class DataFrameTransformsCheckpointService {
                     throw new CheckpointException("Failed to retrieve list of indices", getIndexException);
                 }));
 
+    }
+
+    public DataFrameTransformCheckpointStats getCheckpointStats(DataFrameTransformTask task) {
+
+        long current = task.getCheckpoint();
+        long inProgress = task.getInProgressCheckpoint();
+
+        // dependent on the indexer we need 1, 2 or 3 async operations
+        int numberOfOperations = 1;
+        numberOfOperations += current != 0 ? 1 : 0;
+        numberOfOperations += inProgress != 0 ? 1 : 0;
+
+        CountDownLatch latch = new CountDownLatch(numberOfOperations);
+        Checkpoints checkpoints = new Checkpoints();
+
+        // get the current checkpoint
+        dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), current,
+                new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.currentCheckpoint = checkpoint, e -> {
+                    logger.warn("Failed to retrieve checkpoint [" + current + "] for data frame []" + task.getTransformId(), e);
+                }), latch));
+
+        // get the in-progress checkpoint
+        dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), task.getInProgressCheckpoint(),
+                new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.inProgressCheckpoint = checkpoint, e -> {
+                    logger.warn(
+                            "Failed to retrieve in progress checkpoint [" + current + "] for data frame [" + task.getTransformId() + "]",
+                            e);
+                }), latch));
+
+        // get the current state
+        dataFrameTransformsConfigManager.getTransformConfiguration(task.getTransformId(),
+                new LatchedActionListener<>(ActionListener.wrap(transformConfig -> {
+                    getCheckpoint(transformConfig, ActionListener.wrap(checkpoint -> checkpoints.sourceCheckpoint = checkpoint, e2 -> {
+                        logger.warn("Failed to retrieve checkpoint for data frame [" + task.getTransformId() + "]", e2);
+                    }));
+
+                }, e -> {
+                    logger.warn("Failed to retrieve configuration for data frame [" + task.getTransformId() + "]", e);
+                }), latch));
+
+        try {
+            latch.await(CHECKPOINT_STATS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.warn("Failed to retrieve checkpoints for data frame [" + task.getTransformId() + "]", e);
+        }
+
+        return new DataFrameTransformCheckpointStats(
+                new SingleCheckpointStats(checkpoints.currentCheckpoint.getTimestamp(), checkpoints.currentCheckpoint.getTimeUpperBound()),
+                new SingleCheckpointStats(checkpoints.inProgressCheckpoint.getTimestamp(),
+                        checkpoints.inProgressCheckpoint.getTimeUpperBound()),
+                checkpoints.currentCheckpoint.getBehind(checkpoints.sourceCheckpoint));
     }
 
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.dataframe.persistence;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpointTests;
 import org.junit.Before;
 
 public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTestCase {

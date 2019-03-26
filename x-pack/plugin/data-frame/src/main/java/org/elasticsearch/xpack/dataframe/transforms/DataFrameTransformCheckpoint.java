@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -44,20 +44,11 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
 
     public static DataFrameTransformCheckpoint EMPTY = new DataFrameTransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
 
-    // the timestamp of the checkpoint, mandatory
-    public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
-
     // the own checkpoint
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
 
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
-
-    // checkpoint for for time based sync
-    // TODO: consider a lower bound for usecases where you want to transform on a window of a stream
-    public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
-    public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
 
     private static final String NAME = "data_frame_transform_checkpoint";
 
@@ -89,7 +80,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         parser.declareString(constructorArg(), DataFrameField.ID);
 
         // note: this is never parsed from the outside where timestamp can be formatted as date time
-        parser.declareLong(constructorArg(), TIMESTAMP_MILLIS);
+        parser.declareLong(constructorArg(), DataFrameField.TIMESTAMP_MILLIS);
         parser.declareLong(constructorArg(), CHECKPOINT);
 
         parser.declareObject(constructorArg(), (p,c) -> {
@@ -111,7 +102,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             }
             return checkPointsByIndexName;
         }, INDICES);
-        parser.declareLong(optionalConstructorArg(), TIME_UPPER_BOUND_MILLIS);
+        parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
 
         return parser;
@@ -134,28 +125,37 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         this.timeUpperBoundMillis = in.readLong();
     }
 
+    public boolean isEmpty() {
+        return indicesCheckpoints.isEmpty();
+    }
+
+    /**
+     * Create XContent for the purpose of storing it in the internal index
+     *
+     * Note:
+     * @param builder the {@link XContentBuilder}
+     * @param params builder specific parameters
+     *
+     * @return builder instance
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        // the id, doc_type and checkpoint is only internally used for storage, the user-facing version gets embedded
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(DataFrameField.ID.getPreferredName(), transformId);
-            builder.field(CHECKPOINT.getPreferredName(), checkpoint);
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
-
-        builder.timeField(TIMESTAMP_MILLIS.getPreferredName(), TIMESTAMP.getPreferredName(), timestampMillis);
-
-        if (timeUpperBoundMillis > 0) {
-            builder.timeField(TIME_UPPER_BOUND_MILLIS.getPreferredName(), TIME_UPPER_BOUND.getPreferredName(), timeUpperBoundMillis);
-        }
-
+        builder.field(DataFrameField.ID.getPreferredName(), transformId);
+        builder.field(CHECKPOINT.getPreferredName(), checkpoint);
+        builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         builder.startObject(INDICES.getPreferredName());
         for (Entry<String, long[]> entry : indicesCheckpoints.entrySet()) {
             builder.array(entry.getKey(), entry.getValue());
         }
         builder.endObject();
+
+        builder.field(DataFrameField.TIMESTAMP_MILLIS.getPreferredName(), timestampMillis);
+
+        if (timeUpperBoundMillis > 0) {
+            builder.field(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), timeUpperBoundMillis);
+        }
 
         builder.endObject();
         return builder;
@@ -225,6 +225,37 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
                 // do the expensive deep equal operation last
                 && this.indicesCheckpoints.entrySet().stream()
                         .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
+    }
+
+    /**
+     * Calculate the diff of 2 checkpoints
+     *
+     * This is to get an indicator for the difference between checkpoints
+     *
+     * @return count number of operations the checkpoint is behind or -1L if it could not calculate the difference
+     */
+    public long getBehind(DataFrameTransformCheckpoint that) {
+        if (that.indicesCheckpoints.keySet().containsAll(indicesCheckpoints.keySet()) == false) {
+            return -1L;
+        }
+
+        long thisCheckPointSum = 0;
+        long thatCheckPointSum = 0;
+
+        for (long[] v : indicesCheckpoints.values()) {
+            thisCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        for (long[] v : that.indicesCheckpoints.values()) {
+            thatCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        // this should not be possible
+        if (thatCheckPointSum < thisCheckPointSum) {
+            return -1L;
+        }
+
+        return thatCheckPointSum - thisCheckPointSum;
     }
 
     @Override

@@ -4,18 +4,17 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -44,11 +43,6 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         return DataFrameTransformCheckpoint::new;
     }
 
-    @Override
-    protected ToXContent.Params getToXContentParams() {
-        return TO_XCONTENT_PARAMS;
-    }
-
     public void testXContentForInternalStorage() throws IOException {
         DataFrameTransformCheckpoint dataFrameTransformCheckpoints = randomDataFrameTransformCheckpoints();
 
@@ -57,28 +51,6 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
             String doc = Strings.toString(content);
 
             assertThat(doc, matchesPattern(".*\"doc_type\"\\s*:\\s*\"data_frame_transform_checkpoint\".*"));
-        }
-
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            XContentBuilder content = dataFrameTransformCheckpoints.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            String doc = Strings.toString(content);
-
-            assertFalse(doc.contains("doc_type"));
-        }
-    }
-
-    public void testXContentForApiUsage() throws IOException {
-        DataFrameTransformCheckpoint dataFrameTransformCheckpoints = new DataFrameTransformCheckpoint(randomAlphaOfLengthBetween(1, 10),
-                1546300800000L, randomNonNegativeLong(), Collections.emptyMap(), 1545609600000L);
-
-        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
-            xContentBuilder.humanReadable(true);
-            XContentBuilder content = dataFrameTransformCheckpoints.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            String doc = Strings.toString(content);
-            assertThat(doc, matchesPattern(".*\"timestamp_millis\"\\s*:\\s*1546300800000.*"));
-            assertThat(doc, matchesPattern(".*\"time_upper_bound_millis\"\\s*:\\s*1545609600000.*"));
-            assertThat(doc, matchesPattern(".*\"timestamp\"\\s*:\\s*\"2019-01-01T00:00:00.000Z\".*"));
-            assertThat(doc, matchesPattern(".*\"time_upper_bound\"\\s*:\\s*\"2018-12-24T00:00:00.000Z\".*"));
         }
     }
 

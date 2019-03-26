@@ -74,9 +74,9 @@ Infra/REST API::
 * Deprecate requests that have an unconsumed body {pull}37534[#37534] (issue: {issue}37504[#37504])
 
 Machine Learning::
-* Adding ml_settings entry to HLRC and Docs for deprecation_info {pull}38118[#38118]
-* [ML] Datafeed deprecation checks {pull}37932[#37932]
-* [ML] Adjust structure finder for Joda to Java time migration {pull}37306[#37306]
+* Add ml_settings entry to HLRC and Docs for deprecation_info {pull}38118[#38118]
+* Datafeed deprecation checks {pull}37932[#37932]
+* Adjust structure finder for Joda to Java time migration {pull}37306[#37306]
 
 Mapping::
 * Deprecate types in get field mapping API {pull}37667[#37667] (issue: {issue}35190[#35190])
@@ -118,7 +118,7 @@ Features/Ingest::
 * Enable grok processor to support long, double and boolean {pull}27896[#27896]
 
 Machine Learning::
-* ML: Adds set_upgrade_mode API endpoint {pull}37837[#37837]
+* Add set_upgrade_mode API endpoint {pull}37837[#37837]
 
 Mapping::
 * Give precedence to index creation when mixing typed templates with typeless index creation and vice-versa. {pull}37871[#37871] (issue: {issue}37773[#37773])
@@ -285,13 +285,13 @@ License::
 * Handle malformed license signatures {pull}37137[#37137] (issue: {issue}35340[#35340])
 
 Machine Learning::
-* [ML] Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
+* Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
 * Move ML Optimistic Concurrency Control to Seq No {pull}38278[#38278] (issues: {issue}10708[#10708], {issue}36148[#36148])
-* [ML] Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
-* ML: Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
-* [ML] Tighten up use of aliases rather than concrete indices {pull}37874[#37874]
-* ML: Add support for single bucket aggs in Datafeeds {pull}37544[#37544] (issue: {issue}36838[#36838])
-* [ML] Migrate unallocated jobs and datafeeds {pull}37536[#37536] (issues: {issue}32905[#32905], {issue}36810[#36810], {issue}37430[#37430], {issue}37656[#37656])
+* Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
+* Tighten up use of aliases rather than concrete indices {pull}37874[#37874]
+* Add support for single bucket aggs in Datafeeds {pull}37544[#37544] (issue: {issue}36838[#36838])
+* Migrate unallocated jobs and datafeeds {pull}37536[#37536] (issue: {issue}32905[#32905])
+* Adjust seccomp filter for Fedora 29. {ml-pull}354[#354]
 
 Mapping::
 * Only issue a deprecation warning if include_type_name is not set. {pull}38825[#38825] (issue: {issue}35190[#35190])
@@ -521,20 +521,15 @@ Infra/Settings::
 * Fix handling of fractional time value settings {pull}37171[#37171]
 
 Machine Learning::
-* [ML] Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
-* [ML] Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
-* [ML] refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
-* [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
-* ML allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
-* [ML] Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
-* ML: Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
-* [ML] Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
-* [ML] Prevent submit after autodetect worker is stopped {pull}37700[#37700] (issue: {issue}37108[#37108])
-* [ML] Fix ML datafeed CCS with wildcarded cluster name {pull}37470[#37470] (issue: {issue}36228[#36228])
-* [ML] Update error message for process update {pull}37363[#37363]
-* [ML] Wait for autodetect to be ready in the datafeed {pull}37349[#37349] (issues: {issue}36810[#36810], {issue}37227[#37227])
-* [ML] Stop datafeeds running when their jobs are stale {pull}37227[#37227] (issue: {issue}36810[#36810])
-* [ML] Make GetJobStats work with arbitrary wildcards and groups {pull}36683[#36683] (issue: {issue}34745[#34745])
+* Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
+* Fix datafeed skipping first bucket after lookback when aggs are used {pull}39859[#39859] (issue: {issue}39842[#39842])
+* Refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
+* Allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
+* Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
+* Prevent submit after autodetect worker is stopped {pull}37700[#37700] (issue: {issue}37108[#37108])
+* Fix ML datafeed CCS with wildcarded cluster name {pull}37470[#37470] (issue: {issue}36228[#36228])
+* Update error message for process update {pull}37363[#37363]
+* Make GetJobStats work with arbitrary wildcards and groups {pull}36683[#36683] (issue: {issue}34745[#34745])
 
 Mapping::
 * Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])

@@ -67,6 +67,12 @@ Words.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
+=== {sql} is production-ready
+
+Words.
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
 === High-level REST client is feature-complete
 
 Words.

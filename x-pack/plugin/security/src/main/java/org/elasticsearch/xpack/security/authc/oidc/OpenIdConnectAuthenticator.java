@@ -278,7 +278,7 @@ public class OpenIdConnectAuthenticator {
             if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token")) ||
                 rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
                 assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
-                final boolean optional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
+                final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
                 // only "Bearer" is defined in the specification but check just in case
                 if (accessToken.getType().toString().equals("Bearer") == false) {
                     throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
@@ -286,8 +286,8 @@ public class OpenIdConnectAuthenticator {
                 }
                 String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
                 if (Strings.hasText(atHashValue) == false) {
-                    if (optional == false) {
-                        throw new ElasticsearchSecurityException("Failed to verify access token.ID Token doesn't contain at_hash claim ");
+                    if (isValidationOptional == false) {
+                        throw new ElasticsearchSecurityException("Failed to verify access token. ID Token doesn't contain at_hash claim ");
                     }
                 } else {
                     AccessTokenHash atHash = new AccessTokenHash(atHashValue);

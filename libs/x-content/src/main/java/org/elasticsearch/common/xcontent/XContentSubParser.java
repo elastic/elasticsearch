@@ -39,10 +39,8 @@ public class XContentSubParser implements XContentParser {
 
     public XContentSubParser(XContentParser parser) {
         this.parser = parser;
-        if (parser.currentToken() != Token.START_OBJECT) {
-            throw new IllegalStateException("The sub parser has to be created on the start of an object");
-        }
-        level = 1;
+        // we allow a non-object, non-array with semantics that it is the single item only.
+        this.level = parser.currentToken() == Token.START_OBJECT || parser.currentToken() == Token.START_ARRAY ? 1 : 0;
     }
 
     @Override

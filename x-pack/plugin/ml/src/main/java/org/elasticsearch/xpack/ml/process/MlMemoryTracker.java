@@ -98,6 +98,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         isMaster = false;
         logger.trace("ML memory tracker off master");
         memoryRequirementByAnomalyDetectorJob.clear();
+        memoryRequirementByDataFrameAnalyticsJob.clear();
         lastUpdateTime = null;
     }
 

@@ -12,6 +12,7 @@ if (System.env.ELASTIC_ARTIFACTORY_USERNAME == null || System.env.ELASTIC_ARTIFA
                         password System.env.ELASTIC_ARTIFACTORY_TOKEN
                     }
                 }
+                gradlePluginPortal()
             }
         }
     }

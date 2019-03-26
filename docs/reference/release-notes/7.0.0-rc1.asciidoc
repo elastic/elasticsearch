@@ -3,7 +3,7 @@
 
 coming[7.0.0-rc1]
 
-Also see <<breaking-changes-7.0.0-rc1,Breaking changes in 7.0.0-rc1>>.
+Also see <<breaking-changes-7.0,Breaking changes in 7.0.0-rc1>>.
 
 [[breaking-7.0.0-rc1]]
 [float]

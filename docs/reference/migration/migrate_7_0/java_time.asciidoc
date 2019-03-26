@@ -1,5 +1,6 @@
 [float]
 [[breaking_70_java_time_changes]]
+//tag::notable-breaking-changes[]
 === Replacing Joda-Time with java time
 
 Since Java 8 there is a dedicated `java.time` package, which is superior to
@@ -10,6 +11,7 @@ to remove the Joda-Time dependency in the future.
 
 The mappings, aggregations and search code switched from Joda-Time to
 java time.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Joda based date formatters are replaced with java ones

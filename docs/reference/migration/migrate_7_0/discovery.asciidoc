@@ -3,6 +3,7 @@
 === Discovery changes
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Cluster bootstrapping is required if discovery is configured
 
 The first time a cluster is started, `cluster.initial_master_nodes` must be set
@@ -15,6 +16,7 @@ documentation>> describes this setting in more detail.
 
 The `discovery.zen.minimum_master_nodes` setting is permitted, but ignored, on
 7.x nodes.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Removing master-eligible nodes sometimes requires voting exclusions
@@ -29,6 +31,7 @@ required. Likewise, if you add nodes to the cluster, voting exclusions are not
 required.
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Discovery configuration is required in production
 
 Production deployments of Elasticsearch now require at least one of the
@@ -38,6 +41,7 @@ file:
 - `discovery.seed_hosts`
 - `discovery.seed_providers`
 - `cluster.initial_master_nodes`
+//end::notable-breaking-changes[]
 
 [float]
 ==== New name for `no_master_block` setting

@@ -15,11 +15,13 @@ Now that indices cannot have multiple types, this has been removed in favour
 of `_id`.
 
 [float]
+//tag::notable-breaking-changes[]
 ==== The `_default_` mapping is no longer allowed
 
 The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed
 in 7.0. Trying to configure a `_default_` mapping on 7.x indices will result in
 an error.
+//end::notable-breaking-changes[]
 
 [float]
 ==== `index_options` for numeric fields has been removed

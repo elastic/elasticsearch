@@ -16,12 +16,16 @@ is changed from 0 to 1, which means that the command will now by default wait fo
 primary shards of the opened index to be allocated.
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Shard preferences `_primary`, `_primary_first`, `_replica`, and `_replica_first` are removed
 These shard preferences are removed in favour of the `_prefer_nodes` and `_only_nodes` preferences.
+//end::notable-breaking-changes[]
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Cluster-wide shard soft limit
 Clusters now have soft limits on the total number of open shards in the cluster
 based on the number of nodes and the `cluster.max_shards_per_node` cluster
 setting, to prevent accidental operations that would destabilize the cluster.
 More information can be found in the <<misc-cluster,documentation for that setting>>.
+//end::notable-breaking-changes[]

@@ -3,9 +3,11 @@
 === Indices changes
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Index creation no longer defaults to five shards
 Previous versions of Elasticsearch defaulted to creating five shards per index.
 Starting with 7.0.0, the default is now one shard per index.
+//end::notable-breaking-changes[]
 
 [float]
 ==== `:` is no longer allowed in index name
@@ -47,6 +49,7 @@ exceeded a error is thrown only for new indices. For existing pre-7.0 indices, a
 warning is logged.
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Document distribution changes
 
 Indices created with version `7.0.0` onwards will have an automatic `index.number_of_routing_shards`
@@ -54,6 +57,7 @@ value set. This might change how documents are distributed across shards dependi
 shards the index has. In order to maintain the exact same distribution as a pre `7.0.0` index, the
 `index.number_of_routing_shards` must be set to the `index.number_of_shards` at index creation time.
 Note: if the number of routing shards equals the number of shards `_split` operations are not supported.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Skipped background refresh on search idle shards

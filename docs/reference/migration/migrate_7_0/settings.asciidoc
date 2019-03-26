@@ -3,11 +3,13 @@
 === Settings changes
 
 [float]
+//tag::notable-breaking-changes[]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
 is started. Previously the default node name was the first eight characters
 of the node id. It can still be configured explicitly in `elasticsearch.yml`.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Percolator
@@ -43,11 +45,13 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
 [float]
 [[remove-http-enabled]]
+//tag::notable-breaking-changes[]
 ==== Http enabled setting removed
 
 * The setting `http.enabled` previously allowed disabling binding to HTTP, only allowing
 use of the transport client. This setting has been removed, as the transport client
 will be removed in the future, thus requiring HTTP to always be enabled.
+//end::notable-breaking-changes[]
 
 [float]
 [[remove-http-pipelining-setting]]
@@ -59,6 +63,7 @@ provided little value. The setting `http.pipelining.max_events` can still be use
 limit the number of pipelined requests in-flight.
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Cross-cluster search settings renamed
 
 The cross-cluster search remote cluster connection infrastructure is also used
@@ -71,6 +76,7 @@ used.  Therefore, these settings have been renamed from `search.remote.*` to
 in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
+//end::notable-breaking-changes[]
 
 [float]
 [[audit-logfile-local-node-info]]
@@ -134,6 +140,7 @@ used.
 
 [float]
 [[tls-v1-removed]]
+//tag::notable-breaking-changes[]
 ==== TLS v1.0 disabled
 
 TLS version 1.0 is now disabled by default as it suffers from
@@ -144,6 +151,7 @@ You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` se
 --------------------------------------------------
 xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]
 --------------------------------------------------
+//end::notable-breaking-changes[]
 
 [float]
 [[trial-explicit-security]]

@@ -3,6 +3,7 @@
 === API changes
 
 [float]
+//tag::notable-breaking-changes[]
 ==== Internal Versioning is no longer supported for optimistic concurrency control
 
 Elasticsearch maintains a numeric version field for each document it stores. That field
@@ -17,6 +18,7 @@ Due to that issue, internal versioning can no longer be used and is replaced by 
 method based on sequence numbers. See <<optimistic-concurrency-control>> for more details.
 
 Note that the `external` versioning type is still fully supported.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Camel case and underscore parameters deprecated in 6.x have been removed

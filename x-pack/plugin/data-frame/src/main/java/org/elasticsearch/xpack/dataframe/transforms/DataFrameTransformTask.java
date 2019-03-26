@@ -22,19 +22,23 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -50,6 +54,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
+    private final Auditor<DataFrameAuditMessage> auditor;
 
     // the generation of this data frame, for v1 there will be only
     // 0: data frame not created or still indexing
@@ -57,12 +62,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final AtomicReference<Long> generation;
 
     public DataFrameTransformTask(long id, String type, String action, TaskId parentTask, DataFrameTransform transform,
-            DataFrameTransformState state, Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
+                                  DataFrameTransformState state, Client client, DataFrameTransformsConfigManager transformsConfigManager,
+                                  DataFrameTransformsCheckpointService transformsCheckpointService,
+                                  SchedulerEngine schedulerEngine, Auditor<DataFrameAuditMessage> auditor,
+                                  ThreadPool threadPool, Map<String, String> headers) {
         super(id, type, action, DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
+        this.auditor = auditor;
         IndexerState initialState = IndexerState.STOPPED;
         long initialGeneration = 0;
         Map<String, Object> initialPosition = null;
@@ -83,8 +91,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             initialGeneration = state.getGeneration();
         }
 
-        this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, new AtomicReference<>(initialState),
-                initialPosition, client);
+        this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
+            new AtomicReference<>(initialState), initialPosition, client, auditor);
         this.generation = new AtomicReference<Long>(initialGeneration);
     }
 
@@ -139,6 +147,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         updatePersistentTaskState(state,
                 ActionListener.wrap(
                         (task) -> {
+                            auditor.info(transform.getId(), "Updated state to [" + state.getIndexerState() + "]");
                             logger.debug("Successfully updated state for data frame transform [" + transform.getId() + "] to ["
                                     + state.getIndexerState() + "][" + state.getPosition() + "]");
                             listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
@@ -166,6 +175,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // overwrite some docs and eventually checkpoint.
             DataFrameTransformState state = new DataFrameTransformState(IndexerState.STOPPED, indexer.getPosition(), generation.get());
             updatePersistentTaskState(state, ActionListener.wrap((task) -> {
+                auditor.info(transform.getId(), "Updated state to [" + state.getIndexerState() + "]");
                 logger.debug("Successfully updated state for data frame transform [{}] to [{}]", transform.getId(),
                         state.getIndexerState());
                 listener.onResponse(new StopDataFrameTransformAction.Response(true));
@@ -226,21 +236,33 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
+        private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
+        private final Auditor<DataFrameAuditMessage> auditor;
+        private Map<String, String> fieldMappings = null;
 
         private DataFrameTransformConfig transformConfig = null;
 
         public ClientDataFrameIndexer(String transformId, DataFrameTransformsConfigManager transformsConfigManager,
-                AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client) {
+                                      DataFrameTransformsCheckpointService transformsCheckpointService,
+                                      AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client,
+                                      Auditor<DataFrameAuditMessage> auditor) {
             super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition);
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
+            this.transformsCheckpointService = transformsCheckpointService;
             this.client = client;
+            this.auditor = auditor;
         }
 
         @Override
         protected DataFrameTransformConfig getConfig() {
             return transformConfig;
+        }
+
+        @Override
+        protected Map<String, String> getFieldMappings() {
+            return fieldMappings;
         }
 
         @Override
@@ -270,8 +292,30 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             // todo: set job into failed state
             if (transformConfig.isValid() == false) {
+                auditor.error(transformId, "Cannot execute data frame transform as configuration is invalid");
                 throw new RuntimeException(
                         DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID, transformId));
+            }
+
+            if (fieldMappings == null) {
+                CountDownLatch latch = new CountDownLatch(1);
+                SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), new LatchedActionListener<>(
+                    ActionListener.wrap(
+                        destinationMappings -> fieldMappings = destinationMappings,
+                        e -> {
+                            throw new RuntimeException(
+                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                                    transformConfig.getDestination().getIndex()),
+                                e);
+                        }), latch));
+                try {
+                    latch.await(LOAD_TRANSFORM_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                   throw new RuntimeException(
+                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                                    transformConfig.getDestination().getIndex()),
+                                e);
+                }
             }
 
             return super.maybeTriggerAsyncJob(now);
@@ -313,16 +357,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onFailure(Exception exc) {
+            auditor.error(transform.getId(), "Data frame transform failed with an exception: " + exc.getMessage());
             logger.warn("Data frame transform [" + transform.getId() + "] failed with an exception: ", exc);
         }
 
         @Override
         protected void onFinish() {
+            auditor.info(transform.getId(), "Finished indexing for data frame transform");
             logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
         }
 
         @Override
         protected void onAbort() {
+            auditor.info(transform.getId(), "Received abort request, stopping indexer");
             logger.info("Data frame transform [" + transform.getId() + "] received abort request, stopping indexer");
             shutdown();
         }

@@ -646,6 +646,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
+            VotingConfiguration votingConfiguration = coordinationState.get().getLastAcceptedState().getLastCommittedConfiguration();
+            if (singleNodeDiscovery &&
+                votingConfiguration.isEmpty() == false &&
+                votingConfiguration.hasQuorum(Collections.singleton(getLocalNode().getId())) == false) {
+                throw new IllegalStateException("cannot start with single-node discovery when local node " + getLocalNode() +
+                    " does not have quorum in voting configuration " + votingConfiguration);
+            }
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)

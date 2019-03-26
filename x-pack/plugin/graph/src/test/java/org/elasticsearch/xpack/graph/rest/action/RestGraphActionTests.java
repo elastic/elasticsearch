@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.graph.action;
+package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-import org.elasticsearch.xpack.graph.rest.action.RestGraphAction;
 import org.junit.Before;
 
 public class RestGraphActionTests extends RestActionTestCase {

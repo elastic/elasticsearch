@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -70,8 +69,8 @@ public class Precision extends AbstractConfusionMatrixMetric {
     protected List<AggregationBuilder> aggsAt(String labelField, List<ClassInfo> classInfos, double threshold) {
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (ClassInfo classInfo : classInfos) {
-            aggs.add(AggregationBuilders.filter(tpAggName(classInfo, threshold), buildTpQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(fpAggName(classInfo, threshold), buildFpQuery(classInfo, threshold)));
+            aggs.add(buildAgg(classInfo, threshold, Condition.TP));
+            aggs.add(buildAgg(classInfo, threshold, Condition.FP));
         }
         return aggs;
     }
@@ -81,8 +80,8 @@ public class Precision extends AbstractConfusionMatrixMetric {
         double[] precisions = new double[thresholds.length];
         for (int i = 0; i < precisions.length; i++) {
             double threshold = thresholds[i];
-            Filter tpAgg = aggs.get(tpAggName(classInfo, threshold));
-            Filter fpAgg = aggs.get(fpAggName(classInfo, threshold));
+            Filter tpAgg = aggs.get(aggName(classInfo, threshold, Condition.TP));
+            Filter fpAgg = aggs.get(aggName(classInfo, threshold, Condition.FP));
             long tp = tpAgg.getDocCount();
             long fp = fpAgg.getDocCount();
             precisions[i] = tp + fp == 0 ? 0.0 : (double) tp / (tp + fp);

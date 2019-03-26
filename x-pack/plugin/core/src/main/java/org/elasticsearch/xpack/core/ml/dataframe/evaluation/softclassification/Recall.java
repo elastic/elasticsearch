@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -70,8 +69,8 @@ public class Recall extends AbstractConfusionMatrixMetric {
     protected List<AggregationBuilder> aggsAt(String actualField, List<ClassInfo> classInfos, double threshold) {
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (ClassInfo classInfo: classInfos) {
-            aggs.add(AggregationBuilders.filter(tpAggName(classInfo, threshold), buildTpQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(fnAggName(classInfo, threshold), buildFnQuery(classInfo, threshold)));
+            aggs.add(buildAgg(classInfo, threshold, Condition.TP));
+            aggs.add(buildAgg(classInfo, threshold, Condition.FN));
         }
         return aggs;
     }
@@ -81,8 +80,8 @@ public class Recall extends AbstractConfusionMatrixMetric {
         double[] recalls = new double[thresholds.length];
         for (int i = 0; i < recalls.length; i++) {
             double threshold = thresholds[i];
-            Filter tpAgg = aggs.get(tpAggName(classInfo, threshold));
-            Filter fnAgg = aggs.get(fnAggName(classInfo, threshold));
+            Filter tpAgg = aggs.get(aggName(classInfo, threshold, Condition.TP));
+            Filter fnAgg =aggs.get(aggName(classInfo, threshold, Condition.FN));
             long tp = tpAgg.getDocCount();
             long fn = fnAgg.getDocCount();
             recalls[i] = tp + fn == 0 ? 0.0 : (double) tp / (tp + fn);

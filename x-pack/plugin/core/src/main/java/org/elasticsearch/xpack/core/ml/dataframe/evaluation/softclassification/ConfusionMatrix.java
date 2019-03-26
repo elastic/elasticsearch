@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -72,10 +71,10 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
     protected List<AggregationBuilder> aggsAt(String labelField, List<ClassInfo> classInfos, double threshold) {
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (ClassInfo classInfo : classInfos) {
-            aggs.add(AggregationBuilders.filter(tpAggName(classInfo, threshold), buildTpQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(fpAggName(classInfo, threshold), buildFpQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(tnAggName(classInfo, threshold), buildTnQuery(classInfo, threshold)));
-            aggs.add(AggregationBuilders.filter(fnAggName(classInfo, threshold), buildFnQuery(classInfo, threshold)));
+            aggs.add(buildAgg(classInfo, threshold, Condition.TP));
+            aggs.add(buildAgg(classInfo, threshold, Condition.FP));
+            aggs.add(buildAgg(classInfo, threshold, Condition.TN));
+            aggs.add(buildAgg(classInfo, threshold, Condition.FN));
         }
         return aggs;
     }
@@ -87,10 +86,10 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
         long[] tn = new long[thresholds.length];
         long[] fn = new long[thresholds.length];
         for (int i = 0; i < thresholds.length; i++) {
-            Filter tpAgg = aggs.get(tpAggName(classInfo, thresholds[i]));
-            Filter fpAgg = aggs.get(fpAggName(classInfo, thresholds[i]));
-            Filter tnAgg = aggs.get(tnAggName(classInfo, thresholds[i]));
-            Filter fnAgg = aggs.get(fnAggName(classInfo, thresholds[i]));
+            Filter tpAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.TP));
+            Filter fpAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.FP));
+            Filter tnAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.TN));
+            Filter fnAgg = aggs.get(aggName(classInfo, thresholds[i], Condition.FN));
             tp[i] = tpAgg.getDocCount();
             fp[i] = fpAgg.getDocCount();
             tn[i] = tnAgg.getDocCount();

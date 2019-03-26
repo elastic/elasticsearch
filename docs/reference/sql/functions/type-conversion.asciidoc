@@ -25,17 +25,17 @@ the value itself cannot be converted), the query fails.
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntCast]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToIntCast]
 ----
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionIntToStringCast]
 ----
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateTimeCast]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToDateTimeCast]
 ----
 
 IMPORTANT: Both ANSI SQL and {es-sql} types are supported with the former taking
@@ -64,10 +64,10 @@ https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/explicit-data-typ
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntConvertODBCDataType]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToIntConvertODBCDataType]
 ----
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntConvertESDataType]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToIntConvertESDataType]
 ----

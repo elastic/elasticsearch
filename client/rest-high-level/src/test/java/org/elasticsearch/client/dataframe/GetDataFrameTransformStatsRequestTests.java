@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,19 +17,16 @@
  * under the License.
  */
 
-esplugin {
-    description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-    classname 'org.elasticsearch.percolator.PercolatorPlugin'
-    hasClientJar = true
-}
+package org.elasticsearch.client.dataframe;
 
-dependencies {
-    testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-}
+import org.elasticsearch.test.ESTestCase;
 
-dependencyLicenses {
-  // Don't check the client's license. We know it.
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  } - project.configurations.compileOnly
+import static org.hamcrest.Matchers.containsString;
+
+public class GetDataFrameTransformStatsRequestTests extends ESTestCase {
+    public void testValidate() {
+        assertFalse(new GetDataFrameTransformStatsRequest("valid-id").validate().isPresent());
+        assertThat(new GetDataFrameTransformStatsRequest(null).validate().get().getMessage(),
+                containsString("data frame transform id must not be null"));
+    }
 }

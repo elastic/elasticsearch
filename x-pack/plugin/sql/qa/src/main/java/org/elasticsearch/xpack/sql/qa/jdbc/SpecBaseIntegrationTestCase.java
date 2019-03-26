@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 
+import static java.util.Collections.emptyList;
+
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
  * after loading a specific set of test data.
@@ -146,8 +148,26 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
         URL source = SpecBaseIntegrationTestCase.class.getResource(url);
         Objects.requireNonNull(source, "Cannot find resource " + url);
 
-        String fileName = source.getFile().substring(source.getFile().lastIndexOf("/") + 1);
-        String groupName = fileName.substring(fileName.lastIndexOf('/') + 1, fileName.lastIndexOf("."));
+        return readURLSpec(source, parser);
+    }
+
+    protected static List<Object[]> readScriptSpec(List<URL> urls, Parser parser) throws Exception {
+        List<Object[]> results = emptyList();
+        for (URL url : urls) {
+            List<Object[]> specs = readURLSpec(url, parser);
+            if (results.isEmpty()) {
+                results = specs;
+            } else {
+                results.addAll(specs);
+            }
+        }
+
+        return results;
+    }
+
+    private static List<Object[]> readURLSpec(URL source, Parser parser) throws Exception {
+        String fileName = JdbcTestUtils.pathAndName(source.getFile()).v2();
+        String groupName = fileName.substring(0, fileName.lastIndexOf("."));
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
         List<Object[]> testCases = new ArrayList<>();

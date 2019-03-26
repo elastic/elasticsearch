@@ -291,7 +291,7 @@ public class MockClientBuilder {
 
         when(client.prepareSearch(eq(indexName))).thenReturn(builder);
 
-        SearchHit hits [] = new SearchHit[docs.size()];
+        SearchHit[] hits = new SearchHit[docs.size()];
         for (int i=0; i<docs.size(); i++) {
             SearchHit hit = new SearchHit(10);
             hit.sourceRef(docs.get(i));
@@ -299,7 +299,7 @@ public class MockClientBuilder {
         }
 
         SearchResponse response = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
         when(response.getHits()).thenReturn(searchHits);
 
         doAnswer(new Answer<Void>() {
@@ -330,14 +330,14 @@ public class MockClientBuilder {
 
         when(client.prepareSearch(eq(indexName))).thenReturn(builder);
 
-        SearchHit hits [] = new SearchHit[fields.size()];
+        SearchHit[] hits = new SearchHit[fields.size()];
         for (int i=0; i<hits.length; i++) {
             SearchHit hit = new SearchHit(10, null, null, fields.get(i));
             hits[i] = hit;
         }
 
         SearchResponse response = mock(SearchResponse.class);
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), Float.NaN);
         when(response.getHits()).thenReturn(searchHits);
 
         doAnswer(new Answer<Void>() {

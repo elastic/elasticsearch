@@ -488,7 +488,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             hits.add(hit);
         }
         SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
-            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), hits.size() == 0 ? Float.NaN : 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

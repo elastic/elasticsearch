@@ -99,7 +99,7 @@ public class StateStreamerTests extends ESTestCase {
             SearchHit hit = new SearchHit(1).sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(s)));
             hits[i++] = hit;
         }
-        SearchHits searchHits = new SearchHits(hits, null, (float)0.0);
+        SearchHits searchHits = new SearchHits(hits, null, Float.NaN);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

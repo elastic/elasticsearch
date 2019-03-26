@@ -174,7 +174,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
-            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), Float.NaN),
             null, null, false, false, null, 1),
         "_scrollId1", 1, 1, 0, 1, null, null));
 
@@ -201,7 +201,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
-            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), Float.NaN),
             null, null, false, false, null, 1),
             "_scrollId1", 1, 1, 0, 1, null, null));
 

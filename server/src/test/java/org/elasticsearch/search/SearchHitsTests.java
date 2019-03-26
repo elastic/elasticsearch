@@ -71,7 +71,12 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         int searchHits = randomIntBetween(0, 5);
         SearchHit[] hits = createSearchHitArray(searchHits, xContentType, withOptionalInnerHits, transportSerialization);
         TotalHits totalHits = frequently() ? randomTotalHits(totalHitsRelation) : null;
-        float maxScore = frequently() ? randomFloat() : Float.NaN;
+        float maxScore;
+        if (hits.length == 0) {
+            maxScore = Float.NaN;
+        } else {
+            maxScore = frequently() ? randomFloat() : Float.NaN;
+        }
         SortField[] sortFields = null;
         String collapseField = null;
         Object[] collapseValues = null;
@@ -118,12 +123,16 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
                 return new SearchHits(instance.getHits(), totalHits, instance.getMaxScore());
             case 2:
                 final float maxScore;
+                SearchHit[] hits = instance.getHits();
                 if (Float.isNaN(instance.getMaxScore())) {
                     maxScore = randomFloat();
+                    if (hits.length == 0) {
+                        hits = createSearchHitArray(1, randomFrom(XContentType.values()), false, randomBoolean());
+                    }
                 } else {
                     maxScore = Float.NaN;
                 }
-                return new SearchHits(instance.getHits(), instance.getTotalHits(), maxScore);
+                return new SearchHits(hits, instance.getTotalHits(), maxScore);
             case 3:
                 SortField[] sortFields;
                 if (instance.getSortFields() == null) {
@@ -281,5 +290,9 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         assertTrue(Float.isNaN(empty.getMaxScore()));
         assertEquals(0, empty.getHits().length);
         assertNull(empty.getTotalHits());
+    }
+
+    public void testMaxScoreNaN() {
+        expectThrows(IllegalArgumentException.class, () -> new SearchHits(new SearchHit[0], null, randomFloat()));
     }
 }

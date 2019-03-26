@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -15,7 +14,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -95,8 +93,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
+                SearchHits.empty(), aggs, null, false, null, null, 1);
             final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
                 new ShardSearchFailure[0], null);
             nextPhase.onResponse(response);
@@ -413,8 +410,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                         }
                     }));
                     final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                        aggs, null, false, null, null, 1);
+                        SearchHits.empty(), aggs, null, false, null, null, 1);
                     final SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0,
                         ShardSearchFailure.EMPTY_ARRAY, null);
                     nextPhase.onResponse(response);
@@ -619,8 +615,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
+                SearchHits.empty(), aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
         };
@@ -728,8 +723,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
+                SearchHits.empty(), aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
         };
@@ -879,8 +873,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
             }));
             final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0),
-                aggs, null, false, null, null, 1);
+                SearchHits.empty(), aggs, null, false, null, null, 1);
             return new SearchResponse(sections, null, 1, 1, 0, 0,
                 ShardSearchFailure.EMPTY_ARRAY, null);
         };

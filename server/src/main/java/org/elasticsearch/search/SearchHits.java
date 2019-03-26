@@ -69,6 +69,9 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
                       @Nullable String collapseField, @Nullable Object[] collapseValues) {
+        if (hits.length == 0 && Float.isNaN(maxScore) == false) {
+            throw new IllegalArgumentException("maxScore must be NaN when the hits array is empty");
+        }
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;

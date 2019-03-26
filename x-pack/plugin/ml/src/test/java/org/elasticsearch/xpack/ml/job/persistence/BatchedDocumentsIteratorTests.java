@@ -216,11 +216,12 @@ public class BatchedDocumentsIteratorTests extends ESTestCase {
         }
 
         private SearchHits createHits(String... values) {
-            List<SearchHit> hits = new ArrayList<>();
+            SearchHit[] hits = new SearchHit[values.length];
+            int i = 0;
             for (String value : values) {
-                hits.add(new SearchHitBuilder(randomInt()).setSource(value).build());
+                hits[i++] = new SearchHitBuilder(randomInt()).setSource(value).build();
             }
-            return new SearchHits(hits.toArray(new SearchHit[hits.size()]), new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
+            return new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), hits.length == 0 ? Float.NaN : 1.0f);
         }
     }
 

@@ -101,8 +101,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
-        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
-
+        float finalMaxScore = maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore;
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), finalMaxScore);
         TopDocs topDocs;
         Arrays.sort(scoreDocs, scoreDocComparator());
         if (testInstancesLookSortedByField) {
@@ -110,9 +110,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             topDocs = new TopDocs(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         }
-        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
-        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
-
+        TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, finalMaxScore);
         return new InternalTopHits(name, from, requestedSize, topDocsAndMaxScore, searchHits, pipelineAggregators, metaData);
     }
 
@@ -186,7 +184,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             if (internalHits.getTotalHits().relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
-            maxScore = max(maxScore, internalHits.getMaxScore());
+            maxScore = Float.isNaN(internalHits.getMaxScore()) ? maxScore : max(maxScore, internalHits.getMaxScore());
             for (int i = 0; i < internalHits.getHits().length; i++) {
                 ScoreDoc doc = inputs.get(input).getTopDocs().topDocs.scoreDocs[i];
                 if (testInstancesLookSortedByField) {
@@ -202,10 +200,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
         }
-        // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, new TotalHits(totalHits, relation), maxScore == Float.NEGATIVE_INFINITY ?
-            Float.NaN :
-            maxScore);
+        SearchHits expectedHits = new SearchHits(expectedHitsHits, new TotalHits(totalHits, relation),
+            maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore);
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 

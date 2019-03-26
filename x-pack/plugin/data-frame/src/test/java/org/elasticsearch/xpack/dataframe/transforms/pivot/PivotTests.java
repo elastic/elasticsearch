@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -23,9 +22,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
@@ -149,9 +147,7 @@ public class PivotTests extends ESTestCase {
                     }
                 }
 
-                final SearchResponseSections sections = new SearchResponseSections(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0), null, null, false, null, null,
-                        1);
+                final SearchResponseSections sections = InternalSearchResponse.empty();
                 final SearchResponse response = new SearchResponse(sections, null, 10, searchFailures.size() > 0 ? 0 : 5, 0, 0,
                         searchFailures.toArray(new ShardSearchFailure[searchFailures.size()]), null);
 

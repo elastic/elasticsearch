@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.indexing;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -15,8 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -85,9 +83,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
             assertThat(step, equalTo(2));
             ++step;
-            final SearchResponseSections sections = new SearchResponseSections(
-                new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
-                null, false, null, null, 1);
+            final SearchResponseSections sections = InternalSearchResponse.empty();
             nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
         }
 

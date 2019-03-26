@@ -296,7 +296,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     private static AtomicArray<SearchPhaseResult> generateFetchResults(int nShards, ScoreDoc[] mergedSearchDocs, Suggest mergedSuggest) {
         AtomicArray<SearchPhaseResult> fetchResults = new AtomicArray<>(nShards);
         for (int shardIndex = 0; shardIndex < nShards; shardIndex++) {
-            float maxScore = -1F;
+            float maxScore = Float.NaN;
             String clusterAlias = randomBoolean() ? null : "remote";
             SearchShardTarget shardTarget = new SearchShardTarget("", new ShardId("", "", shardIndex), clusterAlias, OriginalIndices.NONE);
             FetchSearchResult fetchSearchResult = new FetchSearchResult(shardIndex, shardTarget);
@@ -304,7 +304,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             for (ScoreDoc scoreDoc : mergedSearchDocs) {
                 if (scoreDoc.shardIndex == shardIndex) {
                     searchHits.add(new SearchHit(scoreDoc.doc, "", new Text(""), Collections.emptyMap()));
-                    if (scoreDoc.score > maxScore) {
+                    if (scoreDoc.score > maxScore || Float.isNaN(maxScore)) {
                         maxScore = scoreDoc.score;
                     }
                 }
@@ -315,7 +315,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         ScoreDoc doc = option.getDoc();
                         if (doc.shardIndex == shardIndex) {
                             searchHits.add(new SearchHit(doc.doc, "", new Text(""), Collections.emptyMap()));
-                            if (doc.score > maxScore) {
+                            if (doc.score > maxScore || Float.isNaN(maxScore)) {
                                 maxScore = doc.score;
                             }
                         }

@@ -34,7 +34,9 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
+import org.elasticsearch.client.dataframe.transforms.SourceConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
@@ -106,6 +108,10 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // tag::put-data-frame-transform-query-config
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         // end::put-data-frame-transform-query-config
+        // tag::put-data-frame-transform-source-config
+        SourceConfig sourceConfig =
+            new SourceConfig(new String[]{"source-index"}, queryConfig);
+        // end::put-data-frame-transform-source-config
         // tag::put-data-frame-transform-group-config
         GroupConfig groupConfig =
                 new GroupConfig(Collections.singletonMap("reviewer", // <1>
@@ -123,10 +129,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // tag::put-data-frame-transform-config
         DataFrameTransformConfig transformConfig =
                 new DataFrameTransformConfig("reviewer-avg-rating", // <1>
-                "source-index", // <2>
-                "pivot-destination",  // <3>
-                queryConfig,   // <4>
-                pivotConfig);  // <5>
+                sourceConfig, // <2>
+                new DestConfig("pivot-destination"),  // <3>
+                pivotConfig);  // <4>
         // end::put-data-frame-transform-config
 
         {
@@ -145,7 +150,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         }
         {
             DataFrameTransformConfig configWithDifferentId = new DataFrameTransformConfig("reviewer-avg-rating2",
-                    transformConfig.getSource(), transformConfig.getDestination(), transformConfig.getQueryConfig(),
+                    transformConfig.getSource(), transformConfig.getDestination(),
                     transformConfig.getPivotConfig());
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
@@ -191,7 +196,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
@@ -308,9 +313,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig1 = new DataFrameTransformConfig("mega-transform",
-                "source-data", "pivot-dest", queryConfig, pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
         DataFrameTransformConfig transformConfig2 = new DataFrameTransformConfig("mega-transform2",
-                "source-data", "pivot-dest2", queryConfig, pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest2"), pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig1), RequestOptions.DEFAULT);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
@@ -375,9 +380,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // tag::preview-data-frame-transform-request
         DataFrameTransformConfig transformConfig =
                 new DataFrameTransformConfig(null,  // <1>
-                "source-data",
+                new SourceConfig(new String[]{"source-data"}, queryConfig),
                 null,                               // <2>
-                queryConfig,
                 pivotConfig);
 
         PreviewDataFrameTransformRequest request =

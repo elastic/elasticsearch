@@ -38,7 +38,7 @@ public final class DataframeIndex {
 
     public static void createDestinationIndex(Client client, DataFrameTransformConfig transformConfig, Map<String, String> mappings,
             final ActionListener<Boolean> listener) {
-        CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination());
+        CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
 
         // TODO: revisit number of shards, number of replicas
         request.settings(Settings.builder() // <1>
@@ -50,7 +50,7 @@ public final class DataframeIndex {
             listener.onResponse(true);
         }, e -> {
             String message = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
-                    transformConfig.getDestination(), transformConfig.getId());
+                    transformConfig.getDestination().getIndex(), transformConfig.getId());
             logger.error(message);
             listener.onFailure(new RuntimeException(message, e));
         }));

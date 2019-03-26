@@ -19,14 +19,13 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
@@ -50,10 +49,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.Spliterators;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -334,6 +337,9 @@ public class IndexNameExpressionResolver {
         return indexAliases(state, index, AliasMetaData::filteringRequired, false, resolvedExpressions);
     }
 
+    // pkg-private for testing
+    Boolean forceIterateIndexAliases;
+
     /**
      * Iterates through the list of indices and selects the effective list of required aliases for the given index.
      * <p>Only aliases where the given predicate tests successfully are returned. If the indices list contains a non-required reference to
@@ -356,30 +362,41 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        List<String> aliases = null;
-        for (ObjectCursor<AliasMetaData> aliasMetaDataCursor : indexMetaData.getAliases().values()) {
-            AliasMetaData aliasMetaData = aliasMetaDataCursor.value;
-            if (resolvedExpressions.contains(aliasMetaData.alias())) {
-                if (requiredAlias.test(aliasMetaData)) {
-                    // If required - add it to the list of aliases
-                    if (aliases == null) {
-                        aliases = new ArrayList<>();
-                    }
-                    aliases.add(aliasMetaData.alias());
-                } else {
-                    // If not, we have a non required alias for this index - no further checking needed
-                    return null;
-                }
-            }
+        final ImmutableOpenMap<String, AliasMetaData> indexAliases = indexMetaData.getAliases();
+        final Stream<AliasMetaData> aliasCandidates;
+        final boolean iterateIndexAliases;
+        if (forceIterateIndexAliases != null) {
+            iterateIndexAliases = forceIterateIndexAliases;
+        } else {
+            // We need the intersection of indexAliases and resolvedExpressions, so we
+            // iterate the smaller set and filter based on the other set.
+            iterateIndexAliases = indexAliases.size() <= resolvedExpressions.size();
+        }
+        if (iterateIndexAliases) {
+            // faster to iterate indexAliases
+            aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
+                    .map(cursor -> cursor.value)
+                    .filter(aliasMetaData -> resolvedExpressions.contains(aliasMetaData.alias()));
+        } else {
+            // faster to iterate resolvedExpressions
+            aliasCandidates = resolvedExpressions.stream()
+                    .map(indexAliases::get)
+                    .filter(Objects::nonNull);
         }
 
-        if (aliases == null) {
+        String[] aliases = aliasCandidates
+                .filter(requiredAlias)
+                .map(AliasMetaData::alias)
+                .toArray(String[]::new);
+        if (aliases.length == 0) {
             return null;
+        } else {
+            // Make order predictable as we have some tests that rely on it.
+            // TODO: Fix tests that rely on the order, this is conceptually a set
+            // (and maybe this method should return a set rather than an array).
+            Arrays.sort(aliases);
+            return aliases;
         }
-        String[] aliasesArray = aliases.toArray(new String[aliases.size()]);
-        // Make order predictable
-        Arrays.sort(aliasesArray);
-        return aliasesArray;
     }
 
     /**
@@ -629,6 +646,8 @@ public class IndexNameExpressionResolver {
                 return resolveEmptyOrTrivialWildcard(options, metaData);
             }
 
+            // TODO: Fix API to work with sets rather than lists since we need to convert to sets
+            // internally anyway.
             Set<String> result = innerResolve(context, expressions, options, metaData);
 
             if (result == null) {

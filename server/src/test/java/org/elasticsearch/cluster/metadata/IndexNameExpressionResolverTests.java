@@ -61,7 +61,17 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+
+    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return new IndexNameExpressionResolver();
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        indexNameExpressionResolver = getIndexNameExpressionResolver();
+    }
 
     public void testIndexOptionsStrict() {
         MetaData.Builder mdBuilder = MetaData.builder()

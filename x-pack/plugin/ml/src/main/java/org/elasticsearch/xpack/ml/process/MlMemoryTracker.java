@@ -330,8 +330,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         String startedJobIds = mlDataFrameAnalyticsJobTasks.stream()
             .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).sorted().collect(Collectors.joining(","));
 
-        // TODO use startedJobIds instead of * once a comma separated list is supported
-        configProvider.getMultiple("*", ActionListener.wrap(
+        configProvider.getMultiple(startedJobIds, ActionListener.wrap(
             analyticsConfigs -> {
                 for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                     memoryRequirementByDataFrameAnalyticsJob.put(analyticsConfig.getId(), analyticsConfig.getModelMemoryLimit().getBytes());

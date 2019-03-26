@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,9 +92,11 @@ public class MlMemoryTrackerTests extends ESTestCase {
             tasks.put(task.getId(), task);
         }
 
+        List<String> allIds = new ArrayList<>();
         int numDataFrameAnalyticsTasks = randomIntBetween(2, 5);
         for (int i = 1; i <= numDataFrameAnalyticsTasks; ++i) {
             String id = "analytics" + i;
+            allIds.add(id);
             PersistentTasksCustomMetaData.PersistentTask<?> task = makeTestDataFrameAnalyticsTask(id);
             tasks.put(task.getId(), task);
         }
@@ -114,8 +118,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 String jobId = "job" + i;
                 verify(jobResultsProvider, times(1)).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
             }
-            // TODO change * to list of IDs
-            verify(configProvider, times(1)).getMultiple(eq("*"), any(ActionListener.class));
+            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), any(ActionListener.class));
         } else {
             verify(jobResultsProvider, never()).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
         }

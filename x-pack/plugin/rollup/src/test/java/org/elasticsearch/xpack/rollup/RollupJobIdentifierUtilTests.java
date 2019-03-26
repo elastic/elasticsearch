@@ -267,7 +267,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .dateHistogramInterval(new DateHistogramInterval("1h"))
-                .subAggregation(new HistogramAggregationBuilder("histo").field("bar").interval(100));
+                .subAggregation(new HistogramAggregationBuilder("histo", ValueType.DOUBLE).field("bar").interval(100));
 
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);
@@ -303,7 +303,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testHistoSameNameWrongTypeInCaps() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo", ValueType.DOUBLE);
         histo.field("foo")
                 .interval(1L)
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
@@ -389,7 +389,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testHistoMissingFieldInCaps() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo", ValueType.DOUBLE);
         histo.interval(1)
                 .field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
@@ -412,7 +412,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testNoMatchingHistoInterval() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo", ValueType.DOUBLE);
         histo.interval(1)
                 .field("bar")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
@@ -433,7 +433,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
     }
 
     public void testHistoIntervalNotMultiple() {
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo", ValueType.DOUBLE);
         histo.interval(10)  // <--- interval is not a multiple of 3
             .field("bar")
             .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))

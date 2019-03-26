@@ -52,7 +52,7 @@ import java.util.Map;
  * written as {@code interval * x + offset} and yet is less than or equal to
  * {@code value}.
  */
-class HistogramAggregator extends BucketsAggregator {
+class NumericHistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat formatter;
@@ -64,11 +64,11 @@ class HistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
-            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-            @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    NumericHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+                               BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                               @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
+                               SearchContext context, Aggregator parent,
+                               List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, context, parent, pipelineAggregators, metaData);
         if (interval <= 0) {

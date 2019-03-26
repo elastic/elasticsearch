@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +34,7 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
 
     @Override
     protected HistogramAggregationBuilder createTestAggregatorBuilder() {
-        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.DOUBLE);
         factory.field(INT_FIELD_NAME);
         factory.interval(randomDouble() * 1000);
         if (randomBoolean()) {
@@ -68,7 +69,7 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
     }
 
     public void testInvalidBounds() {
-        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo", ValueType.DOUBLE);
         factory.field(INT_FIELD_NAME);
         factory.interval(randomDouble() * 1000);
 

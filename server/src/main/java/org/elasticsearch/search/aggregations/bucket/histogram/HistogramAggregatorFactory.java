@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,7 +33,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, HistogramAggregatorFactory> {
+public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, HistogramAggregatorFactory> {
 
     private final double interval, offset;
     private final BucketOrder order;
@@ -42,7 +41,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private final long minDocCount;
     private final double minBound, maxBound;
 
-    public HistogramAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double interval, double offset,
+    public HistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double interval, double offset,
             BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
             SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
@@ -61,24 +60,40 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
+        }
+        else if (valuesSource instanceof ValuesSource.Bytes) {
+            return createAggregator((ValuesSource.Bytes) valuesSource, parent, pipelineAggregators, metaData);
+        }
+        else {
+            throw new IllegalArgumentException("Expected one of [Numeric, Bytes] values source, found [" + valuesSource.toString() + "]");
+        }
     }
 
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
 
-        return new HistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
                 config.format(), context, parent, pipelineAggregators, metaData);
     }
+
+    private Aggregator createAggregator(ValuesSource.Bytes valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                                        Map<String, Object> metaData) throws IOException {
+
+        return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
+            config.format(), context, parent, pipelineAggregators, metaData);
+    }
+
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return createAggregator(null, parent, pipelineAggregators, metaData);
+        return createAggregator((ValuesSource.Numeric) null, parent, pipelineAggregators, metaData);
     }
 }

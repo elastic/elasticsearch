@@ -89,6 +89,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.util.List;
 import java.util.Map;
@@ -245,7 +246,7 @@ public class AggregationBuilders {
      * Create a new {@link Histogram} aggregation with the given name.
      */
     public static HistogramAggregationBuilder histogram(String name) {
-        return new HistogramAggregationBuilder(name);
+        return new HistogramAggregationBuilder(name, ValueType.DOUBLE);
     }
 
     /**

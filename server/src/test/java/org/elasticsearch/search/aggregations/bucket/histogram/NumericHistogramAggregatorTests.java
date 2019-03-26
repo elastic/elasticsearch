@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
@@ -27,17 +26,14 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
-import java.util.Collections;
-
-public class HistogramAggregatorTests extends AggregatorTestCase {
+public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testLongs() throws Exception {
         try (Directory dir = newDirectory();
@@ -48,7 +44,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(5);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -79,7 +75,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(5);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
@@ -101,32 +97,6 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testDoubleRanges() throws Exception {
-
-        RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.DOUBLE;
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            Document doc = new Document();
-            BytesRef encodedRange =
-                rangeType.encodeRanges(Collections.singleton(new RangeFieldMapper.Range(rangeType, 1.0D, 3.0D, true, true)));
-            doc.add(new BinaryDocValuesField("field", encodedRange));
-            w.addDocument(doc);
-
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
-                .field("field")
-                .interval(5);
-            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
-            fieldType.setName("field");
-
-            try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
-                assertEquals(1, histogram.getBuckets().size());
-            }
-
-        }
-    }
-
     public void testIrrationalInterval() throws Exception {
         try (Directory dir = newDirectory();
                 RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -136,7 +106,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(Math.PI);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -167,7 +137,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(10)
                     .minDocCount(2);
@@ -196,7 +166,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(new Document());
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(5)
                     .missing(2d);
@@ -228,7 +198,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(5)
                     .offset(Math.PI);
@@ -258,7 +228,7 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
                     .field("field")
                     .interval(5)
                     .extendedBounds(-12, 13);

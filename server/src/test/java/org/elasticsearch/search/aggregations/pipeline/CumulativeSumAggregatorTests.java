@@ -49,6 +49,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -162,7 +163,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         int numValueBuckets = ((maxRandomValue - minRandomValue) / interval) + 1;
         long[] valueCounts = new long[numValueBuckets];
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo", ValueType.DOUBLE)
             .field(VALUE_FIELD)
             .interval(interval)
             .extendedBounds(minRandomValue, maxRandomValue);
@@ -212,7 +213,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         int numValueBuckets = ((maxRandomValue - minRandomValue) / interval) + 1;
         long[] valueCounts = new long[numValueBuckets];
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo", ValueType.DOUBLE)
             .field(VALUE_FIELD)
             .interval(interval)
             .extendedBounds(minRandomValue, maxRandomValue);
@@ -265,7 +266,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
         Query query = new MatchNoDocsQuery();
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo", ValueType.DOUBLE)
             .field(VALUE_FIELD)
             .interval(interval);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(VALUE_FIELD));

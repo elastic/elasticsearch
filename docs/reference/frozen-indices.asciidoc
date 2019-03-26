@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[frozen-indices]]
-= Frozen Indices
+= Frozen indices
 
 [partintro]
 --
@@ -21,7 +21,10 @@ gained only on a per-node level and loading data-structures on demand is expecte
 execution on a per shard level. Depending on the data in an index, a frozen index may execute searches in the seconds to minutes range, when the same index in an unfrozen state may execute the same search request in milliseconds.
 --
 
-== Best Practices
+[role="xpack"]
+[testenv="basic"]
+[[best_practices]]
+== Best practices
 
 Since frozen indices provide a much higher disk to heap ratio at the expense of search latency, it is advisable to allocate frozen indices to
 dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is significant overhead in loading
@@ -40,10 +43,13 @@ POST /twitter/_forcemerge?max_num_segments=1
 // CONSOLE
 // TEST[setup:twitter]
 
+[role="xpack"]
+[testenv="basic"]
+[[searching_a_frozen_index]]
 == Searching a frozen index
 
 Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
-limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 
+limited by the number of threads in the <<search-throttled,search_throttled>> threadpool,  which is `1` by default. 
 Search requests will not be executed against frozen indices by default, even if a frozen index is named explicitly. This is 
 to prevent accidental slowdowns by targeting a frozen index by mistake. To include frozen indices a search request must be executed with
 the query parameter `ignore_throttled=false`.
@@ -64,10 +70,13 @@ The default value for `pre_filter_shard_size` is `128` but it's recommended to s
 significant overhead associated with this pre-filter phase.
 ================================
 
+[role="xpack"]
+[testenv="basic"]
+[[monitoring_frozen_indices]]
 == Monitoring frozen indices
 
 Frozen indices are ordinary indices that use search throttling and a memory efficient shard implementation. For API's like the
-`<<cat-indices>>` frozen indicies may identified by an index's `search.throttled` property (`sth`).
+<<cat-indices>> frozen indices may identified by an index's `search.throttled` property (`sth`).
 
 [source,js]
 --------------------------------------------------

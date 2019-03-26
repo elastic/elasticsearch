@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
@@ -49,6 +50,13 @@ public interface ScriptWeaver {
             }
         }
         throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
+    }
+
+    /*
+     * To be used when the function has an optional parameter.
+     */
+    default ScriptTemplate asOptionalScript(Expression exp) {
+        return exp == null ? asScript(Literal.NULL) : asScript(exp);
     }
 
     DataType dataType();

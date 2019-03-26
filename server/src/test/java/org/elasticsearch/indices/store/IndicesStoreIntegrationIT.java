@@ -165,7 +165,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.transport().addMessageListener(new TransportMessageListener() {
+        transportService.addMessageListener(new TransportMessageListener() {
             @Override
             public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {

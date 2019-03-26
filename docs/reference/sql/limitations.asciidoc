@@ -94,14 +94,14 @@ Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree*
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelect]
+include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelect]
 --------------------------------------------------
 
 The query above is possible because it is equivalent with:
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[limitationSubSelectRewritten]
+include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelectRewritten]
 --------------------------------------------------
 
 But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `SELECT` would be more complex than `SELECT X

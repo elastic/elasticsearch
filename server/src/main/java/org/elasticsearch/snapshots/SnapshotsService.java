@@ -1132,6 +1132,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void deleteSnapshot(final Snapshot snapshot, final ActionListener<Void> listener, final long repositoryStateId,
                                 final boolean immediatePriority) {
+        logger.info("deleting snapshot [{}]", snapshot);
         Priority priority = immediatePriority ? Priority.IMMEDIATE : Priority.NORMAL;
         clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask(priority) {
 

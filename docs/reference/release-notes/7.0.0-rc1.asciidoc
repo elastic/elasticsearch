@@ -86,8 +86,8 @@ Percolator::
 * Add support for selecting percolator query candidate matches containing geo_point based queries {pull}26040[#26040]
 
 SQL::
-* SQL: Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
-* SQL: change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
+* Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
+* Change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
 
 
 
@@ -149,33 +149,29 @@ Infra/REST API::
 * Fix #38623 remove xpack namespace REST API {pull}38625[#38625]
 * Remove the "xpack" namespace from the REST API {pull}38623[#38623]
 
-Machine Learning::
-* [ML] Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
-* ML allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
-
 Recovery::
 * Create retention leases file during recovery {pull}39359[#39359] (issue: {issue}37165[#37165])
 
 SQL::
-* SQL: Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
-* SQL: Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
-* SQL: CAST supports both SQL and ES types {pull}40365[#40365] (issue: {issue}40282[#40282])
-* SQL: Fix RLIKE bug and improve testing for RLIKE statement {pull}40354[#40354] (issues: {issue}34609[#34609], {issue}39931[#39931])
-* SQL: unwrap the first value in an array in case of array leniency {pull}40318[#40318] (issue: {issue}40296[#40296])
-* SQL: Preserve original source for cast/convert function {pull}40271[#40271] (issue: {issue}40239[#40239])
-* SQL: fix LIKE function equality by considering its pattern as well {pull}40260[#40260] (issue: {issue}39931[#39931])
-* SQL: Fix issue with optimization on queries with ORDER BY/LIMIT {pull}40256[#40256] (issue: {issue}40211[#40211])
-* SQL: rewrite ROUND and TRUNCATE functions with a different optional parameter handling method {pull}40242[#40242] (issue: {issue}40001[#40001])
-* SQL: Fix issue with getting DATE type in JDBC {pull}40207[#40207]
-* SQL: Fix issue with date columns returned always in UTC {pull}40163[#40163] (issue: {issue}40152[#40152])
-* SQL: Add multi_value_field_leniency inside FieldHitExtractor {pull}40113[#40113] (issue: {issue}39700[#39700])
-* SQL: fix incorrect ordering of groupings (GROUP BY) based on orderings (ORDER BY) {pull}40087[#40087] (issue: {issue}39956[#39956])
-* SQL: Fix bug with JDBC timezone setting and DATE type {pull}39978[#39978] (issue: {issue}39915[#39915])
-* SQL: Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
+* Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
+* Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
+* CAST supports both SQL and ES types {pull}40365[#40365] (issue: {issue}40282[#40282])
+* Fix RLIKE bug and improve testing for RLIKE statement {pull}40354[#40354] (issues: {issue}34609[#34609], {issue}39931[#39931])
+* Unwrap the first value in an array in case of array leniency {pull}40318[#40318] (issue: {issue}40296[#40296])
+* Preserve original source for cast/convert function {pull}40271[#40271] (issue: {issue}40239[#40239])
+* Fix LIKE function equality by considering its pattern as well {pull}40260[#40260] (issue: {issue}39931[#39931])
+* Fix issue with optimization on queries with ORDER BY/LIMIT {pull}40256[#40256] (issue: {issue}40211[#40211])
+* Rewrite ROUND and TRUNCATE functions with a different optional parameter handling method {pull}40242[#40242] (issue: {issue}40001[#40001])
+* Fix issue with getting DATE type in JDBC {pull}40207[#40207]
+* Fix issue with date columns returned always in UTC {pull}40163[#40163] (issue: {issue}40152[#40152])
+* Add multi_value_field_leniency inside FieldHitExtractor {pull}40113[#40113] (issue: {issue}39700[#39700])
+* Fix incorrect ordering of groupings (GROUP BY) based on orderings (ORDER BY) {pull}40087[#40087] (issue: {issue}39956[#39956])
+* Fix bug with JDBC timezone setting and DATE type {pull}39978[#39978] (issue: {issue}39915[#39915])
+* Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
 
 Search::
 * Serialize top-level pipeline aggs as part of InternalAggregations {pull}40177[#40177] (issues: {issue}40059[#40059], {issue}40101[#40101])
-* CCS: skip empty search hits when minimizing round-trips {pull}40098[#40098] (issues: {issue}32125[#32125], {issue}40067[#40067])
+* CCS: Skip empty search hits when minimizing round-trips {pull}40098[#40098] (issues: {issue}32125[#32125], {issue}40067[#40067])
 * CCS: Disable minimizing round-trips when dfs is requested {pull}40044[#40044] (issue: {issue}32125[#32125])
 
 

@@ -639,5 +639,4 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             throw new ElasticsearchException("Cannot construct URI for httpServer @ {}:{}", e, host, port);
         }
     }
-
 }

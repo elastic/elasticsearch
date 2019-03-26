@@ -28,7 +28,7 @@ SELECT null, 'test1', 'name', 12, 'TEXT', 2147483647, 2147483647, null, null,
   null, null, 12, 0, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 256, 2147483647, null, null,
+SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 32766, 2147483647, null, null,
   1, -- columnNullable
   null, null, 12, 0, 2147483647, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL

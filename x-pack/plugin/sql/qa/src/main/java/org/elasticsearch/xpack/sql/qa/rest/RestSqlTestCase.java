@@ -184,7 +184,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Map<String, Object> expected = new HashMap<>();
         boolean columnar = randomBoolean();
         expected.put("columns", Arrays.asList(
-            columnInfo(mode, "name", "text", JDBCType.VARCHAR, 0),
+            columnInfo(mode, "name", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
             columnInfo(mode, "score", "long", JDBCType.BIGINT, 20),
             columnInfo(mode, "SCORE()", "float", JDBCType.REAL, 15)));
         if (columnar) {

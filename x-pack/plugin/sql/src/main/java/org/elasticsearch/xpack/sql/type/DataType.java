@@ -39,7 +39,7 @@ public enum DataType {
     HALF_FLOAT(    "half_float",     JDBCType.FLOAT,     Float.BYTES,       3,                 25, false, true,  true),
     // precision is based on long
     SCALED_FLOAT(  "scaled_float",   JDBCType.DOUBLE,    Integer.BYTES,     15,                25, false, true,  true),
-    KEYWORD(       "keyword",        JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               256,false, false, true),
+    KEYWORD(       "keyword",        JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               32766,false, false, true),
     TEXT(          "text",           JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
     OBJECT(        "object",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(        "nested",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),

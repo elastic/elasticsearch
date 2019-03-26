@@ -23,7 +23,7 @@ s|SQL precision
 | <<number, `float`>>         | float         | REAL        | 7
 | <<number, `half_float`>>    | half_float    | FLOAT       | 3
 | <<number, `scaled_float`>>  | scaled_float  | DOUBLE      | 15
-| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 2,147,483,647
+| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
 | <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
 | <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
 | <<date, `date`>>            | datetime      | TIMESTAMP   | 24

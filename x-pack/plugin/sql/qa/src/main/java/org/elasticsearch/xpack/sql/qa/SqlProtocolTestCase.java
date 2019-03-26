@@ -62,7 +62,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     public void testTextualType() throws IOException {
-        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 256);
+        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 32766);
     }
     
     public void testDateTimes() throws IOException {

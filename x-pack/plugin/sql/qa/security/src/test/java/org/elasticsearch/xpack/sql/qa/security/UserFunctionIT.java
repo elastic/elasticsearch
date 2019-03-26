@@ -81,7 +81,7 @@ public class UserFunctionIT extends ESRestTestCase {
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 256)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName)));
         Map<String, Object> actual = runSql(randomUserName, mode, SQL);
         
@@ -97,7 +97,7 @@ public class UserFunctionIT extends ESRestTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 256)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));
@@ -114,7 +114,7 @@ public class UserFunctionIT extends ESRestTestCase {
 
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 256)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
         expected.put("rows", Collections.<ArrayList<String>>emptyList());
         String anotherRandomUserName = randomValueOtherThan(randomUserName, () -> randomAlphaOfLengthBetween(1, 15));
         Map<String, Object> actual = runSql(randomUserName, mode, SQL + " FROM test WHERE USER()='" + anotherRandomUserName + "' LIMIT 3");
@@ -129,7 +129,7 @@ public class UserFunctionIT extends ESRestTestCase {
             Map<String, Object> expected = new HashMap<>();
 
             expected.put("columns", Arrays.asList(
-                    columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 256)));
+                    columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
             expected.put("rows", Arrays.asList(Arrays.asList(randomlyPickedUsername)));
             Map<String, Object> actual = runSql(randomlyPickedUsername, mode, SQL);
             
@@ -147,7 +147,7 @@ public class UserFunctionIT extends ESRestTestCase {
         
         Map<String, Object> expected = new HashMap<>();
         expected.put("columns", Arrays.asList(
-                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 256)));
+                columnInfo(mode, "USER()", "keyword", JDBCType.VARCHAR, 32766)));
         expected.put("rows", Arrays.asList(Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName),
                                            Arrays.asList(randomUserName)));

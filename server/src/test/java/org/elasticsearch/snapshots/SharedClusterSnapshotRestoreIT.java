@@ -132,7 +132,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesExist;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesMissing;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
@@ -227,6 +226,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
+        final boolean snapshotClosed = randomBoolean();
+        if (snapshotClosed) {
+            assertAcked(client.admin().indices().prepareClose(indicesToSnapshot).setWaitForActiveShards(ActiveShardCount.ALL).get());
+        }
+
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices(indicesToSnapshot).get();
@@ -240,6 +244,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
+
+        if (snapshotClosed) {
+            assertAcked(client.admin().indices().prepareOpen(indicesToSnapshot).setWaitForActiveShards(ActiveShardCount.ALL).get());
+        }
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -271,6 +279,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertHitCount(client.prepareSearch("test-idx-3").setSize(0).get(), 50L);
         }
 
+        assertNull(client.admin().indices().prepareGetSettings("test-idx-1").get().getSetting("test-idx-1",
+            MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
+
         for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
             String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
             ShardId shardId = shardStats.getShardRouting().shardId();
@@ -293,6 +304,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+
+        assertNull(client.admin().indices().prepareGetSettings("test-idx-1").get().getSetting("test-idx-1",
+            MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey()));
 
         for (ShardStats shardStats: client().admin().indices().prepareStats(indicesToSnapshot).clear().get().getShards()) {
             String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);
@@ -1561,33 +1575,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices("test-idx*").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(1));
+        assertThat(createSnapshotResponse.getSnapshotInfo().indices().size(), equalTo(2));
         assertThat(createSnapshotResponse.getSnapshotInfo().shardFailures().size(), equalTo(0));
-
-        logger.info("-->  deleting snapshot");
-        client.admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").get();
-
-        logger.info("--> snapshot with closed index");
-        assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
-            .setIndices("test-idx", "test-idx-closed"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
-    }
-
-    public void testSnapshotSingleClosedIndex() throws Exception {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder()
-                        .put("location", randomRepoPath())));
-
-        createIndex("test-idx");
-        ensureGreen();
-        logger.info("-->  closing index test-idx");
-        assertAcked(client.admin().indices().prepareClose("test-idx"));
-
-        logger.info("--> snapshot");
-        assertBlocked(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1")
-                .setWaitForCompletion(true).setIndices("test-idx"), MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     public void testRenameOnRestore() throws Exception {
@@ -2483,6 +2472,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         } else {
             waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
         }
+        boolean closedOnPartial = false;
         try {
             if (allowPartial) {
                 // partial snapshots allow close / delete operations
@@ -2491,6 +2481,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                     client.admin().indices().prepareDelete("test-idx-1").get();
                 } else {
                     logger.info("--> close index while partial snapshot is running");
+                    closedOnPartial = true;
                     client.admin().indices().prepareClose("test-idx-1").get();
                 }
             } else {
@@ -2525,7 +2516,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> waiting for snapshot to finish");
         CreateSnapshotResponse createSnapshotResponse = future.get();
 
-        if (allowPartial) {
+        if (allowPartial && closedOnPartial == false) {
             logger.info("Deleted/Closed index during snapshot, but allow partial");
             assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo((SnapshotState.PARTIAL)));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));

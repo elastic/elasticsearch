@@ -16,16 +16,34 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 
-rem now set the path to java
+set HOSTNAME=%COMPUTERNAME%
+
+if not defined ES_PATH_CONF (
+  set ES_PATH_CONF=!ES_HOME!\config
+)
+
+rem now make ES_PATH_CONF absolute
+for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
+
+set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
+set ES_DISTRIBUTION_TYPE=${es.distribution.type}
+
+cd /d "%ES_HOME%"
+
+rem now set the path to java, pass "nojava" arg to skip setting JAVA_HOME and JAVA
+if "%1" == "nojava" (
+   exit /b
+)
+
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"
 ) else (
-  echo warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME
-  for %%I in (java.exe) do set JAVA="%%~$PATH:I"
+  set JAVA="%ES_HOME%\jdk\bin\java.exe"
+  set JAVA_HOME="%ES_HOME%\jdk"
 )
 
 if not exist %JAVA% (
-  echo could not find java; set JAVA_HOME 1>&2
+  echo "could not find java in JAVA_HOME or bundled at %ES_HOME%\jdk" >&2
   exit /b 1
 )
 
@@ -44,18 +62,6 @@ if defined JAVA_OPTS (
 
 rem check the Java version
 %JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
-
-set HOSTNAME=%COMPUTERNAME%
-
-if not defined ES_PATH_CONF (
-  set ES_PATH_CONF=!ES_HOME!\config
-)
-
-rem now make ES_PATH_CONF absolute
-for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
-
-set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory""`) do set ES_TMPDIR=%%a

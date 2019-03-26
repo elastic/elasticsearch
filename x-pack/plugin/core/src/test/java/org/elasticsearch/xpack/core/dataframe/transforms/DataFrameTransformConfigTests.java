@@ -10,60 +10,52 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
+import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
+import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomInvalidSourceConfig;
+import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 
 public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformConfig> {
-
-    private static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
-            Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
 
     private String transformId;
     private boolean runWithHeaders;
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), null, QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        return randomDataFrameTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomQueryConfig(),
-                PivotConfigTests.randomPivotConfig());
+        return randomDataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
-        return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), null,
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), null,
+                PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
-        return new DataFrameTransformConfig(id, randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10), randomHeaders(),
-                QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), randomHeaders(),
+                PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
-            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomInvalidQueryConfig(),
-                    PivotConfigTests.randomPivotConfig());
+            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(),
+                    randomDestConfig(), randomHeaders(), PivotConfigTests.randomPivotConfig());
         } // else
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), randomHeaders(), QueryConfigTests.randomQueryConfig(),
-                PivotConfigTests.randomInvalidPivotConfig());
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
+                randomDestConfig(), randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
     }
 
     @Before
@@ -105,8 +97,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public void testDefaultMatchAll() throws IOException {
         String pivotTransform = "{"
-                + " \"source\" : \"src\","
-                + " \"dest\" : \"dest\","
+                + " \"source\" : {\"index\":\"src\"},"
+                + " \"dest\" : {\"index\": \"dest\"},"
                 + " \"pivot\" : {"
                 + " \"group_by\": {"
                 + "   \"id\": {"
@@ -120,8 +112,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 + "} } } } }";
 
         DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "test_match_all");
-        assertNotNull(dataFrameTransformConfig.getQueryConfig());
-        assertTrue(dataFrameTransformConfig.getQueryConfig().isValid());
+        assertNotNull(dataFrameTransformConfig.getSource().getQueryConfig());
+        assertTrue(dataFrameTransformConfig.getSource().getQueryConfig().isValid());
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -134,8 +126,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     public void testPreventHeaderInjection() throws IOException {
         String pivotTransform = "{"
                 + " \"headers\" : {\"key\" : \"value\" },"
-                + " \"source\" : \"src\","
-                + " \"dest\" : \"dest\","
+                + " \"source\" : {\"index\":\"src\"},"
+                + " \"dest\" : {\"index\": \"dest\"},"
                 + " \"pivot\" : {"
                 + " \"group_by\": {"
                 + "   \"id\": {"
@@ -152,11 +144,29 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 () -> createDataFrameTransformConfigFromString(pivotTransform, "test_header_injection"));
     }
 
+    public void testXContentForInternalStorage() throws IOException {
+        DataFrameTransformConfig dataFrameTransformConfig = randomDataFrameTransformConfig();
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, getToXContentParams());
+            String doc = Strings.toString(content);
+
+            assertThat(doc, matchesPattern(".*\"doc_type\"\\s*:\\s*\"data_frame_transform_config\".*"));
+        }
+
+        try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
+            XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            String doc = Strings.toString(content);
+
+            assertFalse(doc.contains("doc_type"));
+        }
+    }
+
     public void testSetIdInBody() throws IOException {
         String pivotTransform = "{"
                 + " \"id\" : \"body_id\","
-                + " \"source\" : \"src\","
-                + " \"dest\" : \"dest\","
+                + " \"source\" : {\"index\":\"src\"},"
+                + " \"dest\" : {\"index\": \"dest\"},"
                 + " \"pivot\" : {"
                 + " \"group_by\": {"
                 + "   \"id\": {"

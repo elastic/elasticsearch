@@ -479,7 +479,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
         assertEquals("1:8: first argument of [TRUNCATE('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [numeric], found value ['bar'] type [keyword]",
+        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
@@ -715,6 +715,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testTopHitsGroupByHavingUnsupported() {
         assertEquals("1:50: HAVING filter is unsupported for function [FIRST(int)]",
             error("SELECT FIRST(int) FROM test GROUP BY text HAVING FIRST(int) > 10"));
+    }
+
+    public void testMinOnInexactUnsupported() {
+        assertEquals("1:8: [MIN(text)] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT MIN(text) FROM test"));
+    }
+
+    public void testMaxOnInexactUnsupported() {
+        assertEquals("1:8: [MAX(text)] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT MAX(text) FROM test"));
     }
 
     public void testMinOnKeywordGroupByHavingUnsupported() {

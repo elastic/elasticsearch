@@ -94,9 +94,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.ParsedFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -256,6 +256,7 @@ public class RestHighLevelClient implements Closeable {
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
+    private final DataFrameClient dataFrameClient = new DataFrameClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -427,7 +428,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides methods for accessing the Elastic Licensed Licensing APIs that
+     * Provides methods for accessing the Elastic Licensed Migration APIs that
      * are shipped with the default distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
      * <p>
@@ -464,6 +465,19 @@ public class RestHighLevelClient implements Closeable {
      */
     public SecurityClient security() {
         return securityClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="TODO">Data Frame APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making Data Frame API calls
+     */
+    public DataFrameClient dataFrame() {
+        return dataFrameClient;
     }
 
     /**

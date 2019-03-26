@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.settings.SecureString;
@@ -23,6 +26,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
@@ -36,14 +40,22 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging("org.elasticsearch.xpack.security.authz.store.FileRolesStore:DEBUG")
@@ -162,10 +174,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the creation time to the day before
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
-        client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, "doc", docId.get())
+        client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, docId.get())
             .setDoc("creation_time", yesterday.toEpochMilli())
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         AtomicBoolean deleteTriggered = new AtomicBoolean(false);
         assertBusy(() -> {
@@ -330,7 +342,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has been invalidated", e.getHeader("error_description").get(0));
     }
 
-    public void testRefreshingMultipleTimes() {
+    public void testRefreshingMultipleTimesFails() throws Exception {
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
@@ -343,12 +355,107 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertNotNull(createTokenResponse.getRefreshToken());
         CreateTokenResponse refreshResponse = securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get();
         assertNotNull(refreshResponse);
+        // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
+        AtomicReference<String> docId = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setSource(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("doc_type", "token"))
+                        .must(QueryBuilders.termQuery("refresh_token.refreshed", "true"))))
+                .setSize(1)
+                .setTerminateAfter(1)
+                .get();
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            docId.set(searchResponse.getHits().getAt(0).getId());
+        });
 
+        // hack doc to modify the refresh time to 50 seconds ago so that we don't hit the lenient refresh case
+        Instant refreshed = Instant.now();
+        Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
+        assertTrue(Instant.now().isAfter(aWhileAgo));
+        UpdateResponse updateResponse = client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, docId.get())
+            .setDoc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setFetchSource("refresh_token", Strings.EMPTY_STRING)
+            .get();
+        assertNotNull(updateResponse);
+        Map<String, Object> refreshTokenMap = (Map<String, Object>) updateResponse.getGetResult().sourceAsMap().get("refresh_token");
+        assertTrue(
+            Instant.ofEpochMilli((long) refreshTokenMap.get("refresh_time")).isBefore(Instant.now().minus(30L, ChronoUnit.SECONDS)));
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> securityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).get());
         assertEquals("invalid_grant", e.getMessage());
         assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals("token has already been refreshed", e.getHeader("error_description").get(0));
+        assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
+    }
+
+    public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
+        final Clock clock = Clock.systemUTC();
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClient = new SecurityClient(client);
+        final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
+        CreateTokenResponse createTokenResponse = securityClient.prepareCreateToken()
+            .setGrantType("password")
+            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+            .get();
+        assertNotNull(createTokenResponse.getRefreshToken());
+        final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
+        final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
+        List<Thread> threads = new ArrayList<>(numberOfThreads);
+        final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads + 1);
+        final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
+        AtomicBoolean failed = new AtomicBoolean();
+        final Instant t1 = clock.instant();
+        for (int i = 0; i < numberOfThreads; i++) {
+            threads.add(new Thread(() -> {
+                // Each thread gets its own client so that more than one nodes will be hit
+                Client threadClient = client().filterWithHeader(Collections.singletonMap("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+                SecurityClient threadSecurityClient = new SecurityClient(threadClient);
+                CreateTokenRequest refreshRequest =
+                    threadSecurityClient.prepareRefreshToken(createTokenResponse.getRefreshToken()).request();
+                readyLatch.countDown();
+                try {
+                    readyLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    completedLatch.countDown();
+                    return;
+                }
+                threadSecurityClient.refreshToken(refreshRequest, ActionListener.wrap(result -> {
+                    final Instant t2 = clock.instant();
+                    if (t1.plusSeconds(30L).isBefore(t2)){
+                        logger.warn("Tokens [{}], [{}] were received more than 30 seconds after the request, not checking them",
+                            result.getTokenString(), result.getRefreshToken());
+                    } else {
+                        tokens.add(result.getTokenString() + result.getRefreshToken());
+                    }
+                    logger.info("received access token [{}] and refresh token [{}]", result.getTokenString(), result.getRefreshToken());
+                    completedLatch.countDown();
+                }, e -> {
+                    failed.set(true);
+                    completedLatch.countDown();
+                    logger.error("caught exception", e);
+                }));
+            }));
+        }
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        readyLatch.countDown();
+        readyLatch.await();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        completedLatch.await();
+        assertThat(failed.get(), equalTo(false));
+        // Assert that we only ever got one access_token/refresh_token pair
+        assertThat(tokens.stream().distinct().collect(Collectors.toList()).size(), equalTo(1));
     }
 
     public void testRefreshAsDifferentUser() {

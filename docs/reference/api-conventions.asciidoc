@@ -83,7 +83,7 @@ Where:
 [horizontal]
 `static_name`:: is the static text part of the name
 `date_math_expr`:: is a dynamic date math expression that computes the date dynamically
-`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `YYYY.MM.dd`.
+`date_format`:: is the optional format in which the computed date should be rendered. Defaults to `yyyy.MM.dd`. Format should be compatible with java-time https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatter.html
 `time_zone`:: is the optional time zone. Defaults to `utc`.
 
 Date math expressions are resolved locale-independent. Consequently, it is not possible to use any other
@@ -133,9 +133,9 @@ they resolve to given the current time is 22rd March 2024 noon utc.
 | Expression                                |Resolves to
 | `<logstash-{now/d}>`                      | `logstash-2024.03.22`
 | `<logstash-{now/M}>`                      | `logstash-2024.03.01`
-| `<logstash-{now/M{YYYY.MM}}>`             | `logstash-2024.03`
-| `<logstash-{now/M-1M{YYYY.MM}}>`          | `logstash-2024.02`
-| `<logstash-{now/d{YYYY.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
+| `<logstash-{now/M{yyyy.MM}}>`             | `logstash-2024.03`
+| `<logstash-{now/M-1M{yyyy.MM}}>`          | `logstash-2024.02`
+| `<logstash-{now/d{yyyy.MM.dd\|+12:00}}>`  | `logstash-2024.03.23`
 |======
 
 To use the characters `{` and `}` in the static part of an index name template, escape them

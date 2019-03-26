@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText.AnnotationToken;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -315,45 +316,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     // When asked to tokenize plain-text versions by the highlighter it tokenizes the
     // original markup form in order to inject annotations.
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
-        private Analyzer delegate;
-        private AnnotatedText[] annotations;
-        public AnnotatedHighlighterAnalyzer(Analyzer delegate){
+        private final Analyzer delegate;
+        private final HitContext hitContext;
+        public AnnotatedHighlighterAnalyzer(Analyzer delegate, HitContext hitContext){
             super(delegate.getReuseStrategy());
             this.delegate = delegate;
-        }
-
-        public void init(String[] markedUpFieldValues) {
-            this.annotations = new AnnotatedText[markedUpFieldValues.length];
-            for (int i = 0; i < markedUpFieldValues.length; i++) {
-                annotations[i] = AnnotatedText.parse(markedUpFieldValues[i]);
-            }
-        }
-
-        public String []  getPlainTextValuesForHighlighter(){
-            String [] result = new String[annotations.length];
-            for (int i = 0; i < annotations.length; i++) {
-                result[i] = annotations[i].textMinusMarkup;
-            }
-            return result;
-        }
-
-        public AnnotationToken[] getIntersectingAnnotations(int start, int end) {
-            List<AnnotationToken> intersectingAnnotations = new ArrayList<>();
-            int fieldValueOffset =0;
-            for (AnnotatedText fieldValueAnnotations : this.annotations) {
-                //This is called from a highlighter where all of the field values are concatenated
-                // so each annotation offset will need to be adjusted so that it takes into account
-                // the previous values AND the MULTIVAL delimiter
-                for (AnnotationToken token : fieldValueAnnotations.annotations) {
-                    if(token.intersects(start - fieldValueOffset , end - fieldValueOffset)) {
-                        intersectingAnnotations.add(new AnnotationToken(token.offset + fieldValueOffset,
-                                token.endOffset + fieldValueOffset, token.value));
-                    }
-                }
-                //add 1 for the fieldvalue separator character
-                fieldValueOffset +=fieldValueAnnotations.textMinusMarkup.length() +1;
-            }
-            return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
+            this.hitContext = hitContext;
         }
 
         @Override
@@ -364,10 +332,11 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
+            AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
             AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);
-                AnnotatedText at = this.annotations[readerNum.getAndIncrement()];
+                AnnotatedText at = annotations[readerNum.getAndIncrement()];
                 assert at.textMinusMarkup.equals(plainText);
                 injector.setAnnotations(at);
                 components.getSource().accept(new StringReader(at.textMinusMarkup));

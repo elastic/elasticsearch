@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -65,7 +64,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.SeedHostsProvider.HostsResolver;
-import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MockGatewayMetaState;
@@ -872,7 +870,6 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38867")
     public void testIncompatibleDiffResendsFullState() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
@@ -885,12 +882,12 @@ public class CoordinatorTests extends ESTestCase {
         final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
         logger.info("--> submitting first value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publish first state");
         logger.info("--> healing {}", follower);
         follower.heal();
         logger.info("--> submitting second value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.stabilise();
         final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();
         assertEquals(prePublishStats.getFullClusterStateReceivedCount() + 1,
             postPublishStats.getFullClusterStateReceivedCount());
@@ -919,8 +916,9 @@ public class CoordinatorTests extends ESTestCase {
                 nonLeader.coordinator.becomeCandidate("forced");
             }
             logger.debug("simulate follower check coming through from {} to {}", leader.getId(), nonLeader.getId());
-            nonLeader.coordinator.onFollowerCheckRequest(new FollowersChecker.FollowerCheckRequest(leader.coordinator.getCurrentTerm(),
-                leader.getLocalNode()));
+            expectThrows(CoordinationStateRejectedException.class, () -> nonLeader.coordinator.onFollowerCheckRequest(
+                new FollowersChecker.FollowerCheckRequest(leader.coordinator.getCurrentTerm(), leader.getLocalNode())));
+            assertThat(nonLeader.coordinator.getMode(), equalTo(CANDIDATE));
         }).run();
         cluster.stabilise();
     }
@@ -1081,6 +1079,38 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
     }
 
+    public void testFollowerRemovedIfUnableToSendRequestsToMaster() {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode otherNode = cluster.getAnyNodeExcept(leader);
+
+        cluster.blackholeConnectionsFrom(otherNode, leader);
+
+        cluster.runFor(
+            (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                * defaultInt(FOLLOWER_CHECK_RETRY_COUNT_SETTING)
+                + (defaultMillis(LEADER_CHECK_INTERVAL_SETTING) + DEFAULT_DELAY_VARIABILITY)
+                * defaultInt(LEADER_CHECK_RETRY_COUNT_SETTING)
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
+            "awaiting removal of asymmetrically-partitioned node");
+
+        assertThat(leader.getLastAppliedClusterState().nodes().toString(),
+            leader.getLastAppliedClusterState().nodes().getSize(), equalTo(2));
+
+        cluster.clearBlackholedConnections();
+
+        cluster.stabilise(
+            // time for the disconnected node to find the master again
+            defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2
+                // time for joining
+                + 4 * DEFAULT_DELAY_VARIABILITY
+                // Then a commit of the updated cluster state
+                + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+    }
+
     private static long defaultMillis(Setting<TimeValue> setting) {
         return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
     }
@@ -1143,6 +1173,7 @@ public class CoordinatorTests extends ESTestCase {
 
         private final Set<String> disconnectedNodes = new HashSet<>();
         private final Set<String> blackholedNodes = new HashSet<>();
+        private final Set<Tuple<String,String>> blackholedConnections = new HashSet<>();
         private final Map<Long, ClusterState> committedStatesByVersion = new HashMap<>();
         private final LinearizabilityChecker linearizabilityChecker = new LinearizabilityChecker();
         private final History history = new History();
@@ -1442,8 +1473,7 @@ public class CoordinatorTests extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            // See https://github.com/elastic/elasticsearch/issues/39437
-            //assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
             logger.info("linearizability check completed");
         }
 
@@ -1510,6 +1540,8 @@ public class CoordinatorTests extends ESTestCase {
                 connectionStatus = ConnectionStatus.BLACK_HOLE;
             } else if (disconnectedNodes.contains(sender.getId()) || disconnectedNodes.contains(destination.getId())) {
                 connectionStatus = ConnectionStatus.DISCONNECTED;
+            } else if (blackholedConnections.contains(Tuple.tuple(sender.getId(), destination.getId()))) {
+                connectionStatus = ConnectionStatus.BLACK_HOLE_REQUESTS_ONLY;
             } else if (nodeExists(sender) && nodeExists(destination)) {
                 connectionStatus = ConnectionStatus.CONNECTED;
             } else {
@@ -1558,6 +1590,14 @@ public class CoordinatorTests extends ESTestCase {
 
         void setEmptySeedHostsList() {
             seedHostsList = emptyList();
+        }
+
+        void blackholeConnectionsFrom(ClusterNode sender, ClusterNode destination) {
+            blackholedConnections.add(Tuple.tuple(sender.getId(), destination.getId()));
+        }
+
+        void clearBlackholedConnections() {
+            blackholedConnections.clear();
         }
 
         class MockPersistedState implements PersistedState {
@@ -1712,12 +1752,7 @@ public class CoordinatorTests extends ESTestCase {
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), deterministicTaskQueue.getThreadPool(this::onNode),
-                        transportService) {
-                        @Override
-                        public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                            // override this method as it does blocking calls
-                        }
-                    });
+                        transportService));
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
@@ -2106,6 +2141,10 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
+        @Override
+        protected void connectToNodesAndWait(ClusterState newClusterState) {
+            // don't do anything, and don't block
+        }
     }
 
     private static DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {

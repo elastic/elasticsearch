@@ -236,24 +236,6 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
-  - do:
-      catch: param
-      ml.put_job:
-        job_id: jobs-crud-id-already-taken
-        body:  >
-          {
-            "job_id":"jobs-crud-id-already-taken",
-            "description":"Analysis of response time by airline",
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "field_delimiter":",",
-                "time_field":"time",
-                "time_format":"yyyy-MM-dd HH:mm:ssX"
-            }
-          }
 
 ---
 "Test update job":

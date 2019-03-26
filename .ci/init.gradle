@@ -1,0 +1,43 @@
+if (System.env.ELASTIC_ARTIFACTORY_USERNAME == null || System.env.ELASTIC_ARTIFACTORY_TOKEN == null) {
+    throw new GradleException("Using init script without configuration")
+} else {
+    logger.info("Using elastic artifactory repos")
+    settingsEvaluated { settings ->
+        settings.pluginManagement {
+            repositories {
+                maven {
+                    url "https://artifactory.elstc.co/artifactory/gradle-plugins"
+                    credentials {
+                        username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                        password System.env.ELASTIC_ARTIFACTORY_TOKEN
+                    }
+                }
+                gradlePluginPortal()
+            }
+        }
+    }
+    projectsLoaded {
+        allprojects {
+            buildscript {
+                repositories {
+                    maven {
+                        url "https://artifactory.elstc.co/artifactory/gradle-release/"
+                        credentials {
+                            username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                            password System.env.ELASTIC_ARTIFACTORY_TOKEN
+                        }
+                    }
+                }
+            }
+            repositories {
+                maven {
+                    url "https://artifactory.elstc.co/artifactory/gradle-release/"
+                    credentials {
+                        username System.env.ELASTIC_ARTIFACTORY_USERNAME
+                        password System.env.ELASTIC_ARTIFACTORY_TOKEN
+                    }
+                }
+            }
+        }
+    }
+}

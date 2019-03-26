@@ -443,7 +443,7 @@ In order to store the account SMTP password, use the keystore command
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.email.account.exchange_account.smtp.secure_password
+bin/elasticsearch-keystore add xpack.notification.email.account.exchange_account.smtp.secure_password
 --------------------------------------------------
 
 [float]

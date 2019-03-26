@@ -25,7 +25,10 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
@@ -33,7 +36,9 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
 import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
@@ -58,6 +63,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -421,6 +427,79 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             client.dataFrame().previewDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::preview-data-frame-transform-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetStats() throws IOException, InterruptedException {
+        createIndex("source-data");
+
+        RestHighLevelClient client = highLevelClient();
+
+        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
+        aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
+        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
+        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+
+        String id = "statisitcal-transform";
+        DataFrameTransformConfig transformConfig = new DataFrameTransformConfig(id,
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("dest"), pivotConfig);
+        client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
+
+        // tag::get-data-frame-transform-stats-request
+        GetDataFrameTransformStatsRequest request =
+                new GetDataFrameTransformStatsRequest(id); // <1>
+        // end::get-data-frame-transform-stats-request
+
+        {
+            // tag::get-data-frame-transform-stats-execute
+            GetDataFrameTransformStatsResponse response =
+                client.dataFrame()
+                    .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-transform-stats-execute
+
+            assertThat(response.getTransformsStateAndStats(), hasSize(1));
+
+            // tag::get-data-frame-transform-stats-response
+            DataFrameTransformStateAndStats stateAndStats =
+                    response.getTransformsStateAndStats().get(0);   // <1>
+            IndexerState indexerState =
+                    stateAndStats.getTransformState().getIndexerState();  // <2>
+            DataFrameIndexerTransformStats transformStats =
+                    stateAndStats.getTransformStats();              // <3>
+            // end::get-data-frame-transform-stats-response
+
+            assertEquals(IndexerState.STOPPED, indexerState);
+            assertNotNull(transformStats);
+        }
+        {
+            // tag::get-data-frame-transform-stats-execute-listener
+            ActionListener<GetDataFrameTransformStatsResponse> listener =
+                new ActionListener<GetDataFrameTransformStatsResponse>() {
+                    @Override
+                    public void onResponse(
+                            GetDataFrameTransformStatsResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::get-data-frame-transform-stats-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-data-frame-transform-stats-execute-async
+            client.dataFrame().getDataFrameTransformStatsAsync(
+                    request, RequestOptions.DEFAULT, listener);  // <1>
+            // end::get-data-frame-transform-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

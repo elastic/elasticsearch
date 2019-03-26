@@ -68,6 +68,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
@@ -285,13 +286,16 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertEquals(zeroIndexerStats, stats.getTransformStats());
 
         // start the transform
-        execute(new StartDataFrameTransformRequest(id), client::startDataFrameTransform, client::startDataFrameTransformAsync);
+        StartDataFrameTransformResponse startTransformResponse = execute(new StartDataFrameTransformRequest(id),
+            client::startDataFrameTransform,
+            client::startDataFrameTransformAsync);
+        assertThat(startTransformResponse.isStarted(), is(true));
         assertBusy(() -> {
             GetDataFrameTransformStatsResponse response = execute(new GetDataFrameTransformStatsRequest(id),
                     client::getDataFrameTransformStats, client::getDataFrameTransformStatsAsync);
             DataFrameTransformStateAndStats stateAndStats = response.getTransformsStateAndStats().get(0);
-            assertEquals(DataFrameTransformTaskState.STARTED, stats.getTransformState().getTaskState());
             assertEquals(IndexerState.STARTED, stateAndStats.getTransformState().getIndexerState());
+            assertEquals(DataFrameTransformTaskState.STARTED, stateAndStats.getTransformState().getTaskState());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
         });
     }

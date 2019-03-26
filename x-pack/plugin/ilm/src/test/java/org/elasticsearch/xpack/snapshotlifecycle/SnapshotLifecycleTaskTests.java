@@ -195,6 +195,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
         SnapshotLifecyclePolicy policy = SnapshotLifecycleServiceTests.createPolicy(id);
         Map<String, String> headers = new HashMap<>();
         headers.put("X-Opaque-ID", randomAlphaOfLength(4));
-        return new SnapshotLifecyclePolicyMetadata(policy, headers, 1, 1);
+        return SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(policy)
+            .setHeaders(headers)
+            .setVersion(1)
+            .setModifiedDate(1)
+            .setLastSuccessDate(null)
+            .setLastFailureDate(null)
+            .setLastFailureInfo(null)
+            .build();
     }
 }

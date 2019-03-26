@@ -76,9 +76,7 @@ public class TransportGetSnapshotLifecycleAction extends
                         return ids.contains(meta.getPolicy().getId());
                     }
                 })
-                .map(meta ->
-                    new GetSnapshotLifecycleAction.SnapshotLifecyclePolicyItem(meta.getPolicy(),
-                        meta.getVersion(), meta.getModifiedDate()))
+                .map(GetSnapshotLifecycleAction.SnapshotLifecyclePolicyItem::new)
                 .collect(Collectors.toList());
             listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));
         }

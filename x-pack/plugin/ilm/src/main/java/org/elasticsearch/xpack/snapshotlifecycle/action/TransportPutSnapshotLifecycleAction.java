@@ -82,15 +82,22 @@ public class TransportPutSnapshotLifecycleAction extends
                     String id = request.getLifecycleId();
                     final SnapshotLifecycleMetadata lifecycleMetadata;
                     if (snapMeta == null) {
-                        SnapshotLifecyclePolicyMetadata meta = new SnapshotLifecyclePolicyMetadata(request.getLifecycle(), filteredHeaders,
-                            0, Instant.now().toEpochMilli());
+                        SnapshotLifecyclePolicyMetadata meta = SnapshotLifecyclePolicyMetadata.builder()
+                            .setPolicy(request.getLifecycle())
+                            .setHeaders(filteredHeaders)
+                            .setModifiedDate(Instant.now().toEpochMilli())
+                            .build();
                         lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta));
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
                         SnapshotLifecyclePolicyMetadata oldLifecycle = snapLifecycles.get(id);
-                        SnapshotLifecyclePolicyMetadata newLifecycle = new SnapshotLifecyclePolicyMetadata(request.getLifecycle(),
-                            filteredHeaders, oldLifecycle == null ? 0L : oldLifecycle.getVersion() + 1, Instant.now().toEpochMilli());
+                        SnapshotLifecyclePolicyMetadata newLifecycle = SnapshotLifecyclePolicyMetadata.builder(oldLifecycle)
+                            .setPolicy(request.getLifecycle())
+                            .setHeaders(filteredHeaders)
+                            .setVersion(oldLifecycle == null ? 1L : oldLifecycle.getVersion() + 1)
+                            .setModifiedDate(Instant.now().toEpochMilli())
+                            .build();
                         snapLifecycles.put(id, newLifecycle);
                         lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles);
                         if (oldLifecycle == null) {

@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,6 +125,11 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(lifecycles);
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(lifecycles);
         }
@@ -146,22 +152,34 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
      * {@link SnapshotLifecyclePolicyMetadata}, however, it elides the headers to ensure that they
      * are not leaked to the user since they may contain sensitive information.
      */
-    public static class SnapshotLifecyclePolicyItem implements ToXContentFragment {
+    public static class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeable {
 
         private final SnapshotLifecyclePolicy policy;
         private final long version;
         private final long modifiedDate;
+        @Nullable
+        private final Long lastSuccessDate;
+        @Nullable
+        private final Long lastFailureDate;
+        @Nullable
+        private final String lastFailureInfo;
 
-        public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicy policy, long version, long modifiedDate) {
-            this.policy = policy;
-            this.version = version;
-            this.modifiedDate = modifiedDate;
+        public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicyMetadata policyMetadata) {
+            this.policy = policyMetadata.getPolicy();
+            this.version = policyMetadata.getVersion();
+            this.modifiedDate = policyMetadata.getModifiedDate();
+            this.lastSuccessDate = policyMetadata.getLastSuccessDate();
+            this.lastFailureDate = policyMetadata.getLastFailureDate();
+            this.lastFailureInfo = policyMetadata.getLastFailureInfo();
         }
 
         public SnapshotLifecyclePolicyItem(StreamInput in) throws IOException {
             this.policy = new SnapshotLifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readVLong();
+            this.lastSuccessDate = in.readOptionalLong();
+            this.lastFailureDate = in.readOptionalLong();
+            this.lastFailureInfo = in.readOptionalString();
         }
 
         public SnapshotLifecyclePolicy getPolicy() {
@@ -174,6 +192,16 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
 
         public long getModifiedDate() {
             return modifiedDate;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            policy.writeTo(out);
+            out.writeVLong(version);
+            out.writeVLong(modifiedDate);
+            out.writeOptionalLong(lastSuccessDate);
+            out.writeOptionalLong(lastFailureDate);
+            out.writeOptionalString(lastFailureInfo);
         }
 
         @Override
@@ -201,6 +229,15 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
             builder.field("version", version);
             builder.field("modified_date", modifiedDate);
             builder.field("policy", policy);
+            if (lastSuccessDate != null) {
+                builder.field("last_success_date", lastSuccessDate);
+            }
+            if (lastFailureDate != null) {
+                builder.field("last_failure_date", lastFailureDate);
+            }
+            if (lastFailureInfo != null) {
+                builder.field("last_failure_info", lastFailureInfo);
+            }
             builder.endObject();
             return builder;
         }

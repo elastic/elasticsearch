@@ -78,8 +78,7 @@ public class TransportDeleteDataFrameAnalyticsAction
             return;
         }
 
-        // We clean up the memory tracker on delete rather than stop as stop is not a master node action,
-        // and also it is not compulsory to call stop - the task could have stopped by itself
+        // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
         DeleteRequest deleteRequest = new DeleteRequest(AnomalyDetectorsIndex.configIndexName());

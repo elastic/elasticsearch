@@ -76,11 +76,10 @@ public class ElasticsearchNode {
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
-    // Must use Object here to retain compatibility with the Groovy DSL in Gradle (GString)
-    private final Map<String, Supplier<Object>> settings = new LinkedHashMap<>();
-    private final Map<String, Supplier<Object>> keystoreSettings = new LinkedHashMap<>();
-    private final Map<String, Supplier<Object>> systemProperties = new LinkedHashMap<>();
-    private final Map<String, Supplier<Object>> environment = new LinkedHashMap<>();
+    private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
+    private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
+    private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
+    private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -157,7 +156,7 @@ public class ElasticsearchNode {
         addSupplier("Keystore", keystoreSettings, key, value);
     }
 
-    public void keystore(String key, Supplier<Object> valueSupplier) {
+    public void keystore(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Keystore", keystoreSettings, key, valueSupplier);
     }
 
@@ -165,7 +164,7 @@ public class ElasticsearchNode {
         addSupplier("Settings", settings, key, value);
     }
 
-    public void setting(String key, Supplier<Object> valueSupplier) {
+    public void setting(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Setting", settings, key, valueSupplier);
     }
 
@@ -173,7 +172,7 @@ public class ElasticsearchNode {
         addSupplier("Java System property", systemProperties, key, value);
     }
 
-    public void systemProperty(String key, Supplier<Object> valueSupplier) {
+    public void systemProperty(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Java System property", systemProperties, key, valueSupplier);
     }
 
@@ -181,22 +180,22 @@ public class ElasticsearchNode {
         addSupplier("Environment variable", environment, key, value);
     }
 
-    public void environment(String key, Supplier<Object> valueSupplier) {
+    public void environment(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Environment variable", environment, key, valueSupplier);
     }
 
-    private void addSupplier(String name, Map<String, Supplier<Object>> collector, String key, Supplier<Object> valueSupplier) {
+    private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, Supplier<CharSequence> valueSupplier) {
         requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
         requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
         collector.put(key, valueSupplier);
     }
 
-    private void addSupplier(String name, Map<String, Supplier<Object>> collector, String key, String actualValue) {
+    private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, String actualValue) {
         requireNonNull(actualValue, name + " value was null when configuring test cluster `" + this + "`");
         addSupplier(name, collector, key, () -> actualValue);
     }
 
-    private void checkSuppliers(String name, Map<String, Supplier<Object>> collector) {
+    private void checkSuppliers(String name, Map<String, Supplier<CharSequence>> collector) {
         collector.forEach((key, value) -> {
             requireNonNull(value.get().toString(), name + " supplied value was null when configuring test cluster `" + this + "`");
         });
@@ -358,9 +357,7 @@ public class ElasticsearchNode {
         }
 
         checkSuppliers("Environment variable", environment);
-        environment.forEach((key, value) -> {
-            defaultEnv.put(key, value.get().toString());
-        });
+        environment.forEach((key, value) -> defaultEnv.put(key, value.get().toString()));
         return defaultEnv;
     }
 

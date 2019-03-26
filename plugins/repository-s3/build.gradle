@@ -267,22 +267,22 @@ if (useFixture) {
   task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
     dependsOn(project.s3Fixture)
+    runner {
+      systemProperty 'tests.rest.blacklist', [
+              'repository_s3/10_basic/*',
+              'repository_s3/20_repository_permanent_credentials/*',
+              'repository_s3/30_repository_temporary_credentials/*',
+              'repository_s3/40_repository_ec2_credentials/*'
+      ].join(",")
+    }
   }
+  check.dependsOn(integTestECS)
 
   testClusters.integTestECS {
     setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
     plugin file(tasks.bundlePlugin.archiveFile)
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
   }
-
-  tasks.integTestECSRunner.systemProperty 'tests.rest.blacklist', [
-          'repository_s3/10_basic/*',
-          'repository_s3/20_repository_permanent_credentials/*',
-          'repository_s3/30_repository_temporary_credentials/*',
-          'repository_s3/40_repository_ec2_credentials/*'
-  ].join(",")
-
-  check.dependsOn(integTestECS)
 }
 
 thirdPartyAudit.ignoreMissingClasses (

@@ -1,6 +1,203 @@
 [[release-notes-7.0.0-rc1]]
 == {es} version 7.0.0-rc1
 
-Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
+coming[7.0.0-rc1]
 
-coming[7.0.0]
+Also see <<breaking-changes-7.0.0-rc1,Breaking changes in 7.0.0-rc1>>.
+
+[[breaking-7.0.0-rc1]]
+[float]
+=== Breaking changes
+
+Distributed::
+* Remove cluster state size {pull}40061[#40061] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951], {issue}40016[#40016])
+* Stop returning cluster state size by default {pull}40016[#40016] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951])
+
+Features/Features::
+* Remove Migration Upgrade and Assistance APIs {pull}40075[#40075] (issue: {issue}40014[#40014])
+
+
+
+[[deprecation-7.0.0-rc1]]
+[float]
+=== Deprecations
+
+Cluster Coordination::
+* Deprecate size in cluster state response {pull}39951[#39951] (issue: {issue}39806[#39806])
+
+Infra/Packaging::
+* Deprecate fallback to java on PATH {pull}37990[#37990]
+
+
+
+[[feature-7.0.0-rc1]]
+[float]
+=== New features
+
+Allocation::
+* Node repurpose tool {pull}39403[#39403] (issues: {issue}37347[#37347], {issue}37748[#37748])
+
+Security::
+* Switch internal security index to ".security-7" {pull}39337[#39337] (issue: {issue}39284[#39284])
+
+
+
+[[enhancement-7.0.0-rc1]]
+[float]
+=== Enhancements
+
+CCR::
+* Reduce retention lease sync intervals {pull}40302[#40302]
+* Renew retention leases while following {pull}39335[#39335] (issues: {issue}37165[#37165], {issue}38718[#38718])
+* Reduce refresh when lookup term in FollowingEngine {pull}39184[#39184]
+* Integrate retention leases to recovery from remote {pull}38829[#38829] (issue: {issue}37165[#37165])
+* Enable removal of retention leases {pull}38751[#38751] (issue: {issue}37165[#37165])
+
+Client::
+* Fixed required fields and paths list {pull}39358[#39358]
+
+Discovery-Plugins::
+* Adds connect and read timeouts to discovery-gce {pull}28193[#28193] (issue: {issue}24313[#24313])
+
+Distributed::
+* Introduce retention lease actions {pull}38756[#38756] (issue: {issue}37165[#37165])
+* Add dedicated retention lease exceptions {pull}38754[#38754] (issue: {issue}37165[#37165])
+* Copy retention leases when trim unsafe commits {pull}37995[#37995] (issue: {issue}37165[#37165])
+
+Docs Infrastructure::
+* Align generated release notes with doc standards {pull}39234[#39234] (issue: {issue}39155[#39155])
+
+Engine::
+* Explicitly advance max_seq_no before indexing {pull}39473[#39473] (issue: {issue}38879[#38879])
+
+Infra/Core::
+* Add details about what acquired the shard lock last {pull}38807[#38807] (issue: {issue}30290[#30290])
+
+Infra/Packaging::
+* Use bundled JDK in Docker images {pull}40238[#40238]
+* Upgrade bundled JDK and Docker images to JDK 12 {pull}40229[#40229]
+* Bundle java in distributions {pull}38013[#38013] (issue: {issue}31845[#31845])
+
+Infra/Settings::
+* Provide a clearer error message on keystore add {pull}39327[#39327] (issue: {issue}39324[#39324])
+
+Percolator::
+* Make the `type` parameter optional when percolating existing documents. {pull}39987[#39987] (issue: {issue}39963[#39963])
+* Add support for selecting percolator query candidate matches containing geo_point based queries {pull}26040[#26040]
+
+SQL::
+* SQL: Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
+* SQL: change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
+
+
+
+[[bug-7.0.0-rc1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Skip sibling pipeline aggregators reduction during non-final reduce {pull}40101[#40101] (issue: {issue}40059[#40059])
+* Extend nextDoc to delegate to the wrapped doc-value iterator for date_nanos {pull}39176[#39176] (issue: {issue}39107[#39107])
+* Only create MatrixStatsResults on final reduction {pull}38130[#38130] (issue: {issue}37587[#37587])
+
+Authentication::
+* Allow non super users to create API keys {pull}40028[#40028] (issue: {issue}40029[#40029])
+* Use consistent view of realms for authentication {pull}38815[#38815] (issue: {issue}30301[#30301])
+
+CCR::
+* Safe publication of AutoFollowCoordinator {pull}40153[#40153] (issue: {issue}38560[#38560])
+* Enable reading auto-follow patterns from x-content {pull}40130[#40130] (issue: {issue}40128[#40128])
+* Stop auto-followers on shutdown {pull}40124[#40124]
+* Protect against the leader index being removed {pull}39351[#39351] (issue: {issue}39308[#39308])
+* Handle the fact that `ShardStats` instance may have no commit or seqno stats {pull}38782[#38782] (issue: {issue}38779[#38779])
+* Fix LocalIndexFollowingIT#testRemoveRemoteConnection() test {pull}38709[#38709] (issue: {issue}38695[#38695])
+
+CRUD::
+* Cascading primary failure lead to MSU too low {pull}40249[#40249]
+
+Cluster Coordination::
+* Fix node tool cleanup {pull}39389[#39389]
+* Avoid serialising state if it was already serialised {pull}39179[#39179]
+
+Distributed::
+* Ignore waitForActiveShards when syncing leases {pull}39224[#39224] (issue: {issue}39089[#39089])
+* Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755] (issues: {issue}33871[#33871], {issue}38633[#38633])
+
+Engine::
+* Bubble up exception when processing NoOp {pull}39338[#39338] (issue: {issue}38898[#38898])
+* ReadOnlyEngine should update translog recovery state information {pull}39238[#39238]
+
+Features/Features::
+* Only count some fields types for deprecation check {pull}40166[#40166]
+
+Features/ILM::
+* Handle failure to release retention leases in ILM {pull}39281[#39281] (issue: {issue}39181[#39181])
+
+Features/Watcher::
+* Use non-ILM template setting up watch history template & ILM disabled {pull}39325[#39325] (issue: {issue}38805[#38805])
+* Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
+
+Infra/Core::
+* Correct name of basic_date_time_no_millis {pull}39367[#39367]
+
+Infra/Packaging::
+* Some elasticsearch-cli tools could not be run not from ES_HOME {pull}39937[#39937]
+* Obsolete pre 7.0 noarch package in rpm {pull}39472[#39472] (issue: {issue}39414[#39414])
+* Suppress error message when `/proc/sys/vm/max_map_count` is not exists. {pull}35933[#35933]
+
+Infra/REST API::
+* Fix #38623 remove xpack namespace REST API {pull}38625[#38625]
+* Remove the "xpack" namespace from the REST API {pull}38623[#38623]
+
+Machine Learning::
+* [ML] Fix race condition when creating multiple jobs {pull}40049[#40049] (issue: {issue}38785[#38785])
+* ML allow aliased .ml-anomalies* index on PUT Job {pull}38821[#38821] (issue: {issue}38773[#38773])
+
+Recovery::
+* Create retention leases file during recovery {pull}39359[#39359] (issue: {issue}37165[#37165])
+
+SQL::
+* SQL: Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
+* SQL: Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
+* SQL: CAST supports both SQL and ES types {pull}40365[#40365] (issue: {issue}40282[#40282])
+* SQL: Fix RLIKE bug and improve testing for RLIKE statement {pull}40354[#40354] (issues: {issue}34609[#34609], {issue}39931[#39931])
+* SQL: unwrap the first value in an array in case of array leniency {pull}40318[#40318] (issue: {issue}40296[#40296])
+* SQL: Preserve original source for cast/convert function {pull}40271[#40271] (issue: {issue}40239[#40239])
+* SQL: fix LIKE function equality by considering its pattern as well {pull}40260[#40260] (issue: {issue}39931[#39931])
+* SQL: Fix issue with optimization on queries with ORDER BY/LIMIT {pull}40256[#40256] (issue: {issue}40211[#40211])
+* SQL: rewrite ROUND and TRUNCATE functions with a different optional parameter handling method {pull}40242[#40242] (issue: {issue}40001[#40001])
+* SQL: Fix issue with getting DATE type in JDBC {pull}40207[#40207]
+* SQL: Fix issue with date columns returned always in UTC {pull}40163[#40163] (issue: {issue}40152[#40152])
+* SQL: Add multi_value_field_leniency inside FieldHitExtractor {pull}40113[#40113] (issue: {issue}39700[#39700])
+* SQL: fix incorrect ordering of groupings (GROUP BY) based on orderings (ORDER BY) {pull}40087[#40087] (issue: {issue}39956[#39956])
+* SQL: Fix bug with JDBC timezone setting and DATE type {pull}39978[#39978] (issue: {issue}39915[#39915])
+* SQL: Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
+
+Search::
+* Serialize top-level pipeline aggs as part of InternalAggregations {pull}40177[#40177] (issues: {issue}40059[#40059], {issue}40101[#40101])
+* CCS: skip empty search hits when minimizing round-trips {pull}40098[#40098] (issues: {issue}32125[#32125], {issue}40067[#40067])
+* CCS: Disable minimizing round-trips when dfs is requested {pull}40044[#40044] (issue: {issue}32125[#32125])
+
+
+
+[[upgrade-7.0.0-rc1]]
+[float]
+=== Upgrades
+
+Discovery-Plugins::
+* Bump jackson-databind version for AWS SDK {pull}39183[#39183]
+
+Engine::
+* Upgrade to lucene 8.0.0-snapshot-ff9509a8df {pull}39445[#39445] (issue: {issue}39350[#39350])
+* Upgrade to lucene 8.0.0-snapshot-ff9509a8df {pull}39350[#39350]
+
+Features/Ingest::
+* Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
+
+Infra/Core::
+* Upgrade to Lucene 8.0.0 {pull}39992[#39992] (issue: {issue}39640[#39640])
+
+Security::
+* Upgrade the bouncycastle dependency to 1.61 {pull}40017[#40017] (issue: {issue}40011[#40011])
+
+

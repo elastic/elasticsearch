@@ -61,7 +61,6 @@ provided little value. The setting `http.pipelining.max_events` can still be use
 limit the number of pipelined requests in-flight.
 
 [float]
-//tag::notable-breaking-changes[]
 ==== Cross-cluster search settings renamed
 
 The cross-cluster search remote cluster connection infrastructure is also used
@@ -74,7 +73,6 @@ used.  Therefore, these settings have been renamed from `search.remote.*` to
 in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
-//end::notable-breaking-changes[]
 
 [float]
 [[audit-logfile-local-node-info]]

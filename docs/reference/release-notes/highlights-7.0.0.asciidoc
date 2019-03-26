@@ -67,7 +67,7 @@ Words.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
-=== {sql} is production-ready
+=== SQL is production-ready
 
 Words.
 //end::notable-highlights[]

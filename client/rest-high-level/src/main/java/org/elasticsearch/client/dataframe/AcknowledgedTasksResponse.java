@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.core;
+package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -26,7 +26,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -36,8 +35,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class AcknowledgedTasksResponse {
 
-    protected static final ParseField TASK_FAILURES = new ParseField("task_failures");
-    protected static final ParseField NODE_FAILURES = new ParseField("node_failures");
+    public static final ParseField TASK_FAILURES = new ParseField("task_failures");
+    public static final ParseField NODE_FAILURES = new ParseField("node_failures");
 
     @SuppressWarnings("unchecked")
     protected static <T extends AcknowledgedTasksResponse> ConstructingObjectParser<T, Void> generateParser(
@@ -60,8 +59,8 @@ public class AcknowledgedTasksResponse {
     public AcknowledgedTasksResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
                                      @Nullable List<? extends ElasticsearchException> nodeFailures) {
         this.acknowledged = acknowledged;
-        this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
-        this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));
+        this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(taskFailures);
+        this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(nodeFailures);
     }
 
     public boolean isAcknowledged() {

@@ -51,6 +51,8 @@ whereFieldWithLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10003 AND last_name LIKE 'K%';
 whereFieldWithNotLikeMatch
 SELECT last_name l FROM "test_emp" WHERE emp_no < 10020 AND first_name NOT LIKE 'Ma%';
+whereFieldWithInlineLikeMatch
+SELECT emp_no FROM "test_emp" WHERE 'aaabbb' LIKE 'aa%b%' AND 'aaabbb' NOT LIKE 'a%%c%' AND emp_no < 10080 ORDER BY emp_no DESC LIMIT 5;
 
 whereFieldWithOrderNot
 SELECT last_name l FROM "test_emp" WHERE NOT emp_no < 10003 ORDER BY emp_no LIMIT 5;

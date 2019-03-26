@@ -10,6 +10,12 @@ esplugin {
     extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
+ext {
+    // SQL dependency versions
+    jlineVersion="3.10.0"
+    antlrVersion="4.5.3"
+}
+
 configurations {
     // Bundles the sql-cli.jar into the distribution
     bin
@@ -81,7 +87,7 @@ configurations {
 }
 
 dependencies {
-    regenerate 'org.antlr:antlr4:4.5.3'
+    regenerate "org.antlr:antlr4:${antlrVersion}"
 }
 
 String grammarPath = 'src/main/antlr'

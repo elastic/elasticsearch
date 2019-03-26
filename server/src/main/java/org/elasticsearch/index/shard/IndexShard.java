@@ -222,6 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
+    private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
 
@@ -932,7 +933,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RefreshStats refreshStats() {
         int listeners = refreshListeners.pendingCount();
-        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
+        return new RefreshStats(
+            refreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
+            externalRefreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
+            listeners);
     }
 
     public FlushStats flushStats() {
@@ -2900,7 +2906,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
             threadPool.executor(ThreadPool.Names.LISTENER)::execute,
-            logger, threadPool.getThreadContext());
+            logger, threadPool.getThreadContext(),
+            externalRefreshMetric);
     }
 
     /**

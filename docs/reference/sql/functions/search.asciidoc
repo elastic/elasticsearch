@@ -34,12 +34,12 @@ Typically `SCORE` is used for ordering the results of a query based on their rel
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
+include-tagged::{sql-specs}/docs/docs.csv-spec[orderByScore]
 ----
 
 However, it is perfectly fine to return the score without sorting by it:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[scoreWithMatch]
+include-tagged::{sql-specs}/docs/docs.csv-spec[scoreWithMatch]
 ----

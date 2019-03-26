@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
@@ -64,7 +63,6 @@ import static java.util.Calendar.YEAR;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
-@Repeat(iterations = 100)
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
     
     static final Set<String> fieldsNames = Stream.of("test_byte", "test_integer", "test_long", "test_short", "test_double",

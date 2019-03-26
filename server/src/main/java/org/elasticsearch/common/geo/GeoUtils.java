@@ -433,6 +433,7 @@ public class GeoUtils {
         double lon = Double.NaN;
         String geohash = null;
         NumberFormatException numberFormatException = null;
+        ParseExceptionConsumer exceptionConsumer = new ParseExceptionConsumer();
 
         if(parser.currentToken() == Token.START_OBJECT) {
             while(parser.nextToken() != Token.END_OBJECT) {
@@ -450,7 +451,7 @@ public class GeoUtils {
                                 }
                                 break;
                             default:
-                                throw new ElasticsearchParseException("latitude must be a number");
+                                exceptionConsumer.consume(new ElasticsearchParseException("latitude must be a number"));
                         }
                     } else if (LONGITUDE.equals(field)) {
                         parser.nextToken();
@@ -464,21 +465,24 @@ public class GeoUtils {
                                 }
                                 break;
                             default:
-                                throw new ElasticsearchParseException("longitude must be a number");
+                                exceptionConsumer.consume(new ElasticsearchParseException("longitude must be a number"));
                         }
                     } else if (GEOHASH.equals(field)) {
                         if(parser.nextToken() == Token.VALUE_STRING) {
                             geohash = parser.text();
                         } else {
-                            throw new ElasticsearchParseException("geohash must be a string");
+                            exceptionConsumer.consume(new ElasticsearchParseException("geohash must be a string"));
                         }
                     } else {
-                        throw new ElasticsearchParseException("field must be either [{}], [{}] or [{}]", LATITUDE, LONGITUDE, GEOHASH);
+                        exceptionConsumer.consume(new ElasticsearchParseException("field must be either [{}], [{}] or [{}]",
+                            LATITUDE, LONGITUDE, GEOHASH));
                     }
                 } else {
-                    throw new ElasticsearchParseException("token [{}] not allowed", parser.currentToken());
+                    exceptionConsumer.consume(new ElasticsearchParseException("token [{}] not allowed", parser.currentToken()));
                 }
             }
+
+            exceptionConsumer.doThrow();
 
             if (geohash != null) {
                 if(!Double.isNaN(lat) || !Double.isNaN(lon)) {
@@ -507,12 +511,17 @@ public class GeoUtils {
                     } else if(element == 2) {
                         lat = parser.doubleValue();
                     } else {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                        try {
+                            GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
+                        } catch (ElasticsearchParseException e) {
+                            exceptionConsumer.consume(e);
+                        }
                     }
                 } else {
-                    throw new ElasticsearchParseException("numeric value expected");
+                    exceptionConsumer.consume(new ElasticsearchParseException("numeric value expected"));
                 }
             }
+            exceptionConsumer.doThrow();
             return point.reset(lat, lon);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
             String val = parser.text();
@@ -692,6 +701,20 @@ public class GeoUtils {
                     }
                 }
             };
+        }
+    }
+
+    private static class ParseExceptionConsumer {
+        private ElasticsearchParseException exception;
+
+        public void consume(ElasticsearchParseException e) {
+            if (exception == null)
+                exception = e;
+        }
+
+        public void doThrow() {
+            if (exception != null)
+                throw exception;
         }
     }
 

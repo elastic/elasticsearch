@@ -153,7 +153,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
-        assertPathsExist(installation.logs.resolve("elasticsearch.json"));
+        assertPathsExist(installation.logs.resolve("elasticsearch_server.json"));
 
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions

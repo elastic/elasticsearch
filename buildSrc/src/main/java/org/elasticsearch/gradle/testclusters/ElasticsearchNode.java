@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
@@ -51,6 +52,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -226,7 +228,9 @@ public class ElasticsearchNode {
         return javaHome;
     }
 
-
+    public Path getLogsDir() {
+        return confPathLogs;
+    }
 
     private void waitForUri(String description, String uri) {
         waitConditions.put(description, (node) -> {
@@ -463,13 +467,57 @@ public class ElasticsearchNode {
 
     private void logFileContents(String description, Path from) {
         logger.error("{} `{}`", description, this);
+        long lineCutoff;
         try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
-            lines
-                .map(line -> "  " + line)
-                .forEach(logger::error);
+            lineCutoff = lines.count();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        final Map<String, Long> errorsAndWarnings;
+        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
+            errorsAndWarnings = lines
+                .filter(line -> line.contains("ERROR") || line.contains("WARN"))
+                .map(this::normalizeLogLine)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        lineCutoff -= 50;
+        try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
+            String line = null;
+            do {
+                line = reader.readLine();
+                if (line == null) {
+                    continue;
+                }
+                String normalizedLine = normalizeLogLine(line);
+                if (errorsAndWarnings.keySet().contains(normalizedLine)) {
+                    logger.lifecycle("  " + line);
+                    if (errorsAndWarnings.get(normalizedLine) != 1) {
+                        logger.lifecycle("    ↑ repeated another " + errorsAndWarnings.get(normalizedLine) + " times ↑");
+                    }
+                    errorsAndWarnings.remove(normalizedLine);
+                }
+                if (reader.getLineNumber() == lineCutoff) {
+                    logger.lifecycle("    ↓ tail of the log " + from +  " ↓");
+                }
+                if (reader.getLineNumber() >= lineCutoff) {
+                    logger.lifecycle("  " + line);
+                }
+            } while (line != null);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private String normalizeLogLine(String line) {
+        if (line.contains("ERROR")) {
+            return line.substring(line.indexOf("ERROR"));
+        }
+        if (line.contains("WARN")) {
+            return line.substring(line.indexOf("WARN"));
+        }
+        return line;
     }
 
     private void waitForProcessToExit(ProcessHandle processHandle) {

@@ -144,11 +144,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             // configure hooks to make sure no test cluster processes survive the build
             configureCleanupHooks(project);
-
-            // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
-            // configuration so the user doesn't have to repeat this.
-            autoConfigureClusterDependencies(project, rootProject, container);
         }
+
+        // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
+        // configuration so the user doesn't have to repeat this.
+        autoConfigureClusterDependencies(project, rootProject, container);
     }
 
     private NamedDomainObjectContainer<ElasticsearchNode> createTestClustersContainerExtension(Project project) {
@@ -327,6 +327,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 Map<String, Object> projectNotation = new HashMap<>();
                 projectNotation.put("path", unreleasedInfo.gradleProjectPath);
                 projectNotation.put("configuration", esNode.getDistribution().getLiveConfiguration());
+                logger.debug("Cluster {} depends on {}", esNode.getName(), projectNotation);
                 rootProject.getDependencies().add(
                     HELPER_CONFIGURATION_NAME,
                     project.getDependencies().project(projectNotation)
@@ -348,7 +349,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         esNode.getDistribution().getClassifier(),
                         esNode.getDistribution().getFileExtension()
                     );
-                    logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
+                    logger.debug("Cluster {} depends on {}", esNode.getName(), dependency);
                     rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
                 }
             }

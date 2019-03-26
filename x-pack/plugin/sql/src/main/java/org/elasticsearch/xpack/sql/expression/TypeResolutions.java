@@ -44,11 +44,11 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isDateBased() || dt.isTimeBased(), operationName, paramOrd, "date", "time", "datetime");
+        return isType(e, DataType::isDateOrTimeBased, operationName, paramOrd, "date", "time", "datetime");
     }
 
     public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || dt.isDateBased() || dt.isTimeBased(), operationName, paramOrd,
+        return isType(e, dt -> dt.isNumeric() || dt.isDateOrTimeBased(), operationName, paramOrd,
             "date", "time", "datetime", "numeric");
     }
 

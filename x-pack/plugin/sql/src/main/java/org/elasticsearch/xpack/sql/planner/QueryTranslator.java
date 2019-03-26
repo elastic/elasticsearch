@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
@@ -283,7 +283,7 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType().isDateBased() || h.dataType().isTimeBased()) {
+                            if (h.dataType().isDateOrTimeBased()) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
 
                                 // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval

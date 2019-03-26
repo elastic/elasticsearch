@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.time.OffsetTime;
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
@@ -19,7 +18,7 @@ import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTim
 /**
  * Extract the minute of the day from a datetime.
  */
-public class MinuteOfDay extends DateTimeFunction {
+public class MinuteOfDay extends TimeFunction {
 
     public MinuteOfDay(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.MINUTE_OF_DAY);
@@ -33,11 +32,6 @@ public class MinuteOfDay extends DateTimeFunction {
     @Override
     protected TypeResolution resolveType() {
         return isDateOrTime(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
-    protected Object doFold(OffsetTime time) {
-        return extractor().extract(time);
     }
 
     @Override

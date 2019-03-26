@@ -82,11 +82,6 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
     }
 
     @Override
-    Object doProcess(OffsetTime time) {
-        return extractor.extract(time);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(extractor, zoneId());
     }

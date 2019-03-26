@@ -179,7 +179,7 @@ public class EscapedFunctionsTests extends ESTestCase {
                 ex.getMessage());
     }
 
-    public void testTimeLiteralUnsupported() {
+    public void testTimeLiteral() {
         Literal l = timeLiteral("12:23:56");
         assertThat(l.dataType(), is(DataType.TIME));
     }

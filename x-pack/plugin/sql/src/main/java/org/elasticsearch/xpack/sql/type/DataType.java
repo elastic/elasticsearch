@@ -258,6 +258,10 @@ public enum DataType {
     public boolean isTimeBased() {
         return this == TIME;
     }
+
+    public boolean isDateOrTimeBased() {
+        return isDateBased() || isTimeBased();
+    }
     
     public static DataType fromOdbcType(String odbcType) {
         return ODBC_TO_ES.get(odbcType);
@@ -283,6 +287,6 @@ public enum DataType {
     }
 
     public String format() {
-        return isDateBased() || isTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
+        return isDateOrTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

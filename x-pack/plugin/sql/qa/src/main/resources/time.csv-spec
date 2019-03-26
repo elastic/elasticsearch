@@ -26,11 +26,11 @@ timeAsFilter
 SELECT birth_date, last_name FROM "test_emp" WHERE birth_date::TIME = CAST('00:00:00' AS TIME) ORDER BY emp_no LIMIT 5;
 
  birth_date:ts        | last_name:s
-1953-09-02 00:00:00Z | Facello
-1964-06-02 00:00:00Z | Simmel
-1959-12-03 00:00:00Z | Bamford
-1954-05-01 00:00:00Z | Koblick
-1955-01-21 00:00:00Z | Maliniak
+1953-09-02 00:00:00Z  | Facello
+1964-06-02 00:00:00Z  | Simmel
+1959-12-03 00:00:00Z  | Bamford
+1954-05-01 00:00:00Z  | Koblick
+1955-01-21 00:00:00Z  | Maliniak
 ;
 
 timeAsFilter_NoMatch
@@ -38,6 +38,17 @@ SELECT count(*) FROM "test_emp" WHERE birth_date::TIME = CAST('12:34:56.789' AS 
 
  count(*):l
 0
+;
+
+timeAsOrderBy
+SELECT last_name FROM "test_emp" WHERE ORDER BY birth_date::TIME, emp_no LIMIT 5;
+
+last_name:s
+Facello
+Simmel
+Bamford
+Koblick
+Maliniak
 ;
 
 timeAndFunctionAsGroupingKey

@@ -6,15 +6,12 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.time.Instant;
-import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -22,7 +19,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
 
 abstract class BaseDateTimeFunction extends UnaryScalarFunction {
-    
+
     private final ZoneId zoneId;
 
     BaseDateTimeFunction(Source source, Expression field, ZoneId zoneId) {
@@ -53,26 +50,16 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        Object folded = field().fold();
+        ZonedDateTime folded = (ZonedDateTime) field().fold();
         if (folded == null) {
             return null;
         }
 
-        if (folded instanceof OffsetTime) {
-            return doFold(((OffsetTime) folded).withOffsetSameInstant(zoneId.getRules().getOffset(Instant.now())));
-        }
-        if (folded instanceof ZonedDateTime) {
-            return doFold(((ZonedDateTime) folded).withZoneSameInstant(zoneId));
-        }
-
-        throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", field());
+        return doFold(folded.withZoneSameInstant(zoneId));
     }
 
     protected abstract Object doFold(ZonedDateTime dateTime);
 
-    protected Object doFold(OffsetTime time) {
-        throw new SqlIllegalArgumentException("Cannot operate on [time]");
-    }
 
     @Override
     public boolean equals(Object obj) {
@@ -81,7 +68,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
         }
         BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
         return Objects.equals(other.field(), field())
-                && Objects.equals(other.zoneId(), zoneId());
+            && Objects.equals(other.zoneId(), zoneId());
     }
 
     @Override

@@ -6,20 +6,16 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.time.OffsetTime;
 import java.time.ZoneId;
-
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
 
 /**
  * Extract the hour of the day from a datetime.
  */
-public class HourOfDay extends DateTimeFunction {
+public class HourOfDay extends TimeFunction {
     public HourOfDay(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId, DateTimeExtractor.HOUR_OF_DAY);
     }
@@ -32,16 +28,6 @@ public class HourOfDay extends DateTimeFunction {
     @Override
     protected HourOfDay replaceChild(Expression newChild) {
         return new HourOfDay(source(), newChild, zoneId());
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return isDateOrTime(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
-    protected Object doFold(OffsetTime time) {
-        return extractor().extract(time);
     }
 
     @Override

@@ -232,10 +232,10 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
                 // Create temporary directory with a space and link to java binary.
                 // Use it as java_home
-                final String temp = sh.runIgnoreExitCode("mktemp -d --sufix=\"java home\"").stdout.trim();
+                final String temp = sh.runIgnoreExitCode("mktemp -d --suffix=\"java home\"").stdout.trim();
                 final String java = sh.runIgnoreExitCode("which java").stdout.trim();
                 sh.runIgnoreExitCode("mktemp -p " + temp + "/bin");
-                sh.runIgnoreExitCode("ln -s \"" + java + "\" " + temp + "/bin/java");
+                sh.runIgnoreExitCode("ln -s \"" + java + "\" \"" + temp + "/bin/java\"");
                 sh.getEnv().put("JAVA_HOME", temp);
 
                 //verify ES can start, stop and run plugin list

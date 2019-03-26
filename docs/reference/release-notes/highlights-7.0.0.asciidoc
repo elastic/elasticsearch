@@ -113,3 +113,9 @@ Words.
 
 Words.
 //end::notable-highlights[]
+
+//tag::notable-highlights[]
+=== JSON logging
+
+Words.
+//end::notable-highlights[]

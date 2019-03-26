@@ -163,6 +163,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 );
         //new BalanceBooleanTrees());
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
+                CleanAliases.INSTANCE,
                 new SetAsOptimized());
 
         return Arrays.asList(operators, aggregate, local, label);
@@ -895,7 +896,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
                                     // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
                                     if ((equalsAsAttribute(child, group)
-                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder))) 
+                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
                                         || (equalsAsAttribute(alias, group)
                                                 && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
                                         isMatching.set(Boolean.TRUE);
@@ -944,42 +945,21 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             final Map<Attribute, Attribute> replacedCast = new LinkedHashMap<>();
 
-            // first eliminate casts inside Aliases
+            // eliminate redundant casts
             LogicalPlan transformed = plan.transformExpressionsUp(e -> {
-                // cast wrapped in an alias
-                if (e instanceof Alias) {
-                    Alias as = (Alias) e;
-                    if (as.child() instanceof Cast) {
-                        Cast c = (Cast) as.child();
-
-                        if (c.from() == c.to()) {
-                            Alias newAs = new Alias(as.source(), as.name(), as.qualifier(), c.field(), as.id(), as.synthetic());
-                            replacedCast.put(as.toAttribute(), newAs.toAttribute());
-                            return newAs;
-                        }
-                    }
-                    return e;
-                }
-                return e;
-            });
-
-            // then handle stand-alone casts (mixed together the cast rule will kick in before the alias)
-            transformed = transformed.transformExpressionsUp(e -> {
                 if (e instanceof Cast) {
                     Cast c = (Cast) e;
 
                     if (c.from() == c.to()) {
                         Expression argument = c.field();
-                        if (argument instanceof NamedExpression) {
-                            replacedCast.put(c.toAttribute(), ((NamedExpression) argument).toAttribute());
-                        }
+                        Alias as = new Alias(c.source(), c.sourceText(), argument);
+                        replacedCast.put(c.toAttribute(), as.toAttribute());
 
-                        return argument;
+                        return as;
                     }
                 }
                 return e;
             });
-
 
             // replace attributes from previous removed Casts
             if (!replacedCast.isEmpty()) {
@@ -1909,7 +1889,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Limit limit) {
             if (limit.limit() instanceof Literal) {
-                if (Integer.valueOf(0).equals((((Literal) limit.limit()).fold()))) {
+                if (Integer.valueOf(0).equals((limit.limit().fold()))) {
                     return new LocalRelation(limit.source(), new EmptyExecutable(limit.output()));
                 }
             }
@@ -1920,21 +1900,30 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan instanceof Project) {
-                Project p = (Project) plan;
+            Holder<LocalRelation> optimizedPlan = new Holder<>();
+            plan.forEachDown(p -> {
                 List<Object> values = extractConstants(p.projections());
                 if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    return new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
+            }, Project.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
-            if (plan instanceof Aggregate) {
-                Aggregate a = (Aggregate) plan;
+
+            plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
                 if (values.size() == a.aggregates().size() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    return new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray()));
+                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
+            }, Aggregate.class);
+
+            if (optimizedPlan.get() != null) {
+                return optimizedPlan.get();
             }
+
             return plan;
         }
 

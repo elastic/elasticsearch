@@ -20,9 +20,11 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
@@ -136,5 +138,13 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
             DataFrameTransformConfig parsedConfig = DataFrameTransformConfig.PARSER.apply(parser, null);
             assertThat(parsedConfig, equalTo(previewRequest.getConfig()));
         }
+    }
+
+    public void testGetDataFrameTransformStats() {
+        GetDataFrameTransformStatsRequest getStatsRequest = new GetDataFrameTransformStatsRequest("foo");
+        Request request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo/_stats"));
     }
 }

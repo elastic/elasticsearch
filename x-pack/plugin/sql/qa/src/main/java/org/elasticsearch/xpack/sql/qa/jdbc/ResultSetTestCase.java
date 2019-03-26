@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedConsumer;
@@ -63,6 +64,7 @@ import static java.util.Calendar.YEAR;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
 
+@Repeat(iterations = 100)
 public class ResultSetTestCase extends JdbcIntegrationTestCase {
     
     static final Set<String> fieldsNames = Stream.of("test_byte", "test_integer", "test_long", "test_short", "test_double",
@@ -880,7 +882,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
 
-            ZoneId zoneId = ZoneId.of(timeZoneId);
+            ZoneId zoneId = getZoneFromOffset(randomLongDate);
             java.sql.Date expectedDate = new java.sql.Date(
                 ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomLongDate), zoneId)
                     .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli());
@@ -939,11 +941,14 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
         Long randomLongDate = randomNonNegativeLong();
         indexSimpleDocumentWithTrueValues(randomLongDate);
-        
+
         doWithQuery(SELECT_ALL_FIELDS, (results) -> {
             results.next();
 
-            java.sql.Time expectedTime = new java.sql.Time(randomLongDate % 86400000L);
+            ZoneId zoneId = getZoneFromOffset(randomLongDate);
+            java.sql.Time expectedTime = new java.sql.Time(
+                ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomLongDate), zoneId)
+                    .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
 
             assertEquals(expectedTime, results.getTime("test_date"));
             assertEquals(expectedTime, results.getTime(9));
@@ -953,7 +958,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             validateErrorsForTimeTestsWithoutCalendar(results::getTime);
         });
     }
-    
+
     public void testGettingTimeWithCalendar() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
@@ -1747,5 +1752,9 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private String asDateString(long millis) {
         return of(millis, timeZoneId);
+    }
+
+    private ZoneId getZoneFromOffset(Long randomLongDate) {
+        return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
     }
 }

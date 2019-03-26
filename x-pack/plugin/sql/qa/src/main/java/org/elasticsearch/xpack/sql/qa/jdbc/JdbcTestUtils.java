@@ -27,6 +27,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -37,15 +38,17 @@ import java.util.zip.ZipEntry;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
-public abstract class JdbcTestUtils {
+final class JdbcTestUtils {
 
-    public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    private JdbcTestUtils() {}
 
-    public static final String JDBC_TIMEZONE = "timezone";
-    
-    public static ZoneId UTC = ZoneId.of("Z");
+    private static final int MAX_WIDTH = 20;
 
-    public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
+    static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    static final String JDBC_TIMEZONE = "timezone";
+    static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
@@ -75,9 +78,7 @@ public abstract class JdbcTestUtils {
         logger.info(sb.toString());
     }
 
-    private static final int MAX_WIDTH = 20;
-
-    public static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
+    static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         StringBuilder sb = new StringBuilder();
         StringBuilder column = new StringBuilder();
@@ -86,24 +87,23 @@ public abstract class JdbcTestUtils {
 
         while (rs.next()) {
             sb.setLength(0);
-            for (int i = 1; i <= columns; i++) {
-                column.setLength(0);
-                if (i > 1) {
-                    sb.append(" | ");
-                }
-                sb.append(trimOrPad(column.append(rs.getString(i))));
-            }
+            rowAsString(rs, sb, column, columns);
             log.info(sb);
         }
     }
 
-    public static String resultSetCurrentData(ResultSet rs) throws SQLException {
+    static String resultSetCurrentData(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         StringBuilder column = new StringBuilder();
 
         int columns = metaData.getColumnCount();
 
         StringBuilder sb = new StringBuilder();
+        rowAsString(rs, sb, column, columns);
+        return sb.toString();
+    }
+
+    private static void rowAsString(ResultSet rs, StringBuilder sb, StringBuilder column, int columns) throws SQLException {
         for (int i = 1; i <= columns; i++) {
             column.setLength(0);
             if (i > 1) {
@@ -111,7 +111,6 @@ public abstract class JdbcTestUtils {
             }
             sb.append(trimOrPad(column.append(rs.getString(i))));
         }
-        return sb.toString();
     }
 
     private static StringBuilder trimOrPad(StringBuilder buffer) {
@@ -153,7 +152,7 @@ public abstract class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     
-    public static String of(long millis, String zoneId) {
+    static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
 
@@ -165,7 +164,7 @@ public abstract class JdbcTestUtils {
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
      */
-    public static List<URL> classpathResources(String pattern) throws Exception {
+    static List<URL> classpathResources(String pattern) throws Exception {
         while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);
         }

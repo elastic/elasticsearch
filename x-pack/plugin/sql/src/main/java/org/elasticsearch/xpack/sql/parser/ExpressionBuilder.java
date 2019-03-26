@@ -387,11 +387,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public DataType visitPrimitiveDataType(PrimitiveDataTypeContext ctx) {
-        String type = visitIdentifier(ctx.identifier());
-        DataType dataType = DataType.fromSqlOrEsType(type);
-        if (dataType == null) {
-            throw new ParsingException(source(ctx), "Does not recognize type [{}]", type);        }
-        return dataType;
+        return dataType(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     //
@@ -404,22 +400,18 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
         } else {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
-            String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
-            DataType dataType;
-            if (convertDataType.startsWith("SQL_")) {
-                dataType = DataType.fromOdbcType(convertDataType);
-                if (dataType == null) {
-                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-                }
-            } else {
-                try {
-                    dataType = DataType.valueOf(convertDataType);
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-                }
-            }
+            DataType dataType = dataType(source(convertTc.dataType()), convertTc.dataType().getText());
             return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
         }
+    }
+
+    private static DataType dataType(Source ctx, String string) {
+        String type = string.toUpperCase(Locale.ROOT);
+        DataType dataType = type.startsWith("SQL_") ? DataType.fromOdbcType(type) : DataType.fromSqlOrEsType(type);
+        if (dataType == null) {
+            throw new ParsingException(ctx, "Does not recognize type [{}]", string);
+        }
+        return dataType;
     }
 
     @Override

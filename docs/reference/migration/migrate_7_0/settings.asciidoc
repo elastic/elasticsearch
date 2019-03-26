@@ -45,13 +45,11 @@ of the node id. It can still be configured explicitly in `elasticsearch.yml`.
 
 [float]
 [[remove-http-enabled]]
-//tag::notable-breaking-changes[]
 ==== Http enabled setting removed
 
 * The setting `http.enabled` previously allowed disabling binding to HTTP, only allowing
 use of the transport client. This setting has been removed, as the transport client
 will be removed in the future, thus requiring HTTP to always be enabled.
-//end::notable-breaking-changes[]
 
 [float]
 [[remove-http-pipelining-setting]]

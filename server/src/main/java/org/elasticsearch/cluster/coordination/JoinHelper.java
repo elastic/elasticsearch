@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -25,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,12 +54,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -82,7 +86,9 @@ public class JoinHelper {
     private final JoinTaskExecutor joinTaskExecutor;
     private final TimeValue joinTimeout;
 
-    final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
+    private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
+
+    private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
 
     public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
                       TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
@@ -190,13 +196,60 @@ public class JoinHelper {
     }
 
     boolean isJoinPending() {
-        // cannot use pendingOutgoingJoins.isEmpty() because it's not properly synchronized.
-        return pendingOutgoingJoins.iterator().hasNext();
+        return pendingOutgoingJoins.isEmpty() == false;
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         sendJoinRequest(destination, optionalJoin, () -> {
         });
+    }
+
+    // package-private for testing
+    static class FailedJoinAttempt {
+        private final DiscoveryNode destination;
+        private final JoinRequest joinRequest;
+        private final TransportException exception;
+        private final long timestamp;
+
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+            this.destination = destination;
+            this.joinRequest = joinRequest;
+            this.exception = exception;
+            this.timestamp = System.nanoTime();
+        }
+
+        void logNow() {
+            logger.log(getLogLevel(exception),
+                    () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
+                    exception);
+        }
+
+        static Level getLogLevel(TransportException e) {
+            Throwable cause = e.unwrapCause();
+            if (cause instanceof CoordinationStateRejectedException ||
+                cause instanceof FailedToCommitClusterStateException ||
+                cause instanceof NotMasterException) {
+                return Level.DEBUG;
+            }
+            return Level.INFO;
+        }
+
+        void logWarnWithTimestamp() {
+            logger.info(() -> new ParameterizedMessage("last failed join attempt was {} ms ago, failed to join {} with {}",
+                            TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
+                            destination,
+                            joinRequest),
+                    exception);
+        }
+    }
+
+
+    void logLastFailedJoinAttempt() {
+        FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
+        if (attempt != null) {
+            attempt.logWarnWithTimestamp();
+            lastFailedJoinAttempt.compareAndSet(attempt, null);
+        }
     }
 
     public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin, Runnable onCompletion) {
@@ -226,6 +279,7 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
+                        lastFailedJoinAttempt.set(null);
                         onCompletion.run();
                     }
 
@@ -233,6 +287,9 @@ public class JoinHelper {
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
+                        FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                        attempt.logNow();
+                        lastFailedJoinAttempt.set(attempt);
                         onCompletion.run();
                     }
 

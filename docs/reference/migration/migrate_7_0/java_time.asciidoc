@@ -111,3 +111,9 @@ and should be replaced.
 * `getYearOfEra()` should be replaced with `get(ChronoField.YEAR_OF_ERA)`
 * `toString(String)` should be replaced with a `DateTimeFormatter`
 * `toString(String,Locale)` should be replaced with a `DateTimeFormatter`
+
+[float]
+==== Negative epoch timestamps are no longer supported
+
+With the switch to java time, support for negative timestamps has been removed.
+For dates before 1970, use a date format containing a year.

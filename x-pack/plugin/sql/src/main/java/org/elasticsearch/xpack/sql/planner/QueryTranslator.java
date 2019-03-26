@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.MedianAbsoluteDeviationAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MinAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.OrAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
@@ -144,7 +146,8 @@ final class QueryTranslator {
             new CountAggs(),
             new DateTimes(),
             new Firsts(),
-            new Lasts()
+            new Lasts(), 
+            new MADs()
             );
 
     static class QueryTranslation {
@@ -469,6 +472,7 @@ final class QueryTranslator {
 
     // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override
@@ -830,6 +834,13 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Min m) {
             return new MinAgg(id, field(m));
+        }
+    }
+
+    static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
+        @Override
+        protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
+            return new MedianAbsoluteDeviationAgg(id, field(m));
         }
     }
 

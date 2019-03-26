@@ -56,7 +56,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
         }
 
-        public Request() {
+        private Request() {
             this(null, false, null);
         }
 
@@ -149,7 +149,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 
@@ -177,6 +177,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            toXContentCommon(builder, params);
             builder.field("stopped", stopped);
             builder.endObject();
             return builder;

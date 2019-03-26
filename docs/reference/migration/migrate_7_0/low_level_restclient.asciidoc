@@ -3,6 +3,13 @@
 === Low-level REST client changes
 
 [float]
+==== Support for `maxRetryTimeout` removed from RestClient
+
+`RestClient` and `RestClientBuilder` no longer support the `maxRetryTimeout`
+setting. The setting was removed as its counting mechanism was not accurate
+and caused issues while adding little value.
+
+[float]
 ==== Deprecated flavors of performRequest have been removed
 
 We deprecated the flavors of `performRequest` and `performRequestAsync` that

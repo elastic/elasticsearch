@@ -3,6 +3,31 @@
 === Search and Query DSL changes
 
 [float]
+==== Off-heap terms index
+
+The terms dictionary is the part of the inverted index that records all terms
+that occur within a segment in sorted order. In order to provide fast retrieval,
+terms dictionaries come with a small terms index that allows for efficient
+random access by term. Until now this terms index had always been loaded
+on-heap.
+
+As of 7.0, the terms index is loaded on-heap for fields that only have unique
+values such as `_id` fields, and off-heap otherwise - likely most other fields.
+This is expected to reduce memory requirements but might slow down search
+requests if both below conditions are met:
+
+* The size of the data directory on each node is significantly larger than the
+  amount of memory that is available to the filesystem cache.
+
+* The number of matches of the query is not several orders of magnitude greater
+  than the number of terms that the query tries to match, either explicitly via
+  `term` or `terms` queries, or implicitly via multi-term queries such as
+  `prefix`, `wildcard` or `fuzzy` queries.
+
+This change affects both existing indices created with Elasticsearch 6.x and new
+indices created with Elasticsearch 7.x.
+
+[float]
 ==== Changes to queries
 *   The default value for `transpositions` parameter of `fuzzy` query
     has been changed to `true`.

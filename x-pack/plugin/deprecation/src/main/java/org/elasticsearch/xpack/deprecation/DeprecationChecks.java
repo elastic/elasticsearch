@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -32,7 +33,8 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            ClusterDeprecationChecks::checkUserAgentPipelines
+            ClusterDeprecationChecks::checkUserAgentPipelines,
+            ClusterDeprecationChecks::checkTemplatesWithTooManyFields
         ));
 
 
@@ -43,9 +45,11 @@ public class DeprecationChecks {
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            IndexDeprecationChecks::oldIndicesCheck));
+            IndexDeprecationChecks::oldIndicesCheck,
+            IndexDeprecationChecks::tooManyFieldsCheck
+        ));
 
-    static List<Function<DatafeedConfig, DeprecationIssue>> ML_SETTINGS_CHECKS =
+    static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =
             Collections.unmodifiableList(Arrays.asList(
                     MlDeprecationChecks::checkDataFeedAggregations,
                     MlDeprecationChecks::checkDataFeedQuery

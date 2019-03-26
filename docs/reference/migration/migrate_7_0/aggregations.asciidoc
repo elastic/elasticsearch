@@ -32,3 +32,10 @@ being provided via the `params` object as `params._agg`.
 
 The metric aggregation has been changed to require these two script parameters to ensure users are
 explicitly defining how their data is processed.
+
+[float]
+==== `percentiles` and `percentile_ranks` now return `null` instead of `NaN`
+
+The `percentiles` and `percentile_ranks` aggregations used to return `NaN` in
+the response if they were applied to an empty set of values. Because `NaN` is
+not officially supported by JSON, it has been replaced with `null`.

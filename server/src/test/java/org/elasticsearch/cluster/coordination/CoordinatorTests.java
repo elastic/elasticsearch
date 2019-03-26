@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -872,7 +871,6 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38867")
     public void testIncompatibleDiffResendsFullState() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
@@ -885,12 +883,12 @@ public class CoordinatorTests extends ESTestCase {
         final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
         logger.info("--> submitting first value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publish first state");
         logger.info("--> healing {}", follower);
         follower.heal();
         logger.info("--> submitting second value to {}", leader);
         leader.submitValue(randomLong());
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        cluster.stabilise();
         final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();
         assertEquals(prePublishStats.getFullClusterStateReceivedCount() + 1,
             postPublishStats.getFullClusterStateReceivedCount());
@@ -1476,8 +1474,7 @@ public class CoordinatorTests extends ESTestCase {
                 leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            // See https://github.com/elastic/elasticsearch/issues/39437
-            //assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
+            assertTrue("history not linearizable: " + history, linearizabilityChecker.isLinearizable(spec, history, i -> null));
             logger.info("linearizability check completed");
         }
 
@@ -1756,12 +1753,7 @@ public class CoordinatorTests extends ESTestCase {
                 clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
                 clusterService.setNodeConnectionsService(
                     new NodeConnectionsService(clusterService.getSettings(), deterministicTaskQueue.getThreadPool(this::onNode),
-                        transportService) {
-                        @Override
-                        public void connectToNodes(DiscoveryNodes discoveryNodes) {
-                            // override this method as it does blocking calls
-                        }
-                    });
+                        transportService));
                 final Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators =
                     Collections.singletonList((dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs)));
                 coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
@@ -2150,6 +2142,10 @@ public class CoordinatorTests extends ESTestCase {
             }
         }
 
+        @Override
+        protected void connectToNodesAndWait(ClusterState newClusterState) {
+            // don't do anything, and don't block
+        }
     }
 
     private static DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {

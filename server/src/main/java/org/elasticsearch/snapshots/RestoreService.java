@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -473,9 +474,6 @@ public class RestoreService implements ClusterStateApplier {
                  * merging them with settings in changeSettings.
                  */
                 private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings) {
-                    if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
-                        return indexMetaData;
-                    }
                     Settings normalizedChangeSettings = Settings.builder()
                                                                 .put(changeSettings)
                                                                 .normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX)
@@ -519,6 +517,7 @@ public class RestoreService implements ClusterStateApplier {
                                 return true;
                             }
                         }));
+                    settingsBuilder.remove(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey());
                     return builder.settings(settingsBuilder).build();
                 }
 

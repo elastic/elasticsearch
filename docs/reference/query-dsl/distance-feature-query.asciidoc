@@ -1,0 +1,177 @@
+[[query-dsl-distance-feature-query]]
+=== Distance Feature Query
+
+The `distance_feature` query is a specialized query that only works
+on <<date, `date`>>, <<date_nanos, `date_nanos`>> or <<geo-point,`geo_point`>>
+fields. Its goal is to boost documents' scores based on proximity
+to some given origin. For example, use this query if you want to
+give more weight to documents with dates closer to a certain date,
+or to documents with locations closer to a certain location.
+
+This query is called `distance_feature` query, because it dynamically
+calculates distances between the given origin and documents' field values,
+and use these distances as features to boost the documents' scores.
+
+`distance_feature` query is typically used on its own to find the nearest
+neighbors to a given point, or put in a `should` clause of a
+<<query-dsl-bool-query,`bool`>> query so that its score is added to the score
+of the query.
+
+Compared to using <<query-dsl-function-score-query,`function_score`>> or other
+ways to modify the score, this query has the benefit of being able to
+efficiently skip non-competitive hits when
+<<search-uri-request,`track_total_hits`>> is not set to `true`.
+
+==== Syntax of distance_feature query
+
+`distance_feature` query has the following syntax:
+[source,js]
+--------------------------------------------------
+"distance_feature": {
+  "field": <field>,
+  "origin": <origin>,
+  "pivot": <pivot>,
+  "boost" : <boost>
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[horizontal]
+`field`::
+    Required parameter. Defines the name of the field on which to calculate
+    distances. Must be a field of the type `date`, `date_nanos` or `geo_point`,
+    and must be indexed (`"index": true`, which is the default) and has
+    <<doc-values, doc values>> (`"doc_values": true`, which is the default).
+
+`origin`::
+    Required parameter. Defines a point of origin used for calculating
+    distances. Must be a date for date and date_nanos fields,
+    and a geo-point for geo_point fields. Date math (for example `now-1h`) is
+    supported for a date origin.
+
+`pivot`::
+    Required parameter. Defines the distance from origin at which the computed
+    score will equal to a half of the `boost` parameter. Must be
+    a `number+date unit` ("1h", "10d",...) for date and date_nanos fields,
+    and a `number + geo unit` ("1km", "12m",...) for geo fields.
+
+`boost`::
+    Optional parameter with a default value of `1`. Defines the factor by which
+    to multiply the score. Must be a non-negative float number.
+
+
+The `distance_feature` query computes a document's score as following:
+
+`score = boost * pivot / (pivot + distance)`
+
+where `distance` is the absolute difference between the origin and
+a document's field value.
+
+==== Example using distance_feature query
+
+Let's look at an example. We index several documents containing
+information about sales items, such as name, production date,
+and location.
+
+[source,js]
+--------------------------------------------------
+PUT items
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "type": "keyword"
+      },
+      "production_date": {
+        "type": "date"
+      },
+      "location": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT items/_doc/1
+{
+  "name" : "chocolate",
+  "production_date": "2018-02-01",
+  "location": [-71.34, 41.12]
+}
+
+PUT items/_doc/2
+{
+  "name" : "chocolate",
+  "production_date": "2018-01-01",
+  "location": [-71.3, 41.15]
+}
+
+
+PUT items/_doc/3
+{
+  "name" : "chocolate",
+  "production_date": "2017-12-01",
+  "location": [-71.3, 41.12]
+}
+
+POST items/_refresh
+--------------------------------------------------
+// CONSOLE
+
+We look for all chocolate items, but we also want chocolates
+that are produced recently (closer to the date `now`)
+to be ranked higher.
+
+[source,js]
+--------------------------------------------------
+GET items/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "name": "chocolate"
+        }
+      },
+      "should": {
+        "distance_feature": {
+          "field": "production_date",
+          "pivot": "7d",
+          "origin": "now"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+We can look for all chocolate items, but we also want chocolates
+that are produced locally (closer to our geo origin)
+come first in the result list.
+
+[source,js]
+--------------------------------------------------
+GET items/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "name": "chocolate"
+        }
+      },
+      "should": {
+        "distance_feature": {
+          "field": "location",
+          "pivot": "1000m",
+          "origin": [-71.3, 41.15]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]

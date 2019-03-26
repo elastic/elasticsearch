@@ -9,12 +9,14 @@ your application to Elasticsearch 7.0.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_70_notable>>
 * <<breaking_70_aggregations_changes>>
 * <<breaking_70_cluster_changes>>
 * <<breaking_70_discovery_changes>>
 * <<breaking_70_indices_changes>>
 * <<breaking_70_mappings_changes>>
 * <<breaking_70_search_changes>>
+* <<breaking_70_suggesters_changes>>
 * <<breaking_70_packaging_changes>>
 * <<breaking_70_plugins_changes>>
 * <<breaking_70_analysis_changes>>
@@ -30,7 +32,13 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_java_time_changes>>
 
 [float]
-=== Indices created before 7.0
+[[breaking_70_notable]]
+=== Notable changes
+// NOTE: The content in this section is also used in the Installation and Upgrade Guide.
+
+//tag::notable-breaking-changes[]
+[float]
+==== Indices created before 7.0
 
 Elasticsearch 7.0 can read indices created in version 6.0 or above.  An
 Elasticsearch 7.0 node will not start in the presence of indices created in a
@@ -45,6 +53,8 @@ Elasticsearch 6.x in order to be readable by Elasticsearch 7.x.
 
 =========================================
 
+// end::notable-breaking-changes[]
+
 include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
 include::migrate_7_0/cluster.asciidoc[]
@@ -52,6 +62,7 @@ include::migrate_7_0/discovery.asciidoc[]
 include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
 include::migrate_7_0/search.asciidoc[]
+include::migrate_7_0/suggesters.asciidoc[]
 include::migrate_7_0/packaging.asciidoc[]
 include::migrate_7_0/plugins.asciidoc[]
 include::migrate_7_0/api.asciidoc[]

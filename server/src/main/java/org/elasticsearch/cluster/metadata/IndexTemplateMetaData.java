@@ -346,6 +346,19 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
 
         /**
+         * Removes the nested type in the xContent representation of {@link IndexTemplateMetaData}.
+         *
+         * This method is useful to help bridge the gap between an the internal representation which still uses (the legacy format) a
+         * nested type in the mapping, and the external representation which does not use a nested type in the mapping.
+         */
+        public static void removeType(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder) throws IOException {
+            builder.startObject();
+            toInnerXContent(indexTemplateMetaData, builder,
+                new ToXContent.MapParams(Collections.singletonMap("reduce_mappings", "true")), false);
+            builder.endObject();
+        }
+
+        /**
          * Serializes the template to xContent, making sure not to nest mappings under the
          * type name.
          *
@@ -360,6 +373,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             toInnerXContent(indexTemplateMetaData, builder, params, false);
             builder.endObject();
         }
+
 
         static void toInnerXContentWithTypes(IndexTemplateMetaData indexTemplateMetaData,
                                              XContentBuilder builder,

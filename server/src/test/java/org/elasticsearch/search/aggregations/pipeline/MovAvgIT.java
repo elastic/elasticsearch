@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.EvictingQueue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -110,7 +111,12 @@ public class MovAvgIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        createIndex("idx");
+        prepareCreate("idx").addMapping("type",
+            XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject(VALUE_FIELD).field("type", "double").endObject()
+                .endObject()
+                .endObject().endObject()).execute().get();
         createIndex("idx_unmapped");
         List<IndexRequestBuilder> builders = new ArrayList<>();
 

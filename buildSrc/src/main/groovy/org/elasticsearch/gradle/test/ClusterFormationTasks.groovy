@@ -23,7 +23,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionCollection
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension
@@ -174,10 +174,20 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro, Configuration configuration, String elasticsearchVersion) {
+        boolean internalBuild = project.hasProperty('bwcVersions')
         if (distro.equals("integ-test-zip")) {
             // short circuit integ test so it doesn't complicate the rest of the distribution setup below
-            project.dependencies.add(configuration.name,
-                    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip")
+            if (internalBuild) {
+                project.dependencies.add(
+                        configuration.name,
+                        project.dependencies.project(path: ":distribution", configuration: 'integ-test-zip')
+                )
+            } else {
+                project.dependencies.add(
+                        configuration.name,
+                        "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${elasticsearchVersion}@zip"
+                )
+            }
             return
         }
         // TEMP HACK
@@ -194,7 +204,7 @@ class ClusterFormationTasks {
         }
         Version version = Version.fromString(elasticsearchVersion)
         String os = getOs()
-        String classifier = "${os}-x86_64"
+        String classifier = "-${os}-x86_64"
         String packaging = os.equals('windows') ? 'zip' : 'tar.gz'
         String artifactName = 'elasticsearch'
         if (distro.equals('oss') && Version.fromString(elasticsearchVersion).onOrAfter('6.3.0')) {
@@ -204,19 +214,22 @@ class ClusterFormationTasks {
         String snapshotProject = "${os}-${os.equals('windows') ? 'zip' : 'tar'}"
         if (version.before("7.0.0")) {
             snapshotProject = "zip"
+            packaging = "zip"
         }
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-        boolean internalBuild = project.hasProperty('bwcVersions')
-        VersionCollection.UnreleasedVersionInfo unreleasedInfo = null
+        
+        BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
+
         if (project.hasProperty('bwcVersions')) {
             // NOTE: leniency is needed for external plugin authors using build-tools. maybe build the version compat info into build-tools?
             unreleasedInfo = project.bwcVersions.unreleasedInfo(version)
         }
         if (unreleasedInfo != null) {
             dependency = project.dependencies.project(
-                        path: ":distribution:bwc:${unreleasedInfo.gradleProjectName}", configuration: snapshotProject)
+                    path: unreleasedInfo.gradleProjectPath, configuration: snapshotProject
+            )
         } else if (internalBuild && elasticsearchVersion.equals(VersionProperties.elasticsearch)) {
             dependency = project.dependencies.project(path: ":distribution:archives:${snapshotProject}")
         } else {
@@ -224,7 +237,7 @@ class ClusterFormationTasks {
                 classifier = "" // for bwc, before we had classifiers
             }
             // group does not matter as it is not used when we pull from the ivy repo that points to the download service
-            dependency = "dnm:${artifactName}:${elasticsearchVersion}-${classifier}@${packaging}"
+            dependency = "dnm:${artifactName}:${elasticsearchVersion}${classifier}@${packaging}"
         }
         project.dependencies.add(configuration.name, dependency)
     }
@@ -303,6 +316,12 @@ class ClusterFormationTasks {
         // sets up any extra config files that need to be copied over to the ES instance;
         // its run after plugins have been installed, as the extra config files may belong to plugins
         setup = configureExtraConfigFilesTask(taskName(prefix, node, 'extraConfig'), project, setup, node)
+
+        // If the node runs in a FIPS 140-2 JVM, the BCFKS default keystore will be password protected
+        if (project.inFipsJvm){
+            node.config.systemProperties.put('javax.net.ssl.trustStorePassword', 'password')
+            node.config.systemProperties.put('javax.net.ssl.keyStorePassword', 'password')
+        }
 
         // extra setup commands
         for (Map.Entry<String, Object[]> command : node.config.setupCommands.entrySet()) {
@@ -668,7 +687,14 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            exec.environment 'JAVA_HOME', node.getJavaHome()
+            // TODO: this must change to 7.0.0 after bundling java has been backported
+            if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                node.config.distribution == 'integ-test-zip') {
+                exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
+            } else {
+                // force JAVA_HOME to *not* be set
+                exec.environment.remove('JAVA_HOME')
+            }
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 exec.executable 'cmd'
                 exec.args '/C', 'call'
@@ -685,9 +711,21 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
+                     dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
+                if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("8.0.0")) ||
+                    node.config.distribution == 'integ-test-zip') {
+                    env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
+                }
                 node.args.each { arg(value: it) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    // Having no TMP on Windows defaults to C:\Windows and permission errors
+                    // Since we configure ant to run with a new  environment above, we need to explicitly pass this
+                    String tmp = System.getenv("TMP")
+                    assert tmp != null
+                    env(key: "TMP", value: tmp)
+                }
             }
         }
 

@@ -229,7 +229,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 clusterAlias, OriginalIndices.NONE);
             QuerySearchResult querySearchResult = new QuerySearchResult(shardIndex, searchShardTarget);
             final TopDocs topDocs;
-            float maxScore = 0;
+            float maxScore = Float.NEGATIVE_INFINITY;
             if (searchHitsSize == 0) {
                 topDocs = Lucene.EMPTY_TOP_DOCS;
             } else {
@@ -261,7 +261,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 suggestion.setShardIndex(shardIndex);
                 shardSuggestion.add(suggestion);
             }
-            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, maxScore), null);
+            querySearchResult.topDocs(new TopDocsAndMaxScore(topDocs, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore), null);
             querySearchResult.size(searchHitsSize);
             querySearchResult.suggest(new Suggest(new ArrayList<>(shardSuggestion)));
             querySearchResult.setShardIndex(shardIndex);
@@ -456,7 +456,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             max.updateAndGet(prev -> Math.max(prev, number));
             QuerySearchResult result = new QuerySearchResult(i, new SearchShardTarget("node", new ShardId("a", "b", i),
                 null, OriginalIndices.NONE));
-            result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), number),
+            result.topDocs(new TopDocsAndMaxScore(new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
                     new DocValueFormat[0]);
             InternalAggregations aggs = new InternalAggregations(Collections.singletonList(new InternalMax("test", (double) number,
                 DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap())));
@@ -470,7 +470,6 @@ public class SearchPhaseControllerTests extends ESTestCase {
         InternalMax internalMax = (InternalMax) reduce.aggregations.asList().get(0);
         assertEquals(max.get(), internalMax.getValue(), 0.0D);
         assertEquals(0, reduce.sortedTopDocs.scoreDocs.length);
-        assertEquals(max.get(), reduce.maxScore, 0.0f);
         assertEquals(expectedNumResults, reduce.totalHits.value);
         assertFalse(reduce.sortedTopDocs.isSortedByField);
         assertNull(reduce.sortedTopDocs.sortFields);

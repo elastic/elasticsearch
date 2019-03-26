@@ -462,7 +462,7 @@ public class SearchResponseMergerTests extends ESTestCase {
 
             final int numDocs = totalHits == null || totalHits.value >= requestedSize ? requestedSize : (int) totalHits.value;
             int scoreFactor = randomIntBetween(1, numResponses);
-            float maxScore = scoreSort ? numDocs * scoreFactor : Float.NaN;
+            float maxScore = scoreSort && numDocs > 0 ? numDocs * scoreFactor : Float.NaN;
             SearchHit[] hits = randomSearchHitArray(numDocs, numResponses, clusterAlias, indices, maxScore, scoreFactor,
                 sortFields, priorityQueue);
             expectedMaxScore = Math.max(expectedMaxScore, maxScore);
@@ -476,7 +476,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 }
             }
 
-            SearchHits searchHits = new SearchHits(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore,
+            SearchHits searchHits = new SearchHits(hits, totalHits, maxScore,
                 sortFields, collapseField, collapseValues);
 
             int numReducePhases = randomIntBetween(1, 5);
@@ -522,7 +522,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             assertEquals(expectedTotalHits.value, searchHits.getTotalHits().value);
             assertSame(expectedTotalHits.relation, searchHits.getTotalHits().relation);
         }
-        if (expectedMaxScore == Float.NEGATIVE_INFINITY) {
+        if (expectedMaxScore == Float.NEGATIVE_INFINITY || searchHits.getHits().length == 0) {
             assertTrue(Float.isNaN(searchHits.getMaxScore()));
         } else {
             assertEquals(expectedMaxScore, searchHits.getMaxScore(), 0f);

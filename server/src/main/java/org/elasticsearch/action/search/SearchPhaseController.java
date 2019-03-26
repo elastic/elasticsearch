@@ -383,7 +383,8 @@ public final class SearchPhaseController {
             }
         }
         return new SearchHits(hits.toArray(new SearchHit[0]), reducedQueryPhase.totalHits,
-            reducedQueryPhase.maxScore, sortedTopDocs.sortFields, sortedTopDocs.collapseField, sortedTopDocs.collapseValues);
+            hits.isEmpty() ? Float.NaN : reducedQueryPhase.maxScore,
+            sortedTopDocs.sortFields, sortedTopDocs.collapseField, sortedTopDocs.collapseValues);
     }
 
     /**

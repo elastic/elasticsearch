@@ -358,7 +358,7 @@ final class SearchResponseMerger {
                 collapseValues = collapseTopFieldDocs.collapseValues;
             }
         }
-        return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(),
+        return new SearchHits(searchHits, topDocsStats.getTotalHits(), searchHits.length == 0 ? Float.NaN : topDocsStats.getMaxScore(),
             sortFields, collapseField, collapseValues);
     }
 

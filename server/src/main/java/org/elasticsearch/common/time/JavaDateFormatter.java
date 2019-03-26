@@ -118,12 +118,16 @@ class JavaDateFormatter implements DateFormatter {
     }
 
     /**
-     * Attempt parsing the input without throwing exception. This is needed because java-time requires ordering on optional (composite)
+     * Attempt parsing the input without throwing exception. If multiple parsers are provided,
+     * it will continue iterating if the previous parser failed. The pattern must fully match, meaning whole input was used.
+     *
+     * The approach with collection of parsers was taken because java-time requires ordering on optional (composite)
      * patterns. Joda does not suffer from this.
      * https://bugs.openjdk.java.net/browse/JDK-8188771
      *
      * @param input An arbitrary string resembling the string representation of a date or time
-     * @return true if parsing was successful, false if parsing failed
+     * @return a TemporalAccessor if parsing was successful.
+     * @throws DateTimeParseException when unable to parse wih any parsers
      */
     private TemporalAccessor doParse(String input) {
         if (parsers.size() > 1) {

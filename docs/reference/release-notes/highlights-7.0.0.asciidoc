@@ -107,3 +107,9 @@ Words.
 
 Words.
 // end::notable-highlights[]
+
+// tag::notable-highlights[]
+=== Rank feature fields
+
+Words.
+// end::notable-highlights[]

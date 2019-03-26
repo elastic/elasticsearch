@@ -5,6 +5,9 @@
 
 [partintro]
 --
+
+beta[]
+
 Elasticsearch indices can require a significant amount of memory available in order to be open and searchable. Yet, not all indices need
 to be writable at the same time and have different access patterns over time. For example, indices in the time series or logging use cases
 are unlikely to be queried once they age out but still need to be kept around for retention policy purposes.
@@ -22,6 +25,8 @@ execution on a per shard level. Depending on the data in an index, a frozen inde
 --
 
 == Best Practices
+
+beta[]
 
 Since frozen indices provide a much higher disk to heap ratio at the expense of search latency, it is advisable to allocate frozen indices to
 dedicated nodes to prevent searches on frozen indices influencing traffic on low latency nodes. There is significant overhead in loading
@@ -41,6 +46,8 @@ POST /twitter/_forcemerge?max_num_segments=1
 // TEST[setup:twitter]
 
 == Searching a frozen index
+
+beta[]
 
 Frozen indices are throttled in order to limit memory consumptions per node. The number of concurrently loaded frozen indices per node is
 limited by the number of threads in the <<search-throttled>> threadpool,  which is `1` by default. 

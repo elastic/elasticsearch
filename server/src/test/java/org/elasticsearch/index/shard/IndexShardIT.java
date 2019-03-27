@@ -82,6 +82,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -738,8 +740,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         t.join();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39565")
-    public void testPendingRefreshWithIntervalChange() throws InterruptedException {
+    public void testPendingRefreshWithIntervalChange() throws Exception {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
         IndexService indexService = createIndex("test", builder.build());
@@ -767,7 +768,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
-
+        // ensure no scheduled refresh to compete with the scheduleRefresh we are going to verify.
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : indexService.getThreadPool().stats()) {
+                if (stat.getName().equals(ThreadPool.Names.REFRESH) && (stat.getQueue() > 0 || stat.getActive() > 0)) {
+                    throw new AssertionError(); // cause assert busy to retry
+                }
+            }
+        });
         client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());

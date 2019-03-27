@@ -44,18 +44,18 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[multiFieldsMatch]
 ----
 
 Both options above can be used in combination with the optional third parameter of the `MATCH()` predicate, where one can specify
-additional configuration parameters for either `match` or `multi_match` queries. For example:
+additional configuration parameters (separated by semicolon `;`) for either `match` or `multi_match` queries. For example:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParamsForMatch]
 ----
 
-The allowed optional parameters for a single-field `MATCH()` variant (for the `match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
+NOTE: The allowed optional parameters for a single-field `MATCH()` variant (for the `match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
 `cutoff_frequency`, `lenient`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`.
 
-The allowed optional parameters for a multi-field `MATCH()` variant (for the `multi_match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
+NOTE: The allowed optional parameters for a multi-field `MATCH()` variant (for the `multi_match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
 `cutoff_frequency`, `lenient`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`, `slop`, `tie_breaker`, `type`.
 
@@ -96,14 +96,15 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[advancedQueryQuery]
 The query above uses the `_exists_` query to select documents that have values in the `author` field, a range query for `page_count` and a 
 regex and fuzziness queries for the `name` field.
 
-If one needs to customize various configuration options that `query_string` exposes, this can be done using the second _optional_ parameter:
+If one needs to customize various configuration options that `query_string` exposes, this can be done using the second _optional_ parameter.
+Multiple settings can be specified separated by a semicolon `;`:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParameterQuery]
 ----
 
-The allowed optional parameters for `QUERY()` are: `allow_leading_wildcard`, `analyze_wildcard`, `analyzer`,
+NOTE: The allowed optional parameters for `QUERY()` are: `allow_leading_wildcard`, `analyze_wildcard`, `analyzer`,
 `auto_generate_synonyms_phrase_query`, `default_field`, `default_operator`, `enable_position_increments`,
 `escape`, `fuzzy_max_expansions`, `fuzzy_prefix_length`, `fuzzy_rewrite`, `fuzzy_transpositions`, `lenient`,
 `locale`, `lowercase_expanded_terms`, `max_determinized_states`, `minimum_should_match`, `phrase_slop`, `rewrite`,

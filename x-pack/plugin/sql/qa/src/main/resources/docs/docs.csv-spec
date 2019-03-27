@@ -999,7 +999,7 @@ Robert A. Heinlein|Starship Troopers  |335            |3.0
 
 optionalParameterQuery
 // tag::optionalParameterQuery
-SELECT author, name, SCORE() FROM library WHERE QUERY('name:dune god', 'default_operator=and');
+SELECT author, name, SCORE() FROM library WHERE QUERY('dune god', 'default_operator=and;default_field=name');
 
     author     |       name        |    SCORE()
 ---------------+-------------------+---------------

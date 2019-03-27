@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
 public class TimeProcessor extends DateTimeProcessor {
 
@@ -35,8 +36,7 @@ public class TimeProcessor extends DateTimeProcessor {
         }
 
         if (input instanceof OffsetTime) {
-            OffsetTime ot = (OffsetTime) input;
-            return doProcess(ot.withOffsetSameInstant(zoneId().getRules().getOffset(ot.toLocalTime().atDate(DateUtils.EPOCH))));
+            return doProcess(asTimeAtZone((OffsetTime) input, zoneId()));
         }
         if (input instanceof ZonedDateTime) {
             return doProcess(((ZonedDateTime) input).withZoneSameInstant(zoneId()));

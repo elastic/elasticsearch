@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.time;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProcessor> {
@@ -38,42 +38,41 @@ public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProc
     }
 
     public void testApply_withTimeZoneUTC() {
-        DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.SECOND_OF_MINUTE, UTC);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(2, proc.process(dateTime(2345L)));
+        TimeProcessor proc = new TimeProcessor(DateTimeExtractor.SECOND_OF_MINUTE, UTC);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(2, proc.process(time(2345L)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.MINUTE_OF_DAY, UTC);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(610, proc.process(dateTime(2017, 01, 02, 10, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.MINUTE_OF_DAY, UTC);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(620, proc.process(time(10, 20, 30, 123456789)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.MINUTE_OF_HOUR, UTC);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(10, proc.process(dateTime(2017, 01, 02, 10, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.MINUTE_OF_HOUR, UTC);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.HOUR_OF_DAY, UTC);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(10, proc.process(dateTime(2017, 01, 02, 10, 10)));
-        assertEquals(11, proc.process(dateTime(2017, 01, 31, 11, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.HOUR_OF_DAY, UTC);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(10, proc.process(time(10, 20, 30, 123456789)));
     }
 
     public void testApply_withTimeZoneOtherThanUTC() {
         ZoneId zoneId = ZoneId.of("Etc/GMT-10");
 
-        DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.SECOND_OF_MINUTE, zoneId);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(2, proc.process(dateTime(2345L)));
+        TimeProcessor proc = new TimeProcessor(DateTimeExtractor.SECOND_OF_MINUTE, zoneId);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(2, proc.process(time(2345L)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.MINUTE_OF_DAY, zoneId);
-        assertEquals(600, proc.process(dateTime(0L)));
-        assertEquals(1210, proc.process(dateTime(2017, 01, 02, 10, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.MINUTE_OF_DAY, zoneId);
+        assertEquals(600, proc.process(time(0L)));
+        assertEquals(1220, proc.process(time(10, 20, 30, 123456789)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.MINUTE_OF_HOUR, zoneId);
-        assertEquals(0, proc.process(dateTime(0L)));
-        assertEquals(10, proc.process(dateTime(2017, 01, 02, 10, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.MINUTE_OF_HOUR, zoneId);
+        assertEquals(0, proc.process(time(0L)));
+        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));
 
-        proc = new DateTimeProcessor(DateTimeExtractor.HOUR_OF_DAY, zoneId);
-        assertEquals(10, proc.process(dateTime(0L)));
-        assertEquals(20, proc.process(dateTime(2017, 01, 02, 10, 10)));
-        assertEquals(4, proc.process(dateTime(2017, 01, 31, 18, 10)));
+        proc = new TimeProcessor(DateTimeExtractor.HOUR_OF_DAY, zoneId);
+        assertEquals(10, proc.process(time(0L)));
+        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));;
+        assertEquals(4, proc.process(time(18, 20, 30, 123456789)));
     }
 }

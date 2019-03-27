@@ -61,6 +61,10 @@ public final class DateUtils {
         return OffsetTime.ofInstant(Instant.ofEpochMilli(millis % DAY_IN_MILLIS), zoneId);
     }
 
+    public static OffsetTime asTimeAtZone(OffsetTime time, ZoneId zonedId) {
+        return time.atDate(DateUtils.EPOCH).atZoneSameInstant(zonedId).toOffsetDateTime().toOffsetTime();
+    }
+
     /**
      * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */

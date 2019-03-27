@@ -16,6 +16,7 @@ import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.hamcrest.Matchers.startsWith;
 
 public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<DateTimeProcessor> {
 
@@ -61,8 +62,9 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
 
     public void testFailOnTime() {
         DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR, UTC);
-        expectThrows(SqlIllegalArgumentException.class, () -> {
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> {
            proc.process(OffsetTime.now(UTC));
         });
+        assertThat(e.getMessage(), startsWith("A date is required; received "));
     }
 }

@@ -82,6 +82,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40368")
     public void testExtractIndexCheckpointsInconsistentGlobalCheckpoints() {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();

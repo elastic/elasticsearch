@@ -31,9 +31,8 @@ final class JdbcDateUtils {
 
     private JdbcDateUtils() {}
 
-    private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
     // Not available in Java 8
-    public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+    private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     
     static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
@@ -76,12 +75,9 @@ final class JdbcDateUtils {
         return new Date(zdt.toLocalDate().atStartOfDay(zdt.getZone()).toInstant().toEpochMilli());
     }
 
-    /**
-     * In contrast to {@link JdbcDateUtils#asDate(String)} here we just want to eliminate
-     * the date part and just set it to EPOCH (1970-01-1)
-     */
     static Time asTime(String date) {
-        return new Time(utcMillisRemoveDate(timeAsMillisSinceEpoch(date)));
+        ZonedDateTime zdt = asDateTime(date);
+        return new Time(zdt.toLocalTime().atDate(EPOCH).atZone(zdt.getZone()).toInstant().toEpochMilli());
     }
 
     static Timestamp asTimestamp(long millisSinceEpoch) {
@@ -102,9 +98,5 @@ final class JdbcDateUtils {
         } else {
             return ctor.apply(((Number) value).longValue());
         }
-    }
-
-    private static long utcMillisRemoveDate(long l) {
-        return l % DAY_IN_MILLIS;
     }
 }

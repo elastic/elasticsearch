@@ -97,6 +97,12 @@ causing a mapping explosion:
     100 objects within a nested field, will actually create 101 documents, as
     each nested object will be indexed as a separate hidden document.
 
+`index.mapping.field_name_length.limit`::
+    Setting for the maximum length of a field name. The default value is
+    Long.MAX_VALUE (no limit). This setting isn't really something that addresses
+    mappings explosion but might still be useful if you want to limit the field length.
+    It usually shouldn't be necessary to set this setting. The default is okay
+    unless a user starts to add a huge number of fields with really long names.
 
 [float]
 == Dynamic mapping

@@ -41,14 +41,14 @@ SELECT count(*) FROM "test_emp" WHERE birth_date::TIME = CAST('12:34:56.789' AS 
 ;
 
 timeAsOrderBy
-SELECT last_name FROM "test_emp" WHERE ORDER BY birth_date::TIME, emp_no LIMIT 5;
+SELECT last_name FROM "test_emp" ORDER BY birth_date::TIME, emp_no LIMIT 5;
 
 last_name:s
-Facello
-Simmel
-Bamford
-Koblick
-Maliniak
+Meriste
+Lenart
+Stamatiou
+Tzvieli
+Casley
 ;
 
 timeAndFunctionAsGroupingKey

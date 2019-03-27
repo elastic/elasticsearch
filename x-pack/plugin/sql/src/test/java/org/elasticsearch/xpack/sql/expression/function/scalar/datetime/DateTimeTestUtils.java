@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.OffsetTime;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 public class DateTimeTestUtils {
@@ -29,5 +30,9 @@ public class DateTimeTestUtils {
 
     public static OffsetTime time(long millisSinceEpoch) {
         return DateUtils.asTimeOnly(millisSinceEpoch);
+    }
+
+    public static OffsetTime time(int hour, int minute, int second, int nano) {
+        return OffsetTime.of(hour, minute, second, nano, ZoneOffset.UTC);
     }
 }

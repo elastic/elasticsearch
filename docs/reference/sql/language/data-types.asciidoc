@@ -21,9 +21,9 @@ s|SQL precision
 | <<number, `long`>>          | long          | BIGINT      | 19
 | <<number, `double`>>        | double        | DOUBLE      | 15
 | <<number, `float`>>         | float         | REAL        | 7
-| <<number, `half_float`>>    | half_float    | FLOAT       | 16
-| <<number, `scaled_float`>>  | scaled_float  | FLOAT       | 19
-| <<keyword, `keyword`>>      | keyword       | VARCHAR     | based on <<ignore-above>>
+| <<number, `half_float`>>    | half_float    | FLOAT       | 3
+| <<number, `scaled_float`>>  | scaled_float  | DOUBLE      | 15
+| <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
 | <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
 | <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
 | <<date, `date`>>            | datetime      | TIMESTAMP   | 24

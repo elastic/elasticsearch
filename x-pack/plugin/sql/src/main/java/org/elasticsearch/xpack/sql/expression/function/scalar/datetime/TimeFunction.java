@@ -11,13 +11,13 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
 public abstract class TimeFunction extends DateTimeFunction {
 
@@ -37,8 +37,7 @@ public abstract class TimeFunction extends DateTimeFunction {
             return doFold(((ZonedDateTime) folded).withZoneSameInstant(zoneId()));
         }
         if (folded instanceof OffsetTime) {
-            OffsetTime ot = (OffsetTime) folded;
-            return doFold(ot.withOffsetSameInstant(zoneId().getRules().getOffset(ot.toLocalTime().atDate(DateUtils.EPOCH))));
+            return doFold(asTimeAtZone((OffsetTime) folded, zoneId()));
         }
 
         throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", field());

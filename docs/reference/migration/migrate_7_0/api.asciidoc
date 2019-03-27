@@ -2,8 +2,8 @@
 [[breaking_70_api_changes]]
 === API changes
 
-[float]
 //tag::notable-breaking-changes[]
+[float]
 ==== Internal Versioning is no longer supported for optimistic concurrency control
 
 Elasticsearch maintains a numeric version field for each document it stores. That field
@@ -15,7 +15,9 @@ while handling a write operation, it may expose a version that will then be reus
 new primary.
 
 Due to that issue, internal versioning can no longer be used and is replaced by a new
-method based on sequence numbers. See <<optimistic-concurrency-control>> for more details.
+method based on sequence numbers. See
+{ref}/optimistic-concurrency-control.html[Optimistic concurrency control] for
+more details.
 
 Note that the `external` versioning type is still fully supported.
 //end::notable-breaking-changes[]

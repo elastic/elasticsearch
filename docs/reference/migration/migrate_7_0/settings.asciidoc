@@ -2,8 +2,8 @@
 [[breaking_70_settings_changes]]
 === Settings changes
 
-[float]
 //tag::notable-breaking-changes[]
+[float]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
@@ -134,9 +134,9 @@ fallback to a default configuration when using TLS. Each component (realm, trans
 http client, etc) must now be configured with their own settings for TLS if it is being
 used.
 
+//tag::notable-breaking-changes[]
 [float]
 [[tls-v1-removed]]
-//tag::notable-breaking-changes[]
 ==== TLS v1.0 disabled
 
 TLS version 1.0 is now disabled by default as it suffers from

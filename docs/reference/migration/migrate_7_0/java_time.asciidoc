@@ -1,7 +1,8 @@
+
+//tag::notable-breaking-changes[]
 [float]
 [[breaking_70_java_time_changes]]
-//tag::notable-breaking-changes[]
-=== Replacing Joda-Time with java time
+==== Replacing Joda-Time with java time
 
 Since Java 8 there is a dedicated `java.time` package, which is superior to
 the Joda-Time library, that has been used so far in Elasticsearch. One of

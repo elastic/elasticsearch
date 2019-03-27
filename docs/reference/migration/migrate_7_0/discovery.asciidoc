@@ -2,17 +2,17 @@
 [[breaking_70_discovery_changes]]
 === Discovery changes
 
-[float]
 //tag::notable-breaking-changes[]
+[float]
 ==== Cluster bootstrapping is required if discovery is configured
 
 The first time a cluster is started, `cluster.initial_master_nodes` must be set
 to perform cluster bootstrapping. It should contain the names of the
 master-eligible nodes in the initial cluster and be defined on every
-master-eligible node in the cluster. See <<discovery-settings,the discovery
-settings summary>> for an example, and the
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
-documentation>> describes this setting in more detail.
+master-eligible node in the cluster. See
+{ref}/discovery-settings.html[the discovery settings summary] for an example, and the
+{ref}/modules-discovery-bootstrap-cluster.html[cluster bootstrapping reference
+documentation] describes this setting in more detail.
 
 The `discovery.zen.minimum_master_nodes` setting is permitted, but ignored, on
 7.x nodes.
@@ -30,8 +30,8 @@ such as data-only nodes or coordinating-only nodes, voting exclusions are not
 required. Likewise, if you add nodes to the cluster, voting exclusions are not
 required.
 
-[float]
 //tag::notable-breaking-changes[]
+[float]
 ==== Discovery configuration is required in production
 
 Production deployments of Elasticsearch now require at least one of the

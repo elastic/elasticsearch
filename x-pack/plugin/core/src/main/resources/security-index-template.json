@@ -59,7 +59,7 @@
         },
         "metadata" : {
           "type" : "object",
-          "dynamic" : true
+          "dynamic" : false
         },
         "enabled": {
           "type": "boolean"
@@ -179,7 +179,7 @@
             },
             "metadata" : {
               "type" : "object",
-              "dynamic" : true
+              "dynamic" : false
             },
             "realm" : {
               "type" : "keyword"
@@ -188,7 +188,7 @@
         },
         "rules" : {
           "type" : "object",
-          "dynamic" : true
+          "dynamic" : false
         },
         "refresh_token" : {
           "type" : "object",
@@ -243,7 +243,7 @@
                 },
                 "metadata" : {
                   "type" : "object",
-                  "dynamic" : true
+                  "dynamic" : false
                 },
                 "authentication" : {
                   "type" : "binary"

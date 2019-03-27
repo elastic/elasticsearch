@@ -396,6 +396,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(totalCount, bucket.getDocCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40553")
     public void testMergeSearchHits() throws InterruptedException {
         final long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);

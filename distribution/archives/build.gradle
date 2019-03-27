@@ -84,7 +84,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
         rename { 'LICENSE.txt' }
       }
 
-      with noticeFile
+      with noticeFile(oss, jdk)
       into('modules') {
         with modulesFiles
       }

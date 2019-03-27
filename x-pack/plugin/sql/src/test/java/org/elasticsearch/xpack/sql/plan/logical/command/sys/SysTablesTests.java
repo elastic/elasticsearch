@@ -54,13 +54,6 @@ public class SysTablesTests extends ESTestCase {
     //
     // catalog enumeration
     //
-    public void testSysTablesEnumerateCatalog() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE ''", r -> {
-            assertEquals(1, r.size());
-            assertEquals(CLUSTER_NAME, r.column(0));
-        });
-    }
-
     public void testSysTablesCatalogEnumeration() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '%' LIKE ''", r -> {
             assertEquals(1, r.size());

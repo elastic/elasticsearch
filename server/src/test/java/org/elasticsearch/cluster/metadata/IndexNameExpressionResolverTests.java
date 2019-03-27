@@ -1057,9 +1057,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         Set<String> resolvedExpressions = indexNameExpressionResolver.resolveExpressions(state, "test-*");
+
         String[] strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> true, true, resolvedExpressions);
         Arrays.sort(strings);
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
+
+        strings = indexNameExpressionResolver.indexAliases(state, "test-0", x -> x.alias().equals("test-alias-1"), true,
+                resolvedExpressions);
+        assertArrayEquals(null, strings);
     }
 
     public void testIndexAliasesSkipIdentity() {

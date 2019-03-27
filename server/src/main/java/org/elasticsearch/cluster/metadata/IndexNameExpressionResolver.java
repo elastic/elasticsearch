@@ -55,7 +55,6 @@ import java.util.SortedMap;
 import java.util.Spliterators;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.unmodifiableList;
@@ -363,7 +362,6 @@ public class IndexNameExpressionResolver {
         }
 
         final ImmutableOpenMap<String, AliasMetaData> indexAliases = indexMetaData.getAliases();
-        final Stream<AliasMetaData> aliasCandidates;
         final boolean iterateIndexAliases;
         if (forceIterateIndexAliases != null) {
             iterateIndexAliases = forceIterateIndexAliases;
@@ -372,31 +370,39 @@ public class IndexNameExpressionResolver {
             // iterate the smaller set and filter based on the other set.
             iterateIndexAliases = indexAliases.size() <= resolvedExpressions.size();
         }
+
+        final AliasMetaData[] aliasCandidates;
         if (iterateIndexAliases) {
             // faster to iterate indexAliases
             aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
                     .map(cursor -> cursor.value)
-                    .filter(aliasMetaData -> resolvedExpressions.contains(aliasMetaData.alias()));
+                    .filter(aliasMetaData -> resolvedExpressions.contains(aliasMetaData.alias()))
+                    .toArray(AliasMetaData[]::new);
         } else {
             // faster to iterate resolvedExpressions
             aliasCandidates = resolvedExpressions.stream()
                     .map(indexAliases::get)
-                    .filter(Objects::nonNull);
+                    .filter(Objects::nonNull)
+                    .toArray(AliasMetaData[]::new);
         }
 
-        String[] aliases = aliasCandidates
-                .filter(requiredAlias)
-                .map(AliasMetaData::alias)
-                .toArray(String[]::new);
-        if (aliases.length == 0) {
-            return null;
-        } else {
-            // Make order predictable as we have some tests that rely on it.
-            // TODO: Fix tests that rely on the order, this is conceptually a set
-            // (and maybe this method should return a set rather than an array).
-            Arrays.sort(aliases);
-            return aliases;
+        List<String> aliases = null;
+        for (AliasMetaData aliasMetaData : aliasCandidates) {
+            if (requiredAlias.test(aliasMetaData)) {
+                // If required - add it to the list of aliases
+                if (aliases == null) {
+                    aliases = new ArrayList<>();
+                }
+                aliases.add(aliasMetaData.alias());
+            } else {
+                // If not, we have a non required alias for this index - no further checking needed
+                return null;
+            }
         }
+        if (aliases == null) {
+            return null;
+        }
+        return aliases.toArray(new String[aliases.size()]);
     }
 
     /**

@@ -96,6 +96,7 @@ default value of `false`.
 
 [float]
 [[include-realm-type-in-setting]]
+//tag::notable-breaking-changes-7.0
 ==== Security realms settings
 
 The settings for all security realms must now include the realm type as part
@@ -123,6 +124,7 @@ xpack.security.authc.realms:
 Any realm specific secure settings that have been stored in the elasticsearch
 keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
 in a similar way.
+//end::notable-breaking-changes-7.0
 
 [float]
 [[tls-setting-fallback]]

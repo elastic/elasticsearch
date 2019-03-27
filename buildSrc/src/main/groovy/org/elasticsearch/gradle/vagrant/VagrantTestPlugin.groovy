@@ -78,7 +78,6 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static final PACKAGING_TEST_CONFIGURATION = 'packagingTest'
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     /** Boxes that have been supplied and are available for testing **/
     List<String> availableBoxes = []
@@ -388,15 +387,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createPlatformTestTask(Project project) {
-        project.tasks.create('platformTest') {
-            group 'Verification'
-            description "Test unit and integ tests on different platforms using vagrant. See TESTING.asciidoc for details. This test " +
-                    "is unmaintained."
-            dependsOn 'vagrantCheckVersion'
-        }
-    }
-
     private void createBoxListTasks(Project project) {
         project.tasks.create('listAllBoxes') {
             group 'Verification'
@@ -429,7 +419,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createSmokeTestTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
-        createPlatformTestTask(project)
         createBoxListTasks(project)
     }
 
@@ -453,9 +442,6 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
-
-        assert project.tasks.platformTest != null
-        Task platformTest = project.tasks.platformTest
 
         /*
          * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
@@ -608,31 +594,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 // https://github.com/elastic/elasticsearch/issues/30295
                 if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
                     packagingTest.dependsOn(javaPackagingTest)
-                }
-            }
-
-            /*
-             * This test is unmaintained and was created to run on Linux. We won't allow it to run on Windows
-             * until it's been brought back into maintenance
-             */
-            if (LINUX_BOXES.contains(box)) {
-                Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
-                    command 'ssh'
-                    boxName box
-                    environmentVars vagrantEnvVars
-                    dependsOn up
-                    finalizedBy halt
-                    args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
-                }
-                TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
-                platform.doFirst {
-                    project.gradle.addListener(platformReproListener)
-                }
-                platform.doLast {
-                    project.gradle.removeListener(platformReproListener)
-                }
-                if (project.extensions.esvagrant.boxes.contains(box)) {
-                    platformTest.dependsOn(platform)
                 }
             }
         }

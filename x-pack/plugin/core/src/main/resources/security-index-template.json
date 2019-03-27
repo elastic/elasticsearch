@@ -45,6 +45,16 @@
         "roles" : {
           "type" : "keyword"
         },
+        "role_templates" : {
+          "properties": {
+            "template" : {
+              "type": "text"
+            },
+            "format" : {
+              "type": "keyword"
+            }
+          }
+        },
         "password" : {
           "type" : "keyword",
           "index" : false,

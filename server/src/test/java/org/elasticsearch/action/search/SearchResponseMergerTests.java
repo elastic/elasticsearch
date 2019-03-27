@@ -396,7 +396,6 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertEquals(totalCount, bucket.getDocCount());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40214")
     public void testMergeSearchHits() throws InterruptedException {
         final long currentRelativeTime = randomLong();
         final SearchTimeProvider timeProvider = new SearchTimeProvider(randomLong(), 0, () -> currentRelativeTime);
@@ -513,8 +512,14 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertNull(searchResponse.getScrollId());
 
         SearchHits searchHits = searchResponse.getHits();
-        assertArrayEquals(sortFields, searchHits.getSortFields());
-        assertEquals(collapseField, searchHits.getCollapseField());
+        // the sort fields and the collapse field are not returned when hits are empty
+        if (searchHits.getHits().length > 0) {
+            assertArrayEquals(sortFields, searchHits.getSortFields());
+            assertEquals(collapseField, searchHits.getCollapseField());
+        } else {
+            assertNull(searchHits.getSortFields());
+            assertNull(searchHits.getCollapseField());
+        }
         if (expectedTotalHits == null) {
             assertNull(searchHits.getTotalHits());
         } else {
@@ -532,7 +537,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             priorityQueue.poll();
         }
         SearchHit[] hits = searchHits.getHits();
-        if (collapseField != null) {
+        if (collapseField != null
+                // the collapse field is not returned when hits are empty
+                && hits.length > 0) {
             assertEquals(hits.length, searchHits.getCollapseValues().length);
         } else {
             assertNull(searchHits.getCollapseValues());

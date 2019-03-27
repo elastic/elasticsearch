@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformActi
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Collection;
@@ -94,11 +96,7 @@ public class TransportStartDataFrameTransformAction extends
                             new StartDataFrameTransformTaskAction.Request(request.getId()),
                             ActionListener.wrap(
                                 r -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
-                                startingFailure -> cancelDataFrameTask(task.getId(),
-                                    transformTask.getId(),
-                                    startingFailure,
-                                    listener::onFailure)
-                                )),
+                                listener::onFailure)),
                         listener::onFailure));
             },
             listener::onFailure
@@ -122,7 +120,21 @@ public class TransportStartDataFrameTransformAction extends
                         transformTask,
                         persistentTaskActionListener);
                 } else {
-                    persistentTaskActionListener.onResponse(existingTask);
+                    DataFrameTransformState transformState = (DataFrameTransformState)existingTask.getState();
+                    if(transformState.getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+                        listener.onFailure(new ElasticsearchStatusException(
+                            "Unable to start data frame transform [" + config.getId() +
+                                "] as it is in a failed state with failure: [" + transformState.getReason() +
+                            "]. Use force start to restart data frame transform once error is resolved.",
+                            RestStatus.CONFLICT));
+                    } else if (transformState.getTaskState() != DataFrameTransformTaskState.STOPPED &&
+                               transformState.getTaskState() != DataFrameTransformTaskState.FAILED) {
+                        listener.onFailure(new ElasticsearchStatusException(
+                            "Unable to start data frame transform [" + config.getId() +
+                                "] as it is in state [" + transformState.getTaskState()  + "]", RestStatus.CONFLICT));
+                    } else {
+                        persistentTaskActionListener.onResponse(existingTask);
+                    }
                 }
             },
             listener::onFailure

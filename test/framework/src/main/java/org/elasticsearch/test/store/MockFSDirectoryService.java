@@ -21,7 +21,6 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.store.BaseDirectoryWrapper;
@@ -55,6 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.Set;
 
 public class MockFSDirectoryService extends FsDirectoryService {
 
@@ -178,6 +178,12 @@ public class MockFSDirectoryService extends FsDirectoryService {
             if (crash) {
                 super.crash();
             }
+        }
+
+        // temporary override until LUCENE-8735 is integrated
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            return in.getPendingDeletions();
         }
     }
 

@@ -15,9 +15,7 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -37,8 +35,6 @@ import java.util.List;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.list;
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 public abstract class JdbcTestUtils {
@@ -170,8 +166,6 @@ public abstract class JdbcTestUtils {
      * inside jars (gradle).
      */
     public static List<URL> classpathResources(String pattern) throws Exception {
-        ClassLoader cl = JdbcTestUtils.class.getClassLoader();
-
         while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);
         }
@@ -183,37 +177,24 @@ public abstract class JdbcTestUtils {
         final String root = split.v1();
         final String filePattern = split.v2();
 
-        List<URL> resources = null;
-
-        if (cl instanceof URLClassLoader) {
-            resources = asList(((URLClassLoader) cl).getURLs());
-        } else {
-            // fallback in case of non-standard CL
-            resources = list(cl.getResources(root));
-        }
+        String[] resources = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
 
         List<URL> matches = new ArrayList<>();
 
-        for (URL resource : resources) {
-            String protocol = resource.getProtocol();
-            URI uri = resource.toURI();
-            Path path = PathUtils.get(uri);
-
-            if ("file".equals(protocol) == false) {
-                throw new IllegalArgumentException("Unsupported protocol " + protocol);
-            }
+        for (String resource : resources) {
+            Path path = PathUtils.get(resource);
 
             // check whether we're dealing with a jar
             // Java 7 java.nio.fileFileSystem can be used on top of ZIPs/JARs but consumes more memory
             // hence the use of the JAR API
             if (path.toString().endsWith(".jar")) {
-                try (JarInputStream jar = getJarStream(resource)) {
+                try (JarInputStream jar = getJarStream(path.toUri().toURL())) {
                     ZipEntry entry = null;
                     while ((entry = jar.getNextEntry()) != null) {
                         String name = entry.getName();
                         Tuple<String, String> entrySplit = pathAndName(name);
                         if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
-                            matches.add(new URL("jar:" + resource.toString() + "!/" + name));
+                            matches.add(new URL("jar:" + path.toUri() + "!/" + name));
                         }
                     }
                 }

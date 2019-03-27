@@ -21,6 +21,9 @@ package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +33,9 @@ import java.util.Map;
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
  * used for parsing objects that should be ignored if they are malformed.
+ *
+ * The wrapper can be used on all token types. For non-start token types, the wrapper considers the
+ * single token as the wrapped object
  */
 public class XContentSubParser implements XContentParser {
 
@@ -59,6 +65,9 @@ public class XContentSubParser implements XContentParser {
             }
             return token;
         } else {
+            if (level == 0) {
+                level = -1;
+            }
             return null; // we have reached the end of the wrapped object
         }
     }
@@ -80,92 +89,98 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public Token currentToken() {
-        return parser.currentToken();
+        return level >= 0 ? parser.currentToken() : null;
     }
 
     @Override
     public String currentName() throws IOException {
-        return parser.currentName();
+        return level >= 0 ? parser.currentName() : null;
     }
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return parser.map();
+        return level >= 0 ? parser.map() : new HashMap<>();
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return parser.mapOrdered();
+        return level >= 0 ? parser.mapOrdered() : new LinkedHashMap<>();
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
-        return parser.mapStrings();
+        return level >= 0 ? parser.mapStrings() : new HashMap<>();
     }
 
     @Override
     public Map<String, String> mapStringsOrdered() throws IOException {
-        return parser.mapStringsOrdered();
+        return level >= 0 ? parser.mapStringsOrdered() : new LinkedHashMap<>();
     }
 
     @Override
     public List<Object> list() throws IOException {
-        return parser.list();
+        return level >= 0 ? parser.list() : new ArrayList<>();
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
-        return parser.listOrderedMap();
+        return level >= 0 ? parser.listOrderedMap() : new ArrayList<>();
     }
 
     @Override
     public String text() throws IOException {
+        checkTextAccess();
         return parser.text();
     }
 
     @Override
     public String textOrNull() throws IOException {
+        checkTextAccess();
         return parser.textOrNull();
     }
 
     @Override
     public CharBuffer charBufferOrNull() throws IOException {
+        checkTextAccess();
         return parser.charBufferOrNull();
     }
 
     @Override
     public CharBuffer charBuffer() throws IOException {
+        checkTextAccess();
         return parser.charBuffer();
     }
 
     @Override
     public Object objectText() throws IOException {
+        checkTextAccess();
         return parser.objectText();
     }
 
     @Override
     public Object objectBytes() throws IOException {
+        checkTextAccess();
         return parser.objectBytes();
     }
 
     @Override
     public boolean hasTextCharacters() {
-        return parser.hasTextCharacters();
+        return level >= 0 ? parser.hasTextCharacters() : false;
     }
 
     @Override
     public char[] textCharacters() throws IOException {
-        return parser.textCharacters();
+        return level >= 0 ? parser.textCharacters() : null;
     }
 
     @Override
     public int textLength() throws IOException {
-        return parser.textLength();
+        return level >= 0 ? parser.textLength() : 0;
     }
 
     @Override
     public int textOffset() throws IOException {
-        return parser.textOffset();
+        return level >= 0 ? parser.textOffset() : 0;
     }
 
     @Override
@@ -230,16 +245,19 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public boolean isBooleanValue() throws IOException {
+        checkAccess("boolean");
         return parser.isBooleanValue();
     }
 
     @Override
     public boolean booleanValue() throws IOException {
+        checkAccess("boolean");
         return parser.booleanValue();
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
+        checkAccess("binary");
         return parser.binaryValue();
     }
 
@@ -250,6 +268,7 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+        checkAccess("namedObject");
         return parser.namedObject(categoryClass, name, context);
     }
 
@@ -277,6 +296,16 @@ public class XContentSubParser implements XContentParser {
                     return;
                 }
             }
+        }
+    }
+
+    private void checkTextAccess() {
+        checkAccess("text");
+    }
+
+    private void checkAccess(String type) {
+        if (level < 0) {
+            throw new IllegalStateException("Can't get " + type + " on a " + currentToken() + " at " + getTokenLocation());
         }
     }
 }

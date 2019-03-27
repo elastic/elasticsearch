@@ -348,7 +348,9 @@ public class XContentParserTests extends ESTestCase {
                 int tokensToSkip = randomInt(numberOfTokens - 1);
                 for (int i = 0; i < tokensToSkip; i++) {
                     // Simulate incomplete parsing
-                    assertNotNull(subParser.nextToken());
+                    XContentParser.Token nextToken = subParser.nextToken();
+                    assertNotNull(nextToken);
+                    assertEquals(nextToken, subParser.currentToken());
                 }
                 if (randomBoolean()) {
                     // And sometimes skipping children
@@ -367,20 +369,80 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testCreateSubParserAtAWrongPlace() throws IOException {
+    public void testCreateSubParserOnAllFields() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         generateRandomObjectForMarking(builder);
         String content = Strings.toString(builder);
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
-            assertEquals("first_field", parser.currentName());
-            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new XContentSubParser(parser));
-            assertEquals("The sub parser has to be created on the start of an object", exception.getMessage());
+        for (XContentParser.Token testToken : XContentParser.Token.values()) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+                int openObjectCount = 0;
+                int openArrayCount = 0;
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                XContentParser.Token currentToken;
+                while ((currentToken = parser.currentToken()) != null) {
+                    switch (currentToken) {
+                        case START_OBJECT:
+                            ++openObjectCount;
+                            break;
+                        case END_OBJECT:
+                            --openObjectCount;
+                            break;
+                        case START_ARRAY:
+                            ++openArrayCount;
+                            break;
+                        case END_ARRAY:
+                            --openArrayCount;
+                            break;
+                        default:
+                            break;
+                    }
+                    boolean mustAdvance = true;
+                    if (currentToken == testToken && randomBoolean()) {
+                        try (XContentSubParser subParser = new XContentSubParser(parser)) {
+                            assertEquals(currentToken, subParser.currentToken());
+                            XContentParser.Token nextSubParserToken = subParser.nextToken();
+                            if (currentToken == XContentParser.Token.START_OBJECT || currentToken == XContentParser.Token.START_ARRAY) {
+                                assertNotNull(nextSubParserToken);
+                                if (nextSubParserToken.isValue()) {
+                                    assertNotNull(subParser.objectText());
+                                } else if (nextSubParserToken == XContentParser.Token.VALUE_NULL) {
+                                    assertNull(subParser.objectText());
+                                } else {
+                                    expectThrows(IllegalStateException.class, "Test token: " + testToken, () -> subParser.objectText());
+                                }
+                                assertEquals("Test token: " + testToken, nextSubParserToken, subParser.currentToken());
+                                if (rarely()) {
+                                    XContentParser.Token lastSubParserToken = nextSubParserToken;
+                                    while (subParser.nextToken() != null) {
+                                        lastSubParserToken = subParser.currentToken();
+                                    }
+
+                                    assertEquals(
+                                        currentToken == XContentParser.Token.START_OBJECT
+                                            ? XContentParser.Token.END_OBJECT
+                                            : XContentParser.Token.END_ARRAY,
+                                        lastSubParserToken);
+                                }
+                                mustAdvance = false;
+                            } else {
+                                assertNull(nextSubParserToken);
+                                expectThrows(IllegalStateException.class, "Test token: " + testToken, () -> subParser.objectText());
+                                assertEquals("Test token: " + testToken, nextSubParserToken, subParser.currentToken());
+                            }
+                        }
+                    }
+
+                    if (mustAdvance) {
+                        parser.nextToken();
+                    }
+                }
+
+                assertEquals("Test token: " + testToken, 0, openObjectCount);
+                assertEquals("Test token: " + testToken, 0, openArrayCount);
+            }
         }
     }
-
 
     public void testCreateRootSubParser() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();

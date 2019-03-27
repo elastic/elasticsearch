@@ -169,10 +169,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             buf[offset+2] = (byte) (intValue >>  8);
             buf[offset+3] = (byte) intValue;
             offset += INT_BYTES;
-            dim++;
-            if (dim >= MAX_DIMS_COUNT) {
+            if (dim++ >= MAX_DIMS_COUNT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                    "] has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                    "] has exceeded the maximum allowed number of dimensions of [" + MAX_DIMS_COUNT + "]");
             }
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));

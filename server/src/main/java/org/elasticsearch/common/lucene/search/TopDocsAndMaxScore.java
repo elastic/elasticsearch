@@ -31,7 +31,6 @@ public final class TopDocsAndMaxScore {
     public float maxScore;
 
     public TopDocsAndMaxScore(TopDocs topDocs, float maxScore) {
-        assert topDocs.scoreDocs.length > 0 || Float.isNaN(maxScore) : "maxScore must be set to NaN when no score docs are present";
         this.topDocs = topDocs;
         this.maxScore = maxScore;
     }

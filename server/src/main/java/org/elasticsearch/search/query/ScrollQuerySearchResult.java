@@ -32,9 +32,6 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
 
     private QuerySearchResult result;
 
-    public ScrollQuerySearchResult() {
-    }
-
     public ScrollQuerySearchResult(StreamInput in) throws IOException {
         readFrom(in);
     }

@@ -55,8 +55,8 @@ public class TransportStartDataFrameTransformAction extends
                                                   ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
                                                   DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                   PersistentTasksService persistentTasksService, Client client) {
-        super(StartDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            StartDataFrameTransformAction.Request::new);
+        super(StartDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                StartDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.persistentTasksService = persistentTasksService;

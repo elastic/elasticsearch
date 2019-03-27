@@ -236,6 +236,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 final String java = sh.runIgnoreExitCode("which java").stdout.trim();
                 sh.run("mkdir -p \"" + temp + "/bin\"");
                 sh.run("ln -s \"" + java + "\" \"" + temp + "/bin/java\"");
+                sh.run("chown -R vagrant:vagrant " + temp+"/bin/java");
+
                 sh.getEnv().put("JAVA_HOME",  temp);
 
                 //verify ES can start, stop and run plugin list

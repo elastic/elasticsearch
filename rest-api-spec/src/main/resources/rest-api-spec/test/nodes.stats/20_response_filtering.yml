@@ -1,10 +1,11 @@
 ---
 "Nodes Stats with response filtering":
+  - skip:
+      features: [arbitrary_key]
   - do:
-      cluster.state: {}
-
-  # Get master node id
-  - set: { master_node: master }
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   # Nodes Stats with no filtering
   - do:
@@ -12,18 +13,18 @@
 
   - is_true: cluster_name
   - is_true: nodes
-  - is_true: nodes.$master.name
-  - is_true: nodes.$master.indices
-  - is_true: nodes.$master.indices.docs
-  - gte:     { nodes.$master.indices.docs.count: 0 }
-  - is_true: nodes.$master.indices.segments
-  - gte:     { nodes.$master.indices.segments.count: 0 }
-  - is_true: nodes.$master.jvm
-  - is_true: nodes.$master.jvm.threads
-  - gte:     { nodes.$master.jvm.threads.count: 0 }
-  - is_true: nodes.$master.jvm.buffer_pools.direct
-  - gte:     { nodes.$master.jvm.buffer_pools.direct.count: 0 }
-  - gte:     { nodes.$master.jvm.buffer_pools.direct.used_in_bytes: 0 }
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.indices
+  - is_true: nodes.$node_id.indices.docs
+  - gte:     { nodes.$node_id.indices.docs.count: 0 }
+  - is_true: nodes.$node_id.indices.segments
+  - gte:     { nodes.$node_id.indices.segments.count: 0 }
+  - is_true: nodes.$node_id.jvm
+  - is_true: nodes.$node_id.jvm.threads
+  - gte:     { nodes.$node_id.jvm.threads.count: 0 }
+  - is_true: nodes.$node_id.jvm.buffer_pools.direct
+  - gte:     { nodes.$node_id.jvm.buffer_pools.direct.count: 0 }
+  - gte:     { nodes.$node_id.jvm.buffer_pools.direct.used_in_bytes: 0 }
 
   # Nodes Stats with only "cluster_name" field
   - do:
@@ -32,9 +33,9 @@
 
   - is_true:  cluster_name
   - is_false: nodes
-  - is_false: nodes.$master.name
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.jvm
+  - is_false: nodes.$node_id.name
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.jvm
 
   # Nodes Stats with "nodes" field and sub-fields
   - do:
@@ -43,18 +44,18 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_true:  nodes.$master.name
-  - is_true:  nodes.$master.indices
-  - is_true:  nodes.$master.indices.docs
-  - gte:      { nodes.$master.indices.docs.count: 0 }
-  - is_true:  nodes.$master.indices.segments
-  - gte:      { nodes.$master.indices.segments.count: 0 }
-  - is_true:  nodes.$master.jvm
-  - is_true:  nodes.$master.jvm.threads
-  - gte:      { nodes.$master.jvm.threads.count: 0 }
-  - is_true:  nodes.$master.jvm.buffer_pools.direct
-  - gte:      { nodes.$master.jvm.buffer_pools.direct.count: 0 }
-  - gte:     { nodes.$master.jvm.buffer_pools.direct.used_in_bytes: 0 }
+  - is_true:  nodes.$node_id.name
+  - is_true:  nodes.$node_id.indices
+  - is_true:  nodes.$node_id.indices.docs
+  - gte:      { nodes.$node_id.indices.docs.count: 0 }
+  - is_true:  nodes.$node_id.indices.segments
+  - gte:      { nodes.$node_id.indices.segments.count: 0 }
+  - is_true:  nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.jvm.threads
+  - gte:      { nodes.$node_id.jvm.threads.count: 0 }
+  - is_true:  nodes.$node_id.jvm.buffer_pools.direct
+  - gte:      { nodes.$node_id.jvm.buffer_pools.direct.count: 0 }
+  - gte:     { nodes.$node_id.jvm.buffer_pools.direct.used_in_bytes: 0 }
 
   # Nodes Stats with "nodes.*.indices" field and sub-fields
   - do:
@@ -63,13 +64,13 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_true:  nodes.$master.indices
-  - is_true:  nodes.$master.indices.docs
-  - gte:      { nodes.$master.indices.docs.count: 0 }
-  - is_true:  nodes.$master.indices.segments
-  - gte:      { nodes.$master.indices.segments.count: 0 }
-  - is_false: nodes.$master.jvm
+  - is_false: nodes.$node_id.name
+  - is_true:  nodes.$node_id.indices
+  - is_true:  nodes.$node_id.indices.docs
+  - gte:      { nodes.$node_id.indices.docs.count: 0 }
+  - is_true:  nodes.$node_id.indices.segments
+  - gte:      { nodes.$node_id.indices.segments.count: 0 }
+  - is_false: nodes.$node_id.jvm
 
   # Nodes Stats with "nodes.*.name" and "nodes.*.indices.docs.count" fields
   - do:
@@ -78,12 +79,12 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_true:  nodes.$master.name
-  - is_true:  nodes.$master.indices
-  - is_true:  nodes.$master.indices.docs
-  - gte:      { nodes.$master.indices.docs.count: 0 }
-  - is_false: nodes.$master.indices.segments
-  - is_false: nodes.$master.jvm
+  - is_true:  nodes.$node_id.name
+  - is_true:  nodes.$node_id.indices
+  - is_true:  nodes.$node_id.indices.docs
+  - gte:      { nodes.$node_id.indices.docs.count: 0 }
+  - is_false: nodes.$node_id.indices.segments
+  - is_false: nodes.$node_id.jvm
 
   # Nodes Stats with all "count" fields
   - do:
@@ -92,18 +93,18 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_true:  nodes.$master.indices
-  - is_true:  nodes.$master.indices.docs
-  - gte:      { nodes.$master.indices.docs.count: 0 }
-  - is_true:  nodes.$master.indices.segments
-  - gte:      { nodes.$master.indices.segments.count: 0 }
-  - is_true:  nodes.$master.jvm
-  - is_true:  nodes.$master.jvm.threads
-  - gte:      { nodes.$master.jvm.threads.count: 0 }
-  - is_true:  nodes.$master.jvm.buffer_pools.direct
-  - gte:      { nodes.$master.jvm.buffer_pools.direct.count: 0 }
-  - is_false: nodes.$master.jvm.buffer_pools.direct.used_in_bytes
+  - is_false: nodes.$node_id.name
+  - is_true:  nodes.$node_id.indices
+  - is_true:  nodes.$node_id.indices.docs
+  - gte:      { nodes.$node_id.indices.docs.count: 0 }
+  - is_true:  nodes.$node_id.indices.segments
+  - gte:      { nodes.$node_id.indices.segments.count: 0 }
+  - is_true:  nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.jvm.threads
+  - gte:      { nodes.$node_id.jvm.threads.count: 0 }
+  - is_true:  nodes.$node_id.jvm.buffer_pools.direct
+  - gte:      { nodes.$node_id.jvm.buffer_pools.direct.count: 0 }
+  - is_false: nodes.$node_id.jvm.buffer_pools.direct.used_in_bytes
 
   # Nodes Stats with all "count" fields in sub-fields of "jvm" field
   - do:
@@ -112,16 +113,16 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.indices.docs.count
-  - is_false: nodes.$master.indices.segments.count
-  - is_true:  nodes.$master.jvm
-  - is_true:  nodes.$master.jvm.threads
-  - gte:      { nodes.$master.jvm.threads.count: 0 }
-  - is_true:  nodes.$master.jvm.buffer_pools.direct
-  - gte:      { nodes.$master.jvm.buffer_pools.direct.count: 0 }
-  - is_false: nodes.$master.jvm.buffer_pools.direct.used_in_bytes
+  - is_false: nodes.$node_id.name
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.indices.docs.count
+  - is_false: nodes.$node_id.indices.segments.count
+  - is_true:  nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.jvm.threads
+  - gte:      { nodes.$node_id.jvm.threads.count: 0 }
+  - is_true:  nodes.$node_id.jvm.buffer_pools.direct
+  - gte:      { nodes.$node_id.jvm.buffer_pools.direct.count: 0 }
+  - is_false: nodes.$node_id.jvm.buffer_pools.direct.used_in_bytes
 
   # Nodes Stats with "nodes.*.fs.data" fields
   - do:
@@ -130,13 +131,13 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.jvm
-  - is_true:  nodes.$master.fs.data
-  - is_true:  nodes.$master.fs.data.0.path
-  - is_true:  nodes.$master.fs.data.0.type
-  - is_true:  nodes.$master.fs.data.0.total_in_bytes
+  - is_false: nodes.$node_id.name
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.fs.data
+  - is_true:  nodes.$node_id.fs.data.0.path
+  - is_true:  nodes.$node_id.fs.data.0.type
+  - is_true:  nodes.$node_id.fs.data.0.total_in_bytes
 
   # Nodes Stats with "nodes.*.fs.data.t*" fields
   - do:
@@ -145,21 +146,22 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.jvm
-  - is_true:  nodes.$master.fs.data
-  - is_false: nodes.$master.fs.data.0.path
-  - is_true:  nodes.$master.fs.data.0.type
-  - is_true:  nodes.$master.fs.data.0.total_in_bytes
+  - is_false: nodes.$node_id.name
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.fs.data
+  - is_false: nodes.$node_id.fs.data.0.path
+  - is_true:  nodes.$node_id.fs.data.0.type
+  - is_true:  nodes.$node_id.fs.data.0.total_in_bytes
 
 ---
 "Nodes Stats filtered using both includes and excludes filters":
+  - skip:
+      features: [arbitrary_key]
   - do:
-      cluster.state: {}
-
-  # Get master node id
-  - set: { master_node: master }
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   # Nodes Stats with "nodes" field but no JVM stats
   - do:
@@ -168,10 +170,10 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_true:  nodes.$master.name
-  - is_true:  nodes.$master.os
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.jvm
+  - is_true:  nodes.$node_id.name
+  - is_true:  nodes.$node_id.os
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.jvm
 
   # Nodes Stats with "nodes.*.indices" field and sub-fields but no indices segments
   - do:
@@ -180,10 +182,10 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_true:  nodes.$master.indices
-  - is_true:  nodes.$master.indices.docs
-  - is_false: nodes.$master.indices.segments
+  - is_false: nodes.$node_id.name
+  - is_true:  nodes.$node_id.indices
+  - is_true:  nodes.$node_id.indices.docs
+  - is_false: nodes.$node_id.indices.segments
 
   # Nodes Stats with "nodes.*.fs.data.t*" fields but no "type" field
   - do:
@@ -192,9 +194,9 @@
 
   - is_false: cluster_name
   - is_true:  nodes
-  - is_false: nodes.$master.name
-  - is_false: nodes.$master.indices
-  - is_false: nodes.$master.jvm
-  - is_true:  nodes.$master.fs.data
-  - is_false: nodes.$master.fs.data.0.type
-  - is_true:  nodes.$master.fs.data.0.total_in_bytes
+  - is_false: nodes.$node_id.name
+  - is_false: nodes.$node_id.indices
+  - is_false: nodes.$node_id.jvm
+  - is_true:  nodes.$node_id.fs.data
+  - is_false: nodes.$node_id.fs.data.0.type
+  - is_true:  nodes.$node_id.fs.data.0.total_in_bytes

@@ -2493,8 +2493,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Sort indexSort = indexSortSupplier.get();
         return new EngineConfig(shardId, shardRouting.allocationId().getId(),
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-                indexCache.query(), cachingPolicy, translogConfig,
+                mapperService != null ? mapperService.indexAnalyzer() : null,
+                similarityService.similarity(mapperService), codecService, shardEventListener,
+                indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 Collections.singletonList(refreshListeners),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
@@ -3077,7 +3078,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
-        final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
+        final DocumentMapper noopDocumentMapper = mapperService != null ?
+            new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService) :
+            null;
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String type, String id) {

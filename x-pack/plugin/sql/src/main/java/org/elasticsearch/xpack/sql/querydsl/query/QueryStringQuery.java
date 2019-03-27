@@ -43,8 +43,6 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
         appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
         appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
-        appliers.put("locale", (qb, s) -> {});
-        appliers.put("lowercase_expanded_terms", (qb, s) -> {});
         appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
         appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
         appliers.put("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s)));

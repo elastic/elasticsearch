@@ -65,6 +65,6 @@ public class DateTimeProcessorTests extends AbstractWireSerializingTestCase<Date
         SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> {
            proc.process(OffsetTime.now(UTC));
         });
-        assertThat(e.getMessage(), startsWith("A date is required; received "));
+        assertThat(e.getMessage(), startsWith("A [date], a [time] or a [datetime] is required; received "));
     }
 }

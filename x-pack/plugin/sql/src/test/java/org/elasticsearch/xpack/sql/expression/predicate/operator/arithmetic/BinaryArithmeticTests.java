@@ -117,8 +117,8 @@ public class BinaryArithmeticTests extends ESTestCase {
     public void testAddDayTimeIntervalToTime() {
         OffsetTime now = OffsetTime.now(DateUtils.UTC);
         Literal l = L(now);
-        TemporalAmount t = Duration.ofHours(2);
-        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        TemporalAmount t = Duration.ofHours(32);
+        Literal r = interval(Duration.ofHours(32), INTERVAL_HOUR);
         OffsetTime x = add(l, r);
         assertEquals(L(now.plus(t)), L(x));
     }
@@ -126,8 +126,8 @@ public class BinaryArithmeticTests extends ESTestCase {
     public void testAddDayTimeIntervalToTimeReverse() {
         OffsetTime now = OffsetTime.now(DateUtils.UTC);
         Literal l = L(now);
-        TemporalAmount t = Duration.ofHours(2);
-        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        TemporalAmount t = Duration.ofHours(45);
+        Literal r = interval(Duration.ofHours(45), INTERVAL_HOUR);
         OffsetTime x = add(r, l);
         assertEquals(L(now.plus(t)), L(x));
     }
@@ -200,8 +200,8 @@ public class BinaryArithmeticTests extends ESTestCase {
     public void testSubDayTimeIntervalToTime() {
         OffsetTime now = OffsetTime.now(DateUtils.UTC);
         Literal l = L(now);
-        TemporalAmount t = Duration.ofHours(2);
-        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        TemporalAmount t = Duration.ofHours(36);
+        Literal r = interval(Duration.ofHours(36), INTERVAL_HOUR);
         OffsetTime x = sub(l, r);
         assertEquals(L(now.minus(t)), L(x));
     }

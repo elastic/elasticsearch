@@ -27,7 +27,7 @@ public final class StringUtils {
 
     public static final String EMPTY = "";
     
-    private static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
+    public static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
             .append(ISO_LOCAL_DATE)
             .appendLiteral('T')
@@ -40,7 +40,7 @@ public final class StringUtils {
             .appendOffsetId()
             .toFormatter(Locale.ROOT);
 
-    private static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
+    public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
         .parseCaseInsensitive()
         .appendValue(HOUR_OF_DAY, 2)
         .appendLiteral(':')
@@ -63,7 +63,7 @@ public final class StringUtils {
         }
 
         if (value instanceof OffsetTime) {
-            return ((OffsetTime) value).format(ISO_WITH_MILLIS);
+            return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);
         }
         if (value instanceof Timestamp) {
             Timestamp ts = (Timestamp) value;

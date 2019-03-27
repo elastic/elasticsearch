@@ -43,7 +43,7 @@ public abstract class BaseDateTimeProcessor implements Processor {
         }
 
         if (!(input instanceof ZonedDateTime)) {
-            throw new SqlIllegalArgumentException("A date is required; received {}", input);
+            throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", input);
         }
 
         return doProcess(((ZonedDateTime) input).withZoneSameInstant(zoneId));

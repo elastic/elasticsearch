@@ -12,16 +12,10 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.util.Locale;
 import java.util.function.Function;
 
-import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
-import static java.time.temporal.ChronoField.HOUR_OF_DAY;
-import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
-import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
-import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_MILLIS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_TIME_WITH_MILLIS;
 
 /**
  * JDBC specific datetime specific utility methods. Because of lack of visibility, this class borrows code
@@ -33,30 +27,6 @@ final class JdbcDateUtils {
 
     // Not available in Java 8
     private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
-    
-    static final DateTimeFormatter ISO_DATE_WITH_MILLIS = new DateTimeFormatterBuilder()
-        .parseCaseInsensitive()
-        .append(ISO_LOCAL_DATE)
-        .appendLiteral('T')
-        .appendValue(HOUR_OF_DAY, 2)
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2)
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .appendOffsetId()
-        .toFormatter(Locale.ROOT);
-
-    static final DateTimeFormatter ISO_WITH_MILLIS = new DateTimeFormatterBuilder()
-        .parseCaseInsensitive()
-        .appendValue(HOUR_OF_DAY, 2)
-        .appendLiteral(':')
-        .appendValue(MINUTE_OF_HOUR, 2)
-        .appendLiteral(':')
-        .appendValue(SECOND_OF_MINUTE, 2)
-        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-        .appendOffsetId()
-        .toFormatter(Locale.ROOT);
 
     private static ZonedDateTime asDateTime(String date) {
         return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from);
@@ -67,7 +37,7 @@ final class JdbcDateUtils {
     }
 
     static long timeAsMillisSinceEpoch(String date) {
-        return ISO_WITH_MILLIS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
+        return ISO_TIME_WITH_MILLIS.parse(date, OffsetTime::from).atDate(EPOCH).toInstant().toEpochMilli();
     }
 
     static Date asDate(String date) {

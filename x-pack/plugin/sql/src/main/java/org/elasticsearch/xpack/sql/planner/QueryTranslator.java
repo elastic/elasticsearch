@@ -296,7 +296,7 @@ final class QueryTranslator {
                                 // When the histogram in SQL is applied on TIME type instead of DATETIME, the interval
                                 // specified is truncated to maximum 1 day. If the interval specified is less
                                 // than 1 day, then the interval specified is used without any change.
-                                if (h.dataType() == TIME) {
+                                else if (h.dataType() == TIME) {
                                     intervalAsMillis = DateUtils.maxDayInterval(intervalAsMillis);
                                 }
                                 // TODO: set timezone

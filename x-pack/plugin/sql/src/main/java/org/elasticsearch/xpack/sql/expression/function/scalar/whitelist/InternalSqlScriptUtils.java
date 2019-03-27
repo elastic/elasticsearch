@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -318,7 +319,7 @@ public final class InternalSqlScriptUtils {
             return null;
         }
         if (dateTime instanceof OffsetTime) {
-            return DateTimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
+            return TimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
         }
         return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
     }

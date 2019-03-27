@@ -15,15 +15,19 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoField;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
 public abstract class TimeFunction extends DateTimeFunction {
 
-
     TimeFunction(Source source, Expression field, ZoneId zoneId, DateTimeExtractor extractor) {
         super(source, field, zoneId, extractor);
+    }
+
+    public static Integer dateTimeChrono(OffsetTime time, String tzId, String chronoName) {
+        return dateTimeChrono(asTimeAtZone(time, ZoneId.of(tzId)), ChronoField.valueOf(chronoName));
     }
 
     @Override

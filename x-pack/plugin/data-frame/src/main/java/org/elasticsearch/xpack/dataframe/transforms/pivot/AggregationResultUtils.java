@@ -13,8 +13,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,10 +45,17 @@ final class AggregationResultUtils {
                                                                                  DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
-
             Map<String, Object> document = new HashMap<>();
-            groups.getGroups().keySet().forEach(destinationFieldName ->
-                document.put(destinationFieldName, bucket.getKey().get(destinationFieldName)));
+            // generator to create unique but deterministic document ids, so we
+            // - do not create duplicates if we re-run after failure
+            // - update documents
+            IDGenerator idGen = new IDGenerator();
+
+            groups.getGroups().keySet().forEach(destinationFieldName -> {
+                Object value = bucket.getKey().get(destinationFieldName);
+                idGen.add(destinationFieldName, value);
+                document.put(destinationFieldName, value);
+            });
 
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
                 String aggName = aggregationBuilder.getName();
@@ -71,6 +80,9 @@ final class AggregationResultUtils {
                     assert false;
                 }
             }
+
+            document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());
+
             return document;
         });
     }

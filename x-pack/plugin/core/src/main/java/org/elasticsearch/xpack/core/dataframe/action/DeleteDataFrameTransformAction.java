@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -40,14 +39,11 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        private Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -73,12 +69,6 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
         }
 
         @Override

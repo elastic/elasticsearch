@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -42,7 +41,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
 
         public Request(String id) {
@@ -52,8 +51,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
                 this.id = id;
             }
         }
-
-        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -83,12 +80,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
         }
 
         @Override

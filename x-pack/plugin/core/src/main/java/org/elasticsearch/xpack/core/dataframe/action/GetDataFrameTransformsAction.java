@@ -13,7 +13,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
@@ -46,7 +45,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         return new Response();
     }
 
-    public static class Request extends AbstractGetResourcesRequest implements ToXContent {
+    public static class Request extends AbstractGetResourcesRequest {
 
         private static final int MAX_SIZE_RETURN = 1000;
 
@@ -74,12 +73,6 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
                     "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
             }
             return exception;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), getResourceId());
-            return builder;
         }
 
         @Override

@@ -115,6 +115,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
      * @deprecated Types are in the process of being removed. Instead of using a type, prefer to
      * filter on a field on the document.
      */
+    @Deprecated
     public String[] types() {
         return this.types;
     }

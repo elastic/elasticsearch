@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,7 +71,6 @@ public class TransportPutDataFrameTransformAction
     public TransportPutDataFrameTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
-                                                PersistentTasksService persistentTasksService,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
         super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 PutDataFrameTransformAction.Request::new);
@@ -119,36 +117,36 @@ public class TransportPutDataFrameTransformAction
             return;
         }
 
-        String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+        final String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
             IndicesOptions.lenientExpandOpen(),
-            config.getDestination());
+            config.getDestination().getIndex());
 
         if (dest.length > 0) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS, config.getDestination()),
+                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS,
+                    config.getDestination().getIndex()),
                 RestStatus.BAD_REQUEST));
             return;
         }
 
-        String[] src = indexNameExpressionResolver.concreteIndexNames(clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            config.getSource());
-        if (src.length == 0) {
-            listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, config.getSource()),
-                RestStatus.BAD_REQUEST));
-            return;
+        for(String src : config.getSource().getIndex()) {
+            if (indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src).length == 0) {
+                listener.onFailure(new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                    RestStatus.BAD_REQUEST));
+                return;
+            }
         }
 
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getSource())
+                .indices(config.getSource().getIndex())
                 .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getDestination())
+                .indices(config.getDestination().getIndex())
                 .privileges("read", "index", "create_index")
                 .build();
 
@@ -196,7 +194,9 @@ public class TransportPutDataFrameTransformAction
 
     private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
 
-        final Pivot pivot = new Pivot(config.getSource(), config.getQueryConfig().getQuery(), config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getSource().getIndex(),
+            config.getSource().getQueryConfig().getQuery(),
+            config.getPivotConfig());
 
 
         // <5> Return the listener, or clean up destination index on failure.
@@ -206,7 +206,7 @@ public class TransportPutDataFrameTransformAction
                 ClientHelper.executeAsyncWithOrigin(client,
                     ClientHelper.DATA_FRAME_ORIGIN,
                     DeleteIndexAction.INSTANCE,
-                    new DeleteIndexRequest(config.getDestination()), ActionListener.wrap(
+                    new DeleteIndexRequest(config.getDestination().getIndex()), ActionListener.wrap(
                         deleteIndexResponse -> listener.onFailure(putTransformConfigurationException),
                         deleteIndexException -> {
                             String msg = "Failed to delete destination index after creating transform [" + config.getId() + "] failed";

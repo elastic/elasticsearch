@@ -88,6 +88,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse.getSource(), notNullValue());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
     public void testIndexWatchRegisterWatchBeforeTargetIndex() throws Exception {
         WatcherClient watcherClient = watcherClient();
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
@@ -211,11 +212,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
     public void testConditionSearchWithSource() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         testConditionSearch(templateRequest(searchSourceBuilder, "events"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()

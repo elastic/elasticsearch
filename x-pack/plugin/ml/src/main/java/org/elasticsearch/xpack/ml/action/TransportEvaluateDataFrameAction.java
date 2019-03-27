@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
@@ -21,11 +22,14 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationResult;
 public class TransportEvaluateDataFrameAction extends HandledTransportAction<EvaluateDataFrameAction.Request,
     EvaluateDataFrameAction.Response> {
 
+    private final ThreadPool threadPool;
     private final Client client;
 
     @Inject
-    public TransportEvaluateDataFrameAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportEvaluateDataFrameAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
+                                            Client client) {
         super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
+        this.threadPool = threadPool;
         this.client = client;
     }
 
@@ -42,7 +46,7 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         );
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            searchResponse -> evaluation.evaluate(searchResponse, resultListener),
+            searchResponse -> threadPool.generic().execute(() -> evaluation.evaluate(searchResponse, resultListener)),
             listener::onFailure
         ));
     }

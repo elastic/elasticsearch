@@ -6,7 +6,9 @@ the existing index meets a condition you provide. You can use this API to retire
 an index that becomes too large or too old.
 
 NOTE: To roll over an index, a condition must be met *when you call the API*.
-{es} does not monitor the index after you receive an API response.
+{es} does not monitor the index after you receive an API response. To
+automatically roll over indices when a condition is met, you can use {es}'s
+<<index-lifecycle-management, index lifecycle management (ILM) policies>>.
 
 The API accepts a single alias name and a list of `conditions`. The alias must point to a write index for
 a Rollover request to be valid. There are two ways this can be achieved, and depending on the configuration, the

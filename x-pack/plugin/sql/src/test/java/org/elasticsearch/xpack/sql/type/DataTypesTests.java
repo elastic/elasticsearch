@@ -55,7 +55,7 @@ public class DataTypesTests extends ESTestCase {
     public void testMetaMinimumScale() {
         assertEquals(Short.valueOf((short) 3), metaSqlMinimumScale(DATETIME));
         assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(LONG));
-        assertEquals(Short.valueOf((short) 0), metaSqlMinimumScale(FLOAT));
+        assertEquals(Short.valueOf((short) FLOAT.defaultPrecision), metaSqlMaximumScale(FLOAT));
         assertNull(metaSqlMinimumScale(KEYWORD));
     }
 

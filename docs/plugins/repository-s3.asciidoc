@@ -213,13 +213,7 @@ The following settings are supported:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `true`.
 
-`max_restore_bytes_per_sec`::
-
-    Throttles per node restore rate. Defaults to `40mb` per second.
-
-`max_snapshot_bytes_per_sec`::
-
-    Throttles per node snapshot rate. Defaults to `40mb` per second.
+include::repository-shared-settings.asciidoc[]
 
 `server_side_encryption`::
 

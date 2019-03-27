@@ -525,11 +525,11 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date").timeValue((LocalDateTime) null).endObject());
         assertResult("{'date':null}", () -> builder().startObject().field("date", (LocalDateTime) null).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().timeField("d1", d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}",
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}",
             () -> builder().startObject().field("d1").timeValue(d1.toLocalDateTime()).endObject());
-        assertResult("{'d1':'2016-01-01T00:00:00.000'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
+        assertResult("{'d1':'2016-01-01T00:00:00.000Z'}", () -> builder().startObject().field("d1", d1.toLocalDateTime()).endObject());
 
         // LocalDate (no time, no time zone)
         assertResult("{'date':null}", () -> builder().startObject().timeField("date", (LocalDate) null).endObject());

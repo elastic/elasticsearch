@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.dataframe.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,14 +39,17 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
-        private String id;
+    public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
-        public Request(String id) {
+        private String id;
+        private boolean force;
+
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.force = force;
         }
 
-        private Request() {
+        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -56,6 +59,10 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
         public String getId() {
             return id;
+        }
+
+        public boolean isForce() {
+            return force;
         }
 
         @Override

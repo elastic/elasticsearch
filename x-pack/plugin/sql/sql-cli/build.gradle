@@ -14,14 +14,20 @@ archivesBaseName = 'elasticsearch-sql-cli'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-    compile "org.jline:jline:3.8.2"
+    
+    // select just the parts of JLine that are needed
+    compile "org.jline:jline-terminal:${jlineVersion}"
+    compile("org.jline:jline-terminal-jna:${jlineVersion}") {
+        exclude group: "net.java.dev.jna"
+    }
+    compile "org.jline:jline-reader:${jlineVersion}"
+    compile "org.jline:jline-style:${jlineVersion}"
+    
     compile xpackProject('plugin:sql:sql-client')
-    compile xpackProject('plugin:sql:sql-action')
+    compile xpackProject('plugin:sql:sql-action')    
     compile "org.elasticsearch:elasticsearch-cli:${version}"
 
-    runtime "org.fusesource.jansi:jansi:1.16"
     runtime "org.elasticsearch:jna:${versions.jna}"
-
     testCompile "org.elasticsearch.test:framework:${version}"
 }
 
@@ -32,6 +38,7 @@ dependencyLicenses {
     mapping from: /lucene-.*/, to: 'lucene'
     mapping from: /sql-action.*/, to: 'elasticsearch'
     mapping from: /sql-client.*/, to: 'elasticsearch'
+    mapping from: /jline-.*/, to: 'jline'
     ignoreSha 'elasticsearch-cli'
     ignoreSha 'elasticsearch-core'
     ignoreSha 'elasticsearch'
@@ -41,7 +48,7 @@ dependencyLicenses {
 
 /*
  * Bundle all dependencies into the main jar and mark it as executable it
- * can be easilly shipped around and used.
+ * can be easily shipped around and used.
  */
 jar {
     from({
@@ -77,37 +84,6 @@ forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
     signaturesFiles += files('src/forbidden/cli-signatures.txt')
 }
-
-thirdPartyAudit.ignoreMissingClasses (
-    // jLine's optional dependencies
-    'org.apache.sshd.client.SshClient',
-    'org.apache.sshd.client.auth.keyboard.UserInteraction',
-    'org.apache.sshd.client.channel.ChannelShell',
-    'org.apache.sshd.client.channel.ClientChannel',
-    'org.apache.sshd.client.channel.ClientChannelEvent',
-    'org.apache.sshd.client.future.AuthFuture',
-    'org.apache.sshd.client.future.ConnectFuture',
-    'org.apache.sshd.client.future.OpenFuture',
-    'org.apache.sshd.client.session.ClientSession',
-    'org.apache.sshd.common.Factory',
-    'org.apache.sshd.common.channel.PtyMode',
-    'org.apache.sshd.common.config.keys.FilePasswordProvider',
-    'org.apache.sshd.common.util.io.NoCloseInputStream',
-    'org.apache.sshd.common.util.io.NoCloseOutputStream',
-    'org.apache.sshd.server.Command',
-    'org.apache.sshd.server.Environment',
-    'org.apache.sshd.server.ExitCallback',
-    'org.apache.sshd.server.SessionAware',
-    'org.apache.sshd.server.Signal',
-    'org.apache.sshd.server.SshServer',
-    'org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider',
-    'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
-    'org.apache.sshd.server.session.ServerSession',
-    'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
-    'org.mozilla.universalchardet.UniversalDetector',
-    'org.fusesource.jansi.internal.Kernel32$FOCUS_EVENT_RECORD',
-    'org.fusesource.jansi.internal.Kernel32$MOUSE_EVENT_RECORD',
-)
 
 task runcli {
     description = 'Run the CLI and connect to elasticsearch running on 9200'

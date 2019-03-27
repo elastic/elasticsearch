@@ -455,7 +455,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
-            logger.info("Failed to open / find files while reading metadata snapshot");
+            logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {
             logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
@@ -759,6 +759,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public String toString() {
             return "store(" + in.toString() + ")";
+        }
+
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            // FilterDirectory.getPendingDeletions does not delegate, working around it here.
+            // to be removed once fixed in FilterDirectory.
+            return unwrap(this).getPendingDeletions();
         }
     }
 

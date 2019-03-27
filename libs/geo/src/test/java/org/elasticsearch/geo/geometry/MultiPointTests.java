@@ -24,17 +24,18 @@ import org.elasticsearch.geo.utils.WellKnownText;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
     @Override
-    protected MultiPoint createTestInstance() {
+    protected MultiPoint createTestInstance(boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Point> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPoint());
+            arr.add(randomPoint(hasAlt));
         }
         return new MultiPoint(arr);
     }
@@ -44,6 +45,16 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
             new MultiPoint(Collections.singletonList(new Point(1, 2)))));
         assertEquals(new MultiPoint(Collections.singletonList(new Point(1 ,2))),
             WellKnownText.fromWKT("multipoint (2 1)"));
+
+        assertEquals("multipoint (2.0 1.0, 3.0 4.0)",
+            WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2), new Point(4, 3)))));
+        assertEquals(new MultiPoint(Arrays.asList(new Point(1, 2), new Point(4, 3))),
+            WellKnownText.fromWKT("multipoint (2 1, 3 4)"));
+
+        assertEquals("multipoint (2.0 1.0 10.0, 3.0 4.0 20.0)",
+            WellKnownText.toWKT(new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(4, 3, 20)))));
+        assertEquals(new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(4, 3, 20))),
+            WellKnownText.fromWKT("multipoint (2 1 10, 3 4 20)"));
 
         assertEquals("multipoint EMPTY", WellKnownText.toWKT(MultiPoint.EMPTY));
         assertEquals(MultiPoint.EMPTY, WellKnownText.fromWKT("multipoint EMPTY)"));

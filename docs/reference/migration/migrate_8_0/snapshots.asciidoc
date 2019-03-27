@@ -11,3 +11,13 @@ The `repositories.fs.compress` setting has been removed.
 
 Instead use the repository specific `compress` setting to enable compression. See <<modules-snapshots>> for information
 on the `compress` setting.
+
+[float]
+==== Compression of meta data files is now on by default
+
+Previously, the default value for `compress` was `false`. The default has been changed to `true`.
+
+This change will affect both newly created repositories and existing repositories where `compress=false` has not been
+explicitly specified.
+
+For more information on the compress option, see <<modules-snapshots>>

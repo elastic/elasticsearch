@@ -11,12 +11,16 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
+
+import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -48,11 +52,29 @@ public interface ScriptWeaver {
         throw new SqlIllegalArgumentException("Cannot evaluate script for expression {}", exp);
     }
 
+    /*
+     * To be used when the function has an optional parameter.
+     */
+    default ScriptTemplate asOptionalScript(Expression exp) {
+        return exp == null ? asScript(Literal.NULL) : asScript(exp);
+    }
+
     DataType dataType();
 
     default ScriptTemplate scriptWithFoldable(Expression foldable) {
         Object fold = foldable.fold();
+
+        //
+        // Custom type handling
+        //
+
         // wrap intervals with dedicated methods for serialization
+        if (fold instanceof ZonedDateTime) {
+            ZonedDateTime zdt = (ZonedDateTime) fold;
+            return new ScriptTemplate(processScript("{sql}.asDateTime({})"),
+                    paramsBuilder().variable(DateUtils.toString(zdt)).build(), dataType());
+        }
+
         if (fold instanceof IntervalYearMonth) {
             IntervalYearMonth iym = (IntervalYearMonth) fold;
             return new ScriptTemplate(processScript("{sql}.intervalYearMonth({},{})"),

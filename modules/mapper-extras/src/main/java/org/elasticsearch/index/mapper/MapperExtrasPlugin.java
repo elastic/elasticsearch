@@ -41,6 +41,7 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         mappers.put(RankFeaturesFieldMapper.CONTENT_TYPE, new RankFeaturesFieldMapper.TypeParser());
         mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
         mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());
+        mappers.put(SearchAsYouTypeFieldMapper.CONTENT_TYPE, new SearchAsYouTypeFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 

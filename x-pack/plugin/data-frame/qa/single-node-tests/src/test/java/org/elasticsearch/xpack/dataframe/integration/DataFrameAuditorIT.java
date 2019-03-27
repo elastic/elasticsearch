@@ -62,6 +62,7 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
 
         // Make sure we wrote to the audit
         assertTrue(indexExists(DataFrameInternalIndex.AUDIT_INDEX));
+        refreshIndex(DataFrameInternalIndex.AUDIT_INDEX);
         Request request = new Request("GET", DataFrameInternalIndex.AUDIT_INDEX + "/_search");
         request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simplePivotForAudit\"}}}");
         Map<String, Object> response = entityAsMap(client().performRequest(request));

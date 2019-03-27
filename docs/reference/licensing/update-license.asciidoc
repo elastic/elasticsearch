@@ -92,7 +92,7 @@ On Windows machine, use the following command:
 
 [source,shell]
 ------------------------------------------------------------
-gc .\license.json |  Invoke-WebRequest -uri http://<host>:<port>/_license -Credential elastic -Method Put -ContentType "application/json"
+Invoke-WebRequest -uri http://<host>:<port>/_xpack/license -Credential elastic -Method Put -ContentType "application/json" -InFile .\license.json
 ------------------------------------------------------------
 
 In these examples,

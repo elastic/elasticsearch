@@ -42,9 +42,11 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
         private String id;
+        private boolean force;
 
-        public Request(String id) {
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.force = force;
         }
 
         public Request() {
@@ -57,6 +59,10 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
         public String getId() {
             return id;
+        }
+
+        public boolean isForce() {
+            return force;
         }
 
         @Override

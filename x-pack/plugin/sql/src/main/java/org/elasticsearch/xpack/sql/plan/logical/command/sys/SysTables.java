@@ -11,12 +11,12 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,8 +77,11 @@ public class SysTables extends Command {
         // namely one param specified with '%', everything else empty string
         // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=ssdt-18vs2017#comments
 
-        if (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            if ((pattern == null || pattern.pattern().isEmpty()) && CollectionUtils.isEmpty(types)) {
+        // catalog enumeration
+        if (clusterPattern == null || (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD))) {
+            // enumerate only if pattern is "" and no types are null
+            if (pattern != null && StringUtils.EMPTY.equals(pattern.pattern()) && index == null
+                    && types == null) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -87,12 +90,15 @@ public class SysTables extends Command {
             }
         }
         
+        // enumerate types
         // if no types were specified (the parser takes care of the % case)
-        if (IndexType.VALID.equals(types)) {
-            if ((clusterPattern == null || clusterPattern.pattern().isEmpty())
-                    && (pattern == null || pattern.pattern().isEmpty())) {
+        if (types == null) {
+            // empty string for catalog 
+            if (clusterPattern != null && StringUtils.EMPTY.equals(clusterPattern.pattern())
+                    // empty string for table like and no index specified
+                    && pattern != null && StringUtils.EMPTY.equals(pattern.pattern()) && index == null) {
                 List<List<?>> values = new ArrayList<>();
-                // send only the types, everything else null
+                // send only the types, everything else is made of empty strings
                 for (IndexType type : IndexType.VALID) {
                     Object[] enumeration = new Object[10];
                     enumeration[3] = type.toSql();
@@ -105,7 +111,7 @@ public class SysTables extends Command {
             }
         }
 
-        
+        // no enumeration pattern found, list actual tables
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
         // if the catalog doesn't match, don't return any results

@@ -1,0 +1,9 @@
+[float]
+[[breaking_80_security_changes]]
+=== Security changes
+
+[float]
+==== The `accept_default_password` setting has been removed
+
+The `xpack.security.authc.accept_default_password` setting has not had any affect
+since the 6.0 release of {es}. It has been removed and cannot be used.

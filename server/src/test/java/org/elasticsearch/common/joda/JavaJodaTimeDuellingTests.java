@@ -29,13 +29,11 @@ import org.joda.time.DateTimeZone;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
 
@@ -290,7 +288,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         // joda comes up with a different exception message here, so we have to adapt
         assertJodaParseException("2012-W1-8", "week_date",
             "Cannot parse \"2012-W1-8\": Value 8 for dayOfWeek must be in the range [1,7]");
-        assertJavaTimeParseException("2012-W1-8", "week_date", "Text '2012-W1-8' could not be parsed");
+        assertJavaTimeParseException("2012-W1-8", "week_date");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123456789Z", "week_date_time");
@@ -488,7 +486,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         // joda comes up with a different exception message here, so we have to adapt
         assertJodaParseException("2012-W01-8", "strict_week_date",
             "Cannot parse \"2012-W01-8\": Value 8 for dayOfWeek must be in the range [1,7]");
-        assertJavaTimeParseException("2012-W01-8", "strict_week_date", "Text '2012-W01-8' could not be parsed");
+        assertJavaTimeParseException("2012-W01-8", "strict_week_date");
 
         assertSameDate("2012-W48-6T10:15:30.123Z", "strict_week_date_time");
         assertSameDate("2012-W48-6T10:15:30.123456789Z", "strict_week_date_time");
@@ -635,7 +633,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSamePrinterOutput(String format, ZonedDateTime javaDate, DateTime jodaDate) {
         assertThat(jodaDate.getMillis(), is(javaDate.toInstant().toEpochMilli()));
-        String javaTimeOut = DateFormatters.forPattern(format).format(javaDate);
+        String javaTimeOut = DateFormatter.forPattern(format).format(javaDate);
         String jodaTimeOut = DateFormatter.forPattern(format).formatJoda(jodaDate);
         if (JavaVersion.current().getVersion().get(0) == 8 && javaTimeOut.endsWith(".0")
             && (format.equals("epoch_second") || format.equals("epoch_millis"))) {
@@ -650,7 +648,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertSameDate(String input, String format) {
         DateFormatter jodaFormatter = Joda.forPattern(format);
-        DateFormatter javaFormatter = DateFormatters.forPattern(format);
+        DateFormatter javaFormatter = DateFormatter.forPattern(format);
         assertSameDate(input, format, jodaFormatter, javaFormatter);
     }
 
@@ -668,7 +666,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     private void assertParseException(String input, String format) {
         assertJodaParseException(input, format, "Invalid format: \"" + input);
-        assertJavaTimeParseException(input, format, "Text '" + input + "' could not be parsed");
+        assertJavaTimeParseException(input, format);
     }
 
     private void assertJodaParseException(String input, String format, String expectedMessage) {
@@ -677,9 +675,10 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(expectedMessage));
     }
 
-    private void assertJavaTimeParseException(String input, String format, String expectedMessage) {
-        DateFormatter javaTimeFormatter = DateFormatters.forPattern(format);
-        DateTimeParseException dateTimeParseException = expectThrows(DateTimeParseException.class, () -> javaTimeFormatter.parse(input));
-        assertThat(dateTimeParseException.getMessage(), startsWith(expectedMessage));
+    private void assertJavaTimeParseException(String input, String format) {
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern("8"+format);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
+        assertThat(e.getMessage(), containsString(input));
+        assertThat(e.getMessage(), containsString(format));
     }
 }

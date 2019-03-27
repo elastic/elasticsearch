@@ -183,14 +183,11 @@ Discovery-Plugins::
 * Bump jackson-databind version for AWS SDK {pull}39183[#39183]
 
 Engine::
-* Upgrade to lucene 8.0.0-snapshot-ff9509a8df {pull}39445[#39445] (issue: {issue}39350[#39350])
-* Upgrade to lucene 8.0.0-snapshot-ff9509a8df {pull}39350[#39350]
+* Upgrade to Lucene 8.0.0-snapshot-ff9509a8df {pull}39350[#39350]
+* Upgrade to Lucene 8.0.0 {pull}39992[#39992] (issue: {issue}39640[#39640])
 
 Features/Ingest::
 * Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
-
-Infra/Core::
-* Upgrade to Lucene 8.0.0 {pull}39992[#39992] (issue: {issue}39640[#39640])
 
 Security::
 * Upgrade the bouncycastle dependency to 1.61 {pull}40017[#40017] (issue: {issue}40011[#40011])

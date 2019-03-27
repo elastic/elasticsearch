@@ -11,7 +11,6 @@ Also see <<breaking-changes-7.0,Breaking changes in 7.0.0-rc1>>.
 
 Distributed::
 * Remove cluster state size {pull}40061[#40061] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951], {issue}40016[#40016])
-* Stop returning cluster state size by default {pull}40016[#40016] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951])
 
 Features/Features::
 * Remove Migration Upgrade and Assistance APIs {pull}40075[#40075] (issue: {issue}40014[#40014])

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -85,6 +89,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -675,6 +680,21 @@ final class QueryTranslator {
                 return new RangeQuery(source, name, value, true, null, false, format);
             }
             if (bc instanceof LessThan) {
+                if (bc.left() instanceof StDistance && value instanceof Number) {
+                    // Special case for ST_Distance translatable into geo_distance query
+                    StDistance stDistance = (StDistance) bc.left();
+                    if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
+                        Object geoShape = valueOf(stDistance.right());
+                        if (geoShape instanceof GeoShape) {
+                            Geometry geometry = ((GeoShape) geoShape).toGeometry();
+                            if (geometry instanceof Point) {
+                                String field = nameOf(stDistance.left());
+                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
+                                    ((Point) geometry).getLat(), ((Point) geometry).getLon());
+                            }
+                        }
+                    }
+                }
                 return new RangeQuery(source, name, null, false, value, false, format);
             }
             if (bc instanceof LessThanOrEqual) {
@@ -966,6 +986,9 @@ final class QueryTranslator {
 
         protected static Query handleQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
             Query q = query.get();
+            if (field instanceof StDistance && q instanceof GeoDistanceQuery) {
+                return wrapIfNested(q, ((StDistance) field).left());
+            }
             if (field instanceof FieldAttribute) {
                 return wrapIfNested(q, field);
             }

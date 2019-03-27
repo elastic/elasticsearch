@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
@@ -596,22 +597,53 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
 
-    public void testTranslateStDistance() {
-        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) > 20");
+    public void testTranslateStDistanceToScript() {
+        String operator = randomFrom(">", ">=", "<=");
+        String operatorFunction = null;
+        switch (operator) {
+            case ">":
+                operatorFunction = "gt";
+                break;
+            case ">=":
+                operatorFunction = "gte";
+                break;
+            case "<=":
+                operatorFunction = "lte";
+                break;
+            default:
+                fail("Unexpected operator [" + operator + "]");
+        }
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
-                "InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils." + operatorFunction + "(" +
                 "InternalSqlScriptUtils.stDistance(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
-            aggFilter.scriptTemplate().toString());
-        assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", aggFilter.scriptTemplate().params().toString());
+            sc.script().toString());
+        assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStDistanceToQuery() {
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) < 25");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof GeoDistanceQuery);
+        GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
+        assertEquals("shape", gq.field());
+        assertEquals(20.0, gq.lat(), 0.00001);
+        assertEquals(10.0, gq.lon(), 0.00001);
+        assertEquals(25.0, gq.distance(), 0.00001);
     }
 
     public void testTranslateCoalesce_GroupBy_Painless() {

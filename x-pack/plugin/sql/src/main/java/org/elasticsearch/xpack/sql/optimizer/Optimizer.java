@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
@@ -134,6 +135,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // needs to occur before BinaryComparison combinations (see class)
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                // Geo
+                new StDistanceLiteralsOnTheRight(),
                 // prune/elimination
                 new PruneFilters(),
                 new PruneOrderBy(),
@@ -1407,6 +1410,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+
+    static class StDistanceLiteralsOnTheRight extends OptimizerExpressionRule {
+
+        StDistanceLiteralsOnTheRight() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            return e instanceof StDistance ? literalToTheRight((StDistance) e) : e;
+        }
+
+        private Expression literalToTheRight(StDistance sd) {
+            return sd.left() instanceof Literal && !(sd.right() instanceof Literal) ? sd.swapLeftAndRight() : sd;
+        }
+    }
     /**
      * Propagate Equals to eliminate conjuncted Ranges.
      * When encountering a different Equals or non-containing {@link Range}, the conjunction becomes false.

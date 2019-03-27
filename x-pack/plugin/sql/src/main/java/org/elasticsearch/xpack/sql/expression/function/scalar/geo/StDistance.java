@@ -65,6 +65,10 @@ public class StDistance extends BinaryScalarFunction {
             dataType());
     }
 
+    public StDistance swapLeftAndRight() {
+        return new StDistance(source(), right(), left());
+    }
+
     @Override
     public Object fold() {
         return process(left().fold(), right().fold());

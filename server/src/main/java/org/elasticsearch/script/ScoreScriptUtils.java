@@ -51,13 +51,14 @@ public final class ScoreScriptUtils {
         return Math.pow(value,a) / (Math.pow(k,a) + Math.pow(value,a));
     }
 
-    public static final class RandomScore {
+    // random score based on the documents' values of the given field
+    public static final class RandomScoreField {
         private final ScoreScript scoreScript;
         private final ScriptDocValues docValues;
         private final int saltedSeed;
 
 
-        public RandomScore(ScoreScript scoreScript, int seed, String fieldName) {
+        public RandomScoreField(ScoreScript scoreScript, int seed, String fieldName) {
             this.scoreScript = scoreScript;
             this.docValues = scoreScript.getDoc().get(fieldName);
             int salt = (scoreScript._getIndex().hashCode() << 10) | scoreScript._getShardId();

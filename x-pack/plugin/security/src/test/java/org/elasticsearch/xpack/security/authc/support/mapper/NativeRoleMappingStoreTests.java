@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 
 public class NativeRoleMappingStoreTests extends ESTestCase {
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
 
     public void testResolveRoles() throws Exception {
         // Does match DN

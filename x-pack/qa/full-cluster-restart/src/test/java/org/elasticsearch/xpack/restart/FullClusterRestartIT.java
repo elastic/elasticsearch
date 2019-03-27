@@ -20,6 +20,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -106,7 +107,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 if (settingsMap.containsKey("index")) {
                     @SuppressWarnings("unchecked")
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    assertEquals("The security index needs to be upgraded", SecurityIndexManager.INTERNAL_INDEX_FORMAT, format);
+                    assertEquals("The security index needs to be upgraded", RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, format);
                 }
             }
 

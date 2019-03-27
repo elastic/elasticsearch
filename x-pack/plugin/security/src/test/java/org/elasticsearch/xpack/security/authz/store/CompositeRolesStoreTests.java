@@ -96,7 +96,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);

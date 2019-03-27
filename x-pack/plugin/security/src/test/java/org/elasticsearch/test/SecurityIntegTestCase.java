@@ -67,7 +67,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -491,7 +491,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
                 assertTrue("security index mapping not sufficient to read:\n" +
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
+                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_MAIN_ALIAS, clusterState, logger,
                         Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
@@ -509,7 +509,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         GetIndexRequest getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(SECURITY_INDEX_NAME);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
         if (getIndexResponse.getIndices().length > 0) {
@@ -520,7 +520,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_INDEX_NAME);
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_MAIN_ALIAS);
         if (aliasOrIndex != null) {
             return aliasOrIndex.getIndices().get(0).getIndex();
         }

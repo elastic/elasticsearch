@@ -137,7 +137,6 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
@@ -284,7 +283,7 @@ public final class TokenService {
                         .field("realm", authentication.getAuthenticatedBy().getName())
                         .endObject();
                 builder.endObject();
-                request = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)
+                request = client.prepareIndex(securityIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                                 .setOpType(OpType.CREATE)
                                 .setSource(builder)
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -359,7 +358,7 @@ public final class TokenService {
             securityIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", userTokenId, ex)),
                 () -> {
-                    final GetRequest getRequest = client.prepareGet(SecurityIndexManager.SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME,
+                    final GetRequest getRequest = client.prepareGet(securityIndex.aliasName(), SINGLE_MAPPING_NAME,
                         getTokenDocumentId(userTokenId)).request();
                     Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -458,30 +457,6 @@ public final class TokenService {
                 logger.warn("built in token service unable to decode token");
             }
             listener.onResponse(null);
-        }
-    }
-
-    private void getKeyAsync(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
-        final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
-        if (decodeKey != null) {
-            listener.onResponse(decodeKey);
-        } else {
-            /* As a measure of protected against DOS, we can pass requests requiring a key
-             * computation off to a single thread executor. For normal usage, the initial
-             * request(s) that require a key computation will be delayed and there will be
-             * some additional latency.
-             */
-            client.threadPool().executor(THREAD_POOL_NAME)
-                    .submit(new KeyComputingRunnable(decodedSalt, keyAndCache, listener));
-        }
-    }
-
-    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version) throws IOException {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
-                CipherInputStream cis = new CipherInputStream(bais, cipher);
-                StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
-            decryptedInput.setVersion(version);
-            return decryptedInput.readString();
         }
     }
 
@@ -627,7 +602,7 @@ public final class TokenService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
                 UpdateRequest request = client
-                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
+                        .prepareUpdate(securityIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(tokenId))
                         .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
                         .setFetchSource(srcPrefix, null)
                         .request();
@@ -746,7 +721,7 @@ public final class TokenService {
             logger.debug("security index is not available to find token from refresh token, retrying");
             maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
         } else {
-            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(securityIndex.aliasName())
                     .setQuery(QueryBuilders.boolQuery()
                             .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                             .filter(QueryBuilders.termQuery("refresh_token.token", refreshToken)))
@@ -863,7 +838,7 @@ public final class TokenService {
             updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final UpdateRequestBuilder updateRequest = client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId)
+            final UpdateRequestBuilder updateRequest = client.prepareUpdate(securityIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -943,7 +918,7 @@ public final class TokenService {
     }
 
     private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, tokenDocId).request();
+        final GetRequest getRequest = client.prepareGet(securityIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
@@ -1084,7 +1059,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(securityIndex.aliasName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1127,7 +1102,7 @@ public final class TokenService {
                     )
                 );
 
-            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(securityIndex.aliasName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -1218,8 +1193,8 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getTokenDocumentId(userToken))
-                        .request();
+                final GetRequest getRequest = client
+                        .prepareGet(securityIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
                 Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
@@ -1342,6 +1317,30 @@ public final class TokenService {
         cipher.updateAAD(ByteBuffer.allocate(4).putInt(version.id).array());
         cipher.updateAAD(salt.bytes);
         return cipher;
+    }
+
+    private void getKeyAsync(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
+        final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
+        if (decodeKey != null) {
+            listener.onResponse(decodeKey);
+        } else {
+            /* As a measure of protected against DOS, we can pass requests requiring a key
+             * computation off to a single thread executor. For normal usage, the initial
+             * request(s) that require a key computation will be delayed and there will be
+             * some additional latency.
+             */
+            client.threadPool().executor(THREAD_POOL_NAME)
+                    .submit(new KeyComputingRunnable(decodedSalt, keyAndCache, listener));
+        }
+    }
+
+    private static String decryptTokenId(byte[] encryptedTokenId, Cipher cipher, Version version) throws IOException {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(encryptedTokenId);
+                CipherInputStream cis = new CipherInputStream(bais, cipher);
+                StreamInput decryptedInput = new InputStreamStreamInput(cis)) {
+            decryptedInput.setVersion(version);
+            return decryptedInput.readString();
+        }
     }
 
     private Cipher getDecryptionCipher(byte[] iv, SecretKey key, Version version, BytesKey salt) throws GeneralSecurityException {

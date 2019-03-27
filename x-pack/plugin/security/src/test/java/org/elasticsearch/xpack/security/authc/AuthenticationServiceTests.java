@@ -154,7 +154,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws Exception {
         concreteSecurityIndexName = randomFrom(
-            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
 
         token = mock(AuthenticationToken.class);
         when(token.principal()).thenReturn(randomAlphaOfLength(5));

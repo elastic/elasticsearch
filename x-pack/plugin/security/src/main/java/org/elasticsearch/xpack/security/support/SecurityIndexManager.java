@@ -73,16 +73,17 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Manages the lifecycle of a single index, mapping and and data upgrades/migrations.
+ * Manages the lifecycle, mapping and data upgrades/migrations of one of `.security-7` or `.security-tokens-7` indices.
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
-    public static final String INTERNAL_SECURITY_INDEX = RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7;
-    public static final int INTERNAL_INDEX_FORMAT = 6;
+    public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
+    public static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
+    public static final String SECURITY_MAIN_TEMPLATE = "security-index-template";
+    public static final String SECURITY_TOKENS_TEMPLATE = "security-tokens-index-template";
     public static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
-    public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
-    public static final String SECURITY_INDEX_NAME = ".security";
+
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
     private final String aliasName;
@@ -95,19 +96,26 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private volatile State indexState;
 
-    public static SecurityIndexManager buildSecurityIndexManager(Client client, ClusterService clusterService) {
-        return new SecurityIndexManager(client, SECURITY_INDEX_NAME, INTERNAL_SECURITY_INDEX, INTERNAL_INDEX_FORMAT,
-                SecurityIndexManager::readSecurityTemplateAsBytes, clusterService);
+    public static SecurityIndexManager buildSecurityMainIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, clusterService, RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, INTERNAL_MAIN_INDEX_FORMAT,
+                () -> SecurityIndexManager.readTemplateAsBytes(SECURITY_MAIN_TEMPLATE));
     }
 
-    private SecurityIndexManager(Client client, String aliasName, String internalIndexName, int internalIndexFormat,
-            Supplier<byte[]> mappingSourceSupplier, ClusterService clusterService) {
+    public static SecurityIndexManager buildSecurityTokensIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, clusterService, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS,
+                RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, INTERNAL_TOKENS_INDEX_FORMAT,
+                () -> SecurityIndexManager.readTemplateAsBytes(SECURITY_TOKENS_TEMPLATE));
+    }
+
+    private SecurityIndexManager(Client client, ClusterService clusterService, String aliasName, String internalIndexName,
+                                 int internalIndexFormat, Supplier<byte[]> mappingSourceSupplier) {
         this(client, aliasName, internalIndexName, internalIndexFormat, mappingSourceSupplier, State.UNRECOVERED_STATE);
         clusterService.addListener(this);
     }
 
     private SecurityIndexManager(Client client, String aliasName, String internalIndexName, int internalIndexFormat,
-            Supplier<byte[]> mappingSourceSupplier, State indexState) {
+                                 Supplier<byte[]> mappingSourceSupplier, State indexState) {
         this.aliasName = aliasName;
         this.internalIndexName = internalIndexName;
         this.internalIndexFormat = internalIndexFormat;
@@ -124,6 +132,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         // pull value into local variable for consistent view
         final State currentIndexState = this.indexState;
         return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
+    }
+
+    public String aliasName() {
+        return aliasName;
     }
 
     public boolean indexExists() {
@@ -396,8 +408,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         return previousState.indexStatus != null && currentState.indexStatus == null;
     }
 
-    private static byte[] readSecurityTemplateAsBytes() {
-        return TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json", Version.CURRENT.toString(),
+    private static byte[] readTemplateAsBytes(String templateName) {
+        return TemplateUtils.loadTemplate("/" + templateName + ".json", Version.CURRENT.toString(),
                 SecurityIndexManager.TEMPLATE_VERSION_PATTERN).getBytes(StandardCharsets.UTF_8);
     }
 

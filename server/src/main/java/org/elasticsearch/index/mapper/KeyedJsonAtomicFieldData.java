@@ -164,6 +164,13 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
         private final long minOrd;
         private final long maxOrd;
 
+        /**
+         * We cache the first ordinal in a document to avoid unnecessary iterations
+         * through the delegate doc values. If no ordinal is cached for the current
+         * document, this value will be -1.
+         */
+        private long cachedNextOrd;
+
         private KeyedJsonDocValues(BytesRef key,
                                    SortedSetDocValues delegate,
                                    long minOrd,
@@ -172,6 +179,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             this.delegate = delegate;
             this.minOrd = minOrd;
             this.maxOrd = maxOrd;
+            this.cachedNextOrd = -1;
         }
 
         @Override
@@ -196,16 +204,18 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
         @Override
         public long nextOrd() throws IOException {
-            for (long ord = delegate.nextOrd(); ord != NO_MORE_ORDS; ord = delegate.nextOrd()) {
-                if (minOrd <= ord) {
-                    if (ord <= maxOrd) {
-                        return ord;
-                    } else {
-                        return NO_MORE_ORDS;
-                    }
-                }
+            if (cachedNextOrd >= 0) {
+                long nextOrd = cachedNextOrd;
+                cachedNextOrd = -1;
+                return nextOrd;
             }
-            return NO_MORE_ORDS;
+
+            long ord = delegate.nextOrd();
+            if (ord != NO_MORE_ORDS && ord <= maxOrd) {
+                return ord;
+            } else {
+                return NO_MORE_ORDS;
+            }
         }
 
         @Override
@@ -213,12 +223,12 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             if (delegate.advanceExact(target)) {
                 for (long ord = delegate.nextOrd(); ord != NO_MORE_ORDS; ord = delegate.nextOrd()) {
                      if (minOrd <= ord && ord <= maxOrd) {
-                         boolean advanced = delegate.advanceExact(target);
-                         assert advanced;
+                         cachedNextOrd = ord;
                          return true;
                     }
                 }
             }
+            cachedNextOrd = -1;
             return false;
         }
     }

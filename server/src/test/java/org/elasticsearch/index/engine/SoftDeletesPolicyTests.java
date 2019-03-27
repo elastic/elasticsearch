@@ -45,7 +45,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
     /**
      * Makes sure we won't advance the retained seq# if the retention lock is held
      */
-    public void testSoftDeletesRetentionLock() {
+    public void testSoftDeletesRetentionLock() throws Exception {
         long retainedOps = between(0, 10000);
         AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
         final AtomicLong[] retainingSequenceNumbers = new AtomicLong[randomIntBetween(0, 8)];
@@ -75,7 +75,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 retainingSequenceNumber.set(randomLongBetween(retainingSequenceNumber.get(), Math.max(globalCheckpoint.get(), 0L)));
             }
             safeCommitCheckpoint = randomLongBetween(safeCommitCheckpoint, globalCheckpoint.get());
-            policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
+            policy.onCommits(Collections.emptyList(), safeCommitCheckpoint);
             if (rarely()) {
                 retainedOps = between(0, 10000);
                 policy.setRetentionOperations(retainedOps);
@@ -119,7 +119,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minRetainedSeqNo));
     }
 
-    public void testWhenGlobalCheckpointDictatesThePolicy() {
+    public void testWhenGlobalCheckpointDictatesThePolicy() throws Exception {
         final int retentionOperations = randomIntBetween(0, 1024);
         final AtomicLong globalCheckpoint = new AtomicLong(randomLongBetween(0, Long.MAX_VALUE - 2));
         final Collection<RetentionLease> leases = new ArrayList<>();
@@ -142,11 +142,11 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                 new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
         // set the local checkpoint of the safe commit to more than the policy dicated by the global checkpoint
         final long localCheckpointOfSafeCommit = randomLongBetween(1 + globalCheckpoint.get() - retentionOperations + 1, Long.MAX_VALUE);
-        policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        policy.onCommits(Collections.emptyList(), localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(1 + globalCheckpoint.get() - retentionOperations));
     }
 
-    public void testWhenLocalCheckpointOfSafeCommitDictatesThePolicy() {
+    public void testWhenLocalCheckpointOfSafeCommitDictatesThePolicy() throws Exception {
         final int retentionOperations = randomIntBetween(0, 1024);
         final long localCheckpointOfSafeCommit = randomLongBetween(-1, Long.MAX_VALUE - retentionOperations - 1);
         final AtomicLong globalCheckpoint =
@@ -169,11 +169,11 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
 
         final SoftDeletesPolicy policy =
                 new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
-        policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        policy.onCommits(Collections.emptyList(), localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(1 + localCheckpointOfSafeCommit));
     }
 
-    public void testWhenRetentionLeasesDictateThePolicy() {
+    public void testWhenRetentionLeasesDictateThePolicy() throws Exception {
         final int retentionOperations = randomIntBetween(0, 1024);
         final Collection<RetentionLease> leases = new ArrayList<>();
         final int numberOfLeases = randomIntBetween(1, 16);
@@ -197,8 +197,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
                         Collections.unmodifiableCollection(new ArrayList<>(leases)));
         final SoftDeletesPolicy policy =
                 new SoftDeletesPolicy(globalCheckpoint::get, 0, retentionOperations, leasesSupplier);
-        policy.setLocalCheckpointOfSafeCommit(localCheckpointOfSafeCommit);
+        policy.onCommits(Collections.emptyList(), localCheckpointOfSafeCommit);
         assertThat(policy.getMinRetainedSeqNo(), equalTo(minimumRetainingSequenceNumber.getAsLong()));
     }
-
 }

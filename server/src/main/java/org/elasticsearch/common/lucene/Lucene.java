@@ -1085,4 +1085,13 @@ public class Lucene {
             }
         }
     }
+
+    public static long countSoftDeletesInCommit(IndexCommit commit) throws IOException {
+        long totalSoftDeletes = 0;
+        final SegmentInfos sis = readSegmentInfos(commit);
+        for (SegmentCommitInfo si : sis) {
+            totalSoftDeletes += si.getSoftDelCount();
+        }
+        return totalSoftDeletes;
+    }
 }

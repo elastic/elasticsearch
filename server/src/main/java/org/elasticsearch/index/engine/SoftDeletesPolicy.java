@@ -19,15 +19,23 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -48,6 +56,10 @@ final class SoftDeletesPolicy {
     // provides the retention leases used to calculate the minimum sequence number to retain
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
+    private final List<IndexCommit> retainingIndexCommits;
+    // make sure we don't delete commits while soft-deletes readers are opening them.
+    private final ObjectIntMap<IndexCommit> accessingIndexCommits;
+
     SoftDeletesPolicy(
             final LongSupplier globalCheckpointSupplier,
             final long minRetainedSeqNo,
@@ -59,6 +71,8 @@ final class SoftDeletesPolicy {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
+        this.retainingIndexCommits = new ArrayList<>();
+        this.accessingIndexCommits = new ObjectIntHashMap<>();
     }
 
     /**
@@ -69,15 +83,42 @@ final class SoftDeletesPolicy {
         this.retentionOperations = retentionOperations;
     }
 
-    /**
-     * Sets the local checkpoint of the current safe commit
-     */
-    synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
-        if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("Local checkpoint can't go backwards; " +
-                "new checkpoint [" + newCheckpoint + "]," + "current checkpoint [" + localCheckpointOfSafeCommit + "]");
+    synchronized void onCommits(List<? extends IndexCommit> commits, long localCheckpointOfSafeCommit) throws IOException {
+        assert commits.isEmpty() == false;
+        this.localCheckpointOfSafeCommit = localCheckpointOfSafeCommit;
+        retainingIndexCommits.clear();
+        for (IndexCommit commit : commits) {
+            // ideally, we can use max_seq_no of soft-deleted documents to minimize the number of retaining commits;
+            // however it's expensive to iterate sequence numbers of soft-deleted documents of an index commit.
+            final long maxSeqNo = Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            if (maxSeqNo >= minRetainedSeqNo && Lucene.countSoftDeletesInCommit(commit) > 0) {
+                retainingIndexCommits.add(commit);
+            }
         }
-        this.localCheckpointOfSafeCommit = newCheckpoint;
+    }
+
+    synchronized boolean shouldKeepCommit(IndexCommit commit) {
+        return retainingIndexCommits.contains(commit) || accessingIndexCommits.containsKey(commit);
+    }
+
+    /**
+     * Acquires the list of commits has soft-deleted documents are retained with the respect to the retention leases.
+     *
+     * @return a list of index commits sorted by age (0th is the oldest commit, the most recent last)
+     */
+    synchronized List<Engine.IndexCommitRef> acquireRetainingCommits() {
+        final List<Engine.IndexCommitRef> commits = new ArrayList<>();
+        for (IndexCommit commit : retainingIndexCommits) {
+            accessingIndexCommits.addTo(commit, 1);
+            commits.add(new Engine.IndexCommitRef(commit, () -> {
+                synchronized (this) {
+                    if (accessingIndexCommits.addTo(commit, 1) == 0) {
+                        accessingIndexCommits.remove(commit);
+                    }
+                }
+            }));
+        }
+        return commits;
     }
 
     /**
@@ -154,7 +195,20 @@ final class SoftDeletesPolicy {
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
     Query getRetentionQuery() {
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);
+        final long minSeqNoToRetain;
+        synchronized (this) {
+            try {
+                if (retainingIndexCommits.isEmpty() == false) {
+                    final IndexCommit mostRecentCommit = retainingIndexCommits.get(retainingIndexCommits.size() - 1);
+                    minSeqNoToRetain = Math.max(getMinRetainedSeqNo(),
+                        Long.parseLong(mostRecentCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1);
+                } else {
+                    minSeqNoToRetain = getMinRetainedSeqNo();
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, minSeqNoToRetain, Long.MAX_VALUE);
     }
-
 }

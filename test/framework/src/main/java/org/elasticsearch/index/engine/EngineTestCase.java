@@ -951,6 +951,9 @@ public abstract class EngineTestCase extends ESTestCase {
                         if (rarely()) {
                             engine.flush();
                         }
+                        if (rarely()) {
+                            engine.forceMerge(randomBoolean());
+                        }
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }

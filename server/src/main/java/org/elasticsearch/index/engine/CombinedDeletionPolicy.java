@@ -78,9 +78,11 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         lastCommit = commits.get(commits.size() - 1);
         safeCommit = commits.get(keptPosition);
+        softDeletesPolicy.onCommits(commits, Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
         for (int i = 0; i < keptPosition; i++) {
-            if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                deleteCommit(commits.get(i));
+            final IndexCommit commit = commits.get(i);
+            if (snapshottedCommits.containsKey(commit) == false && softDeletesPolicy.shouldKeepCommit(commit) == false) {
+                deleteCommit(commit);
             }
         }
         updateRetentionPolicy();
@@ -104,9 +106,6 @@ public final class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert minRequiredGen <= lastGen : "minRequiredGen must not be greater than lastGen";
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(lastGen);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(minRequiredGen);
-
-        softDeletesPolicy.setLocalCheckpointOfSafeCommit(
-            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)));
     }
 
     /**

@@ -2530,16 +2530,25 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return newChangesSnapshot(source, mapperService, fromSeqNo, toSeqNo, requiredFullRange,
+            SoftDeletesChangesSnapshot.DEFAULT_LIVE_READER_BATCH_SIZE, SoftDeletesChangesSnapshot.DEFAULT_COMMITTED_READER_BATCH_SIZE);
+
+    }
+
+    final Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
+                                               long fromSeqNo, long toSeqNo, boolean requiredFullRange,
+                                               int liveReaderBatchSize, int committedReaderBatchSize) throws IOException {
         if (softDeleteEnabled == false) {
             throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
         }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
-        Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
+        Searcher liveSearcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
-            LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, mapperService, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
-            searcher = null;
+            final Translog.Snapshot snapshot = new SoftDeletesChangesSnapshot(mapperService, softDeletesPolicy,
+                liveSearcher, commit -> openIndexCommit(source, commit),
+                fromSeqNo, toSeqNo, requiredFullRange, liveReaderBatchSize, committedReaderBatchSize);
+            liveSearcher = null;
             return snapshot;
         } catch (Exception e) {
             try {
@@ -2549,7 +2558,7 @@ public class InternalEngine extends Engine {
             }
             throw e;
         } finally {
-            IOUtils.close(searcher);
+            IOUtils.close(liveSearcher);
         }
     }
 
@@ -2744,5 +2753,21 @@ public class InternalEngine extends Engine {
     public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
         final long maxSeqNo = SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo());
         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+    }
+
+    // TODO: cache these readers
+    private Engine.Searcher openIndexCommit(String source, IndexCommit commit) throws IOException {
+        ensureOpen();
+        store.incRef();
+        Closeable onClose = store::decRef;
+        try {
+            final DirectoryReader reader = DirectoryReader.open(commit);
+            onClose = () -> IOUtils.close(reader, store::decRef);
+            final Searcher searcher = new Searcher(source, new IndexSearcher(reader), onClose);
+            onClose = () -> {};
+            return searcher;
+        } finally {
+            onClose.close();
+        }
     }
 }

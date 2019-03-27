@@ -47,8 +47,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             BinarySoftClassification::new));
 
         // Evaluation Results
-        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationResult.class, BinarySoftClassification.NAME.getPreferredName(),
-            BinarySoftClassification.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationResult.class, MetricListEvaluationResult.WRITEABLE_NAME,
+            MetricListEvaluationResult::new));
 
         // Evaluation Metrics
         namedWriteables.add(new NamedWriteableRegistry.Entry(SoftClassificationMetric.class, AucRoc.NAME.getPreferredName(),

@@ -23,6 +23,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MetricListEvaluationResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -188,7 +189,7 @@ public class BinarySoftClassification implements Evaluation {
         for (SoftClassificationMetric metric : metrics) {
             results.add(metric.evaluate(binaryClassInfo, aggs));
         }
-        listener.onResponse(new Result(results));
+        listener.onResponse(new MetricListEvaluationResult(NAME.getPreferredName(), results));
     }
 
     private class BinaryClassInfo implements SoftClassificationMetric.ClassInfo {
@@ -208,44 +209,6 @@ public class BinarySoftClassification implements Evaluation {
         @Override
         public String getProbabilityField() {
             return predictedProbabilityField;
-        }
-    }
-
-    public static class Result implements EvaluationResult {
-
-        private final List<EvaluationMetricResult> metrics;
-
-        private Result(List<EvaluationMetricResult> metrics) {
-            this.metrics = Objects.requireNonNull(metrics);
-        }
-
-        public Result(StreamInput in) throws IOException {
-            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME.getPreferredName();
-        }
-
-        @Override
-        public String getName() {
-            return NAME.getPreferredName();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(metrics);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            for (EvaluationMetricResult metric : metrics) {
-                builder.field(metric.getName(), metric);
-            }
-            builder.endObject();
-            return builder;
         }
     }
 }

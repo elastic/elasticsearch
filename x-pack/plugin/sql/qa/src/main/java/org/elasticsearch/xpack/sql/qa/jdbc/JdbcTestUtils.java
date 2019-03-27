@@ -23,9 +23,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -80,30 +82,22 @@ final class JdbcTestUtils {
 
     static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder sb = new StringBuilder();
-        StringBuilder column = new StringBuilder();
 
         int columns = metaData.getColumnCount();
 
         while (rs.next()) {
-            sb.setLength(0);
-            rowAsString(rs, sb, column, columns);
-            log.info(sb);
+            log.info(rowAsString(rs, columns));
         }
     }
 
     static String resultSetCurrentData(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder column = new StringBuilder();
-
-        int columns = metaData.getColumnCount();
-
-        StringBuilder sb = new StringBuilder();
-        rowAsString(rs, sb, column, columns);
-        return sb.toString();
+        return rowAsString(rs, metaData.getColumnCount());
     }
 
-    private static void rowAsString(ResultSet rs, StringBuilder sb, StringBuilder column, int columns) throws SQLException {
+    private static String rowAsString(ResultSet rs, int columns) throws SQLException {
+        StringBuilder sb = new StringBuilder();
+        StringBuilder column = new StringBuilder();
         for (int i = 1; i <= columns; i++) {
             column.setLength(0);
             if (i > 1) {
@@ -111,6 +105,7 @@ final class JdbcTestUtils {
             }
             sb.append(trimOrPad(column.append(rs.getString(i))));
         }
+        return sb.toString();
     }
 
     private static StringBuilder trimOrPad(StringBuilder buffer) {
@@ -232,5 +227,16 @@ final class JdbcTestUtils {
             }
         }
         return new Tuple<>(folder, file);
+    }
+
+    static Date asDate(long millis, ZoneId zoneId) {
+        return new java.sql.Date(
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli());
+    }
+
+    static Time asTime(long millis, ZoneId zoneId) {
+        return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
     }
 }

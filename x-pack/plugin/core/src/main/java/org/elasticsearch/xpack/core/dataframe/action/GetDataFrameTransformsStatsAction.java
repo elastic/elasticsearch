@@ -7,13 +7,11 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,13 +106,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsStatsAction action) {
-            super(client, action, new Request());
         }
     }
 

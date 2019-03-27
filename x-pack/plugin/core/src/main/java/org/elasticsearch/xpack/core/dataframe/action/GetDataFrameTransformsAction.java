@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -87,13 +85,6 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         @Override
         public String getResourceIdField() {
             return DataFrameField.ID.getPreferredName();
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsAction action) {
-            super(client, action, new Request());
         }
     }
 

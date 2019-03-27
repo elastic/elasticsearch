@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -141,13 +139,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             String expectedDescription = DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
 
             return task.getDescription().equals(expectedDescription);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StopDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 

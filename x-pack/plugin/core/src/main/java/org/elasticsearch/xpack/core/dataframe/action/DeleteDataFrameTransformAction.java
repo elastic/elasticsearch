@@ -6,13 +6,11 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -99,14 +97,6 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
-        }
-    }
-
-    public static class RequestBuilder
-            extends ActionRequestBuilder<DeleteDataFrameTransformAction.Request, DeleteDataFrameTransformAction.Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameTransformAction action) {
-            super(client, action, new DeleteDataFrameTransformAction.Request());
         }
     }
 

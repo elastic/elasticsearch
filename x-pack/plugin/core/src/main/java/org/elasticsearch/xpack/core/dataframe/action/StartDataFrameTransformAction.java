@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -97,13 +95,6 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 

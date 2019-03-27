@@ -45,13 +45,16 @@ public class DataFrameMessages {
             "Failed to create composite aggregation from pivot function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
             "Data frame transform configuration [{0}] has invalid elements";
-
+    public static final String DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =
             "Failed to parse query for data frame transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY =
             "Failed to parse group_by for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
+
+    public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
+            "Failed to parse transform checkpoints for [{0}]";
 
     private DataFrameMessages() {
     }

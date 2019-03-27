@@ -11,9 +11,6 @@ unitTest.enabled = false
 
 repositories {
     maven {
-        url "https://artifacts.elastic.co/maven"
-    }
-    maven {
         url "https://snapshots.elastic.co/maven"
     }
 }

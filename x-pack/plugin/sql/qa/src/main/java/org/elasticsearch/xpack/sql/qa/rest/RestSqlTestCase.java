@@ -74,7 +74,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         String mode = randomMode();
         boolean columnar = randomBoolean();
         
-        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, 0)));
+        expected.put("columns", singletonList(columnInfo(mode, "test", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
         if (columnar) {
             expected.put("values", singletonList(Arrays.asList("test", "test")));
         } else {

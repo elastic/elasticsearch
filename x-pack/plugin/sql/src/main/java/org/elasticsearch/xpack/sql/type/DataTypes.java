@@ -202,7 +202,7 @@ public final class DataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t == DATETIME || t.isRational()) {
+        if (t.isDateBased() || t.isRational()) {
             return Short.valueOf((short) t.defaultPrecision);
         }
         return null;

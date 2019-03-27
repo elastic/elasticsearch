@@ -43,6 +43,10 @@ However, it can also receive a list of fields and their corresponding optional `
 include-tagged::{sql-specs}/docs/docs.csv-spec[multiFieldsMatch]
 ----
 
+NOTE: The `multi_match` query in {es} has the option of <<query-dsl-multi-match-query,per-field boosting>> that gives preferential weight
+(in terms of scoring) to fields being searched in, using the `^` character. In the example above, the `name` field has a greater weight in
+the final score than the `author` field when searching for `frank dune` text in both of them.
+
 Both options above can be used in combination with the optional third parameter of the `MATCH()` predicate, where one can specify
 additional configuration parameters (separated by semicolon `;`) for either `match` or `multi_match` queries. For example:
 
@@ -50,6 +54,11 @@ additional configuration parameters (separated by semicolon `;`) for either `mat
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParamsForMatch]
 ----
+
+In the more advanced example above, the `cutoff_frequency` parameter allows specifying an absolute or relative document frequency where
+high frequency terms are moved into an optional subquery and are only scored if one of the low frequency (below the cutoff) terms in the 
+case of an `or` operator or all of the low frequency terms in the case of an `and` operator match. More about this you can find in the
+<<query-dsl-match-query-cutoff>> page.
 
 NOTE: The allowed optional parameters for a single-field `MATCH()` variant (for the `match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
 `cutoff_frequency`, `lenient`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
@@ -93,7 +102,7 @@ A more advanced example, showing more of the features that `query_string` suppor
 include-tagged::{sql-specs}/docs/docs.csv-spec[advancedQueryQuery]
 ----
 
-The query above uses the `_exists_` query to select documents that have values in the `author` field, a range query for `page_count` and a 
+The query above uses the `_exists_` query to select documents that have values in the `author` field, a range query for `page_count` and
 regex and fuzziness queries for the `name` field.
 
 If one needs to customize various configuration options that `query_string` exposes, this can be done using the second _optional_ parameter.

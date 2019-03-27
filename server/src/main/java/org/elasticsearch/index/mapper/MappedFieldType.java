@@ -65,7 +65,7 @@ public abstract class MappedFieldType extends FieldType {
     private String name;
     private float boost;
     // TODO: remove this docvalues flag and use docValuesType
-//    private boolean docValues;
+    private boolean docValues;
     private NamedAnalyzer indexAnalyzer;
     private NamedAnalyzer searchAnalyzer;
     private NamedAnalyzer searchQuoteAnalyzer;
@@ -78,7 +78,7 @@ public abstract class MappedFieldType extends FieldType {
         super(ref);
         this.name = ref.name();
         this.boost = ref.boost();
-//        this.docValues = ref.hasDocValues();
+        this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
         this.searchAnalyzer = ref.searchAnalyzer();
         this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer();
@@ -117,7 +117,7 @@ public abstract class MappedFieldType extends FieldType {
         MappedFieldType fieldType = (MappedFieldType) o;
 
         return boost == fieldType.boost &&
-//            docValues == fieldType.docValues &&
+            docValues == fieldType.docValues &&
             Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
             Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
@@ -130,7 +130,7 @@ public abstract class MappedFieldType extends FieldType {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, boost, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+        return Objects.hash(super.hashCode(), name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
             eagerGlobalOrdinals, similarity == null ? null : similarity.name(), nullValue, nullValueAsString);
     }
 
@@ -221,12 +221,12 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public boolean hasDocValues() {
-        return docValuesType() != DocValuesType.NONE;
+        return docValuesType() != DocValuesType.NONE || docValues;
     }
 
     public void setHasDocValues(boolean hasDocValues) {
         checkIfFrozen();
-//        this.docValues = hasDocValues;
+        this.docValues = hasDocValues;
         if (!hasDocValues) {
             setDocValuesType(DocValuesType.NONE);
         }

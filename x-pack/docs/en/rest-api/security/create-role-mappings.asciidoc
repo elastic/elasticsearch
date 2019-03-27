@@ -316,7 +316,7 @@ POST /_security/role_mapping/mapping8
 A templated role can be used to automatically map every user to their own
 custom role. The role itself can be defined through the
 <<security-api-put-role, Roles API>> or using a
-{stack-ov}/implementing-custom-roles-provider.html[custom roles provider].
+{stack-ov}/custom-roles-authorization.html#implementing-custom-roles-provider[custom roles provider].
 
 In this example every user who authenticates using the "cloud-saml" realm
 will be automatically mapped to two roles - the `"saml_user"` role and a

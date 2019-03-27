@@ -41,12 +41,16 @@ public class DataFrameTransformStateTests extends ESTestCase {
     }
 
     public static DataFrameTransformState randomDataFrameTransformState() {
-        return new DataFrameTransformState(randomFrom(IndexerState.values()), randomPositionMap(), randomLongBetween(0,10));
+        return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
+            randomFrom(IndexerState.values()),
+            randomPositionMap(),
+            randomLongBetween(0,10));
     }
 
     public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
         builder.startObject();
-        builder.field("transform_state", state.getIndexerState().value());
+        builder.field("task_state", state.getTaskState().value());
+        builder.field("indexer_state", state.getIndexerState().value());
         if (state.getPosition() != null) {
             builder.field("current_position", state.getPosition());
         }

@@ -119,7 +119,7 @@ public class ColumnInfo implements ToXContentObject {
             return false;
         }
         ColumnInfo that = (ColumnInfo) o;
-        return displaySize == that.displaySize &&
+        return Objects.equals(displaySize, that.displaySize) &&
             Objects.equals(table, that.table) &&
             Objects.equals(name, that.name) &&
             Objects.equals(esType, that.esType);

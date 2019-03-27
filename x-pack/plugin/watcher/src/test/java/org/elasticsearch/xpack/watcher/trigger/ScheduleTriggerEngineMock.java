@@ -66,7 +66,8 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void pauseExecution() {
-        watches.clear();
+        // No action is needed because this engine does not trigger watches on a schedule (instead
+        // they must be triggered manually).
     }
 
     @Override

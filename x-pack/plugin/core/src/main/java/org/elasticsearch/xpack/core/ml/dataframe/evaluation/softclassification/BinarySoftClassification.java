@@ -161,7 +161,7 @@ public class BinarySoftClassification implements Evaluation {
         searchSourceBuilder.size(0);
         searchSourceBuilder.query(buildQuery());
         for (SoftClassificationMetric metric : metrics) {
-            List<AggregationBuilder> aggs = metric.aggs(actualField, Collections.singletonList(new OutlierClassInfo()));
+            List<AggregationBuilder> aggs = metric.aggs(actualField, Collections.singletonList(new BinaryClassInfo()));
             aggs.forEach(searchSourceBuilder::aggregation);
         }
         return searchSourceBuilder;
@@ -184,14 +184,14 @@ public class BinarySoftClassification implements Evaluation {
 
         List<EvaluationMetricResult> results = new ArrayList<>();
         Aggregations aggs = searchResponse.getAggregations();
-        OutlierClassInfo outlierClassInfo = new OutlierClassInfo();
+        BinaryClassInfo binaryClassInfo = new BinaryClassInfo();
         for (SoftClassificationMetric metric : metrics) {
-            results.add(metric.evaluate(outlierClassInfo, aggs));
+            results.add(metric.evaluate(binaryClassInfo, aggs));
         }
         listener.onResponse(new Result(results));
     }
 
-    private class OutlierClassInfo implements SoftClassificationMetric.ClassInfo {
+    private class BinaryClassInfo implements SoftClassificationMetric.ClassInfo {
 
         private QueryBuilder matchingQuery = QueryBuilders.queryStringQuery(actualField + ": 1 OR true");
 

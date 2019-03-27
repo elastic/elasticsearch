@@ -57,9 +57,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;

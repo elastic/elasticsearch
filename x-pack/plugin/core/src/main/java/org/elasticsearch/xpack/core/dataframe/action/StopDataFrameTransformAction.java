@@ -47,23 +47,26 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
         private final boolean waitForCompletion;
+        private final boolean force;
 
-        public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
+        public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
+            this.force = force;
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
         }
 
         private Request() {
-            this(null, false, null);
+            this(null, false, false, null);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
             waitForCompletion = in.readBoolean();
+            force = in.readBoolean();
         }
 
         public String getId() {
@@ -78,11 +81,16 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             return waitForCompletion;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(waitForCompletion);
+            out.writeBoolean(force);
         }
 
         @Override
@@ -94,6 +102,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(DataFrameField.ID.getPreferredName(), id);
             builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+            builder.field(DataFrameField.FORCE.getPreferredName(), force);
             if (this.getTimeout() != null) {
                 builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
             }
@@ -103,7 +112,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, this.getTimeout());
+            return Objects.hash(id, waitForCompletion, force, this.getTimeout());
         }
 
         @Override
@@ -122,7 +131,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
                 return false;
             }
 
-            return Objects.equals(id, other.id) && Objects.equals(waitForCompletion, other.waitForCompletion);
+            return Objects.equals(id, other.id) &&
+                Objects.equals(waitForCompletion, other.waitForCompletion) &&
+                Objects.equals(force, other.force);
         }
 
         @Override

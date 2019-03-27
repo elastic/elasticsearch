@@ -104,4 +104,14 @@ public class DataFrameAnalyticsConfigProvider {
             listener::onFailure
         ));
     }
+
+    /**
+     * @param ids a comma separated list of single IDs and/or wildcards
+     */
+    public void getMultiple(String ids, ActionListener<List<DataFrameAnalyticsConfig>> listener) {
+        GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
+        request.setResourceId(ids);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, request, ActionListener.wrap(
+            response -> listener.onResponse(response.getResources().results()), listener::onFailure));
+    }
 }

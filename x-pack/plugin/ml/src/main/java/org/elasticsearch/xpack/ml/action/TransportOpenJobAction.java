@@ -206,7 +206,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             ++numberOfAllocatingJobs;
                         }
                         OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
-                        Long jobMemoryRequirement = memoryTracker.getJobMemoryRequirement(params.getJobId());
+                        Long jobMemoryRequirement = memoryTracker.getAnomalyDetectorJobMemoryRequirement(params.getJobId());
                         if (jobMemoryRequirement == null) {
                             allocateByMemory = false;
                             logger.debug("Falling back to allocating job [{}] by job counts because " +
@@ -271,7 +271,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             if (allocateByMemory) {
                 if (machineMemory > 0) {
                     long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
-                    Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(jobId);
+                    Long estimatedMemoryFootprint = memoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
                     if (estimatedMemoryFootprint != null) {
                         long availableMemory = maxMlMemory - assignedJobMemory;
                         if (estimatedMemoryFootprint > availableMemory) {
@@ -450,7 +450,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
             ActionListener<Boolean> getJobHandler = ActionListener.wrap(
-                response -> memoryTracker.refreshJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener),
+                response -> memoryTracker.refreshAnomalyDetectorJobMemoryAndAllOthers(jobParams.getJobId(),
+                    memoryRequirementRefreshListener),
                 listener::onFailure
             );
 

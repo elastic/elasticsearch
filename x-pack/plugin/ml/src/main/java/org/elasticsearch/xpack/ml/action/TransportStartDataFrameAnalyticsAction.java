@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Map;
 import java.util.Objects;
@@ -65,19 +66,21 @@ public class TransportStartDataFrameAnalyticsAction
     private final Client client;
     private final PersistentTasksService persistentTasksService;
     private final DataFrameAnalyticsConfigProvider configProvider;
+    private final MlMemoryTracker memoryTracker;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
                                                   ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   PersistentTasksService persistentTasksService,
-                                                  DataFrameAnalyticsConfigProvider configProvider) {
+                                                  DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.configProvider = configProvider;
+        this.memoryTracker = memoryTracker;
     }
 
     @Override
@@ -129,9 +132,16 @@ public class TransportStartDataFrameAnalyticsAction
             };
 
         // Start persistent task
-        ActionListener<Boolean> validateListener = ActionListener.wrap(
+        ActionListener<Void> memoryRequirementRefreshListener = ActionListener.wrap(
             validated -> persistentTasksService.sendStartRequest(MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, taskParams, waitForAnalyticsToStart),
+            listener::onFailure
+        );
+
+        // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
+        ActionListener<DataFrameAnalyticsConfig> validateListener = ActionListener.wrap(
+            config -> memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
+                request.getId(), config.getModelMemoryLimit().getBytes(), memoryRequirementRefreshListener),
             listener::onFailure
         );
 

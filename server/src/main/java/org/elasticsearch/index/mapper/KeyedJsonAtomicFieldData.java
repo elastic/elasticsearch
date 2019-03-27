@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
 
 /**
@@ -74,7 +75,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             maxOrd = findMaxOrd(keyBytes, values);
             assert maxOrd >= 0;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
 
         return new KeyedJsonDocValues(keyBytes, values, minOrd, maxOrd);

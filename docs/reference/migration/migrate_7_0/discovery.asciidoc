@@ -2,19 +2,21 @@
 [[breaking_70_discovery_changes]]
 === Discovery changes
 
+//tag::notable-breaking-changes[]
 [float]
 ==== Cluster bootstrapping is required if discovery is configured
 
 The first time a cluster is started, `cluster.initial_master_nodes` must be set
 to perform cluster bootstrapping. It should contain the names of the
 master-eligible nodes in the initial cluster and be defined on every
-master-eligible node in the cluster. See <<discovery-settings,the discovery
-settings summary>> for an example, and the
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping reference
-documentation>> describes this setting in more detail.
+master-eligible node in the cluster. See
+{ref}/discovery-settings.html[the discovery settings summary] for an example, and the
+{ref}/modules-discovery-bootstrap-cluster.html[cluster bootstrapping reference
+documentation] describes this setting in more detail.
 
 The `discovery.zen.minimum_master_nodes` setting is permitted, but ignored, on
 7.x nodes.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Removing master-eligible nodes sometimes requires voting exclusions
@@ -28,6 +30,7 @@ such as data-only nodes or coordinating-only nodes, voting exclusions are not
 required. Likewise, if you add nodes to the cluster, voting exclusions are not
 required.
 
+//tag::notable-breaking-changes[]
 [float]
 ==== Discovery configuration is required in production
 
@@ -44,6 +47,7 @@ file:
 The first three settings in this list are only available in versions 7.0 and
 above. If you are preparing to upgrade from an earlier version, you must set
 `discovery.zen.ping.unicast.hosts` or `discovery.zen.hosts_provider`.
+//end::notable-breaking-changes[]
 
 [float]
 ==== New name for `no_master_block` setting

@@ -2,10 +2,12 @@
 [[breaking_70_indices_changes]]
 === Indices changes
 
+//tag::notable-breaking-changes[]
 [float]
 ==== Index creation no longer defaults to five shards
 Previous versions of Elasticsearch defaulted to creating five shards per index.
 Starting with 7.0.0, the default is now one shard per index.
+//end::notable-breaking-changes[]
 
 [float]
 ==== `:` is no longer allowed in index name

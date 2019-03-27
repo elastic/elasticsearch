@@ -2,12 +2,14 @@
 [[breaking_70_settings_changes]]
 === Settings changes
 
+//tag::notable-breaking-changes[]
 [float]
 ==== The default for `node.name` is now the hostname
 
 `node.name` now defaults to the hostname at the time when Elasticsearch
 is started. Previously the default node name was the first eight characters
 of the node id. It can still be configured explicitly in `elasticsearch.yml`.
+//end::notable-breaking-changes[]
 
 [float]
 ==== Percolator
@@ -94,6 +96,7 @@ default value of `false`.
 
 [float]
 [[include-realm-type-in-setting]]
+//tag::notable-breaking-changes-7.0
 ==== Security realms settings
 
 The settings for all security realms must now include the realm type as part
@@ -121,6 +124,7 @@ xpack.security.authc.realms:
 Any realm specific secure settings that have been stored in the elasticsearch
 keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
 in a similar way.
+//end::notable-breaking-changes-7.0
 
 [float]
 [[tls-setting-fallback]]
@@ -132,6 +136,7 @@ fallback to a default configuration when using TLS. Each component (realm, trans
 http client, etc) must now be configured with their own settings for TLS if it is being
 used.
 
+//tag::notable-breaking-changes[]
 [float]
 [[tls-v1-removed]]
 ==== TLS v1.0 disabled
@@ -144,6 +149,7 @@ You can enable TLS v1.0 by configuring the relevant `ssl.supported_protocols` se
 --------------------------------------------------
 xpack.security.http.ssl.supported_protocols: [ "TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1" ]
 --------------------------------------------------
+//end::notable-breaking-changes[]
 
 [float]
 [[trial-explicit-security]]

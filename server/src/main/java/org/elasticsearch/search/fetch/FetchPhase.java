@@ -243,13 +243,10 @@ public class FetchPhase implements SearchPhase {
 
             if (storedToRequestedFields.containsKey(storedField)) {
                 for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    boolean isMetadataField = MapperService.isMetadataField(requestedField);
-
-                    searchFields.put(requestedField, new DocumentField(requestedField, storedValues, isMetadataField));
+                    searchFields.put(requestedField, new DocumentField(requestedField, storedValues));
                 }
             } else {
-                boolean isMetadataField = MapperService.isMetadataField(storedField);
-                searchFields.put(storedField, new DocumentField(storedField, storedValues, isMetadataField));
+                searchFields.put(storedField, new DocumentField(storedField, storedValues));
             }
         }
         return searchFields;

@@ -78,7 +78,7 @@ public class ComputingExtractorTests extends AbstractWireSerializingTestCase<Com
             double value = randomDouble();
             double expected = Math.log(value);
             SearchHit hit = new SearchHit(1);
-            DocumentField field = new DocumentField(fieldName, singletonList(value), false);
+            DocumentField field = new DocumentField(fieldName, singletonList(value));
             hit.fields(singletonMap(fieldName, field));
             assertEquals(expected, extractor.process(hit));
         }

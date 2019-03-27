@@ -69,12 +69,12 @@ public class UpdateResponseTests extends ESTestCase {
         {
             BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
             Map<String, DocumentField> fields = new HashMap<>();
-            fields.put("title", new DocumentField("title", Collections.singletonList("Book title"), false));
-            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123"), false));
+            fields.put("title", new DocumentField("title", Collections.singletonList("Book title")));
+            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields));
+            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +

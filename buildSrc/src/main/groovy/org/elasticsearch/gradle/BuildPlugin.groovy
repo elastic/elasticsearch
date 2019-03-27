@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.gradle
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -41,7 +42,6 @@ import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskExecutionGraph
-import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -51,6 +51,7 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
@@ -83,7 +84,6 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         project.pluginManager.apply('java')
-        project.pluginManager.apply('carrotsearch.randomized-testing')
         configureConfigurations(project)
         configureJars(project) // jar config must be added before info broker
         // these plugins add lots of info to our jars
@@ -95,6 +95,7 @@ class BuildPlugin implements Plugin<Project> {
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
+        setupSeed(project)
         globalBuildInfo(project)
         configureRepositories(project)
         project.ext.versions = VersionProperties.versions
@@ -104,8 +105,7 @@ class BuildPlugin implements Plugin<Project> {
         configureSourcesJar(project)
         configurePomGeneration(project)
 
-        applyCommonTestConfig(project)
-        configureTest(project)
+        applyTestConfig(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
@@ -912,123 +912,98 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void applyCommonTestConfig(Project project) {
-        project.tasks.withType(RandomizedTestingTask) {task ->
-            jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
-            ifNoTests 'fail'
-            onNonEmptyWorkDirectory 'wipe'
-            leaveTemporary true
-            project.sourceSets.matching { it.name == "test" }.all { test ->
-                task.testClassesDirs = test.output.classesDirs
-                task.classpath = test.runtimeClasspath
+    static void applyTestConfig(Project project) {
+        // Default test task should run only unit tests
+        project.pluginManager.withPlugin('java') {
+            project.tasks.named('test') {
+                include '**/*Tests.class'
             }
-            group =  JavaBasePlugin.VERIFICATION_GROUP
-            dependsOn 'testClasses'
+        }
 
-            // Make sure all test tasks are configured properly
-            if (name != "test") {
-                project.tasks.matching { it.name == "test"}.all { testTask ->
-                    task.shouldRunAfter testTask
-                }
-            }
-            if (name == "unitTest") {
-                include("**/*Tests.class")
-            }
-
-            // TODO: why are we not passing maxmemory to junit4?
-            jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
-            jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
-            jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
+        // none of this stuff is applicable to the `:buildSrc` project tests
+        if (project.path != ':build-tools') {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
-            heapdumpDir.mkdirs()
-            jvmArg '-XX:HeapDumpPath=' + heapdumpDir
-            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                jvmArg '--illegal-access=warn'
-            }
-            argLine System.getProperty('tests.jvm.argline')
 
-            // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-            systemProperty 'java.io.tmpdir', './temp'
-            systemProperty 'java.awt.headless', 'true'
-            systemProperty 'tests.gradle', 'true'
-            systemProperty 'tests.artifact', project.name
-            systemProperty 'tests.task', path
-            systemProperty 'tests.security.manager', 'true'
-            systemProperty 'jna.nosys', 'true'
-            systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
-            if (project.ext.inFipsJvm) {
-                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
-            } else {
-                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
-            }
-            // TODO: remove setting logging level via system property
-            systemProperty 'tests.logger.level', 'WARN'
-            for (Map.Entry<String, String> property : System.properties.entrySet()) {
-                if (property.getKey().startsWith('tests.') ||
-                        property.getKey().startsWith('es.')) {
-                    if (property.getKey().equals('tests.seed')) {
-                        /* The seed is already set on the project so we
-                         * shouldn't attempt to override it. */
-                        continue;
-                    }
-                    systemProperty property.getKey(), property.getValue()
+            project.tasks.withType(Test) { Test test ->
+                doFirst {
+                    heapdumpDir.mkdirs()
+                    workingDir.mkdirs()
                 }
-            }
 
-            // TODO: remove this once ctx isn't added to update script params in 7.0
-            systemProperty 'es.scripting.update.ctx_in_params', 'false'
+                def listener = new ErrorReportingTestListener(test.logger)
+                addTestOutputListener(listener)
+                addTestListener(listener)
 
-            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
-            if (project.inFipsJvm) {
-                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-            }
+                executable = "${project.runtimeJavaHome}/bin/java"
+                workingDir = project.file("${project.buildDir}/testrun/${test.name}")
+                maxParallelForks = project.gradle.startParameter.maxWorkerCount
 
-            boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
-            enableSystemAssertions assertionsEnabled
-            enableAssertions assertionsEnabled
+                exclude '**/*$*.class'
 
-            testLogging {
-                showNumFailuresAtEnd 25
-                slowTests {
-                    heartbeat 10
-                    summarySize 5
+                jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
+                        "-Xms${System.getProperty('tests.heap.size', '512m')}",
+                        '-XX:+HeapDumpOnOutOfMemoryError',
+                        "-XX:HeapDumpPath=$heapdumpDir"
+
+                if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                    jvmArgs '--illegal-access=warn'
                 }
-                stackTraceFilters {
-                    // custom filters: we carefully only omit test infra noise here
-                    contains '.SlaveMain.'
-                    regex(/^(\s+at )(org\.junit\.)/)
-                    // also includes anonymous classes inside these two:
-                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.RandomizedRunner)/)
-                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.ThreadLeakControl)/)
-                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.rules\.)/)
-                    regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
-                    regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
+
+                if (System.getProperty('tests.jvm.argline')) {
+                    jvmArgs System.getProperty('tests.jvm.argline').split(" ")
                 }
-                if (System.getProperty('tests.class') != null && System.getProperty('tests.output') == null) {
-                    // if you are debugging, you want to see the output!
-                    outputMode 'always'
+
+                if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+                    jvmArgs '-ea', '-esa'
+                }
+
+                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
+                systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
+                        'gradle.user.home': project.gradle.getGradleUserHomeDir(),
+                        'java.io.tmpdir': './temp',
+                        'java.awt.headless': 'true',
+                        'tests.gradle': 'true',
+                        'tests.artifact': project.name,
+                        'tests.task': path,
+                        'tests.security.manager': 'true',
+                        'tests.seed': project.testSeed,
+                        'jna.nosys': 'true',
+                        'compiler.java': project.ext.compilerJavaVersion.getMajorVersion()
+
+                if (project.ext.inFipsJvm) {
+                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
                 } else {
-                    outputMode System.getProperty('tests.output', 'onerror')
+                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
                 }
-            }
+                // TODO: remove setting logging level via system property
+                systemProperty 'tests.logger.level', 'WARN'
+                System.getProperties().each { key, value ->
+                    if ((key.startsWith('tests.') || key.startsWith('es.')) && !key.equals('tests.seed')) {
+                        systemProperty key, value
+                    }
+                }
 
-            balancers {
-                executionTime cacheFilename: ".local-${project.version}-${name}-execution-times.log"
-            }
+                // TODO: remove this once ctx isn't added to update script params in 7.0
+                systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
-            listeners {
-                junitReport()
-            }
+                // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+                if (project.inFipsJvm) {
+                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                }
 
-            exclude '**/*$*.class'
+                testLogging {
+                    maxGranularity = 2
+                    minGranularity = 2
+                }
 
-            project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                // Test against a shadow jar if we made one
-                classpath -= project.tasks.compileJava.outputs.files
-                classpath += project.tasks.shadowJar.outputs.files
-                dependsOn project.tasks.shadowJar
+                project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                    // Test against a shadow jar if we made one
+                    classpath -= project.tasks.compileJava.outputs.files
+                    classpath += project.tasks.shadowJar.outputs.files
+
+                    dependsOn project.tasks.shadowJar
+                }
             }
         }
     }
@@ -1068,13 +1043,6 @@ class BuildPlugin implements Plugin<Project> {
         return 'auto';
     }
 
-    /** Configures the test task */
-    static Task configureTest(Project project) {
-        project.tasks.getByName('test') {
-            include '**/*Tests.class'
-        }
-    }
-
     private static configurePrecommit(Project project) {
         Task precommit = PrecommitTasks.create(project, true)
         project.check.dependsOn(precommit)
@@ -1101,5 +1069,34 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings
         }
+    }
+
+    /**
+     * Pins the test seed at configuration time so it isn't different on every
+     * {@link Test} execution. This is useful if random
+     * decisions in one run of {@linkplain Test} influence the
+     * outcome of subsequent runs. Pinning the seed up front like this makes
+     * the reproduction line from one run be useful on another run.
+     */
+    static String setupSeed(Project project) {
+        if (project.rootProject.ext.has('testSeed')) {
+            /* Skip this if we've already pinned the testSeed. It is important
+             * that this checks the rootProject so that we know we've only ever
+             * initialized one time. */
+            return project.rootProject.ext.testSeed
+        }
+        String testSeed = System.getProperty('tests.seed')
+        if (testSeed == null) {
+            long seed = new Random(System.currentTimeMillis()).nextLong()
+            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
+        }
+        /* Set the testSeed on the root project first so other projects can use
+         * it during initialization. */
+        project.rootProject.ext.testSeed = testSeed
+        project.rootProject.subprojects {
+            project.ext.testSeed = testSeed
+        }
+
+        return testSeed
     }
 }

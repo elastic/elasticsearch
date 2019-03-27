@@ -25,7 +25,7 @@ integTestRunner {
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
-    'ml/calendar_crud/Test post calendar events given empty events',
+    'ml/calendar_crud/Test post calendar eventBuffer given empty eventBuffer',
     'ml/calendar_crud/Test put calendar given id contains invalid chars',
     'ml/calendar_crud/Test delete event from non existing calendar',
     'ml/calendar_crud/Test delete job from non existing calendar',

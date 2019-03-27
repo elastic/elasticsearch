@@ -33,9 +33,8 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.testing.Test;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -103,24 +102,19 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
             );
-            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
             // conventions are not honored when the tasks are disabled
             disableTaskByType(tasks, TestingConventionsTasks.class);
             disableTaskByType(tasks, ComposeUp.class);
             return;
         }
-        tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
+        tasks.withType(Test.class, task ->
             extension.fixtures.all(fixtureProject -> {
-                fixtureProject.getTasks().matching(it -> it.getName().equals("buildFixture")).all(buildFixture ->
-                    task.dependsOn(buildFixture)
-                );
-                fixtureProject.getTasks().matching(it -> it.getName().equals("composeDown")).all(composeDown ->
-                    task.finalizedBy(composeDown)
-                );
+                fixtureProject.getTasks().matching(it -> it.getName().equals("buildFixture")).all(task::dependsOn);
+                fixtureProject.getTasks().matching(it -> it.getName().equals("composeDown")).all(task::finalizedBy);
                 configureServiceInfoForTask(
                     task,
                     fixtureProject,
-                    (name, port) -> setSystemProperty(task, name, port)
+                    task::systemProperty
                 );
             })
         );
@@ -163,17 +157,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||
             project.file("/usr/bin/docker-compose").exists();
         return hasDockerCompose && Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true"));
-    }
-
-    private void setSystemProperty(Task task, String name, Object value) {
-        try {
-            Method systemProperty = task.getClass().getMethod("systemProperty", String.class, Object.class);
-            systemProperty.invoke(task, name, value);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException("Could not find systemProperty method on RandomizedTestingTask", e);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalArgumentException("Could not call systemProperty method on RandomizedTestingTask", e);
-        }
     }
 
     private void disableTaskByType(TaskContainer tasks, Class<? extends Task> type) {

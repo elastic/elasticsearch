@@ -38,7 +38,7 @@ import java.nio.charset.Charset
 public abstract class AntTask extends DefaultTask {
 
     /**
-     * A buffer that will contain the output of the ant code run,
+     * A eventBuffer that will contain the output of the ant code run,
      * if the output was not already written directly to stdout.
      */
     public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()
@@ -90,8 +90,8 @@ public abstract class AntTask extends DefaultTask {
     }
 
     /**
-     * Returns true if the ant logger should write to stdout, or false if to the buffer.
-     * The default implementation writes to the buffer when gradle info logging is disabled.
+     * Returns true if the ant logger should write to stdout, or false if to the eventBuffer.
+     * The default implementation writes to the eventBuffer when gradle info logging is disabled.
      */
     protected boolean useStdout() {
         return logger.isInfoEnabled()

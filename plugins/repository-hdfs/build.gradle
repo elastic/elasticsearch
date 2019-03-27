@@ -185,9 +185,9 @@ project.afterEvaluate {
         Task restIntegTestTaskRunner = project.tasks.getByName("${integTestTaskName}Runner")
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-        restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
+        restIntegTestTaskRunner.jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
         if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-          restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+          restIntegTestTaskRunner.jvmArgs '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
         }
 
         Path hdfsKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab").toAbsolutePath()
@@ -255,7 +255,7 @@ if (fixtureSupported) {
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
 
   // Only include the HA integration tests for the HA test task
-  integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+  integTestHaRunner.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
@@ -296,7 +296,7 @@ if (secureFixtureSupported) {
   integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
 
   // Only include the HA integration tests for the HA test task
-  integTestSecureHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+  integTestSecureHaRunner.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
   // Security tests unsupported. Don't run these tests.
   integTestSecure.enabled = false

@@ -248,8 +248,12 @@ for (String platform : ['linux', 'darwin', 'windows']) {
     }
     it.includeEmptyDirs false
   }
+  String extractDir = "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
   project.task("extract${platform.capitalize()}Jdk", type: Copy) {
-    into "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
+    doFirst {
+      project.delete(extractDir)
+    }
+    into extractDir
     if (extension.equals('zip')) {
       from({ zipTree(jdkConfig.singleFile) }, removeRootDir)
     } else {

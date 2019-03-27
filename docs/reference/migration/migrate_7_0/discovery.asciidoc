@@ -41,6 +41,12 @@ file:
 - `discovery.seed_hosts`
 - `discovery.seed_providers`
 - `cluster.initial_master_nodes`
+- `discovery.zen.ping.unicast.hosts`
+- `discovery.zen.hosts_provider`
+
+The first three settings in this list are only available in versions 7.0 and
+above. If you are preparing to upgrade from an earlier version, you must set
+`discovery.zen.ping.unicast.hosts` or `discovery.zen.hosts_provider`.
 //end::notable-breaking-changes[]
 
 [float]

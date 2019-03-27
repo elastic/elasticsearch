@@ -4,8 +4,6 @@
 <titleabbrev>7.0.0</titleabbrev>
 ++++
 
-coming[7.0.0]
-
 See also <<breaking-changes-7.0,Breaking changes>> and
 <<release-notes-7.0.0-alpha1,Release notes>>.
 

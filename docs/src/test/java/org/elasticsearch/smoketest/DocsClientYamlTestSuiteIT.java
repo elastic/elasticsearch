@@ -19,11 +19,12 @@
 
 package org.elasticsearch.smoketest;
 
-import org.apache.http.HttpHost;
-import org.apache.lucene.util.BytesRef;
-
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.http.HttpHost;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParseField;
@@ -48,12 +49,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -65,6 +66,7 @@ public class BooleanFieldMapper extends FieldMapper {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             FIELD_TYPE.freeze();
         }
     }

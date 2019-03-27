@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -45,7 +46,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 .wrapLongitude(false);
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setHasDocValues(true);
+            fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);

@@ -72,11 +72,6 @@ public class IpFieldMapper extends FieldMapper {
             builder = this;
         }
 
-        @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED_SET : DocValuesType.NONE);
-        }
-
         public Builder ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
             return builder;

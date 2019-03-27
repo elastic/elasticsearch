@@ -75,11 +75,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             builder = this;
         }
 
-        @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.NUMERIC : DocValuesType.NONE);
-        }
-
         public Builder enabled(EnabledAttributeMapper enabled) {
             this.enabledState = enabled;
             return builder;

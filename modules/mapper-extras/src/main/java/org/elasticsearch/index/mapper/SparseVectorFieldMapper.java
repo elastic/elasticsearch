@@ -70,11 +70,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.BINARY : DocValuesType.NONE);
-        }
-
-        @Override
         public SparseVectorFieldType fieldType() {
             return (SparseVectorFieldType) super.fieldType();
         }

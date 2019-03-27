@@ -70,6 +70,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
+            FIELD_TYPE.setDocValuesType(DocValuesType.NONE);
             FIELD_TYPE.freeze();
         }
     }

@@ -64,11 +64,6 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED_NUMERIC : DocValuesType.NONE);
-        }
-
-        @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new Murmur3FieldMapper(name, fieldType, defaultFieldType,

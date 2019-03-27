@@ -140,11 +140,6 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED_NUMERIC : DocValuesType.NONE);
-        }
-
-        @Override
         public DateFieldType fieldType() {
             return (DateFieldType)fieldType;
         }
@@ -269,6 +264,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         DateFieldType(DateFieldType other) {
             super(other);
+            setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setDateTimeFormatter(other.dateTimeFormatter);
             setResolution(other.resolution);
         }

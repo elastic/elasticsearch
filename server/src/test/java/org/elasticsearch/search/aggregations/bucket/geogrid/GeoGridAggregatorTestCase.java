@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -134,7 +135,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-        fieldType.setHasDocValues(true);
+        fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
         fieldType.setName(FIELD_NAME);
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);

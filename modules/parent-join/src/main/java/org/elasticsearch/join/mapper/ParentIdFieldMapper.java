@@ -78,11 +78,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
             this.children = children;
         }
 
-        @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED : DocValuesType.NONE);
-        }
-
         public Set<String> getChildren() {
             return children;
         }

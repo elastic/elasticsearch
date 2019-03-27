@@ -25,6 +25,7 @@ import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -66,6 +67,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
             FIELD_TYPE.freeze();
         }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -58,6 +59,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.setDocValuesType(DocValuesType.BINARY);
             FIELD_TYPE.freeze();
         }
     }

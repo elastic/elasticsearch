@@ -896,6 +896,7 @@ public class NumberFieldMapper extends FieldMapper {
         private NumberFieldType(NumberFieldType other) {
             super(other);
             this.type = other.type;
+            setDocValuesType(DocValuesType.SORTED_NUMERIC);
         }
 
         @Override

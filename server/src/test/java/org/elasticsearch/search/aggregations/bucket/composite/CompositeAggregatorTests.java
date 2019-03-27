@@ -29,6 +29,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -92,11 +93,11 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES = new MappedFieldType[7];
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType();
         FIELD_TYPES[0].setName("keyword");
-        FIELD_TYPES[0].setHasDocValues(true);
+        FIELD_TYPES[0].setDocValuesType(DocValuesType.SORTED_SET);
 
         FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         FIELD_TYPES[1].setName("long");
-        FIELD_TYPES[1].setHasDocValues(true);
+        FIELD_TYPES[1].setDocValuesType(DocValuesType.SORTED_SET);
 
         FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         FIELD_TYPES[2].setName("double");
@@ -114,7 +115,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType();
         FIELD_TYPES[5].setName("terms");
-        FIELD_TYPES[5].setHasDocValues(true);
+        FIELD_TYPES[5].setDocValuesType(DocValuesType.SORTED_SET);
 
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType();
         FIELD_TYPES[6].setName("ip");

@@ -131,11 +131,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void doSetDocValueType(boolean docValues) {
-            fieldType().setDocValuesType(docValues ? DocValuesType.SORTED : DocValuesType.NONE);
-        }
-
-        @Override
         public JoinFieldType fieldType() {
             return (JoinFieldType) super.fieldType();
         }

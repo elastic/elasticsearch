@@ -130,7 +130,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
         assertEquals(new BytesRef("1234"), fields[1].binaryValue());
         fieldType = fields[1].fieldType();
@@ -378,7 +378,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+        assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
 
         assertEquals(new BytesRef("abc"), fields[1].binaryValue());
         fieldType = fields[1].fieldType();

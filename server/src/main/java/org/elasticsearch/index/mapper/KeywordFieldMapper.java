@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -66,6 +67,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setDocValuesType(DocValuesType.SORTED_SET);
             FIELD_TYPE.freeze();
         }
 

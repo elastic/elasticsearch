@@ -26,7 +26,6 @@ Log files with the `.log` file extension using the old pattern layout format
 are now considered deprecated and the newly added JSON log file format with
 the `.json` file extension should be used instead.
 Note: GC logs which are written to the file `gc.log` will not be changed.
-//end::notable-breaking-changes[]
 
 [float]
 ==== Docker output in JSON format

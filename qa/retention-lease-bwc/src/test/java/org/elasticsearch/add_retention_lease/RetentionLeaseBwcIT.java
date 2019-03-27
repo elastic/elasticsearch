@@ -56,9 +56,9 @@ public class RetentionLeaseBwcIT extends ESRestTestCase {
                     HttpHost.create(getNodesObjectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
         final List<Node> oldNodes =
-                nodes.stream().filter(node -> node.version().before(Version.V_6_7_0)).collect(Collectors.toList());
+                nodes.stream().filter(node -> node.version().before(Version.V_6_7_1)).collect(Collectors.toList());
         final Node newNode =
-                nodes.stream().filter(node -> node.version().onOrAfter(Version.V_6_7_0)).findFirst().get();
+                nodes.stream().filter(node -> node.version().onOrAfter(Version.V_6_7_1)).findFirst().get();
         // only allow shards on the old nodes
         final Settings settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)

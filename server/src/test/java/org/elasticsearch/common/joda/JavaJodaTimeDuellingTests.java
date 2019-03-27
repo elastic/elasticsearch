@@ -343,6 +343,17 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W1-1", "weekyear_week_day");
     }
 
+    public void testCompositeParsing(){
+        //in all these examples the second pattern will be used
+        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+    public void testExceptionWhenCompositeParsingFails(){
+        assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
+    }
+
     public void testDuelingStrictParsing() {
         assertSameDate("2018W313", "strict_basic_week_date");
         assertParseException("18W313", "strict_basic_week_date");

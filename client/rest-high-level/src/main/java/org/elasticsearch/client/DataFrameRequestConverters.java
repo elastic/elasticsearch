@@ -20,9 +20,11 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
@@ -93,5 +95,14 @@ final class DataFrameRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getDataFrameTransformStats(GetDataFrameTransformStatsRequest statsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms")
+                .addPathPart(statsRequest.getId())
+                .addPathPartAsIs("_stats")
+                .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 }

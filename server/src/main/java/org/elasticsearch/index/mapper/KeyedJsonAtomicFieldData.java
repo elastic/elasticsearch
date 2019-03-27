@@ -105,7 +105,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
         long result = -1;
         while (low <= high) {
-            long mid = (low + high) / 2;
+            long mid = (low + high) >>> 1;
             final BytesRef term = delegate.lookupOrd(mid);
             int cmp = compare(key, term);
 
@@ -130,7 +130,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
         long result = -1;
         while (low <= high) {
-            long mid = (low + high) / 2;
+            long mid = (low + high) >>> 1;
             final BytesRef term = delegate.lookupOrd(mid);
             int cmp = compare(key, term);
 

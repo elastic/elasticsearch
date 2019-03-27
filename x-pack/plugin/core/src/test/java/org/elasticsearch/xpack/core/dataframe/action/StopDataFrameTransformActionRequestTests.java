@@ -16,7 +16,7 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
     @Override
     protected Request createTestInstance() {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueMinutes(randomIntBetween(1, 10)) : null;
-        return new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), timeout);
+        return new Request(randomAlphaOfLengthBetween(1, 10), randomBoolean(), randomBoolean(), timeout);
     }
 
     @Override
@@ -27,9 +27,10 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
     public void testSameButDifferentTimeout() {
         String id = randomAlphaOfLengthBetween(1, 10);
         boolean waitForCompletion = randomBoolean();
+        boolean force = randomBoolean();
 
-        Request r1 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(10));
-        Request r2 = new Request(id, waitForCompletion, TimeValue.timeValueSeconds(20));
+        Request r1 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(10));
+        Request r2 = new Request(id, waitForCompletion, force, TimeValue.timeValueSeconds(20));
 
         assertNotEquals(r1,r2);
         assertNotEquals(r1.hashCode(),r2.hashCode());

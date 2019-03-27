@@ -29,10 +29,8 @@ import java.util.Map;
 /**
  * Base class for processors that manipulate source strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
- *
- * @param <T> The resultant type for the target field
  */
-abstract class AbstractStringProcessor<T> extends AbstractProcessor {
+abstract class AbstractStringProcessor extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
     private final String targetField;
@@ -70,7 +68,7 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
         return document;
     }
 
-    protected abstract T process(String value);
+    protected abstract Object process(String value);
 
     abstract static class Factory implements Processor.Factory {
         final String processorType;

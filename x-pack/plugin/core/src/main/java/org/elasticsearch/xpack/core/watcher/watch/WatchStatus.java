@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.writeOptionalDate;
 
-public class WatchStatus implements ToXContentObject, Streamable {
+public class WatchStatus implements ToXContentObject, Streamable, Writeable {
 
     public static final String INCLUDE_STATE = "include_state";
 
@@ -49,8 +50,26 @@ public class WatchStatus implements ToXContentObject, Streamable {
     @Nullable private Map<String, String> headers;
     private Map<String, ActionStatus> actions;
 
-    // for serialization
-    private WatchStatus() {
+    public WatchStatus(StreamInput in) throws IOException {
+        version = in.readLong();
+        lastChecked = readOptionalDate(in);
+        lastMetCondition = readOptionalDate(in);
+        int count = in.readInt();
+        Map<String, ActionStatus> actions = new HashMap<>(count);
+        for (int i = 0; i < count; i++) {
+            actions.put(in.readString(), ActionStatus.readFrom(in));
+        }
+        this.actions = unmodifiableMap(actions);
+        state = new State(in.readBoolean(), Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC));
+        boolean executionStateExists = in.readBoolean();
+        if (executionStateExists) {
+            executionState = ExecutionState.resolve(in.readString());
+        }
+        if (in.readBoolean()) {
+            headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = Collections.emptyMap();
+        }
     }
 
     public WatchStatus(ZonedDateTime now, Map<String, ActionStatus> actions) {
@@ -222,31 +241,7 @@ public class WatchStatus implements ToXContentObject, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        version = in.readLong();
-        lastChecked = readOptionalDate(in);
-        lastMetCondition = readOptionalDate(in);
-        int count = in.readInt();
-        Map<String, ActionStatus> actions = new HashMap<>(count);
-        for (int i = 0; i < count; i++) {
-            actions.put(in.readString(), ActionStatus.readFrom(in));
-        }
-        this.actions = unmodifiableMap(actions);
-        state = new State(in.readBoolean(), Instant.ofEpochMilli(in.readLong()).atZone(ZoneOffset.UTC));
-        boolean executionStateExists = in.readBoolean();
-        if (executionStateExists) {
-            executionState = ExecutionState.resolve(in.readString());
-        }
-        if (in.readBoolean()) {
-            headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        } else {
-            headers = Collections.emptyMap();
-        }
-    }
-
-    public static WatchStatus read(StreamInput in) throws IOException {
-        WatchStatus status = new WatchStatus();
-        status.readFrom(in);
-        return status;
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -39,17 +39,25 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DataFrameTransformState {
 
-    private static final ParseField STATE = new ParseField("transform_state");
+    private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+    private static final ParseField TASK_STATE = new ParseField("task_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
     private static final ParseField GENERATION = new ParseField("generation");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform_state",
-                    args -> new DataFrameTransformState((IndexerState) args[0], (HashMap<String, Object>) args[1], (long) args[2]));
+                    args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
+                        (IndexerState) args[1],
+                        (HashMap<String, Object>) args[2],
+                        (long) args[3]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(),
+            p -> DataFrameTransformTaskState.fromString(p.text()),
+            TASK_STATE,
+            ObjectParser.ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();
@@ -66,18 +74,27 @@ public class DataFrameTransformState {
         return PARSER.parse(parser, null);
     }
 
-    private final IndexerState state;
+    private final DataFrameTransformTaskState taskState;
+    private final IndexerState indexerState;
     private final long generation;
     private final SortedMap<String, Object> currentPosition;
 
-    public DataFrameTransformState(IndexerState state, @Nullable Map<String, Object> position, long generation) {
-        this.state = state;
+    public DataFrameTransformState(DataFrameTransformTaskState taskState,
+                                   IndexerState indexerState,
+                                   @Nullable Map<String, Object> position,
+                                   long generation) {
+        this.taskState = taskState;
+        this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
         this.generation = generation;
     }
 
     public IndexerState getIndexerState() {
-        return state;
+        return indexerState;
+    }
+
+    public DataFrameTransformTaskState getTaskState() {
+        return taskState;
     }
 
     @Nullable
@@ -101,12 +118,14 @@ public class DataFrameTransformState {
 
         DataFrameTransformState that = (DataFrameTransformState) other;
 
-        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition)
-                && this.generation == that.generation;
+        return Objects.equals(this.taskState, that.taskState) &&
+            Objects.equals(this.indexerState, that.indexerState) &&
+            Objects.equals(this.currentPosition, that.currentPosition) &&
+            this.generation == that.generation;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state, currentPosition, generation);
+        return Objects.hash(taskState, indexerState, currentPosition, generation);
     }
 }

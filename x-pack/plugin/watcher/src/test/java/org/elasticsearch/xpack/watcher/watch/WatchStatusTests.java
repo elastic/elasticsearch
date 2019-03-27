@@ -88,7 +88,7 @@ public class WatchStatusTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         status.writeTo(out);
         BytesReference bytesReference = out.bytes();
-        WatchStatus readStatus = WatchStatus.read(bytesReference.streamInput());
+        WatchStatus readStatus = new WatchStatus(bytesReference.streamInput());
         assertThat(readStatus, is(status));
         assertThat(readStatus.getHeaders(), is(headers));
 

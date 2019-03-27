@@ -167,6 +167,7 @@ public abstract class TransportReplicationAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        assert request.shardId() != null : "request shardId must be set";
         new ReroutePhase((ReplicationTask) task, request, listener).run();
     }
 
@@ -780,7 +781,6 @@ public abstract class TransportReplicationAction<
 
                 // resolve all derived request fields, so we can route and apply it
                 resolveRequest(indexMetaData, request);
-                assert request.shardId() != null : "request shardId must be set in resolveRequest";
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
                     "request waitForActiveShards must be set in resolveRequest";
 

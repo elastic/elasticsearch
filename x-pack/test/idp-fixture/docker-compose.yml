@@ -44,7 +44,7 @@ services:
     depends_on:
       - openldap
     ports:
-      - "8080:8080"
+      - "8080"
     links:
       - openldap:openldap
     volumes:

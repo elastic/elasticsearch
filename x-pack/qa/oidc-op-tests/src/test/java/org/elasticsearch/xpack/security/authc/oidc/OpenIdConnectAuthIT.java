@@ -9,7 +9,6 @@ import net.minidev.json.JSONObject;
 import net.minidev.json.parser.JSONParser;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.client.config.RequestConfig;
@@ -64,42 +63,13 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private static final String REALM_NAME = "c2id";
     private static final String REALM_NAME_IMPLICIT = "c2id-implicit";
     private static final String FACILITATOR_PASSWORD = "f@cilit@t0r";
-    private static final String REGISTRATION_URL = "http://127.0.0.1:8080/c2id/clients";
-    private static final String LOGIN_API = "http://127.0.0.1:8080/c2id-login/api/";
-
-    /**
-     * We create a user named `facilitator` with the appropriate privileges ( `manage_oidc` ). A facilitator web app
-     * would need to create one also, in order to access the OIDC related APIs on behalf of the user.
-     */
-    @Before
-    public void setFacilitatorUser() throws IOException {
-        Request createRoleRequest = new Request("PUT", "/_security/role/facilitator");
-        createRoleRequest.setJsonEntity("{ \"cluster\" : [\"manage_oidc\", \"manage_token\"] }");
-        adminClient().performRequest(createRoleRequest);
-        Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
-        createUserRequest.setJsonEntity("{ \"password\" : \"" + FACILITATOR_PASSWORD + "\", \"roles\" : [\"facilitator\"] }");
-        adminClient().performRequest(createUserRequest);
-    }
+    private static final String REGISTRATION_URL = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id/clients";
+    private static final String LOGIN_API = "http://127.0.0.1:" + getEphemeralPortFromProperty("8080") + "/c2id-login/api/";
 
     @Before
-    public void setRoleMappings() throws IOException {
-        Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
-        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_user\"]," +
-            "\"enabled\": true," +
-            "\"rules\": {" +
-            "\"field\": { \"realm.name\": \"" + REALM_NAME + "\"}" +
-            "}" +
-            "}");
-        adminClient().performRequest(createRoleMappingRequest);
-
-        createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
-        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"limited_user\"]," +
-            "\"enabled\": true," +
-            "\"rules\": {" +
-            "\"field\": { \"realm.name\": \"" + REALM_NAME_IMPLICIT + "\"}" +
-            "}" +
-            "}");
-        adminClient().performRequest(createRoleMappingRequest);
+    public void setupUserAndRoles() throws IOException {
+        setFacilitatorUser();
+        setRoleMappings();
     }
 
     /**
@@ -203,6 +173,13 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
                 return null;
             }
         }
+    }
+
+    private static String getEphemeralPortFromProperty(String port) {
+        String key = "test.fixtures.oidc-provider.tcp." + port;
+        final String value = System.getProperty(key);
+        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
+        return value;
     }
 
     private Map<String, Object> callAuthenticateApiUsingAccessToken(String accessToken) throws IOException {
@@ -322,10 +299,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     }
 
     private CloseableHttpClient getHttpClient() {
-        HttpHost proxy = new HttpHost("127.0.0.1", 9090);
-        return HttpClients.custom()
-            .setProxy(proxy)
-            .build();
+        return HttpClients.custom().build();
     }
 
     private Request buildRequest(String method, String endpoint, Map<String, ?> body, Header... headers) throws IOException {
@@ -356,6 +330,40 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private void assertHttpOk(StatusLine status) {
         assertThat("Unexpected HTTP Response status: " + status, status.getStatusCode(), Matchers.equalTo(200));
     }
+
+    /**
+     * We create a user named `facilitator` with the appropriate privileges ( `manage_oidc` ). A facilitator web app
+     * would need to create one also, in order to access the OIDC related APIs on behalf of the user.
+     */
+    private void setFacilitatorUser() throws IOException {
+        Request createRoleRequest = new Request("PUT", "/_security/role/facilitator");
+        createRoleRequest.setJsonEntity("{ \"cluster\" : [\"manage_oidc\", \"manage_token\"] }");
+        adminClient().performRequest(createRoleRequest);
+        Request createUserRequest = new Request("PUT", "/_security/user/facilitator");
+        createUserRequest.setJsonEntity("{ \"password\" : \"" + FACILITATOR_PASSWORD + "\", \"roles\" : [\"facilitator\"] }");
+        adminClient().performRequest(createUserRequest);
+    }
+
+    private void setRoleMappings() throws IOException {
+        Request createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_kibana");
+        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"kibana_user\"]," +
+            "\"enabled\": true," +
+            "\"rules\": {" +
+            "\"field\": { \"realm.name\": \"" + REALM_NAME + "\"}" +
+            "}" +
+            "}");
+        adminClient().performRequest(createRoleMappingRequest);
+
+        createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_limited");
+        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"limited_user\"]," +
+            "\"enabled\": true," +
+            "\"rules\": {" +
+            "\"field\": { \"realm.name\": \"" + REALM_NAME_IMPLICIT + "\"}" +
+            "}" +
+            "}");
+        adminClient().performRequest(createRoleMappingRequest);
+    }
+
 
     /**
      * Simple POJO encapsulating a response to calling /_security/oidc/prepare

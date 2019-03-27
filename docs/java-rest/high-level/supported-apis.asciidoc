@@ -554,12 +554,14 @@ include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
 The Java High Level REST Client supports the following Data Frame APIs:
 
+* <<{upid}-get-data-frame-transform-stats>>
 * <<{upid}-put-data-frame-transform>>
 * <<{upid}-delete-data-frame-transform>>
 * <<{upid}-preview-data-frame-transform>>
 * <<{upid}-start-data-frame-transform>>
 * <<{upid}-stop-data-frame-transform>>
 
+include::dataframe/get_data_frame_stats.asciidoc[]
 include::dataframe/put_data_frame.asciidoc[]
 include::dataframe/delete_data_frame.asciidoc[]
 include::dataframe/preview_data_frame.asciidoc[]

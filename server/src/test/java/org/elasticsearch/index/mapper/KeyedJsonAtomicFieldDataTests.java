@@ -22,7 +22,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.mapper.KeyedJsonAtomicFieldData.KeyedJsonDocValues;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -30,8 +31,8 @@ import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
-public class KeyedJsonDocValuesTests extends ESTestCase {
-    private SortedSetDocValues delegate;
+public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
+    private AtomicOrdinalsFieldData delegate;
 
     @Before
     public void setUpDelegate() {
@@ -61,7 +62,7 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
             }
         }
 
-        delegate = new MockSortedSetDocValues(allTerms, documentOrds);
+        delegate = new MockAtomicOrdinalsFieldData(allTerms, documentOrds);
     }
 
     private BytesRef prefixedValue(String key, String value) {
@@ -77,11 +78,11 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
         testFindOrdinalBounds("cantaloupe", delegate, 40, 40);
         testFindOrdinalBounds("cucumber", delegate, 41, 59);
 
-        SortedSetDocValues emptyDelegate = new MockSortedSetDocValues(new BytesRef[0], new long[0]);
+        AtomicOrdinalsFieldData emptyDelegate = new MockAtomicOrdinalsFieldData(new BytesRef[0], new long[0]);
         testFindOrdinalBounds("apple", emptyDelegate, -1, -1);
 
         BytesRef[] terms = new BytesRef[] { prefixedValue("prefix", "value") };
-        SortedSetDocValues singleValueDelegate = new MockSortedSetDocValues(terms, new long[0]);
+        AtomicOrdinalsFieldData singleValueDelegate = new MockAtomicOrdinalsFieldData(terms, new long[0]);
         testFindOrdinalBounds("prefix", singleValueDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", singleValueDelegate, -1, -1);
 
@@ -90,7 +91,7 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
             prefixedValue("prefix1", "value1"),
             prefixedValue("prefix2", "value"),
             prefixedValue("prefix3", "value")};
-        SortedSetDocValues oddLengthDelegate = new MockSortedSetDocValues(terms, new long[0]);
+        AtomicOrdinalsFieldData oddLengthDelegate = new MockAtomicOrdinalsFieldData(terms, new long[0]);
         testFindOrdinalBounds("prefix", oddLengthDelegate, 0, 0);
         testFindOrdinalBounds("prefix1", oddLengthDelegate, 1, 2);
         testFindOrdinalBounds("prefix2", oddLengthDelegate, 3, 3);
@@ -98,26 +99,32 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
     }
 
     public void testFindOrdinalBounds(String key,
-                                      SortedSetDocValues delegate,
-                                      int minOrd, int maxOrd) throws IOException {
+                                      AtomicOrdinalsFieldData delegate,
+                                      long expectedMinOrd,
+                                      long expectedMacOrd) throws IOException {
         BytesRef bytesKey = new BytesRef(key);
-        assertEquals(minOrd, KeyedJsonDocValues.findMinOrd(bytesKey, delegate));
-        assertEquals(maxOrd, KeyedJsonDocValues.findMaxOrd(bytesKey, delegate));
+
+        long actualMinOrd = KeyedJsonAtomicFieldData.findMinOrd(bytesKey, delegate.getOrdinalsValues());
+        assertEquals(expectedMinOrd,  actualMinOrd);
+
+        long actualMaxOrd = KeyedJsonAtomicFieldData.findMaxOrd(bytesKey, delegate.getOrdinalsValues());
+        assertEquals(expectedMacOrd, actualMaxOrd);
     }
 
     public void testAdvanceExact() throws IOException {
-        KeyedJsonDocValues avocadoDocValues = KeyedJsonDocValues.create("avocado", delegate);
-        assertFalse(avocadoDocValues.advanceExact(0));
+        AtomicOrdinalsFieldData avocadoFieldData = new KeyedJsonAtomicFieldData("avocado", delegate);
+        assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        KeyedJsonDocValues bananaDocValues = KeyedJsonDocValues.create("banana", delegate);
-        assertTrue(bananaDocValues.advanceExact(0));
+        AtomicOrdinalsFieldData bananaFieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        KeyedJsonDocValues nonexistentDocValues = KeyedJsonDocValues.create("berry", delegate);
-        assertFalse(nonexistentDocValues.advanceExact(0));
+        AtomicOrdinalsFieldData nonexistentFieldData = new KeyedJsonAtomicFieldData("berry", delegate);
+        assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        KeyedJsonDocValues docValues = KeyedJsonDocValues.create("banana", delegate);
+        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
         int retrievedOrds = 0;
@@ -125,7 +132,7 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
             assertTrue(30 <= ord && ord < 40);
             retrievedOrds++;
 
-            BytesRef prefixedTerm = delegate.lookupOrd(ord);
+            BytesRef prefixedTerm = delegate.getOrdinalsValues().lookupOrd(ord);
             BytesRef key = JsonFieldParser.extractKey(prefixedTerm);
             assertEquals("banana", key.utf8ToString());
         }
@@ -134,11 +141,37 @@ public class KeyedJsonDocValuesTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        KeyedJsonDocValues docValues = KeyedJsonDocValues.create("apple", delegate);
+        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        SortedSetDocValues docValues = fieldData.getOrdinalsValues();
 
         BytesRef expectedValue = new BytesRef("value0");
         BytesRef value = docValues.lookupOrd(0);
         assertEquals(0, expectedValue.compareTo(value));
+    }
+
+    private static class MockAtomicOrdinalsFieldData extends AbstractAtomicOrdinalsFieldData {
+        private final SortedSetDocValues docValues;
+
+        MockAtomicOrdinalsFieldData(BytesRef[] allTerms,
+                                    long[] documentOrds) {
+            super(AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+            this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
+        }
+
+        @Override
+        public SortedSetDocValues getOrdinalsValues() {
+            return docValues;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+            // Nothing to do.
+        }
     }
 
     private static class MockSortedSetDocValues extends AbstractSortedSetDocValues {

@@ -259,10 +259,6 @@ testClusters.integTest {
   }
 }
 
-integTest.runner {
-  systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
-}
-
 if (useFixture) {
   task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."

@@ -385,11 +385,6 @@ public class LinearizabilityChecker {
             + output + "  (" + entry.event.id + ")";
     }
 
-    private static class Visualizer {
-        int partitionIndex = 0;
-
-
-    }
     /**
      * Creates the internal linked data structure used by the linearizability checker.
      * Generates contiguous internal ids for the events so that they can be efficiently recorded in bit sets.

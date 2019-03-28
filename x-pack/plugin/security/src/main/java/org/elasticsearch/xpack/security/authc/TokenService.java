@@ -264,54 +264,27 @@ public final class TokenService {
             final BytesReference tokenDocument;
             try {
                 versionedRefreshToken = includeRefreshToken ? prependVersionAndEncode(minNodeVersion, plainRefreshToken) : null;
-                tokenDocument = createTokenDocument(created, userToken, plainRefreshToken, authentication, originatingClientAuth);
+                if (minNodeVersion.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+                    tokenDocument = createTokenDocument(created, userToken, plainRefreshToken, authentication, originatingClientAuth);
+                } else {
+                    tokenDocument = createTokenDocument(created, userToken, versionedRefreshToken, authentication, originatingClientAuth);
+                }
             } catch (IOException e) {
                 // unexpected exception
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexTokenRequest = client.prepareIndex(securityTokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
+            final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(minNodeVersion);
+            final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            securityTokensIndex.prepareIndexIfNeededThenExecute(
-                    ex -> listener.onFailure(traceLog("prepare security tokens index", documentId, ex)),
+            tokensIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security tokens index", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
                                 if (indexResponse.getResult() == Result.CREATED) {
-                                    // TODO change upon backport
-                                    // create a bwc token document as well   
-                                    if (minNodeVersion.before(Version.V_8_0_0)) {
-                                        final BytesReference bwcTokenDocument;
-                                        try {
-                                            bwcTokenDocument = createTokenDocument(created, userToken, versionedRefreshToken,
-                                                    authentication, originatingClientAuth);
-                                        } catch (IOException e) {
-                                            // unexpected exception
-                                            listener.onFailure(e);
-                                            return;
-                                        }
-                                        final IndexRequest indexBwcTokenRequest = client
-                                                .prepareIndex(securityMainIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
-                                                .setOpType(OpType.CREATE)
-                                                .setSource(bwcTokenDocument, XContentType.JSON)
-                                                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
-                                                .request();
-                                        securityMainIndex.prepareIndexIfNeededThenExecute(
-                                                ex -> listener.onFailure(traceLog("prepare security index", documentId, ex)),
-                                                () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE,
-                                                        indexBwcTokenRequest, ActionListener.wrap(bwcIndexResponse -> {
-                                                            if (indexResponse.getResult() == Result.CREATED) {
-                                                                listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
-                                                            } else {
-                                                                listener.onFailure(traceLog("create token", new ElasticsearchException(
-                                                                        "failed to create token document [{}]", indexResponse)));
-                                                            }
-                                                        }, listener::onFailure)));
-                                    } else {
-                                        listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
-                                    }
+                                    listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
                                 } else {
                                     listener.onFailure(traceLog("create token",
                                             new ElasticsearchException("failed to create token document [{}]", indexResponse)));
@@ -365,15 +338,15 @@ public final class TokenService {
      * Gets the UserToken with given id by fetching the the corresponding token document
      */
     void getUserTokenFromId(String userTokenId, Version version, ActionListener<UserToken> listener) {
-        final SecurityIndexManager tokensIndexManager = getSecurityIndexManagerForVersion(version);
-        if (tokensIndexManager.isAvailable() == false) {
-            logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndexManager.aliasName());
+        final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(version);
+        if (tokensIndex.isAvailable() == false) {
+            logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
-            tokensIndexManager.checkIndexVersionThenExecute(
+            tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security tokens index", userTokenId, ex)),
                 () -> {
-                    final GetRequest getRequest = client.prepareGet(tokensIndexManager.aliasName(), SINGLE_MAPPING_NAME,
+                    final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
                         getTokenDocumentId(userTokenId)).request();
                     Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
@@ -401,7 +374,7 @@ public final class TokenService {
                             // the token is not valid
                             if (isShardNotAvailableException(e)) {
                                 logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId,
-                                        tokensIndexManager.aliasName());
+                                        tokensIndex.aliasName());
                                 listener.onResponse(null);
                             } else {
                                 logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);

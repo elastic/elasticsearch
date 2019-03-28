@@ -21,6 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -154,23 +155,23 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         }
 
         final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk"));
-        final Boolean usingBundledJdk;
-        if (bundledJdk) {
-            /*
-             * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
-             * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
-             */
-            final String javaHome = System.getProperty("java.home");
-            final String userDir = System.getProperty("user.dir");
-            usingBundledJdk = javaHome.startsWith(PathUtils.get(userDir).resolve("jdk").toAbsolutePath().toString());
-        } else {
-            usingBundledJdk = null;
-        }
+        final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
 
         INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
                 runtimeMXBean.getVmVendor(), bundledJdk, usingBundledJdk, runtimeMXBean.getStartTime(), configuredInitialHeapSize,
                 configuredMaxHeapSize, mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError,
                 onOutOfMemoryError, useCompressedOops, useG1GC, useSerialGC);
+    }
+
+    @SuppressForbidden(reason = "PathUtils#get")
+    private static boolean usingBundledJdk() {
+        /*
+         * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
+         * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
+         */
+        final String javaHome = System.getProperty("java.home");
+        final String userDir = System.getProperty("user.dir");
+        return javaHome.startsWith(PathUtils.get(userDir).resolve("jdk").toAbsolutePath().toString());
     }
 
     public static JvmInfo jvmInfo() {

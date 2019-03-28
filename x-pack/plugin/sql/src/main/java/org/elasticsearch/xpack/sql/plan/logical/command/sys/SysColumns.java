@@ -106,15 +106,21 @@ public class SysColumns extends Command {
             return;
         }
 
+        // save original index name (as the pattern can contain special chars)
+        String indexName = index != null ? index : (pattern != null ? pattern.pattern() : "");
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
 
-        session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
+
+        session.indexResolver().resolveAsMergedMapping(idx, regex, ActionListener.wrap(r -> {
             List<List<?>> rows = new ArrayList<>();
-            for (EsIndex esIndex : esIndices) {
-                fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
+
+            // populate the data only when a target is found
+            if (r.isValid() == true) {
+                EsIndex esIndex = r.get();
+                fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
             }
 
             listener.onResponse(Rows.of(output, rows));
@@ -133,8 +139,8 @@ public class SysColumns extends Command {
             EsField field = entry.getValue();
             DataType type = field.getDataType();
             
-            // skip the nested, object and unsupported types for JDBC and ODBC
-            if (type.isPrimitive() || false == Mode.isDriver(mode)) {
+            // skip the nested, object and unsupported types
+            if (type.isPrimitive()) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported
@@ -173,7 +179,8 @@ public class SysColumns extends Command {
                             ));
                 }
             }
-            if (field.getProperties() != null) {
+            // skip nested fields
+            if (field.getProperties() != null && type != DataType.NESTED) {
                 fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, mode);
             }
         }

@@ -55,7 +55,8 @@ public class SysColumnsTests extends ESTestCase {
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values())));
-        assertEquals(17, rows.size());
+        // nested fields are ignored
+        assertEquals(13, rows.size());
         assertEquals(24, rows.get(0).size());
 
         List<?> row = rows.get(0);
@@ -90,76 +91,52 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(8, bufferLength(row));
 
         row = rows.get(5);
-        assertEquals("unsupported", name(row));
-        assertEquals(Types.OTHER, sqlType(row));
-        assertEquals(null, radix(row));
-        assertEquals(0, bufferLength(row));
-        
-        row = rows.get(6);
-        assertEquals("some", name(row));
-        assertEquals(Types.STRUCT, sqlType(row));
-        assertEquals(null, radix(row));
-        assertEquals(-1, bufferLength(row));
-        
-        row = rows.get(7);
-        assertEquals("some.dotted", name(row));
-        assertEquals(Types.STRUCT, sqlType(row));
-        assertEquals(null, radix(row));
-        assertEquals(-1, bufferLength(row));
-        
-        row = rows.get(8);
         assertEquals("some.dotted.field", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(9);
+
+        row = rows.get(6);
         assertEquals("some.string", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
         
-        row = rows.get(10);
+        row = rows.get(7);
         assertEquals("some.string.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
         
-        row = rows.get(11);
+        row = rows.get(8);
         assertEquals("some.string.typical", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
         
-        row = rows.get(12);
+        row = rows.get(9);
         assertEquals("some.ambiguous", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
         
-        row = rows.get(13);
+        row = rows.get(10);
         assertEquals("some.ambiguous.one", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
         
-        row = rows.get(14);
+        row = rows.get(11);
         assertEquals("some.ambiguous.two", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
 
-        row = rows.get(15);
+        row = rows.get(12);
         assertEquals("some.ambiguous.normalized", name(row));
         assertEquals(Types.VARCHAR, sqlType(row));
         assertEquals(null, radix(row));
         assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        
-        row = rows.get(16);
-        assertEquals("foo_type", name(row));
-        assertEquals(Types.OTHER, sqlType(row));
-        assertEquals(null, radix(row));
-        assertEquals(0, bufferLength(row));
     }
 
     public void testSysColumnsInOdbcMode() {
@@ -468,9 +445,22 @@ public class SysColumnsTests extends ESTestCase {
         return list.get(14);
     }
 
+    public void testSysColumnsNoArg() throws Exception {
+        executeCommand("SYS COLUMNS", emptyList(), r -> {
+            assertEquals(13, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("bool", r.column(3));
+            r.advanceRow();
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("int", r.column(3));
+        }, mapping);
+    }
+
     public void testSysColumnsWithCatalogWildcard() throws Exception {
         executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(22, r.size());
+            assertEquals(13, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -483,7 +473,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithMissingCatalog() throws Exception {
         executeCommand("SYS COLUMNS TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
-            assertEquals(22, r.size());
+            assertEquals(13, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -496,7 +486,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsWithNullCatalog() throws Exception {
         executeCommand("SYS COLUMNS CATALOG ? TABLE LIKE 'test' LIKE '%'", singletonList(new SqlTypedParamValue("keyword", null)), r -> {
-            assertEquals(22, r.size());
+            assertEquals(13, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
@@ -517,9 +507,9 @@ public class SysColumnsTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
 
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[2]).onResponse(singletonList(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[2]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(consumer::accept, ex -> fail(ex.getMessage())));
     }

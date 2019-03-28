@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.analysis.index;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
@@ -22,9 +21,7 @@ import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
@@ -32,11 +29,9 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.InvalidMappedField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.type.TextEsField;
-import org.elasticsearch.xpack.sql.type.Types;
 import org.elasticsearch.xpack.sql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -402,100 +397,5 @@ public class IndexResolver {
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
-    }
-
-    // TODO: Concrete indices still uses get mapping
-    // waiting on https://github.com/elastic/elasticsearch/pull/34071
-    //
-    
-    /**
-     * Resolves a pattern to multiple, separate indices. Doesn't perform validation.
-     */
-    public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, ActionListener<List<EsIndex>> listener) {
-        GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
-        client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.getMappings();
-            ImmutableOpenMap<String, List<AliasMetaData>> aliases = getIndexResponse.getAliases();
-
-            List<EsIndex> results = new ArrayList<>(mappings.size());
-            Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
-            for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
-                /*
-                 * We support wildcard expressions here, and it's only for commands that only perform the get index call.
-                 * We can and simply have to use the concrete index name and show that to users.
-                 * Get index against an alias with security enabled, where the user has only access to get mappings for the alias
-                 * and not the concrete index: there is a well known information leak of the concrete index name in the response.
-                 */
-                String concreteIndex = indexMappings.key;
-
-                // take into account aliases
-                List<AliasMetaData> aliasMetadata = aliases.get(concreteIndex);
-                boolean matchesAlias = false;
-                if (pattern != null && aliasMetadata != null) {
-                    for (AliasMetaData aliasMeta : aliasMetadata) {
-                        if (pattern.matcher(aliasMeta.alias()).matches()) {
-                            matchesAlias = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (pattern == null || matchesAlias || pattern.matcher(concreteIndex).matches()) {
-                    IndexResolution getIndexResult = buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value);
-                    if (getIndexResult.isValid()) {
-                        results.add(getIndexResult.get());
-                    }
-                }
-            }
-            results.sort(Comparator.comparing(EsIndex::name));
-            listener.onResponse(results);
-        }, listener::onFailure));
-    }
-    
-    private static GetIndexRequest createGetIndexRequest(String index) {
-        return new GetIndexRequest()
-                .local(true)
-                .indices(Strings.commaDelimitedListToStringArray(index))
-                //lenient because we throw our own errors looking at the response e.g. if something was not resolved
-                //also because this way security doesn't throw authorization exceptions but rather honours ignore_unavailable
-                .indicesOptions(IndicesOptions.lenientExpandOpen());
-    }
-
-    private static IndexResolution buildGetIndexResult(String concreteIndex, String indexOrAlias,
-            ImmutableOpenMap<String, MappingMetaData> mappings) {
-
-        // Make sure that the index contains only a single type
-        MappingMetaData singleType = null;
-        List<String> typeNames = null;
-        for (ObjectObjectCursor<String, MappingMetaData> type : mappings) {
-            //Default mappings are ignored as they are applied to each type. Each type alone holds all of its fields.
-            if ("_default_".equals(type.key)) {
-                continue;
-            }
-            if (singleType != null) {
-                // There are more than one types
-                if (typeNames == null) {
-                    typeNames = new ArrayList<>();
-                    typeNames.add(singleType.type());
-                }
-                typeNames.add(type.key);
-            }
-            singleType = type.value;
-        }
-
-        if (singleType == null) {
-            return IndexResolution.invalid("[" + indexOrAlias + "] doesn't have any types so it is incompatible with sql");
-        } else if (typeNames != null) {
-            Collections.sort(typeNames);
-            return IndexResolution.invalid(
-                    "[" + indexOrAlias + "] contains more than one type " + typeNames + " so it is incompatible with sql");
-        } else {
-            try {
-                Map<String, EsField> mapping = Types.fromEs(singleType.sourceAsMap());
-                return IndexResolution.valid(new EsIndex(indexOrAlias, mapping));
-            } catch (MappingException ex) {
-                return IndexResolution.invalid(ex.getMessage());
-            }
-        }
     }
 }

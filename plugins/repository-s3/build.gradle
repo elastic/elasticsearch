@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
-import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
@@ -71,7 +70,7 @@ task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
-project.check.dependsOn(testRepositoryCreds)
+check.dependsOn(testRepositoryCreds)
 
 unitTest {
   // these are tested explicitly in separate test tasks
@@ -136,78 +135,57 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'de.undercouch:gradle-download-task:3.4.3'
-  }
-}
-
 if (useFixture) {
-
   apply plugin: 'elasticsearch.test.fixtures'
-
-  RestIntegTestTask integTestMinio = project.tasks.create('integTestMinio', RestIntegTestTask.class) {
-    description = "Runs REST tests using the Minio repository."
-  }
-
-  Task writeDockerFile = project.tasks.create('writeDockerFile') {
+  task writeDockerFile {
     File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
     outputs.file(minioDockerfile)
     doLast {
       minioDockerfile.parentFile.mkdirs()
       minioDockerfile.text = "FROM minio/minio:RELEASE.2019-01-23T23-18-58Z\n" +
-        "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
-        "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
-        "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
+              "RUN mkdir -p /minio/data/${s3PermanentBucket}\n" +
+              "ENV MINIO_ACCESS_KEY ${s3PermanentAccessKey}\n" +
+              "ENV MINIO_SECRET_KEY ${s3PermanentSecretKey}"
     }
   }
-
-  preProcessFixture.dependsOn(writeDockerFile)
-  // The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
-  project.afterEvaluate {
-    // Only configure the Minio tests if postProcessFixture is configured to skip them if Docker is not available
-    // or fixtures have been disabled
-    if (postProcessFixture.enabled) {
-      ClusterConfiguration cluster = project.extensions.getByName('integTestMinioCluster') as ClusterConfiguration
-      cluster.dependsOn(project.bundlePlugin)
-      cluster.dependsOn(postProcessFixture)
-      cluster.keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-      cluster.keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
-
-      Closure<String> minioAddressAndPort = {
-        int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
-        assert minioPort > 0
-        return 'http://127.0.0.1:' + minioPort
-      }
-      cluster.setting 's3.client.integration_test_permanent.endpoint', "${-> minioAddressAndPort.call()}"
-
-      Task restIntegTestTask = project.tasks.getByName('integTestMinio')
-      restIntegTestTask.clusterConfig.plugin(project.path)
-
-      // Default jvm arguments for all test clusters
-      String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-        " " + System.getProperty('tests.jvm.argline', '')
-
-      restIntegTestTask.clusterConfig.jvmArgs = jvmArgs
-      project.check.dependsOn(integTestMinio)
-    }
+  preProcessFixture {
+    dependsOn(writeDockerFile)
   }
 
-  integTestMinioRunner.dependsOn(postProcessFixture)
-  // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
-  integTestMinioRunner.systemProperty 'tests.rest.blacklist', [
-          'repository_s3/30_repository_temporary_credentials/*',
-          'repository_s3/40_repository_ec2_credentials/*',
-          'repository_s3/50_repository_ecs_credentials/*'
-        ].join(",")
+  task integTestMinio(type: RestIntegTestTask) {
+    description = "Runs REST tests using the Minio repository."
+    dependsOn tasks.bundlePlugin, tasks.postProcessFixture
+    runner {
+      // Minio only supports a single access key, see https://github.com/minio/minio/pull/5968
+      systemProperty 'tests.rest.blacklist', [
+              'repository_s3/30_repository_temporary_credentials/*',
+              'repository_s3/40_repository_ec2_credentials/*',
+              'repository_s3/50_repository_ecs_credentials/*'
+      ].join(",")
+    }
+  }
+  check.dependsOn(integTestMinio)
+  BuildPlugin.requireDocker(tasks.integTestMinio)
 
-  BuildPlugin.requireDocker(integTestMinio)
+  testClusters.integTestMinio {
+    keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+    keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+    setting 's3.client.integration_test_permanent.endpoint', {
+      int minioPort = postProcessFixture.ext."test.fixtures.minio-fixture.tcp.9000"
+      assert minioPort > 0
+      return 'http://127.0.0.1:' + minioPort
+    }
+    plugin file(tasks.bundlePlugin.archiveFile)
+  }
+} else {
+  integTest.runner {
+    systemProperty 'tests.rest.blacklist',
+            [
+                    'repository_s3/30_repository_temporary_credentials/*',
+                    'repository_s3/40_repository_ec2_credentials/*',
+                    'repository_s3/50_repository_ecs_credentials/*'
+            ].join(",")
+  }
 }
 
 File parentFixtures = new File(project.buildDir, "fixtures")
@@ -242,82 +220,69 @@ task s3Fixture(type: AntFixture) {
   args 'org.elasticsearch.repositories.s3.AmazonS3Fixture', baseDir, s3FixtureFile.getAbsolutePath()
 }
 
-Map<String, Object> expansions = [
-  'permanent_bucket': s3PermanentBucket,
-  'permanent_base_path': s3PermanentBasePath,
-  'temporary_bucket': s3TemporaryBucket,
-  'temporary_base_path': s3TemporaryBasePath,
-  'ec2_bucket': s3EC2Bucket,
-  'ec2_base_path': s3EC2BasePath,
-  'ecs_bucket': s3ECSBucket,
-  'ecs_base_path': s3ECSBasePath
-]
-
 processTestResources {
+  Map<String, Object> expansions = [
+          'permanent_bucket': s3PermanentBucket,
+          'permanent_base_path': s3PermanentBasePath,
+          'temporary_bucket': s3TemporaryBucket,
+          'temporary_base_path': s3TemporaryBasePath,
+          'ec2_bucket': s3EC2Bucket,
+          'ec2_base_path': s3EC2BasePath,
+          'ecs_bucket': s3ECSBucket,
+          'ecs_base_path': s3ECSBasePath
+  ]
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-project.afterEvaluate {
-  if (useFixture == false) {
-    // temporary_credentials, ec2_credentials and ecs_credentials are not ready for third-party-tests yet
-    integTestRunner.systemProperty 'tests.rest.blacklist',
-            [
-                'repository_s3/30_repository_temporary_credentials/*',
-                'repository_s3/40_repository_ec2_credentials/*',
-                'repository_s3/50_repository_ecs_credentials/*'
-            ].join(",")
-  }
+integTest {
+  dependsOn s3Fixture
 }
 
-integTestCluster {
-  keystoreSetting 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
-  keystoreSetting 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
+testClusters.integTest {
+  keystore 's3.client.integration_test_permanent.access_key', s3PermanentAccessKey
+  keystore 's3.client.integration_test_permanent.secret_key', s3PermanentSecretKey
 
-  keystoreSetting 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
-  keystoreSetting 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
-  keystoreSetting 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
+  keystore 's3.client.integration_test_temporary.access_key', s3TemporaryAccessKey
+  keystore 's3.client.integration_test_temporary.secret_key', s3TemporarySecretKey
+  keystore 's3.client.integration_test_temporary.session_token', s3TemporarySessionToken
 
   if (useFixture) {
-    dependsOn s3Fixture
-    /* Use a closure on the string to delay evaluation until tests are executed */
-    setting 's3.client.integration_test_permanent.endpoint', "http://${-> s3Fixture.addressAndPort}"
-    setting 's3.client.integration_test_temporary.endpoint', "http://${-> s3Fixture.addressAndPort}"
-    setting 's3.client.integration_test_ec2.endpoint', "http://${-> s3Fixture.addressAndPort}"
+    setting 's3.client.integration_test_permanent.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_temporary.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    setting 's3.client.integration_test_ec2.endpoint', { "http://${s3Fixture.addressAndPort}" }
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", "http://${-> s3Fixture.addressAndPort}"
+    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${s3Fixture.addressAndPort}" }
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
 }
 
-integTestRunner.systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
+integTest.runner {
+  systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
+}
 
 if (useFixture) {
-  RestIntegTestTask integTestECS = project.tasks.create('integTestECS', RestIntegTestTask.class) {
+  task integTestECS(type: RestIntegTestTask.class) {
     description = "Runs tests using the ECS repository."
+    dependsOn(project.s3Fixture)
+    runner {
+      systemProperty 'tests.rest.blacklist', [
+              'repository_s3/10_basic/*',
+              'repository_s3/20_repository_permanent_credentials/*',
+              'repository_s3/30_repository_temporary_credentials/*',
+              'repository_s3/40_repository_ec2_credentials/*'
+      ].join(",")
+    }
   }
+  check.dependsOn(integTestECS)
 
-// The following closure must execute before the afterEvaluate block in the constructor of the following integrationTest tasks:
-  project.afterEvaluate {
-    ClusterConfiguration cluster = project.extensions.getByName('integTestECSCluster') as ClusterConfiguration
-    cluster.dependsOn(project.s3Fixture)
-
-    cluster.setting 's3.client.integration_test_ecs.endpoint', "http://${-> s3Fixture.addressAndPort}"
-
-    Task integTestECSTask = project.tasks.getByName('integTestECS')
-    integTestECSTask.clusterConfig.plugin(project.path)
-    integTestECSTask.clusterConfig.environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-            "http://${-> s3Fixture.addressAndPort}/ecs_credentials_endpoint"
-    integTestECSRunner.systemProperty 'tests.rest.blacklist', [
-            'repository_s3/10_basic/*',
-            'repository_s3/20_repository_permanent_credentials/*',
-            'repository_s3/30_repository_temporary_credentials/*',
-            'repository_s3/40_repository_ec2_credentials/*'
-    ].join(",")
+  testClusters.integTestECS {
+    setting 's3.client.integration_test_ecs.endpoint', { "http://${s3Fixture.addressAndPort}" }
+    plugin file(tasks.bundlePlugin.archiveFile)
+    environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "http://${s3Fixture.addressAndPort}/ecs_credentials_endpoint" }
   }
-  project.check.dependsOn(integTestECS)
 }
 
 thirdPartyAudit.ignoreMissingClasses (
@@ -446,8 +411,3 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
 } else {
   thirdPartyAudit.ignoreMissingClasses 'javax.activation.DataHandler'
 }
-
-// AWS SDK is exposing some deprecated methods which we call using a delegate:
-// * setObjectRedirectLocation(String bucketName, String key, String newRedirectLocation)
-// * changeObjectStorageClass(String bucketName, String key, StorageClass newStorageClass)
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation"

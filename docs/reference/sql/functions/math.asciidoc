@@ -6,10 +6,12 @@
 All math and trigonometric functions require their input (where applicable)
 to be numeric.
 
-==== Generic
+[[sql-functions-math-generic]]
+[float]
+=== Generic
 
 [[sql-functions-math-abs]]
-===== `ABS`
+==== `ABS`
 
 .Synopsis:
 [source, sql]
@@ -33,7 +35,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[abs]
 --------------------------------------------------
 
 [[sql-functions-math-cbrt]]
-===== `CBRT`
+==== `CBRT`
 
 .Synopsis:
 [source, sql]
@@ -57,7 +59,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCbrtWithNegativeValue]
 --------------------------------------------------
 
 [[sql-functions-math-ceil]]
-===== `CEIL/CEILING`
+==== `CEIL/CEILING`
 
 .Synopsis:
 [source, sql]
@@ -81,7 +83,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCeiling]
 --------------------------------------------------
 
 [[sql-functions-math-e]]
-===== `E`
+==== `E`
 
 .Synopsis:
 [source, sql]
@@ -103,7 +105,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathEulersNumber]
 --------------------------------------------------
 
 [[sql-functions-math-exp]]
-===== `EXP`
+==== `EXP`
 
 .Synopsis:
 [source, sql]
@@ -127,7 +129,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathExpInline]
 --------------------------------------------------
 
 [[sql-functions-math-expm1]]
-===== `EXPM1`
+==== `EXPM1`
 
 .Synopsis:
 [source, sql]
@@ -151,7 +153,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathExpm1Inline]
 --------------------------------------------------
 
 [[sql-functions-math-floor]]
-===== `FLOOR`
+==== `FLOOR`
 
 .Synopsis:
 [source, sql]
@@ -175,7 +177,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineFloor]
 --------------------------------------------------
 
 [[sql-functions-math-log]]
-===== `LOG`
+==== `LOG`
 
 .Synopsis:
 [source, sql]
@@ -199,7 +201,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineLog]
 --------------------------------------------------
 
 [[sql-functions-math-log10]]
-===== `LOG10`
+==== `LOG10`
 
 .Synopsis:
 [source, sql]
@@ -223,7 +225,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineLog10]
 --------------------------------------------------
 
 [[sql-functions-math-pi]]
-===== `PI`
+==== `PI`
 
 .Synopsis:
 [source, sql]
@@ -245,7 +247,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathPINumber]
 --------------------------------------------------
 
 [[sql-functions-math-power]]
-===== `POWER`
+==== `POWER`
 
 .Synopsis:
 [source, sql]
@@ -275,7 +277,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlinePowerNegative]
 --------------------------------------------------
 
 [[sql-functions-math-random]]
-===== `RANDOM/RAND`
+==== `RANDOM/RAND`
 
 .Synopsis:
 [source, sql]
@@ -299,7 +301,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathRandom]
 --------------------------------------------------
 
 [[sql-functions-math-round]]
-===== `ROUND`
+==== `ROUND`
 
 .Synopsis:
 [source, sql]
@@ -330,7 +332,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathRoundWithNegativeParameter]
 --------------------------------------------------
 
 [[sql-functions-math-sign]]
-===== `SIGN/SIGNUM`
+==== `SIGN/SIGNUM`
 
 .Synopsis:
 [source, sql]
@@ -355,7 +357,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSign]
 
 
 [[sql-functions-math-sqrt]]
-===== `SQRT`
+==== `SQRT`
 
 .Synopsis:
 [source, sql]
@@ -379,7 +381,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSqrt]
 --------------------------------------------------
 
 [[sql-functions-math-truncate]]
-===== `TRUNCATE`
+==== `TRUNCATE`
 
 .Synopsis:
 [source, sql]
@@ -409,10 +411,12 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathTruncateWithPositiveParameter
 include-tagged::{sql-specs}/docs/docs.csv-spec[mathTruncateWithNegativeParameter]
 --------------------------------------------------
 
-==== Trigonometric
+[[sql-functions-math-trigonometric]]
+[float]
+=== Trigonometric
 
 [[sql-functions-math-acos]]
-===== `ACOS`
+==== `ACOS`
 
 .Synopsis:
 [source, sql]
@@ -436,7 +440,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAcos]
 --------------------------------------------------
 
 [[sql-functions-math-asin]]
-===== `ASIN`
+==== `ASIN`
 
 .Synopsis:
 [source, sql]
@@ -460,7 +464,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAsin]
 --------------------------------------------------
 
 [[sql-functions-math-atan]]
-===== `ATAN`
+==== `ATAN`
 
 .Synopsis:
 [source, sql]
@@ -484,7 +488,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAtan]
 --------------------------------------------------
 
 [[sql-functions-math-atan2]]
-===== `ATAN2`
+==== `ATAN2`
 
 .Synopsis:
 [source, sql]
@@ -509,7 +513,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineAtan2]
 --------------------------------------------------
 
 [[sql-functions-math-cos]]
-===== `COS`
+==== `COS`
 
 .Synopsis:
 [source, sql]
@@ -533,7 +537,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCosine]
 --------------------------------------------------
 
 [[sql-functions-math-cosh]]
-===== `COSH`
+==== `COSH`
 
 .Synopsis:
 [source, sql]
@@ -557,7 +561,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCosh]
 --------------------------------------------------
 
 [[sql-functions-math-cot]]
-===== `COT`
+==== `COT`
 
 .Synopsis:
 [source, sql]
@@ -581,7 +585,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineCotangent]
 --------------------------------------------------
 
 [[sql-functions-math-degrees]]
-===== `DEGREES`
+==== `DEGREES`
 
 .Synopsis:
 [source, sql]
@@ -606,7 +610,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineDegrees]
 --------------------------------------------------
 
 [[sql-functions-math-radians]]
-===== `RADIANS`
+==== `RADIANS`
 
 .Synopsis:
 [source, sql]
@@ -631,7 +635,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineRadians]
 --------------------------------------------------
 
 [[sql-functions-math-sin]]
-===== `SIN`
+==== `SIN`
 
 .Synopsis:
 [source, sql]
@@ -655,7 +659,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSine]
 --------------------------------------------------
 
 [[sql-functions-math-sinh]]
-===== `SINH`
+==== `SINH`
 
 .Synopsis:
 [source, sql]
@@ -679,7 +683,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathInlineSinh]
 --------------------------------------------------
 
 [[sql-functions-math-tan]]
-===== `TAN`
+==== `TAN`
 
 .Synopsis:
 [source, sql]

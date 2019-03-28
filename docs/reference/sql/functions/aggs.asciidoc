@@ -6,10 +6,12 @@
 Functions for computing a _single_ result from a set of input values.
 {es-sql} supports aggregate functions only alongside <<sql-syntax-group-by,grouping>> (implicit or explicit).
 
-==== General Purpose
+[[sql-functions-aggs-general]]
+[float]
+=== General Purpose
 
 [[sql-functions-aggs-avg]]
-===== `AVG`
+==== `AVG`
 
 .Synopsis:
 [source, sql]
@@ -33,7 +35,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggAvg]
 --------------------------------------------------
 
 [[sql-functions-aggs-count]]
-===== `COUNT`
+==== `COUNT`
 
 .Synopsis:
 [source, sql]
@@ -63,7 +65,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountStar]
 
 
 [[sql-functions-aggs-count-all]]
-===== `COUNT(ALL)`
+==== `COUNT(ALL)`
 
 .Synopsis:
 [source, sql]
@@ -88,7 +90,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountAll]
 
 
 [[sql-functions-aggs-count-distinct]]
-===== `COUNT(DISTINCT)`
+==== `COUNT(DISTINCT)`
 
 .Synopsis:
 [source, sql]
@@ -112,7 +114,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggCountDistinct]
 --------------------------------------------------
 
 [[sql-functions-aggs-first]]
-===== `FIRST/FIRST_VALUE`
+==== `FIRST/FIRST_VALUE`
 
 .Synopsis:
 [source, sql]
@@ -207,7 +209,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[firstValueWithTwoArgsAndGroupBy]
 the field is also <<before-enabling-fielddata,saved as a keyword>>.
 
 [[sql-functions-aggs-last]]
-===== `LAST/LAST_VALUE`
+==== `LAST/LAST_VALUE`
 
 .Synopsis:
 [source, sql]
@@ -302,7 +304,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[lastValueWithTwoArgsAndGroupBy]
 the field is also <<before-enabling-fielddata,`saved as a keyword`>>.
 
 [[sql-functions-aggs-max]]
-===== `MAX`
+==== `MAX`
 
 .Synopsis:
 [source, sql]
@@ -330,7 +332,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMax]
 <<sql-functions-aggs-last>> and therefore, it cannot be used in `HAVING` clause.
 
 [[sql-functions-aggs-min]]
-===== `MIN`
+==== `MIN`
 
 .Synopsis:
 [source, sql]
@@ -358,7 +360,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMin]
 <<sql-functions-aggs-first>> and therefore, it cannot be used in `HAVING` clause.
 
 [[sql-functions-aggs-sum]]
-===== `SUM`
+==== `SUM`
 
 .Synopsis:
 [source, sql]
@@ -381,10 +383,12 @@ Returns the sum of input values in the field `field_name`.
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggSum]
 --------------------------------------------------
 
-==== Statistics
+[[sql-functions-aggs-statistics]]
+[float]
+=== Statistics
 
 [[sql-functions-aggs-kurtosis]]
-===== `KURTOSIS`
+==== `KURTOSIS`
 
 .Synopsis:
 [source, sql]
@@ -408,7 +412,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggKurtosis]
 --------------------------------------------------
 
 [[sql-functions-aggs-mad]]
-===== `MAD`
+==== `MAD`
 
 .Synopsis:
 [source, sql]
@@ -432,7 +436,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggMad]
 --------------------------------------------------
 
 [[sql-functions-aggs-percentile]]
-===== `PERCENTILE`
+==== `PERCENTILE`
 
 .Synopsis:
 [source, sql]
@@ -458,7 +462,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentile]
 --------------------------------------------------
 
 [[sql-functions-aggs-percentile-rank]]
-===== `PERCENTILE_RANK`
+==== `PERCENTILE_RANK`
 
 .Synopsis:
 [source, sql]
@@ -484,7 +488,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggPercentileRank]
 --------------------------------------------------
 
 [[sql-functions-aggs-skewness]]
-===== `SKEWNESS`
+==== `SKEWNESS`
 
 .Synopsis:
 [source, sql]
@@ -508,7 +512,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggSkewness]
 --------------------------------------------------
 
 [[sql-functions-aggs-stddev-pop]]
-===== `STDDEV_POP`
+==== `STDDEV_POP`
 
 .Synopsis:
 [source, sql]
@@ -532,7 +536,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPop]
 --------------------------------------------------
 
 [[sql-functions-aggs-sum-squares]]
-===== `SUM_OF_SQUARES`
+==== `SUM_OF_SQUARES`
 
 .Synopsis:
 [source, sql]
@@ -556,7 +560,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggSumOfSquares]
 --------------------------------------------------
 
 [[sql-functions-aggs-var-pop]]
-===== `VAR_POP`
+==== `VAR_POP`
 
 .Synopsis:
 [source, sql]

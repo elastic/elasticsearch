@@ -688,7 +688,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                     throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
                                 }, null),
-                                indexService.cache().bitsetFilterCache(),
+                                indexService.cache() != null ? indexService.cache().bitsetFilterCache() : null,
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
                                 indexService.getScriptService()));
                 /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.

@@ -1,1 +1,7 @@
-TBD
+The software included in this distribution contains copyrighted software that is
+licensed under the GPLv2+CE. A copy of that license is included in this
+distribution in the file openjdk-LICENSE.txt. You may obtain the complete
+corresponding source code from us for a period of three years after the build
+date of this distribution.
+
+You can also find a copy of the source at http://hg.openjdk.java.net/jdk.

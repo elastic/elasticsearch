@@ -6,17 +6,14 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -44,7 +41,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
         private final boolean waitForCompletion;
         private final boolean force;
@@ -99,17 +96,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
-            builder.field(DataFrameField.FORCE.getPreferredName(), force);
-            if (this.getTimeout() != null) {
-                builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
-            }
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
             return Objects.hash(id, waitForCompletion, force, this.getTimeout());
@@ -141,13 +127,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             String expectedDescription = DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
 
             return task.getDescription().equals(expectedDescription);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StopDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 

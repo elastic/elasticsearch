@@ -92,12 +92,12 @@ void addProcessFilesTask(String type, boolean oss, boolean jdk) {
   }
 }
 addProcessFilesTask('deb', true, true)
-addProcessFilesTask('deb', false, true)
-addProcessFilesTask('rpm', true, true)
-addProcessFilesTask('rpm', false, true)
 addProcessFilesTask('deb', true, false)
+addProcessFilesTask('deb', false, true)
 addProcessFilesTask('deb', false, false)
+addProcessFilesTask('rpm', true, true)
 addProcessFilesTask('rpm', true, false)
+addProcessFilesTask('rpm', false, true)
 addProcessFilesTask('rpm', false, false)
 
 // Common configuration that is package dependent. This can't go in ospackage

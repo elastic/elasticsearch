@@ -705,9 +705,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("mapper [" + name() + "] has different [max_shingle_size] setting, current ["
                 + this.maxShingleSize + "], merged [" + mw.maxShingleSize + "]");
         }
-        if (prefixField.equals(mw.prefixField) == false) {
-            this.prefixField = (PrefixFieldMapper) this.prefixField.merge(mw.prefixField);
-        }
+        this.prefixField = (PrefixFieldMapper) this.prefixField.merge(mw.prefixField);
 
         ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[mw.shingleFields.length];
         for (int i = 0; i < shingleFieldMappers.length; i++) {
@@ -748,7 +746,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         List<Mapper> subIterators = new ArrayList<>();
         subIterators.add(prefixField);
         subIterators.addAll(Arrays.asList(shingleFields));
-        return Iterators.concat(super.iterator(), subIterators.iterator());
+        @SuppressWarnings("unchecked") Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
+        return concat;
     }
 
     /**

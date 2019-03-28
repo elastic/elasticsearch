@@ -8,18 +8,15 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -48,7 +45,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -63,8 +60,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
                 this.id = id;
             }
         }
-
-        private Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -119,12 +114,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(id, pageParams);
         }
@@ -139,13 +128,6 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetDataFrameTransformsStatsAction action) {
-            super(client, action, new Request());
         }
     }
 

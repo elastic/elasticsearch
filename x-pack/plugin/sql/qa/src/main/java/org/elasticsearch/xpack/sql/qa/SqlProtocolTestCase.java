@@ -28,10 +28,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
-import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
 public abstract class SqlProtocolTestCase extends ESRestTestCase {
 
@@ -62,7 +62,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     }
     
     public void testTextualType() throws IOException {
-        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 0);
+        assertQuery("SELECT 'abc123'", "'abc123'", "keyword", "abc123", 32766);
     }
     
     public void testDateTimes() throws IOException {
@@ -141,7 +141,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         List<Object> row = (ArrayList<Object>) rows.get(0);
         assertEquals(1, row.size());
 
-        // from xcontent we can get float or double, depending on the conversion 
+        // from xcontent we can get float or double, depending on the conversion
         // method of the specific xcontent format implementation
         if (columnValue instanceof Float && row.get(0) instanceof Double) {
             assertEquals(columnValue, (float)((Number) row.get(0)).doubleValue());
@@ -209,7 +209,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
                     return XContentHelper.convertToMap(SmileXContent.smileXContent, content, false);
                 }
                 default:
-                   return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false); 
+                   return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
             }
         }
     }

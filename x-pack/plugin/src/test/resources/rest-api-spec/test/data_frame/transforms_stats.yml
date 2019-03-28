@@ -86,7 +86,8 @@ teardown:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.task_state: "started" }
   - match: { transforms.0.state.generation: 0 }
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
@@ -167,22 +168,22 @@ teardown:
         transform_id: "*"
   - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.indexer_state: "started" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
-  - match: { transforms.1.state.transform_state: "stopped" }
+  - match: { transforms.1.state.indexer_state: "stopped" }
   - match: { transforms.2.id: "airline-transform-stats-with-doc" }
-  - match: { transforms.2.state.transform_state: "stopped" }
+  - match: { transforms.2.state.indexer_state: "stopped" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "_all"
   - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
-  - match: { transforms.0.state.transform_state: "started" }
+  - match: { transforms.0.state.indexer_state: "started" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
-  - match: { transforms.1.state.transform_state: "stopped" }
+  - match: { transforms.1.state.indexer_state: "stopped" }
   - match: { transforms.2.id: "airline-transform-stats-with-doc" }
-  - match: { transforms.2.state.transform_state: "stopped" }
+  - match: { transforms.2.state.indexer_state: "stopped" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -209,9 +210,9 @@ teardown:
         from: 1
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
-  - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.1.id: "airline-transform-stats-with-doc" }
-  - match: { transforms.1.state.transform_state: "stopped" }
+  - match: { transforms.1.state.indexer_state: "stopped" }
 
 ---
 "Test get single transform stats when it does not have a task but has stats":
@@ -220,7 +221,7 @@ teardown:
         transform_id: "airline-transform-stats-with-doc"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-with-doc" }
-  - match: { transforms.0.state.transform_state: "stopped" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.generation: 0 }
   - match: { transforms.0.stats.pages_processed: 2 }
   - match: { transforms.0.stats.documents_processed: 100 }

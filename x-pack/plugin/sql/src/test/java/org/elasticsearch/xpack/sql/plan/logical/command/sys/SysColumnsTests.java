@@ -469,7 +469,7 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testSysColumnsWithCatalogWildcard() throws Exception {
-        executeCommand("SYS COLUMNS CATALOG '%' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
+        executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
             assertEquals(22, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));

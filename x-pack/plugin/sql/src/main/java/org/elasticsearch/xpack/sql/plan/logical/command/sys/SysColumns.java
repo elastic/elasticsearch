@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
@@ -102,10 +101,7 @@ public class SysColumns extends Command {
         String cluster = session.indexResolver().clusterName();
 
         // bail-out early if the catalog is present but differs
-        if (Strings.hasText(catalog) 
-                // check '%' / wildcard
-                && StringUtils.SQL_WILDCARD.equals(catalog) == false 
-                && cluster.equals(catalog) == false) {
+        if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
             listener.onResponse(Rows.empty(output));
             return;
         }

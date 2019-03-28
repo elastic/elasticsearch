@@ -728,7 +728,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        String statement = "SYS TABLES CATALOG LIKE ? LIKE ?";
+        String statement = "SYS TABLES CATALOG LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\' ";
 
         if (types != null && types.length > 0) {
             statement += " TYPE ?";
@@ -787,11 +787,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return memorySet(con.cfg, columnInfo("", "TABLE_TYPE"), data);
     }
 
+
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
-        ps.setString(1, catalog != null ? catalog.trim() : WILDCARD);
+        PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\'");
+        // NB: catalog is not a pattern hence why null is send instead
+        ps.setString(1, catalog != null ? catalog.trim() : null);
         ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
         ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : WILDCARD);
         return ps.executeQuery();

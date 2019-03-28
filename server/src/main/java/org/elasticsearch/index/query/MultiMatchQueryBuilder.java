@@ -128,7 +128,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
          * Uses the best matching phrase-prefix field as main score and uses
          * a tie-breaker to adjust the score based on remaining field matches
          */
-        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix"));
+        PHRASE_PREFIX(MatchQuery.Type.PHRASE_PREFIX, 0.0f, new ParseField("phrase_prefix")),
+
+        /**
+         * Uses the sum of the matching boolean fields to score the query
+         */
+        BOOL_PREFIX(MatchQuery.Type.BOOLEAN_PREFIX, 1.0f, new ParseField("bool_prefix"));
 
         private MatchQuery.Type matchQueryType;
         private final float tieBreaker;
@@ -685,6 +690,16 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
             throw new ParsingException(parser.getTokenLocation(),
                     "Fuzziness not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
+        if (slop != DEFAULT_PHRASE_SLOP && type == Type.BOOL_PREFIX) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "[" + SLOP_FIELD.getPreferredName() + "] not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
+        if (cutoffFrequency != null && type == Type.BOOL_PREFIX) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "[" + CUTOFF_FREQUENCY_FIELD.getPreferredName() + "] not allowed for type [" + type.parseField.getPreferredName() + "]");
         }
 
         MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder(value)

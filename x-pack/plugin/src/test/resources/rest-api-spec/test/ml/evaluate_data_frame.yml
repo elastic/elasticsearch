@@ -2,7 +2,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": false,
@@ -12,7 +12,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": false,
@@ -22,7 +22,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": false,
@@ -32,7 +32,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": true,
@@ -42,7 +42,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": true,
@@ -52,7 +52,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": true,
@@ -62,7 +62,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": true,
@@ -72,7 +72,7 @@ setup:
 
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "is_outlier": true,
@@ -83,7 +83,7 @@ setup:
   # This document misses the required fields and should be ignored
   - do:
       index:
-        index: binary-soft-classification-index
+        index: utopia
         body:  >
           {
             "foo": 0.24
@@ -98,7 +98,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -118,7 +118,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier_int",
@@ -138,7 +138,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -158,7 +158,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -181,7 +181,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -205,7 +205,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -241,7 +241,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -308,7 +308,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -326,7 +326,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "missing",
@@ -342,7 +342,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -358,7 +358,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -377,7 +377,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -396,7 +396,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -415,7 +415,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -434,7 +434,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",
@@ -453,7 +453,7 @@ setup:
       ml.evaluate_data_frame:
         body:  >
           {
-            "index": "binary-soft-classification-index",
+            "index": "utopia",
             "evaluation": {
               "binary_soft_classification": {
                 "actual_field": "is_outlier",

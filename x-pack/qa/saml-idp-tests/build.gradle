@@ -38,6 +38,9 @@ task setupPorts {
         idpMetaFile.write(content.toString(), "UTF-8")
     }
 }
+// Don't attempt to run integTest when Docker is not available
+integTest.enabled = idpFixtureProject.postProcessFixture.enabled
+
 integTestCluster.dependsOn setupPorts
 
 integTestCluster {

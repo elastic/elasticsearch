@@ -995,8 +995,8 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 testLogging {
-                    maxGranularity = 2
-                    minGranularity = 2
+                    showExceptions = true
+                    exceptionFormat = 'full'
                 }
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {

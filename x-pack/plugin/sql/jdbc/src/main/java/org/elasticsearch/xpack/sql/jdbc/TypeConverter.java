@@ -35,7 +35,8 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
-import static org.elasticsearch.xpack.sql.jdbc.EsType.*;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 
 /**

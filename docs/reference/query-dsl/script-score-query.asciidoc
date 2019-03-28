@@ -36,6 +36,10 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
+NOTE: The values returned from `script_score` cannot be negative. In general,
+Lucene requires the scores produced by queries to be non-negative in order to
+support certain search optimizations.
+
 ==== Accessing the score of a document within a script
 
 Within a script, you can

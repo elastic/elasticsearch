@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
              "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexWatch() throws Exception {
@@ -216,7 +218,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         testConditionSearch(templateRequest(searchSourceBuilder, "events"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39306")
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()

@@ -43,7 +43,7 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypes() {
         Command cmd = sql("SYS TYPES").v1();
 
-        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "SCALED_FLOAT", "FLOAT", "DOUBLE",
+        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "FLOAT", "DOUBLE", "SCALED_FLOAT",
                 "KEYWORD", "TEXT", "IP", "BOOLEAN", "DATE", "DATETIME",
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",

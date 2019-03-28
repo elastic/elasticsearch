@@ -22,6 +22,8 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
@@ -275,11 +277,51 @@ public final class DataFrameClient {
      * @param listener Listener to be notified upon request completion
      */
     public void stopDataFrameTransformAsync(StopDataFrameTransformRequest request, RequestOptions options,
-                                              ActionListener<StopDataFrameTransformResponse> listener) {
+                                            ActionListener<StopDataFrameTransformResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::stopDataFrameTransform,
                 options,
                 StopDataFrameTransformResponse::fromXContent,
+                listener,
+                Collections.emptySet());
+    }
+
+    /**
+     * Get one or more data frame transform configurations
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Get Data Frame transform documentation</a>
+     *
+     * @param request The get data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return An GetDataFrameTransformResponse containing the requested transforms
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public GetDataFrameTransformResponse getDataFrameTransform(GetDataFrameTransformRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+                DataFrameRequestConverters::getDataFrameTransform,
+                options,
+                GetDataFrameTransformResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Get one or more data frame transform configurations asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Get Data Frame transform documentation</a>
+     *
+     * @param request The get data frame transform request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameTransformAsync(GetDataFrameTransformRequest request, RequestOptions options,
+                                           ActionListener<GetDataFrameTransformResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                DataFrameRequestConverters::getDataFrameTransform,
+                options,
+                GetDataFrameTransformResponse::fromXContent,
                 listener,
                 Collections.emptySet());
     }

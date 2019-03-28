@@ -978,7 +978,7 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove setting logging level via system property
                 systemProperty 'tests.logger.level', 'WARN'
                 System.getProperties().each { key, value ->
-                    if ((key.startsWith('tests.') || key.startsWith('es.')) && !key.equals('tests.seed')) {
+                    if ((key.startsWith('tests.') || key.startsWith('es.'))) {
                         systemProperty key, value
                     }
                 }

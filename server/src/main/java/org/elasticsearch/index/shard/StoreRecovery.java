@@ -259,6 +259,12 @@ final class StoreRecovery {
                 assert index.getFileDetails(dest).recovered() == l : index.getFileDetails(dest).toString();
             }
         }
+
+        // temporary override until LUCENE-8735 is integrated
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            return in.getPendingDeletions();
+        }
     }
 
     /**

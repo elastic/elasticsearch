@@ -69,6 +69,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -101,7 +102,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING =
         Setting.longSetting("index.mapping.total_fields.limit", 1000L, 0, Property.Dynamic, Property.IndexScope);
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING =
-            Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
+        Setting.longSetting("index.mapping.depth.limit", 20L, 1, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING =
+        Setting.longSetting("index.mapping.field_name_length.limit", Long.MAX_VALUE, 1L, Property.Dynamic, Property.IndexScope);
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     @Deprecated
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
@@ -503,6 +506,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // Also, don't take metadata mappers into account for the field limit check
                 checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                     + fieldAliasMappers.size() );
+                checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
             }
 
             results.put(newMapper.type(), newMapper);
@@ -621,6 +625,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new IllegalArgumentException("Limit of mapping depth [" + maxDepth + "] in index [" + index().getName()
                     + "] has been exceeded due to object field [" + objectPath + "]");
         }
+    }
+
+    private void checkFieldNameSoftLimit(Collection<ObjectMapper> objectMappers,
+                                         Collection<FieldMapper> fieldMappers,
+                                         Collection<FieldAliasMapper> fieldAliasMappers) {
+        final long maxFieldNameLength = indexSettings.getValue(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
+
+        Stream.of(objectMappers.stream(), fieldMappers.stream(), fieldAliasMappers.stream())
+            .reduce(Stream::concat)
+            .orElseGet(Stream::empty)
+            .forEach(mapper -> {
+                String name = mapper.simpleName();
+                if (name.length() > maxFieldNameLength) {
+                    throw new IllegalArgumentException("Field name [" + name + "] in index [" + index().getName() +
+                        "] is too long. The limit is set to [" + maxFieldNameLength + "] characters but was ["
+                        + name.length() + "] characters");
+                }
+            });
     }
 
     private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {

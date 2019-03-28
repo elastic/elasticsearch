@@ -136,6 +136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public IndexService(
             IndexSettings indexSettings,
+            IndexCreationContext indexCreationContext,
             NodeEnvironment nodeEnv,
             NamedXContentRegistry xContentRegistry,
             SimilarityService similarityService,
@@ -162,21 +163,36 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
-        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
-            mapperRegistry,
-            // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
-        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
-        if (indexSettings.getIndexSortConfig().hasIndexSort()) {
-            // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
-            // The sort order is validated right after the merge of the mapping later in the process.
-            this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
-                mapperService::fullName,
-                indexFieldData::getForField
-            );
-        } else {
+        if (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE &&
+            indexCreationContext == IndexCreationContext.CREATE_INDEX) { // metadata verification needs a mapper service
+            this.mapperService = null;
+            this.indexFieldData = null;
             this.indexSortSupplier = () -> null;
+            this.bitsetFilterCache = null;
+            this.warmer = null;
+            this.indexCache = null;
+        } else {
+            this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
+                mapperRegistry,
+                // we parse all percolator queries as they would be parsed on shard 0
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
+            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+            if (indexSettings.getIndexSortConfig().hasIndexSort()) {
+                // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
+                // The sort order is validated right after the merge of the mapping later in the process.
+                this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
+                    mapperService::fullName,
+                    indexFieldData::getForField
+                );
+            } else {
+                this.indexSortSupplier = () -> null;
+            }
+            indexFieldData.setListener(new FieldDataCacheListener(this));
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
+            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         }
+
         this.shardStoreDeleter = shardStoreDeleter;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
@@ -185,10 +201,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.indexStore = indexStore;
-        indexFieldData.setListener(new FieldDataCacheListener(this));
-        this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-        this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-        this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
@@ -200,6 +212,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         updateFsyncTaskIfNecessary();
+    }
+
+    public enum IndexCreationContext {
+        CREATE_INDEX,
+        META_DATA_VERIFICATION
     }
 
     public int numberOfShards() {
@@ -548,7 +565,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
-        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
+        if (mapperService == null) {
+            return false;
+        }
+        return mapperService.updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {

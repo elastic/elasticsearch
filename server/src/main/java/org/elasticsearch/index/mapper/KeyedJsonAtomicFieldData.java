@@ -191,11 +191,13 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
          * Returns the (un-prefixed) term value for the requested ordinal.
          *
          * Note that this method can only be called on ordinals returned from {@link #nextOrd()}.
-         * Otherwise it may attempt to look up values that do not share the correct prefix, which
-         * can result in undefined behavior or an error.
          */
         @Override
         public BytesRef lookupOrd(long ord) throws IOException {
+            if (ord < minOrd || ord > maxOrd) {
+                throw new IllegalArgumentException("The provided ordinal [" + ord + "] is outside the valid " +
+                    "range. For keyed JSON fields, only ordinals returned from nextOrd can be passed to lookupOrd.");
+            }
             BytesRef keyedValue = delegate.lookupOrd(ord);
             int prefixLength = key.length + 1;
             int valueLength = keyedValue.length - prefixLength;

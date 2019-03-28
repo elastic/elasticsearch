@@ -30,6 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
+import static org.hamcrest.Matchers.containsString;
 
 public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     private AtomicOrdinalsFieldData delegate;
@@ -147,6 +148,14 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
         BytesRef expectedValue = new BytesRef("value0");
         BytesRef value = docValues.lookupOrd(0);
         assertEquals(0, expectedValue.compareTo(value));
+    }
+
+    public void testLookupInvalidOrd() {
+        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        SortedSetDocValues docValues = fieldData.getOrdinalsValues();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> docValues.lookupOrd(42));
+        assertThat(e.getMessage(), containsString("The provided ordinal [42] is outside the valid range."));
     }
 
     private static class MockAtomicOrdinalsFieldData extends AbstractAtomicOrdinalsFieldData {

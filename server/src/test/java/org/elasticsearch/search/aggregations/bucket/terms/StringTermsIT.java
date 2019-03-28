@@ -1140,7 +1140,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
         assertEquals(1, bucket2.getDocCount());
     }
-
+    
     public void testKeyedJsonField() {
         // Aggregate on the 'priority' subfield.
         TermsAggregationBuilder priorityAgg = terms("terms")

@@ -28,7 +28,7 @@ but in general it is low, since it source field data has already been loaded.
 The memory overhead of global ordinals is a small because it is very
 efficiently compressed.
 
-By default, global ordinals are loaded at search-time, which is the right
+By default, global ordinals are loaded as-needed as opposed to up-front, which is the right
 trade-off if you are optimizing for indexing speed. However, if you are more
 interested in search speed, it could be interesting to set
 `eager_global_ordinals: true` on fields that you plan to use in terms

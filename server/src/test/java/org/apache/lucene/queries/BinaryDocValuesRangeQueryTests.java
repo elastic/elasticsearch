@@ -39,7 +39,7 @@ import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITH
 
 public class BinaryDocValuesRangeQueryTests extends ESTestCase {
 
-    public void testIncludeEndpoints() throws Exception {
+    public void testIncludeEndpointsLong() throws Exception {
         String fieldName = "long_field";
         RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.LONG;
         try (Directory dir = newDirectory()) {
@@ -62,8 +62,31 @@ public class BinaryDocValuesRangeQueryTests extends ESTestCase {
                 }
             }
         }
+    }
 
+    public void testIncludeEndpointsDouble() throws Exception {
+        String fieldName = "double_field";
+        RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.DOUBLE;
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document document = new Document();
+                BytesRef encodedRange = rangeType.encodeRanges(singleton(new RangeFieldMapper.Range(rangeType, 20D, 30D, false , false)));
+                document.add(new BinaryDocValuesField(fieldName, encodedRange));
+                writer.addDocument(document);
 
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // Should not match (20, 30) because the end point 20 is included in the query, but not the document range
+                    // Changing includeFrom on the query to false, however, matches 0 documents as expected
+                    Query query = rangeType.dvRangeQuery(fieldName, INTERSECTS, 11D, 20D, true, true);
+                    assertEquals(0, searcher.count(query));
+
+                    // Should not match (20, 30) because the end point 30 is included in the query but not the document range
+                    query = rangeType.dvRangeQuery(fieldName, INTERSECTS, 30D, 35D, true, true);
+                    assertEquals(0, searcher.count(query));
+                }
+            }
+        }
     }
 
     public void testBasics() throws Exception {

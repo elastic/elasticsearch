@@ -158,7 +158,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             name -> new ElasticsearchCluster(
                 project.getPath(),
                 name,
-                GradleServicesAdapter.getInstance(project),
+                project,
                 getTestClustersConfigurationExtractDir(project),
                 new File(project.getBuildDir(), "testclusters")
             )

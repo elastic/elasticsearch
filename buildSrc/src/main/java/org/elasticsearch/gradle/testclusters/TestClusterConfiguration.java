@@ -19,13 +19,24 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
+import org.gradle.api.logging.Logging;
+import org.gradle.internal.impldep.org.joda.time.Seconds;
+import org.slf4j.Logger;
 
 import java.io.File;
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 public interface TestClusterConfiguration {
+
     void setVersion(String version);
 
     void setDistribution(Distribution distribution);
@@ -65,4 +76,67 @@ public interface TestClusterConfiguration {
     List<String> getAllTransportPortURI();
 
     void stop(boolean tailLogs);
+
+    default void waitForConditions(
+        LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
+        long startedAtMillis,
+        long nodeUpTimeout, TimeUnit nodeUpTimeoutUnit,
+        TestClusterConfiguration context
+    ) {
+        Logger logger = Logging.getLogger(TestClusterConfiguration.class);
+        waitConditions.forEach((description, predicate) -> {
+            long thisConditionStartedAt = System.currentTimeMillis();
+            boolean conditionMet = false;
+            Throwable lastException = null;
+            while (
+                System.currentTimeMillis() - startedAtMillis < MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
+            ) {
+                if (context.isProcessAlive() == false) {
+                    throw new TestClustersException(
+                        "process was found dead while waiting for " + description + ", " + this
+                    );
+                }
+
+                try {
+                    if(predicate.test(context)) {
+                        conditionMet = true;
+                        break;
+                    }
+                } catch (TestClustersException e) {
+                    throw new TestClustersException(e);
+                } catch (Exception e) {
+                    if (lastException == null) {
+                        lastException = e;
+                    } else {
+                        e.addSuppressed(lastException);
+                        lastException = e;
+                    }
+                }
+                try {
+                    Thread.sleep(500);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (conditionMet == false) {
+                String message = "`" + context + "` failed to wait for " + description + " after " +
+                    nodeUpTimeout + " " + nodeUpTimeoutUnit;
+                if (lastException == null) {
+                    throw new TestClustersException(message);
+                } else {
+                    throw new TestClustersException(message, lastException);
+                }
+            }
+            logger.info(
+                "{}: {} took {} seconds",
+                this,  description,
+                SECONDS.convert(System.currentTimeMillis() - thisConditionStartedAt, MILLISECONDS)
+            );
+        });
+    }
+
+
+
+    boolean isProcessAlive();
 }

@@ -20,30 +20,62 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.Version;
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.util.ArrayList;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.requireNonNull;
+
 public class ElasticsearchCluster implements TestClusterConfiguration {
 
+    private static final int CLUSTER_UP_TIMEOUT = 20;
+    private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
+    private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
+    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
     private final String path;
     private final String clusterName;
-    private final List<ElasticsearchNode> nodes = new ArrayList<>();
+    private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
+    private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
 
-    public ElasticsearchCluster(String path, String clusterName, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
+    public ElasticsearchCluster(String path, String clusterName, Project project, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
-        this.nodes.add(new ElasticsearchNode(path, clusterName + "-1", services, artifactsExtractDir, workingDirBase));
+        nodes = project.container(ElasticsearchNode.class);
+        this.nodes.add(
+            new ElasticsearchNode(
+                path, clusterName + "-1",
+                GradleServicesAdapter.getInstance(project), artifactsExtractDir, workingDirBase
+            )
+        );
         this.workingDirBase = workingDirBase;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
+        checkFrozen();
         if (numberOfNodes < 1) {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes);
         }
@@ -52,14 +84,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 "Trying to configure " + this + " to have " + numberOfNodes + " nodes but it already has " + getNumberOfNodes()
             );
         }
-        ElasticsearchNode first = nodes.get(0);
+        ElasticsearchNode first = getFirstNode();
         for (int i = nodes.size() + 1 ; i <= numberOfNodes; i++) {
-            this.nodes.add(
-                new ElasticsearchNode(
-                    first.path, clusterName + "-" + i, first.services, first.artifactsExtractDir.toFile(), workingDirBase
-                )
-            );
+            this.nodes.add(new ElasticsearchNode(
+                first.path, clusterName + "-" + i, first.services, first.artifactsExtractDir.toFile(), workingDirBase
+            ));
         }
+    }
+
+    private ElasticsearchNode getFirstNode() {
+        return nodes.getAt(clusterName + "-1");
     }
 
     public int getNumberOfNodes() {
@@ -70,106 +104,151 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         return clusterName;
     }
 
-
-
     @Override
     public void setVersion(String version) {
-        nodes.forEach(each -> each.setVersion(version));
+        nodes.all(each -> each.setVersion(version));
     }
 
     @Override
     public void setDistribution(Distribution distribution) {
-        nodes.forEach(each -> each.setDistribution(distribution));
+        nodes.all(each -> each.setDistribution(distribution));
     }
 
     @Override
     public void plugin(URI plugin) {
-        nodes.forEach(each -> each.plugin(plugin));
+        nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
     public void plugin(File plugin) {
-        nodes.forEach(each -> each.plugin(plugin));
+        nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
     public void keystore(String key, String value) {
-        nodes.forEach(each -> each.keystore(key, value));
+        nodes.all(each -> each.keystore(key, value));
     }
 
     @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
-        nodes.forEach(each -> each.keystore(key, valueSupplier));
+        nodes.all(each -> each.keystore(key, valueSupplier));
     }
 
     @Override
     public void setting(String key, String value) {
-        nodes.forEach(each -> each.setting(key, value));
+        nodes.all(each -> each.setting(key, value));
     }
 
     @Override
     public void setting(String key, Supplier<CharSequence> valueSupplier) {
-        nodes.forEach(each -> each.setting(key, valueSupplier));
+        nodes.all(each -> each.setting(key, valueSupplier));
     }
 
     @Override
     public void systemProperty(String key, String value) {
-        nodes.forEach(each -> each.systemProperty(key, value));
+        nodes.all(each -> each.systemProperty(key, value));
     }
 
     @Override
     public void systemProperty(String key, Supplier<CharSequence> valueSupplier) {
-        nodes.forEach(each -> each.systemProperty(key, valueSupplier));
+        nodes.all(each -> each.systemProperty(key, valueSupplier));
     }
 
     @Override
     public void environment(String key, String value) {
-        nodes.forEach(each -> each.environment(key, value));
+        nodes.all(each -> each.environment(key, value));
     }
 
     @Override
     public void environment(String key, Supplier<CharSequence> valueSupplier) {
-        nodes.forEach(each -> each.environment(key, valueSupplier));
+        nodes.all(each -> each.environment(key, valueSupplier));
     }
 
     @Override
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
+        configurationFrozen.set(true);
+    }
+
+    private void checkFrozen() {
+        if (configurationFrozen.get()) {
+            throw new IllegalStateException("Configuration for " + this + " can not be altered, already locked");
+        }
     }
 
     @Override
     public void setJavaHome(File javaHome) {
-        nodes.forEach(each -> each.setJavaHome(javaHome));
+        nodes.all(each -> each.setJavaHome(javaHome));
     }
 
     @Override
     public void start() {
+        String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
+        for (ElasticsearchNode node : nodes) {
+            if (Version.fromString(node.getVersion()).getMajor() >= 7) {
+                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+            }
+        }
         nodes.forEach(ElasticsearchNode::start);
+
+        logger.info("Waiting for nodes");
+        nodes.forEach(ElasticsearchNode::waitForAllConditions);
+
+        writeUnicastHostsFiles();
+    }
+
+    private void writeUnicastHostsFiles() {
+        String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
+        nodes.forEach(node -> {
+            try {
+                Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     @Override
     public String getHttpSocketURI() {
-        return nodes.get(0).getHttpSocketURI();
+        waitForAllConditions();
+        return getFirstNode().getHttpSocketURI();
     }
 
     @Override
     public String getTransportPortURI() {
-        return nodes.get(0).getTransportPortURI();
+        waitForAllConditions();
+        return getFirstNode().getTransportPortURI();
     }
 
     @Override
     public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
     }
 
     @Override
     public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+    }
+
+    public void waitForAllConditions() {
+        long startedAt = System.currentTimeMillis();
+        logger.info("Starting to wait for cluster to come up");
+        addWaitForUri(
+            "cluster health yellow", "/_cluster/health?wait_for_nodes=>=" + nodes.size()  + "&wait_for_status=yellow"
+        );
+        waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
     @Override
     public void stop(boolean tailLogs) {
         nodes.forEach(each -> each.stop(tailLogs));
+    }
+
+    @Override
+    public boolean isProcessAlive() {
+        return ! nodes.stream().anyMatch(node -> node.isProcessAlive() == false);
     }
 
     public void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
@@ -180,6 +259,44 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         if (nodes.size() != 1) {
             throw new IllegalStateException("Can't threat cluster as single node as it has " + nodes.size() + " nodes");
         }
-        return nodes.get(0);
+        return getFirstNode();
+    }
+
+    private void addWaitForUri(String description, String uri) {
+        waitConditions.put(description, (node) -> {
+            try {
+                URL url = new URL("http://" + getFirstNode().getHttpSocketURI() + uri);
+                HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("GET");
+                con.setConnectTimeout(500);
+                con.setReadTimeout(500);
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
+                    String response = reader.lines().collect(Collectors.joining("\n"));
+                    logger.info("{} -> {} ->\n{}", this, uri, response);
+                }
+                return true;
+            } catch (IOException e) {
+                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
+            }
+        });
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ElasticsearchCluster that = (ElasticsearchCluster) o;
+        return Objects.equals(clusterName, that.clusterName) &&
+            Objects.equals(path, that.path);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(clusterName, path);
+    }
+
+    @Override
+    public String toString() {
+        return "cluster{" + path + ":" + clusterName + "}";
     }
 }

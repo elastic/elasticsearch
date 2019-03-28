@@ -38,7 +38,7 @@ import java.nio.charset.Charset
 public abstract class AntTask extends DefaultTask {
 
     /**
-     * A eventBuffer that will contain the output of the ant code run,
+     * A buffer that will contain the output of the ant code run,
      * if the output was not already written directly to stdout.
      */
     public final ByteArrayOutputStream outputBuffer = new ByteArrayOutputStream()

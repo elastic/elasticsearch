@@ -16,5 +16,5 @@ public interface EvaluationResult extends ToXContentObject, NamedWriteable {
     /**
      * Returns the name of the evaluation
      */
-    String getName();
+    String getEvaluationName();
 }

@@ -40,7 +40,7 @@ public interface SoftClassificationMetric extends ToXContentObject, NamedWriteab
     /**
      * Returns the name of the metric (which may differ to the writeable name)
      */
-    String getName();
+    String getMetricName();
 
     /**
      * Builds the aggregation that collect required data to compute the metric

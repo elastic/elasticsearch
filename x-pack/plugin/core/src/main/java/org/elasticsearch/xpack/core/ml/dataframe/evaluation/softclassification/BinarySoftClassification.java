@@ -89,7 +89,7 @@ public class BinarySoftClassification implements Evaluation {
         if (metrics.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[{}] must have one or more metrics", NAME.getPreferredName());
         }
-        Collections.sort(metrics, Comparator.comparing(SoftClassificationMetric::getName));
+        Collections.sort(metrics, Comparator.comparing(SoftClassificationMetric::getMetricName));
         return metrics;
     }
 
@@ -128,7 +128,7 @@ public class BinarySoftClassification implements Evaluation {
 
         builder.startObject(METRICS.getPreferredName());
         for (SoftClassificationMetric metric : metrics) {
-            builder.field(metric.getName(), metric);
+            builder.field(metric.getMetricName(), metric);
         }
         builder.endObject();
 

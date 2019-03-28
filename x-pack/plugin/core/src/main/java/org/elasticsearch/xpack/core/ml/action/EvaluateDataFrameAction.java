@@ -176,7 +176,7 @@ public class EvaluateDataFrameAction extends Action<EvaluateDataFrameAction.Resp
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(result.getName(), result);
+            builder.field(result.getEvaluationName(), result);
             builder.endObject();
             return builder;
         }

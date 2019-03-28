@@ -15,34 +15,34 @@ import java.util.Objects;
 
 public class MetricListEvaluationResult implements EvaluationResult {
 
-    public static final String WRITEABLE_NAME = "metric_list_evaluation_result";
+    public static final String NAME = "metric_list_evaluation_result";
 
-    private final String name;
+    private final String evaluationName;
     private final List<EvaluationMetricResult> metrics;
 
-    public MetricListEvaluationResult(String name, List<EvaluationMetricResult> metrics) {
-        this.name = Objects.requireNonNull(name);
+    public MetricListEvaluationResult(String evaluationName, List<EvaluationMetricResult> metrics) {
+        this.evaluationName = Objects.requireNonNull(evaluationName);
         this.metrics = Objects.requireNonNull(metrics);
     }
 
     public MetricListEvaluationResult(StreamInput in) throws IOException {
-        this.name = in.readString();
+        this.evaluationName = in.readString();
         this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
     }
 
     @Override
     public String getWriteableName() {
-        return WRITEABLE_NAME;
+        return NAME;
     }
 
     @Override
-    public String getName() {
-        return name;
+    public String getEvaluationName() {
+        return evaluationName;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        out.writeString(evaluationName);
         out.writeList(metrics);
     }
 

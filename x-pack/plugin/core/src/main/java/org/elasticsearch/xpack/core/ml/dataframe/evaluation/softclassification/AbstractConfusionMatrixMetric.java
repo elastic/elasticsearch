@@ -28,11 +28,12 @@ abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric
     protected AbstractConfusionMatrixMetric(double[] thresholds) {
         this.thresholds = ExceptionsHelper.requireNonNull(thresholds, AT);
         if (thresholds.length == 0) {
-            throw ExceptionsHelper.badRequestException("[" + getName() + "." + AT.getPreferredName() + "] must have at least one value");
+            throw ExceptionsHelper.badRequestException("[" + getMetricName() + "." + AT.getPreferredName()
+                + "] must have at least one value");
         }
         for (double threshold : thresholds) {
             if (threshold < 0 || threshold > 1.0) {
-                throw ExceptionsHelper.badRequestException("[" + getName() + "." + AT.getPreferredName()
+                throw ExceptionsHelper.badRequestException("[" + getMetricName() + "." + AT.getPreferredName()
                     + "] values must be in [0.0, 1.0]");
             }
         }
@@ -71,7 +72,7 @@ abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric
     }
 
     protected String aggName(ClassInfo classInfo, double threshold, Condition condition) {
-        return getName() + "_" + classInfo.getName() + "_at_" + threshold + "_" + condition.name();
+        return getMetricName() + "_" + classInfo.getName() + "_at_" + threshold + "_" + condition.name();
     }
 
     protected AggregationBuilder buildAgg(ClassInfo classInfo, double threshold, Condition condition) {

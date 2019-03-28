@@ -48,7 +48,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public String getName() {
+    public String getMetricName() {
         return NAME.getPreferredName();
     }
 

@@ -48,7 +48,7 @@ public class Recall extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public String getName() {
+    public String getMetricName() {
         return NAME.getPreferredName();
     }
 

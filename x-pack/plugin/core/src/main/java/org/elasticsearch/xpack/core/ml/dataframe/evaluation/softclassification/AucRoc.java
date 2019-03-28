@@ -97,7 +97,7 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     @Override
-    public String getName() {
+    public String getMetricName() {
         return NAME.getPreferredName();
     }
 
@@ -134,11 +134,11 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     private String evaluatedLabelAggName(ClassInfo classInfo) {
-        return getName() + "_" + classInfo.getName();
+        return getMetricName() + "_" + classInfo.getName();
     }
 
     private String restLabelsAggName(ClassInfo classInfo) {
-        return getName() + "_non_" + classInfo.getName();
+        return getMetricName() + "_non_" + classInfo.getName();
     }
 
     @Override

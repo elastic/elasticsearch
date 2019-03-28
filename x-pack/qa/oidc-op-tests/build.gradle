@@ -1,5 +1,4 @@
 Project idpFixtureProject = xpackProject("test:idp-fixture")
-evaluationDependsOn(idpFixtureProject.path)
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -19,7 +18,8 @@ task setupPorts {
     doLast {
         ephemeralPort = idpFixtureProject.postProcessFixture.ext."test.fixtures.oidc-provider.tcp.8080"
     }
-
+// Don't attempt to get ephemeral ports when Docker is not available
+setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
 }
 integTestCluster {
     dependsOn setupPorts

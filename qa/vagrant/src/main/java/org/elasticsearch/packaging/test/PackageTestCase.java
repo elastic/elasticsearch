@@ -71,7 +71,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
     private Shell sh;
 
     @Before
-    public void onlyCompatibleDistributions() {
+    public void onlyCompatibleDistributions() throws Exception {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
         sh = newShell();
     }

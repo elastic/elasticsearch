@@ -222,9 +222,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             if (futureSeqNo == false && futureTerm == false)
                                 historyResponse.accept(new FailureHistoryOutput());
                             logger.info("Received failure: " + e.getMessage(), e);
+                            if (stop) {
+                                // interrupt often comes as a RuntimeException so check to stop here too.
+                                return;
+                            }
                         }
                     }
-
                 } catch (InterruptedException e) {
                     assert stop : "should only be interrupted when stopped";
                 } catch (BrokenBarrierException e) {

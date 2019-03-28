@@ -31,7 +31,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.testing.Test;
 
@@ -102,6 +101,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
             );
+            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
             // conventions are not honored when the tasks are disabled
             disableTaskByType(tasks, TestingConventionsTasks.class);
             disableTaskByType(tasks, ComposeUp.class);
@@ -116,6 +116,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     fixtureProject,
                     task::systemProperty
                 );
+                task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
             })
         );
 
@@ -149,7 +150,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    @Input
     public boolean dockerComposeSupported(Project project) {
         if (OS.current().equals(OS.WINDOWS)) {
             return false;

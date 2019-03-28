@@ -10,20 +10,24 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.Objects;
+
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 
-public abstract class RegexMatch extends UnaryScalarFunction {
+public abstract class RegexMatch<T> extends UnaryScalarFunction {
 
-    private final String pattern;
-
-    protected RegexMatch(Source source, Expression value, String pattern) {
+    private final T pattern;
+    
+    protected RegexMatch(Source source, Expression value, T pattern) {
         super(source, value);
         this.pattern = pattern;
+    }
+    
+    public T pattern() {
+        return pattern;
     }
 
     @Override
@@ -33,7 +37,7 @@ public abstract class RegexMatch extends UnaryScalarFunction {
 
     @Override
     public Nullability nullable() {
-        if (pattern == null) {
+        if (pattern() == null) {
             return Nullability.TRUE;
         }
         return field().nullable();
@@ -49,15 +53,14 @@ public abstract class RegexMatch extends UnaryScalarFunction {
         // right() is not directly foldable in any context but Like can fold it.
         return field().foldable();
     }
-
+    
     @Override
-    public Boolean fold() {
-        Object val = field().fold();
-        return RegexOperation.match(val, pattern);
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(((RegexMatch<?>) obj).pattern(), pattern());
     }
 
     @Override
-    protected Processor makeProcessor() {
-        return new RegexProcessor(pattern);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), pattern());
     }
 }

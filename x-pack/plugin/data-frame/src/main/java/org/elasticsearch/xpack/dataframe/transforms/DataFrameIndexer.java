@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
@@ -44,11 +45,13 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected abstract DataFrameTransformConfig getConfig();
 
+    protected abstract Map<String, String> getFieldMappings();
+
     @Override
     protected void onStartJob(long now) {
-        QueryBuilder queryBuilder = getConfig().getQueryConfig().getQuery();
+        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
-        pivot = new Pivot(getConfig().getSource(), queryBuilder, getConfig().getPivotConfig());
+        pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
     }
 
     @Override
@@ -68,18 +71,31 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
-        String indexName = transformConfig.getDestination();
+        String indexName = transformConfig.getDestination().getIndex();
 
-        return pivot.extractResults(agg, getStats()).map(document -> {
+        return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
+            String id = (String) document.get(DataFrameField.DOCUMENT_ID_FIELD);
+
+            if (id == null) {
+                throw new RuntimeException("Expected a document id but got null.");
+            }
+
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
-                builder.map(document);
+                builder.startObject();
+                for (Map.Entry<String, ?> value : document.entrySet()) {
+                    // skip all internal fields
+                    if (value.getKey().startsWith("_") == false) {
+                        builder.field(value.getKey(), value.getValue());
+                    }
+                }
+                builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            IndexRequest request = new IndexRequest(indexName).source(builder);
+            IndexRequest request = new IndexRequest(indexName).source(builder).id(id);
             return request;
         });
     }

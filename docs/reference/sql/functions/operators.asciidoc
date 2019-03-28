@@ -16,12 +16,12 @@ include-tagged::{sql-specs}/filter.sql-spec[whereFieldEquality]
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareWithNull]
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareWithNull]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[nullEqualsCompareTwoNulls]
+include-tagged::{sql-specs}/docs/docs.csv-spec[nullEqualsCompareTwoNulls]
 --------------------------------------------------
 
 * Inequality (`<>` or `!=`)
@@ -142,5 +142,5 @@ include-tagged::{sql-specs}/arithmetic.sql-spec[mod]
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToLongCastOperator]
+include-tagged::{sql-specs}/docs/docs.csv-spec[conversionStringToLongCastOperator]
 --------------------------------------------------

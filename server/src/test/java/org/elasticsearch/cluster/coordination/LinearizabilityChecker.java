@@ -498,11 +498,37 @@ public class LinearizabilityChecker {
     }
 
 
+    /**
+     * A cache optimized for small bit-counts (less than 64) and small number of unique permutations of state objects.
+     *
+     * Each combination of states is kept once only, building on the
+     * assumption that the number of permutations is small compared to the
+     * number of bits permutations. For those histories that are difficult to check
+     * we will have many bits combinations that use the same state permutations.
+     *
+     * The smallMap optimization allows us to avoid object overheads for bit-sets up to 64 bit large.
+     *
+     * Comparing set of (bits, state) to smallMap:
+     * (bits, state) : 24 (tuple) + 24 (FixedBitSet) + 24 (bits) + 5 (hash buckets) + 24 (hashmap node).
+     * smallMap bits to {state} : 10 (bits) + 5 (hash buckets) + avg-size of unique permutations.
+     *
+     * The avg-size of the unique permutations part is very small compared to the
+     * sometimes large number of bits combinations (which are the cases where
+     * we run into trouble).
+     *
+     * set of (bits, state) totals 101 bytes compared to smallMap bits to { state }
+     * which totals 15 bytes, ie. a 6x improvement in memory usage.
+     */
     private static class Cache {
         private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
         private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
         private final Map<Object, Object> internalizeStateMap = new HashMap<>();
         private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
+
+        /**
+         * Add state, bits combination
+         * @return true if added, false if already registered.
+         */
         public boolean add(Object state, FixedBitSet bitSet) {
             return addInternal(internalizeStateMap.computeIfAbsent(state, k -> state), bitSet);
         }
@@ -516,33 +542,34 @@ public class LinearizabilityChecker {
         }
 
         private boolean addSmall(Object state, long bits) {
-            Set<Object> objects = smallMap.get(bits);
-            if (objects == null) {
-                objects = uniquePermutation(Collections.singleton(state));
+            int index = smallMap.indexOf(bits);
+            Set<Object> states;
+            if (index < 0) {
+                states = Collections.singleton(state);
             } else {
-                if (objects.contains(state)) {
+                Set<Object> oldStates = smallMap.indexGet(index);
+                if (oldStates.contains(state))
                     return false;
-                }
-                objects = add(objects, state);
+                states = new HashSet<>(oldStates.size() + 1);
+                states.addAll(oldStates);
+                states.add(state);
             }
-            smallMap.put(bits, objects);
+
+            // Get a unique set object per state permutation. We assume that the number of permutations of states are small.
+            // We thus avoid the overhead of the set data structure.
+            states = statePermutations.computeIfAbsent(states, k -> k);
+
+            if (index < 0) {
+                smallMap.indexInsert(index, bits, states);
+            } else {
+                smallMap.indexReplace(index, states);
+            }
+
             return true;
         }
 
         private boolean addLarge(Object state, FixedBitSet bitSet) {
             return largeMap.computeIfAbsent(state, k -> new HashSet<>()).add(bitSet);
         }
-
-        private Set<Object> add(Set<Object> objects, Object state) {
-            Set<Object> newObjects = new HashSet<>(objects.size() + 1);
-            newObjects.addAll(objects);
-            newObjects.add(state);
-            return uniquePermutation(newObjects);
-        }
-
-        private Set<Object> uniquePermutation(Set<Object> newObjects) {
-            return statePermutations.computeIfAbsent(newObjects, k -> k);
-        }
-
     }
 }

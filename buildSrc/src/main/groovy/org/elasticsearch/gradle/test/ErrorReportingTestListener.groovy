@@ -52,9 +52,9 @@ class ErrorReportingTestListener implements TestOutputListener, TestListener {
 
                         for (TestOutputEvent event : events) {
                             if (event.getDestination() == TestOutputEvent.Destination.StdOut) {
-                                print(event.getMessage())
+                                print("  1> ${event.getMessage()}")
                             } else {
-                                System.err.print(event.getMessage())
+                                System.err.print("  2> ${event.getMessage()}")
                             }
                         }
                     }

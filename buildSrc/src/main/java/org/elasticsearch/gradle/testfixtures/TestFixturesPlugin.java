@@ -101,7 +101,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
             );
-            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
+            disableTaskByType(tasks, Test.class);
             // conventions are not honored when the tasks are disabled
             disableTaskByType(tasks, TestingConventionsTasks.class);
             disableTaskByType(tasks, ComposeUp.class);

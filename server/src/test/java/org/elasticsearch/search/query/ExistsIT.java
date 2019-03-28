@@ -238,7 +238,7 @@ public class ExistsIT extends ESIntegTestCase {
             .startObject("type")
                 .startObject("properties")
                     .startObject("headers")
-                        .field("type", "json")
+                        .field("type", "embedded_json")
                     .endObject()
                 .endObject()
            .endObject()

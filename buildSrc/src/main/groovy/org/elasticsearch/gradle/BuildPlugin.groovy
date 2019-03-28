@@ -947,12 +947,10 @@ class BuildPlugin implements Plugin<Project> {
                         '-XX:+HeapDumpOnOutOfMemoryError',
                         "-XX:HeapDumpPath=$heapdumpDir"
 
+                jvmArgs System.getProperty('tests.jvm.argline', '').split(" ")
+
                 if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
                     jvmArgs '--illegal-access=warn'
-                }
-
-                if (System.getProperty('tests.jvm.argline')) {
-                    jvmArgs System.getProperty('tests.jvm.argline').split(" ")
                 }
 
                 if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {

@@ -218,9 +218,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             historyResponse.accept(new CASFailureHistoryOutput(e));
                         } catch (RuntimeException e) {
                             // if we used a future seqNo, we cannot know if it will overwrite a future update when failing with
-                            // unknown error
+                            // unknown error, so have to assume a timeout instead wrt. linearizability.
                             if (futureSeqNo == false && futureTerm == false)
                                 historyResponse.accept(new FailureHistoryOutput());
+                            logger.info("Received failure: " + e.getMessage(), e);
                         }
                     }
 

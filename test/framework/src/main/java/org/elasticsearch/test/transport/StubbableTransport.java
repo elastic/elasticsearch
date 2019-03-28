@@ -87,7 +87,10 @@ public final class StubbableTransport implements Transport {
         if (behavior != null) {
             behavior.clearCallback();
         }
-        connectBehaviors.remove(transportAddress);
+        OpenConnectionBehavior openConnectionBehavior = connectBehaviors.remove(transportAddress);
+        if (behavior != null) {
+            openConnectionBehavior.clearCallback();
+        }
     }
 
     Transport getDelegate() {
@@ -260,6 +263,8 @@ public final class StubbableTransport implements Transport {
 
         Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
                                   ActionListener<Connection> listener);
+
+        default void clearCallback() {}
     }
 
     @FunctionalInterface

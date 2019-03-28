@@ -5,15 +5,51 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
+import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlSession;
+import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
+
+    static final String CLUSTER_NAME = "cluster";
+
+    private final SqlParser parser = new SqlParser();
+    private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
+    private final IndexInfo index = new IndexInfo("test_emp", IndexType.INDEX);
+    private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
+
 
     public void testSysColumns() {
         List<List<?>> rows = new ArrayList<>();
@@ -128,7 +164,7 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsInOdbcMode() {
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null, 
+        SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.ODBC);
         assertEquals(13, rows.size());
         assertEquals(24, rows.get(0).size());
@@ -263,7 +299,7 @@ public class SysColumnsTests extends ESTestCase {
     
     public void testSysColumnsInJdbcMode() {
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null, 
+        SysColumns.fillInRows("test", "index", TypesTests.loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
                 Mode.JDBC);
         assertEquals(13, rows.size());
         assertEquals(24, rows.get(0).size());
@@ -430,5 +466,74 @@ public class SysColumnsTests extends ESTestCase {
 
     private static Object sqlDataTypeSub(List<?> list) {
         return list.get(14);
+    }
+
+    public void testSysColumnsWithCatalogWildcard() throws Exception {
+        executeCommand("SYS COLUMNS CATALOG '%' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
+            assertEquals(22, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("bool", r.column(3));
+            r.advanceRow();
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("int", r.column(3));
+        }, mapping);
+    }
+
+    public void testSysColumnsWithMissingCatalog() throws Exception {
+        executeCommand("SYS COLUMNS TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
+            assertEquals(22, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("bool", r.column(3));
+            r.advanceRow();
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("int", r.column(3));
+        }, mapping);
+    }
+
+    public void testSysColumnsWithNullCatalog() throws Exception {
+        executeCommand("SYS COLUMNS CATALOG ? TABLE LIKE 'test' LIKE '%'", singletonList(new SqlTypedParamValue("keyword", null)), r -> {
+            assertEquals(22, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("bool", r.column(3));
+            r.advanceRow();
+            assertEquals(CLUSTER_NAME, r.column(0));
+            assertEquals("test", r.column(2));
+            assertEquals("int", r.column(3));
+        }, mapping);
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Map<String, EsField> mapping)
+            throws Exception {
+        Tuple<Command, SqlSession> tuple = sql(sql, params, mapping);
+
+        IndexResolver resolver = tuple.v2().indexResolver();
+
+        EsIndex test = new EsIndex("test", mapping);
+
+        doAnswer(invocation -> {
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[2]).onResponse(singletonList(test));
+            return Void.TYPE;
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), any());
+
+        tuple.v1().execute(tuple.v2(), wrap(consumer::accept, ex -> fail(ex.getMessage())));
+    }
+
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
+        EsIndex test = new EsIndex("test", mapping);
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
+                new Verifier(new Metrics()));
+        Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params), true);
+
+        IndexResolver resolver = mock(IndexResolver.class);
+        when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
+
+        SqlSession session = new SqlSession(TestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        return new Tuple<>(cmd, session);
     }
 }

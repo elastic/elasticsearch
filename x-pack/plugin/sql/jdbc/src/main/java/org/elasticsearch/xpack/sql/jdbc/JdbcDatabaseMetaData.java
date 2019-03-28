@@ -31,6 +31,8 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
  */
 class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
+    private static final String WILDCARD = "%";
+
     private final JdbcConnection con;
 
     JdbcDatabaseMetaData(JdbcConnection con) {
@@ -714,14 +716,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         // null means catalog info is irrelevant
         // % means return all catalogs
         // EMPTY means return those without a catalog
-        return catalog == null || catalog.equals(EMPTY) || catalog.equals("%") || catalog.equals(defaultCatalog());
+        return catalog == null || catalog.equals(EMPTY) || catalog.equals(WILDCARD) || catalog.equals(defaultCatalog());
     }
 
     private boolean isDefaultSchema(String schema) {
         // null means schema info is irrelevant
         // % means return all schemas`
         // EMPTY means return those without a schema
-        return schema == null || schema.equals(EMPTY) || schema.equals("%");
+        return schema == null || schema.equals(EMPTY) || schema.equals(WILDCARD);
     }
 
     @Override
@@ -739,8 +741,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         }
 
         PreparedStatement ps = con.prepareStatement(statement);
-        ps.setString(1, catalog != null ? catalog.trim() : "%");
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        ps.setString(1, catalog != null ? catalog.trim() : WILDCARD);
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
 
         if (types != null && types.length > 0) {
             for (int i = 0; i < types.length; i++) {
@@ -789,10 +791,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
-        // TODO: until passing null works, pass an empty string
-        ps.setString(1, catalog != null ? catalog.trim() : EMPTY);
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
-        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : "%");
+        ps.setString(1, catalog != null ? catalog.trim() : WILDCARD);
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
+        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : WILDCARD);
         return ps.executeQuery();
     }
 

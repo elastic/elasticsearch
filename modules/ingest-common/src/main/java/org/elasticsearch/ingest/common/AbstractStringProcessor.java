@@ -29,8 +29,10 @@ import java.util.Map;
 /**
  * Base class for processors that manipulate source strings and require a single "fields" array config value, which
  * holds a list of field names in string format.
+ *
+ * @param <T> The resultant type for the target field
  */
-abstract class AbstractStringProcessor extends AbstractProcessor {
+abstract class AbstractStringProcessor<T> extends AbstractProcessor {
     private final String field;
     private final boolean ignoreMissing;
     private final String targetField;
@@ -68,7 +70,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         return document;
     }
 
-    protected abstract Object process(String value);
+    protected abstract T process(String value);
 
     abstract static class Factory implements Processor.Factory {
         final String processorType;
@@ -78,8 +80,8 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor create(Map<String, Processor.Factory> registry, String tag,
-                                              Map<String, Object> config) throws Exception {
+        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag,
+                                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
@@ -87,7 +89,7 @@ abstract class AbstractStringProcessor extends AbstractProcessor {
             return newProcessor(tag, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
-                                                                boolean ignoreMissing, String targetField);
+        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, Map<String, Object> config, String field,
+                                                                   boolean ignoreMissing, String targetField);
     }
 }

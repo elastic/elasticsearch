@@ -31,15 +31,15 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractStringProcessorTestCase extends ESTestCase {
+public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
-    protected abstract AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField);
+    protected abstract AbstractStringProcessor<T> newProcessor(String field, boolean ignoreMissing, String targetField);
 
     protected String modifyInput(String input) {
         return input;
     }
 
-    protected abstract Object expectedResult(String input);
+    protected abstract T expectedResult(String input);
 
     protected Class<?> expectedResultType(){
         return String.class;  // most results types are Strings

@@ -75,6 +75,7 @@ import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
@@ -94,6 +95,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -108,9 +111,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -120,6 +120,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -366,8 +367,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername("*"))
                 .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
                 .build();
-            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                rules, null, RefreshPolicy.NONE);
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true,
+                Collections.singletonList("superuser"), Collections.emptyList(), rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             // end::put-role-mapping-execute
             // tag::put-role-mapping-response
@@ -381,7 +382,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername("*"))
                 .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
                 .build();
-            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.emptyList(),
+                Collections.singletonList(new TemplateRoleName("{\"source\":\"{{username}}\"}", TemplateRoleName.Format.STRING)),
                 rules, null, RefreshPolicy.NONE);
             // tag::put-role-mapping-execute-listener
             ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
@@ -397,25 +399,32 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             // end::put-role-mapping-execute-listener
 
+            // avoid unused local warning
+            assertNotNull(listener);
+
             // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
+            final PlainActionFuture<PutRoleMappingResponse> future = new PlainActionFuture<>();
+            listener = future;
 
             // tag::put-role-mapping-execute-async
             client.security().putRoleMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-role-mapping-execute-async
 
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+            assertThat(future.get(), notNullValue());
+            assertThat(future.get().isCreated(), is(false));
         }
     }
 
     public void testGetRoleMappings() throws Exception {
         final RestHighLevelClient client = highLevelClient();
 
+        final TemplateRoleName monitoring = new TemplateRoleName("{\"source\":\"monitoring\"}", TemplateRoleName.Format.STRING);
+        final TemplateRoleName template = new TemplateRoleName("{\"source\":\"{{username}}\"}", TemplateRoleName.Format.STRING);
+
         final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
             .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
-        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList(
-            "superuser"), rules1, null, RefreshPolicy.NONE);
+        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.emptyList(),
+            Arrays.asList(monitoring, template), rules1, null, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
             RequestOptions.DEFAULT);
         boolean isCreated1 = putRoleMappingResponse1.isCreated();
@@ -424,8 +433,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             "cn=admins,dc=example,dc=com")).build();
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("k1", "v1");
-        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList(
-            "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
+        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true,
+            Arrays.asList("superuser"), Collections.emptyList(), rules2, metadata2, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
             RequestOptions.DEFAULT);
         boolean isCreated2 = putRoleMappingResponse2.isCreated();
@@ -445,7 +454,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.get(0).getName(), is("mapping-example-1"));
             assertThat(mappings.get(0).getExpression(), equalTo(rules1));
             assertThat(mappings.get(0).getMetadata(), equalTo(Collections.emptyMap()));
-            assertThat(mappings.get(0).getRoles(), contains("superuser"));
+            assertThat(mappings.get(0).getRoles(), iterableWithSize(0));
+            assertThat(mappings.get(0).getRoleTemplates(), iterableWithSize(2));
+            assertThat(mappings.get(0).getRoleTemplates(), containsInAnyOrder(monitoring, template));
         }
 
         {
@@ -462,11 +473,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
-                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                    assertThat(roleMapping.getRoles(), emptyIterable());
+                    assertThat(roleMapping.getRoleTemplates(), contains(monitoring, template));
                 } else {
                     assertThat(roleMapping.getMetadata(), equalTo(metadata2));
                     assertThat(roleMapping.getExpression(), equalTo(rules2));
-                    assertThat(roleMapping.getRoles(), contains("monitoring"));
+                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                    assertThat(roleMapping.getRoleTemplates(), emptyIterable());
                 }
             }
         }
@@ -485,11 +498,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
-                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                    assertThat(roleMapping.getRoles(), emptyIterable());
+                    assertThat(roleMapping.getRoleTemplates(), containsInAnyOrder(monitoring, template));
                 } else {
                     assertThat(roleMapping.getMetadata(), equalTo(metadata2));
                     assertThat(roleMapping.getExpression(), equalTo(rules2));
-                    assertThat(roleMapping.getRoles(), contains("monitoring"));
+                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                    assertThat(roleMapping.getRoleTemplates(), emptyIterable());
                 }
             }
         }
@@ -1093,8 +1108,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create role mappings
             final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("*");
-            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                rules, null, RefreshPolicy.NONE);
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true,
+                Collections.singletonList("superuser"), Collections.emptyList(), rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             boolean isCreated = response.isCreated();
             assertTrue(isCreated);

@@ -7,115 +7,114 @@
 
 * <<sql-operators, Operators>>
 * <<sql-functions-aggs, Aggregate>>
-** <<sql-functions-aggs-avg, AVG>>
-** <<sql-functions-aggs-count, COUNT>>
-** <<sql-functions-aggs-count-all, COUNT(ALL)>>
-** <<sql-functions-aggs-count-distinct, COUNT(DISTINCT)>>
-** <<sql-functions-aggs-first, FIRST>>
-** <<sql-functions-aggs-last, LAST>>
-** <<sql-functions-aggs-max, MAX>>
-** <<sql-functions-aggs-min, MIN>>
-** <<sql-functions-aggs-sum, SUM>>
-** <<sql-functions-aggs-kurtosis, KURTOSIS>>
-** <<sql-functions-aggs-mad, MAD>>
-** <<sql-functions-aggs-percentile, PERCENTILE>>
-** <<sql-functions-aggs-percentile-rank, PERCENTILE_RANK>>
-** <<sql-functions-aggs-skewness, SKEWNESS>>
-** <<sql-functions-aggs-stddev-pop, STDDEV_POP>>
-** <<sql-functions-aggs-sum-squares, SUM_OF_SQUARES>>
-** <<sql-functions-aggs-var-pop, VAR_POP>>
+** <<sql-functions-aggs-avg>>
+** <<sql-functions-aggs-count>>
+** <<sql-functions-aggs-count-all>>
+** <<sql-functions-aggs-count-distinct>>
+** <<sql-functions-aggs-first>>
+** <<sql-functions-aggs-last>>
+** <<sql-functions-aggs-max>>
+** <<sql-functions-aggs-min>>
+** <<sql-functions-aggs-sum>>
+** <<sql-functions-aggs-kurtosis>>
+** <<sql-functions-aggs-mad>>
+** <<sql-functions-aggs-percentile>>
+** <<sql-functions-aggs-percentile-rank>>
+** <<sql-functions-aggs-skewness>>
+** <<sql-functions-aggs-stddev-pop>>
+** <<sql-functions-aggs-sum-squares>>
+** <<sql-functions-aggs-var-pop>>
 * <<sql-functions-grouping, Grouping>>
-** <<sql-functions-grouping-histogram, HISTOGRAM>>
+** <<sql-functions-grouping-histogram>>
 * <<sql-functions-datetime, Date-Time>>
-** <<sql-functions-datetime-interval, INTERVAL>>
-** <<sql-functions-current-date, CURRENT_DATE>>
-** <<sql-functions-current-timestamp, CURRENT_TIMESTAMP>>
-** <<sql-functions-datetime-day, DAY>>
-** <<sql-functions-datetime-dow, DAY_OF_WEEK>>
-** <<sql-functions-datetime-doy, DAY_OF_YEAR>>
-** <<sql-functions-datetime-dayname, DAY_NAME>>
-** <<sql-functions-datetime-hour, HOUR>>
-** <<sql-functions-datetime-isodow, ISO_DAY_OF_WEEK>>
-** <<sql-functions-datetime-isoweek, ISO_WEEK_OF_YEAR>>
-** <<sql-functions-datetime-minuteofday, MINUTE_OF_DAY>>
-** <<sql-functions-datetime-minute, MINUTE_OF_HOUR>>
-** <<sql-functions-datetime-month, MONTH_OF_YEAR>>
-** <<sql-functions-datetime-monthname, MONTH_NAME>>
-** <<sql-functions-now, NOW>>
-** <<sql-functions-datetime-second, SECOND_OF_MINUTE>>
-** <<sql-functions-datetime-quarter, QUARTER>>
-** <<sql-functions-today, TODAY>>
-** <<sql-functions-datetime-week, WEEK_OF_YEAR>>
-** <<sql-functions-datetime-year, YEAR>>
-** <<sql-functions-datetime-extract, EXTRACT>>
+** <<sql-functions-current-date>>
+** <<sql-functions-current-timestamp>>
+** <<sql-functions-datetime-day>>
+** <<sql-functions-datetime-dow>>
+** <<sql-functions-datetime-doy>>
+** <<sql-functions-datetime-dayname>>
+** <<sql-functions-datetime-hour>>
+** <<sql-functions-datetime-isodow>>
+** <<sql-functions-datetime-isoweek>>
+** <<sql-functions-datetime-minuteofday>>
+** <<sql-functions-datetime-minute>>
+** <<sql-functions-datetime-month>>
+** <<sql-functions-datetime-monthname>>
+** <<sql-functions-now>>
+** <<sql-functions-datetime-second>>
+** <<sql-functions-datetime-quarter>>
+** <<sql-functions-today>>
+** <<sql-functions-datetime-week>>
+** <<sql-functions-datetime-year>>
+** <<sql-functions-datetime-extract>>
 * <<sql-functions-search, Full-Text Search>>
-** <<sql-functions-search-match, MATCH>>
-** <<sql-functions-search-query, QUERY>>
-** <<sql-functions-search-score, SCORE>>
+** <<sql-functions-search-match>>
+** <<sql-functions-search-query>>
+** <<sql-functions-search-score>>
 * <<sql-functions-math, Mathematical>>
-** <<sql-functions-math-abs, ABS>>
-** <<sql-functions-math-cbrt, CBRT>>
-** <<sql-functions-math-ceil, CEIL>>
-** <<sql-functions-math-e, E>>
-** <<sql-functions-math-exp, EXP>>
-** <<sql-functions-math-expm1, EXPM1>>
-** <<sql-functions-math-floor, FLOOR>>
-** <<sql-functions-math-log, LOG>>
-** <<sql-functions-math-log10, LOG10>>
-** <<sql-functions-math-pi, PI>>
-** <<sql-functions-math-power, POWER>>
-** <<sql-functions-math-random, RANDOM>> 
-** <<sql-functions-math-round, ROUND>>
-** <<sql-functions-math-sign, SIGN>>
-** <<sql-functions-math-sqrt, SQRT>>
-** <<sql-functions-math-truncate, TRUNCATE>>
-** <<sql-functions-math-acos, ACOS>>
-** <<sql-functions-math-asin, ASIN>>
-** <<sql-functions-math-atan, ATAN>>
-** <<sql-functions-math-atan2, ATAN2>>
-** <<sql-functions-math-cos, COS>>
-** <<sql-functions-math-cosh, COSH>>
-** <<sql-functions-math-cot, COT>>
-** <<sql-functions-math-degrees, DEGREES>>
-** <<sql-functions-math-radians, RADIANS>>
-** <<sql-functions-math-sin, SIN>>
-** <<sql-functions-math-sinh, SINH>>
-** <<sql-functions-math-tan, TAN>>
+** <<sql-functions-math-abs>>
+** <<sql-functions-math-cbrt>>
+** <<sql-functions-math-ceil>>
+** <<sql-functions-math-e>>
+** <<sql-functions-math-exp>>
+** <<sql-functions-math-expm1>>
+** <<sql-functions-math-floor>>
+** <<sql-functions-math-log>>
+** <<sql-functions-math-log10>>
+** <<sql-functions-math-pi>>
+** <<sql-functions-math-power>>
+** <<sql-functions-math-random>> 
+** <<sql-functions-math-round>>
+** <<sql-functions-math-sign>>
+** <<sql-functions-math-sqrt>>
+** <<sql-functions-math-truncate>>
+** <<sql-functions-math-acos>>
+** <<sql-functions-math-asin>>
+** <<sql-functions-math-atan>>
+** <<sql-functions-math-atan2>>
+** <<sql-functions-math-cos>>
+** <<sql-functions-math-cosh>>
+** <<sql-functions-math-cot>>
+** <<sql-functions-math-degrees>>
+** <<sql-functions-math-radians>>
+** <<sql-functions-math-sin>>
+** <<sql-functions-math-sinh>>
+** <<sql-functions-math-tan>>
 * <<sql-functions-string, String>>
-** <<sql-functions-string-ascii, ASCII>>
-** <<sql-functions-string-bit-length, BIT_LENGTH>>
-** <<sql-functions-string-char, CHAR>>
-** <<sql-functions-string-char-length, CHAR_LENGTH>>
-** <<sql-functions-string-concat, CONCAT>>
-** <<sql-functions-string-insert, INSERT>>
-** <<sql-functions-string-lcase, LCASE>>
-** <<sql-functions-string-left, LEFT>>
-** <<sql-functions-string-length, LENGTH>>
-** <<sql-functions-string-locate, LOCATE>>
-** <<sql-functions-string-ltrim, LTRIM>>
-** <<sql-functions-string-octet-length, OCTET_LENGTH>>
-** <<sql-functions-string-position, POSITION>>
-** <<sql-functions-string-repeat, REPEAT>>
-** <<sql-functions-string-replace, REPLACE>>
-** <<sql-functions-string-right, RIGHT>>
-** <<sql-functions-string-rtrim, RTRIM>>
-** <<sql-functions-string-space, SPACE>>
-** <<sql-functions-string-substring, SUBSTRING>>
-** <<sql-functions-string-ucase, UCASE>>
+** <<sql-functions-string-ascii>>
+** <<sql-functions-string-bit-length>>
+** <<sql-functions-string-char>>
+** <<sql-functions-string-char-length>>
+** <<sql-functions-string-concat>>
+** <<sql-functions-string-insert>>
+** <<sql-functions-string-lcase>>
+** <<sql-functions-string-left>>
+** <<sql-functions-string-length>>
+** <<sql-functions-string-locate>>
+** <<sql-functions-string-ltrim>>
+** <<sql-functions-string-octet-length>>
+** <<sql-functions-string-position>>
+** <<sql-functions-string-repeat>>
+** <<sql-functions-string-replace>>
+** <<sql-functions-string-right>>
+** <<sql-functions-string-rtrim>>
+** <<sql-functions-string-space>>
+** <<sql-functions-string-substring>>
+** <<sql-functions-string-ucase>>
 * <<sql-functions-type-conversion, Type Conversion>>
-** <<sql-functions-type-conversion-cast, CAST>>
-** <<sql-functions-type-conversion-convert, CONVERT>>
+** <<sql-functions-type-conversion-cast>>
+** <<sql-functions-type-conversion-convert>>
 * <<sql-functions-conditional, Conditional>>
-** <<sql-functions-conditional-coalesce, COALESCE>>
-** <<sql-functions-conditional-greatest, GREATEST>>
-** <<sql-functions-conditional-ifnull, IFNULL>>
-** <<sql-functions-conditional-isnull, ISNULL>>
-** <<sql-functions-conditional-least, LEAST>>
-** <<sql-functions-conditional-nullif, NULLIF>>
-** <<sql-functions-conditional-nvl, NVL>>
+** <<sql-functions-conditional-coalesce>>
+** <<sql-functions-conditional-greatest>>
+** <<sql-functions-conditional-ifnull>>
+** <<sql-functions-conditional-isnull>>
+** <<sql-functions-conditional-least>>
+** <<sql-functions-conditional-nullif>>
+** <<sql-functions-conditional-nvl>>
 * <<sql-functions-system, System>>
-** <<sql-functions-system-database, DATABASE>>
-** <<sql-functions-system-user, USER>>
+** <<sql-functions-system-database>>
+** <<sql-functions-system-user>>
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]

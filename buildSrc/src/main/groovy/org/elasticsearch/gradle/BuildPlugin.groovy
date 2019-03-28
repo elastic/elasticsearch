@@ -936,7 +936,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 executable = "${project.runtimeJavaHome}/bin/java"
                 workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                maxParallelForks = project.gradle.startParameter.maxWorkerCount
+
+                def defaultParallel = project.rootProject.ext.defaultParallel
+                maxParallelForks = defaultParallel == 'auto' ? Runtime.runtime.availableProcessors() : Integer.parseInt(defaultParallel)
 
                 exclude '**/*$*.class'
 

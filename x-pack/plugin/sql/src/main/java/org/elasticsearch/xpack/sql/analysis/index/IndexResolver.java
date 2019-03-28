@@ -433,7 +433,10 @@ public class IndexResolver {
                 boolean matchesAlias = false;
                 if (pattern != null && aliasMetadata != null) {
                     for (AliasMetaData aliasMeta : aliasMetadata) {
-                        matchesAlias |= pattern.matcher(aliasMeta.alias()).matches();
+                        if (pattern.matcher(aliasMeta.alias()).matches()) {
+                            matchesAlias = true;
+                            break;
+                        }
                     }
                 }
 

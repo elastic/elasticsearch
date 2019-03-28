@@ -217,7 +217,8 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @SuppressForbidden(reason = "test reads from jar")
     public static InputStream readFromJarUrl(URL source) throws IOException {
         URLConnection con = source.openConnection();
-        con.setDefaultUseCaches(false);
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
         return con.getInputStream();
     }
 }

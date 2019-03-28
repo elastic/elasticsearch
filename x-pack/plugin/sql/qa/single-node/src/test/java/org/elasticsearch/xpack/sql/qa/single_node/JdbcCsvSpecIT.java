@@ -22,7 +22,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> list = new ArrayList<>();
         list.addAll(CsvSpecTestCase.readScriptSpec());
-        return readScriptSpec("/disabled/command-sys.csv-spec", specParser());
+        return readScriptSpec("/single-node-only/command-sys.csv-spec", specParser());
     }
 
     public JdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {

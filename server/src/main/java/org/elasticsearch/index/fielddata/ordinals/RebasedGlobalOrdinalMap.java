@@ -30,6 +30,7 @@ public class RebasedGlobalOrdinalMap implements GlobalOrdinalMap {
     public RebasedGlobalOrdinalMap(GlobalOrdinalMap delegate,
                                    long minOrd,
                                    long maxOrd) {
+        assert minOrd >= 0 && maxOrd >= 0;
         this.delegate = delegate;
         this.minOrd = minOrd;
         this.maxOrd = maxOrd;

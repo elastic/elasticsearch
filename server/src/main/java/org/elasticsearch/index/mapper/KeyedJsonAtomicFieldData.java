@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
+import org.elasticsearch.index.fielddata.ordinals.RebasedGlobalOrdinalMap;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 
 import java.io.IOException;
@@ -43,13 +44,42 @@ import java.util.Collection;
  */
 public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
-    private final String key;
     private final AtomicOrdinalsFieldData delegate;
+    private final SortedSetDocValues ordinalsValues;
+    private final GlobalOrdinalMap ordinalMap;
 
-    KeyedJsonAtomicFieldData(String key,
-                             AtomicOrdinalsFieldData delegate) {
-        this.key = key;
+    public static KeyedJsonAtomicFieldData create(String key,
+                                                  AtomicOrdinalsFieldData delegate,
+                                                  boolean rebaseOrdinals) {
+        BytesRef keyBytes = new BytesRef(key);
+        SortedSetDocValues values = delegate.getOrdinalsValues();
+
+        long minOrd, maxOrd;
+        try {
+            minOrd = findMinOrd(keyBytes, values);
+            if (minOrd < 0) {
+                return new KeyedJsonAtomicFieldData(delegate,
+                    DocValues.emptySortedSet(), delegate.getOrdinalMap());
+            } else {
+                maxOrd = findMaxOrd(keyBytes, values);
+
+                SortedSetDocValues ordinalsValues = new KeyedJsonDocValues(
+                    keyBytes, values, minOrd, maxOrd, rebaseOrdinals);
+                GlobalOrdinalMap ordinalMap = new RebasedGlobalOrdinalMap(
+                    delegate.getOrdinalMap(), minOrd, maxOrd);
+                return new KeyedJsonAtomicFieldData(delegate, ordinalsValues, ordinalMap);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private KeyedJsonAtomicFieldData(AtomicOrdinalsFieldData delegate,
+                                     SortedSetDocValues ordinalsValues,
+                                     GlobalOrdinalMap ordinalMap) {
         this.delegate = delegate;
+        this.ordinalsValues = ordinalsValues;
+        this.ordinalMap = ordinalMap;
     }
 
     @Override
@@ -64,27 +94,12 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
     @Override
     public SortedSetDocValues getOrdinalsValues() {
-        BytesRef keyBytes = new BytesRef(key);
-        SortedSetDocValues values = delegate.getOrdinalsValues();
-
-        long minOrd, maxOrd;
-        try {
-            minOrd = findMinOrd(keyBytes, values);
-            if (minOrd < 0) {
-                return DocValues.emptySortedSet();
-            }
-            maxOrd = findMaxOrd(keyBytes, values);
-            assert maxOrd >= 0;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        return new KeyedJsonDocValues(keyBytes, values, minOrd, maxOrd);
+      return ordinalsValues;
     }
 
     @Override
     public GlobalOrdinalMap getOrdinalMap() {
-        return delegate.getOrdinalMap();
+        return ordinalMap;
     }
 
     @Override
@@ -169,6 +184,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
          */
         private final long minOrd;
         private final long maxOrd;
+        private final boolean rebaseOrdinals;
 
         /**
          * We cache the first ordinal in a document to avoid unnecessary iterations
@@ -180,17 +196,20 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
         private KeyedJsonDocValues(BytesRef key,
                                    SortedSetDocValues delegate,
                                    long minOrd,
-                                   long maxOrd) {
+                                   long maxOrd,
+                                   boolean rebaseOrdinals) {
+            assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;
             this.minOrd = minOrd;
             this.maxOrd = maxOrd;
+            this.rebaseOrdinals = rebaseOrdinals;
             this.cachedNextOrd = -1;
         }
 
         @Override
         public long getValueCount() {
-            return delegate.getValueCount();
+            return maxOrd - minOrd + 1;
         }
 
         /**
@@ -200,11 +219,9 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
          */
         @Override
         public BytesRef lookupOrd(long ord) throws IOException {
-            if (ord < minOrd || ord > maxOrd) {
-                throw new IllegalArgumentException("The provided ordinal [" + ord + "] is outside the valid " +
-                    "range. For keyed JSON fields, only ordinals returned from nextOrd can be passed to lookupOrd.");
-            }
-            BytesRef keyedValue = delegate.lookupOrd(ord);
+            long delegateOrd = unmapOrd(ord);
+            BytesRef keyedValue = delegate.lookupOrd(delegateOrd);
+
             int prefixLength = key.length + 1;
             int valueLength = keyedValue.length - prefixLength;
             return new BytesRef(keyedValue.bytes, prefixLength, valueLength);
@@ -215,13 +232,13 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             if (cachedNextOrd >= 0) {
                 long nextOrd = cachedNextOrd;
                 cachedNextOrd = -1;
-                return nextOrd;
+                return mapOrd(nextOrd);
             }
 
             long ord = delegate.nextOrd();
             if (ord != NO_MORE_ORDS && ord <= maxOrd) {
                 assert ord >= minOrd;
-                return ord;
+                return mapOrd(ord);
             } else {
                 return NO_MORE_ORDS;
             }
@@ -245,6 +262,26 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
             cachedNextOrd = -1;
             return false;
+        }
+
+        /**
+         * Maps an ordinal from the delegate doc values into the filtered ordinal space.
+         * If ordinals are rebased, the new ord will lie in the range [0, (maxOrd - minOrd)].
+         */
+        private long mapOrd(long ord) {
+            assert minOrd <= ord && ord <= maxOrd;
+            return rebaseOrdinals ? ord - minOrd : ord;
+        }
+
+        /**
+         * Given a filtered ordinal, maps it into the delegate ordinal space.
+         */
+        private long unmapOrd(long ord) {
+            long delegateOrd = rebaseOrdinals ? ord + minOrd : ord;
+            if (delegateOrd < minOrd || delegateOrd > maxOrd) {
+                throw new IllegalArgumentException("The provided ordinal [" + ord + "] is outside the valid range.");
+            }
+            return delegateOrd;
         }
     }
 }

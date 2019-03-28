@@ -114,18 +114,18 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testAdvanceExact() throws IOException {
-        AtomicOrdinalsFieldData avocadoFieldData = new KeyedJsonAtomicFieldData("avocado", delegate);
+        AtomicOrdinalsFieldData avocadoFieldData = KeyedJsonAtomicFieldData.create("avocado", delegate, false);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData bananaFieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        AtomicOrdinalsFieldData bananaFieldData = KeyedJsonAtomicFieldData.create("banana", delegate, false);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        AtomicOrdinalsFieldData nonexistentFieldData = new KeyedJsonAtomicFieldData("berry", delegate);
+        AtomicOrdinalsFieldData nonexistentFieldData = KeyedJsonAtomicFieldData.create("berry", delegate, false);
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("banana", delegate);
+        AtomicOrdinalsFieldData fieldData = KeyedJsonAtomicFieldData.create("banana", delegate, false);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -143,7 +143,7 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        AtomicOrdinalsFieldData fieldData = KeyedJsonAtomicFieldData.create("apple", delegate, false);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
 
         BytesRef expectedValue = new BytesRef("value0");
@@ -152,7 +152,7 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     }
 
     public void testLookupInvalidOrd() {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        AtomicOrdinalsFieldData fieldData = KeyedJsonAtomicFieldData.create("apple", delegate, false);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> docValues.lookupOrd(42));

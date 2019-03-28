@@ -397,25 +397,25 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public AtomicOrdinalsFieldData load(LeafReaderContext context) {
             AtomicOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedJsonAtomicFieldData(key, fieldData);
+            return KeyedJsonAtomicFieldData.create(key, fieldData, false);
         }
 
         @Override
         public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedJsonAtomicFieldData(key, fieldData);
+            return KeyedJsonAtomicFieldData.create(key, fieldData, false);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedJsonIndexFieldData(key, fieldData);
+            return new KeyedJsonGlobalOrdinalsFieldData(key, fieldData);
         }
 
         @Override
         public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
-            return new KeyedJsonIndexFieldData(key, fieldData);
+            return new KeyedJsonGlobalOrdinalsFieldData(key, fieldData);
         }
 
         @Override
@@ -441,6 +441,66 @@ public final class JsonFieldMapper extends FieldMapper {
                     cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedJsonIndexFieldData(key, delegate);
             }
+        }
+    }
+
+    private static class KeyedJsonGlobalOrdinalsFieldData implements IndexOrdinalsFieldData {
+        private final String key;
+        private final IndexOrdinalsFieldData delegate;
+
+        private KeyedJsonGlobalOrdinalsFieldData(String key, IndexOrdinalsFieldData delegate) {
+            this.delegate = delegate;
+            this.key = key;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getFieldName() {
+            return delegate.getFieldName();
+        }
+
+        @Override
+        public SortField sortField(Object missingValue,
+                                   MultiValueMode sortMode,
+                                   IndexFieldData.XFieldComparatorSource.Nested nested,
+                                   boolean reverse) {
+            IndexFieldData.XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
+        }
+
+        @Override
+        public void clear() {
+            delegate.clear();
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+            AtomicOrdinalsFieldData fieldData = delegate.load(context);
+            return KeyedJsonAtomicFieldData.create(key, fieldData, true);
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+            AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
+            return KeyedJsonAtomicFieldData.create(key, fieldData, true);
+        }
+
+        @Override
+        public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+            return this;
+        }
+
+        @Override
+        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) {
+            return this;
+        }
+
+        @Override
+        public Index index() {
+            return delegate.index();
         }
     }
 

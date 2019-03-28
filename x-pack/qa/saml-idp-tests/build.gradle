@@ -38,6 +38,9 @@ task setupPorts {
         idpMetaFile.write(content.toString(), "UTF-8")
     }
 }
+// Don't attempt to get ephemeral ports when Docker is not available
+setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
+
 integTestCluster.dependsOn setupPorts
 
 integTestCluster {

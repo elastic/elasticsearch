@@ -1052,7 +1052,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+        if (mapper == null || mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
             || (engine instanceof InternalEngine) == false) {
             return;
         }

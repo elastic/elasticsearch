@@ -178,10 +178,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 }
                 dims[dimCount] = dim;
                 values[dimCount] = value;
-                dimCount ++;
-                if (dimCount >= MAX_DIMS_COUNT) {
+                if (dimCount++ >= MAX_DIMS_COUNT) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                        "] has exceeded the maximum allowed number of dimensions of [" + MAX_DIMS_COUNT + "]");
                 }
             } else {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +

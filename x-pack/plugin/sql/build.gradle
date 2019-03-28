@@ -14,6 +14,10 @@ ext {
     // SQL dependency versions
     jlineVersion="3.10.0"
     antlrVersion="4.5.3"
+    
+    // SQL test dependency versions
+    csvjdbcVersion="1.0.34"
+    h2Version="1.4.197"
 }
 
 configurations {

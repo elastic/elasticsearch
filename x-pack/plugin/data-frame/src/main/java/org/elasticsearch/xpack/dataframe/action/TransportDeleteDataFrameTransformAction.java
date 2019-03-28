@@ -12,20 +12,18 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
@@ -36,8 +34,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportTasksActio
     private final DataFrameTransformsConfigManager transformsConfigManager;
 
     @Inject
-    public TransportDeleteDataFrameTransformAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
+    public TransportDeleteDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
             ClusterService clusterService, DataFrameTransformsConfigManager transformsConfigManager) {
         super(DeleteDataFrameTransformAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
                 Response::new, ThreadPool.Names.SAME);

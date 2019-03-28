@@ -77,7 +77,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
      * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
      * become part of the list of {@link InternalAggregation}s.
      */
-    List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
+    public List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
         return topLevelPipelineAggregators;
     }
 
@@ -91,20 +91,7 @@ public final class InternalAggregations extends Aggregations implements Streamab
         if (aggregationsList.isEmpty()) {
             return null;
         }
-        InternalAggregations first = aggregationsList.get(0);
-        return reduce(aggregationsList, first.topLevelPipelineAggregators, context);
-    }
-
-    /**
-     * Reduces the given list of aggregations as well as the provided top-level pipeline aggregators.
-     * Note that top-level pipeline aggregators are reduced only as part of the final reduction phase, otherwise they are left untouched.
-     */
-    public static InternalAggregations reduce(List<InternalAggregations> aggregationsList,
-                                              List<SiblingPipelineAggregator> topLevelPipelineAggregators,
-                                              ReduceContext context) {
-        if (aggregationsList.isEmpty()) {
-            return null;
-        }
+        List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
 
         // first we collect all aggregations of the same type and list them together
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();

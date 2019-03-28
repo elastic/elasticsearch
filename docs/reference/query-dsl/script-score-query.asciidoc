@@ -92,9 +92,9 @@ cosine similarity between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilarity(params.queryVector, doc['my_dense_vector']) + 1.0" <1>,
+        "source": "cosineSimilarity(params.query_vector, doc['my_dense_vector']) + 1.0" <1>,
         "params": {
-          "queryVector": [4, 3.4, -0.2]  <2>
+          "query_vector": [4, 3.4, -0.2]  <2>
         }
       }
     }
@@ -117,9 +117,9 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilaritySparse(params.queryVector, doc['my_sparse_vector']) + 1.0",
+        "source": "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector']) + 1.0",
         "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
         }
       }
     }
@@ -140,9 +140,12 @@ dot product between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProduct(params.queryVector, doc['my_dense_vector'])",
+        "source": """
+          double value = dotProduct(params.query_vector, doc['my_vector']);
+          return sigmoid(value, 1, 1);
+        """,
         "params": {
-          "queryVector": [4, 3.4, -0.2]
+          "query_vector": [4, 3.4, -0.2]
         }
       }
     }
@@ -163,9 +166,12 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProductSparse(params.queryVector, doc['my_sparse_vector'])",
-        "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+        "source": """
+          double value = dotProductSparse(params.query_vector, doc['my_sparse_vector']);
+          return sigmoid(value, 1, 1);
+        """,
+         "params": {
+          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
         }
       }
     }

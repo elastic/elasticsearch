@@ -312,7 +312,8 @@ public final class MockTransportService extends TransportService {
         transport().addConnectBehavior(transportAddress, new StubbableTransport.OpenConnectionBehavior() {
             private CountDownLatch stopLatch = new CountDownLatch(1);
             @Override
-            public Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
+            public Releasable openConnection(Transport transport, DiscoveryNode discoveryNode,
+                                             ConnectionProfile profile, ActionListener<Transport.Connection> listener) {
                 TimeValue delay = delaySupplier.get();
                 if (delay.millis() <= 0) {
                     return original.openConnection(discoveryNode, profile, listener);

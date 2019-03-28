@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.discovery.single.SingleNodeDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,7 +49,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -67,6 +65,8 @@ public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final String ZEN2_DISCOVERY_TYPE = "zen";
+
+    public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
@@ -114,6 +114,8 @@ public class DiscoveryModule {
         List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
             .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
 
+        String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
+
         final SeedHostsProvider seedHostsProvider = hostsResolver -> {
             final List<TransportAddress> addresses = new ArrayList<>();
             for (SeedHostsProvider provider : filteredSeedProviders) {
@@ -122,20 +124,17 @@ public class DiscoveryModule {
             return Collections.unmodifiableList(addresses);
         };
 
-        Map<String, Supplier<Discovery>> discoveryTypes = new HashMap<>();
-        discoveryTypes.put(ZEN2_DISCOVERY_TYPE, () -> new Coordinator(NODE_NAME_SETTING.get(settings), settings, clusterSettings,
-            transportService, namedWriteableRegistry, allocationService, masterService,
-            () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), seedHostsProvider, clusterApplier,
-            joinValidators, new Random(Randomness.get().nextLong())));
-        discoveryTypes.put("single-node", () -> new SingleNodeDiscovery(settings, transportService, masterService, clusterApplier,
-            gatewayMetaState));
-        String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
-        Supplier<Discovery> discoverySupplier = discoveryTypes.get(discoveryType);
-        if (discoverySupplier == null) {
+        if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+            discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
+                settings, clusterSettings,
+                transportService, namedWriteableRegistry, allocationService, masterService,
+                () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), seedHostsProvider,
+                clusterApplier, joinValidators, new Random(Randomness.get().nextLong()));
+        } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
+
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
-        discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 
     public Discovery getDiscovery() {

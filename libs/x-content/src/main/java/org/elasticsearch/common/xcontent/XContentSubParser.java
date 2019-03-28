@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Wrapper for a XContentParser that makes a single object to look like a complete document.
+ * Wrapper for a XContentParser that makes a single object/array look like a complete document.
  *
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
@@ -39,8 +39,8 @@ public class XContentSubParser implements XContentParser {
 
     public XContentSubParser(XContentParser parser) {
         this.parser = parser;
-        if (parser.currentToken() != Token.START_OBJECT) {
-            throw new IllegalStateException("The sub parser has to be created on the start of an object");
+        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
+            throw new IllegalStateException("The sub parser has to be created on the start of an object or array");
         }
         level = 1;
     }

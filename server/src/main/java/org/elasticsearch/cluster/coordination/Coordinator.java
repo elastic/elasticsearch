@@ -51,23 +51,27 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -93,6 +97,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
 
     private final Settings settings;
+    private final boolean singleNodeDiscovery;
     private final TransportService transportService;
     private final MasterService masterService;
     private final AllocationService allocationService;
@@ -142,6 +147,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.masterService = masterService;
         this.allocationService = allocationService;
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
+        this.singleNodeDiscovery = DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE.equals(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings));
         this.joinHelper = new JoinHelper(settings, allocationService, masterService, transportService,
             this::getCurrentTerm, this::getStateForMasterService, this::handleJoinRequest, this::joinLeaderInTerm, this.onJoinValidators);
         this.persistedStateSupplier = persistedStateSupplier;
@@ -423,6 +429,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert Thread.holdsLock(mutex) == false;
         assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not master-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
+
+        if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
+            joinCallback.onFailure(new IllegalStateException("cannot join node with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() +
+                "] set to [" + DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE  + "] discovery"));
+            return;
+        }
+
         transportService.connectToNode(joinRequest.getSourceNode());
 
         final ClusterState stateForJoinValidation = getStateForMasterService();
@@ -635,6 +648,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
+            VotingConfiguration votingConfiguration = coordinationState.get().getLastAcceptedState().getLastCommittedConfiguration();
+            if (singleNodeDiscovery &&
+                votingConfiguration.isEmpty() == false &&
+                votingConfiguration.hasQuorum(Collections.singleton(getLocalNode().getId())) == false) {
+                throw new IllegalStateException("cannot start with [" + DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey() + "] set to [" +
+                    DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE + "] when local node " + getLocalNode() +
+                    " does not have quorum in voting configuration " + votingConfiguration);
+            }
             ClusterState initialState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                 .blocks(ClusterBlocks.builder()
                     .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
@@ -983,20 +1004,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
 
-                transportService.getThreadPool().schedule(new Runnable() {
-                    @Override
-                    public void run() {
-                        synchronized (mutex) {
-                            publication.cancel("timed out after " + publishTimeout);
-                        }
-                    }
-
-                    @Override
-                    public String toString() {
-                        return "scheduled timeout for " + publication;
-                    }
-                }, publishTimeout, Names.GENERIC);
-
                 final DiscoveryNodes publishNodes = publishRequest.getAcceptedState().nodes();
                 leaderChecker.setCurrentNodes(publishNodes);
                 followersChecker.setCurrentNodes(publishNodes);
@@ -1062,7 +1069,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         CoordinatorPeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                               ConfiguredHostsResolver configuredHostsResolver) {
-            super(settings, transportService, transportAddressConnector, configuredHostsResolver);
+            super(settings, transportService, transportAddressConnector,
+                singleNodeDiscovery ? hostsResolver -> Collections.emptyList() : configuredHostsResolver);
         }
 
         @Override
@@ -1070,6 +1078,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             synchronized (mutex) {
                 ensureTermAtLeast(masterNode, term);
                 joinHelper.sendJoinRequest(masterNode, joinWithDestination(lastJoin, masterNode, term));
+            }
+        }
+
+        @Override
+        protected void startProbe(TransportAddress transportAddress) {
+            if (singleNodeDiscovery == false) {
+                super.startProbe(transportAddress);
             }
         }
 
@@ -1161,6 +1176,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         private final AckListener ackListener;
         private final ActionListener<Void> publishListener;
         private final PublicationTransportHandler.PublicationContext publicationContext;
+        private final Scheduler.ScheduledCancellable scheduledCancellable;
 
         // We may not have accepted our own state before receiving a join from another node, causing its join to be rejected (we cannot
         // safely accept a join whose last-accepted term/version is ahead of ours), so store them up and process them at the end.
@@ -1201,6 +1217,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this.localNodeAckEvent = localNodeAckEvent;
             this.ackListener = ackListener;
             this.publishListener = publishListener;
+            this.scheduledCancellable = transportService.getThreadPool().schedule(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (mutex) {
+                        cancel("timed out after " + publishTimeout);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return "scheduled timeout for " + this;
+                }
+            }, publishTimeout, Names.GENERIC);
         }
 
         private void removePublicationAndPossiblyBecomeCandidate(String reason) {
@@ -1242,6 +1271,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                 synchronized (mutex) {
                                     removePublicationAndPossiblyBecomeCandidate("clusterApplier#onNewClusterState");
                                 }
+                                scheduledCancellable.cancel();
                                 ackListener.onNodeAck(getLocalNode(), e);
                                 publishListener.onFailure(e);
                             }
@@ -1271,6 +1301,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                     }
                                     lagDetector.startLagDetector(publishRequest.getAcceptedState().version());
                                 }
+                                scheduledCancellable.cancel();
                                 ackListener.onNodeAck(getLocalNode(), null);
                                 publishListener.onResponse(null);
                             }
@@ -1281,6 +1312,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 public void onFailure(Exception e) {
                     assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
                     removePublicationAndPossiblyBecomeCandidate("Publication.onCompletion(false)");
+                    scheduledCancellable.cancel();
 
                     final FailedToCommitClusterStateException exception = new FailedToCommitClusterStateException("publication failed", e);
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.

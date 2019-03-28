@@ -46,7 +46,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
     private final DestConfig dest;
     private final PivotConfig pivotConfig;
 
-    public static final ConstructingObjectParser<DataFrameTransformConfig, String> PARSER =
+    public static final ConstructingObjectParser<DataFrameTransformConfig, Void> PARSER =
             new ConstructingObjectParser<>("data_frame_transform", true,
                 (args) -> {
                     String id = (String) args[0];

@@ -23,10 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -37,15 +40,17 @@ import java.util.zip.ZipEntry;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
-public abstract class JdbcTestUtils {
+final class JdbcTestUtils {
 
-    public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    private JdbcTestUtils() {}
 
-    public static final String JDBC_TIMEZONE = "timezone";
-    
-    public static ZoneId UTC = ZoneId.of("Z");
+    private static final int MAX_WIDTH = 20;
 
-    public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
+    static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    static final String JDBC_TIMEZONE = "timezone";
+    static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
@@ -75,35 +80,24 @@ public abstract class JdbcTestUtils {
         logger.info(sb.toString());
     }
 
-    private static final int MAX_WIDTH = 20;
-
-    public static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
+    static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder sb = new StringBuilder();
-        StringBuilder column = new StringBuilder();
 
         int columns = metaData.getColumnCount();
 
         while (rs.next()) {
-            sb.setLength(0);
-            for (int i = 1; i <= columns; i++) {
-                column.setLength(0);
-                if (i > 1) {
-                    sb.append(" | ");
-                }
-                sb.append(trimOrPad(column.append(rs.getString(i))));
-            }
-            log.info(sb);
+            log.info(rowAsString(rs, columns));
         }
     }
 
-    public static String resultSetCurrentData(ResultSet rs) throws SQLException {
+    static String resultSetCurrentData(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder column = new StringBuilder();
+        return rowAsString(rs, metaData.getColumnCount());
+    }
 
-        int columns = metaData.getColumnCount();
-
+    private static String rowAsString(ResultSet rs, int columns) throws SQLException {
         StringBuilder sb = new StringBuilder();
+        StringBuilder column = new StringBuilder();
         for (int i = 1; i <= columns; i++) {
             column.setLength(0);
             if (i > 1) {
@@ -153,7 +147,7 @@ public abstract class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     
-    public static String of(long millis, String zoneId) {
+    static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
 
@@ -165,7 +159,7 @@ public abstract class JdbcTestUtils {
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
      */
-    public static List<URL> classpathResources(String pattern) throws Exception {
+    static List<URL> classpathResources(String pattern) throws Exception {
         while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);
         }
@@ -233,5 +227,16 @@ public abstract class JdbcTestUtils {
             }
         }
         return new Tuple<>(folder, file);
+    }
+
+    static Date asDate(long millis, ZoneId zoneId) {
+        return new java.sql.Date(
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli());
+    }
+
+    static Time asTime(long millis, ZoneId zoneId) {
+        return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
     }
 }

@@ -90,8 +90,8 @@ public abstract class AntTask extends DefaultTask {
     }
 
     /**
-     * Returns true if the ant logger should write to stdout, or false if to the eventBuffer.
-     * The default implementation writes to the eventBuffer when gradle info logging is disabled.
+     * Returns true if the ant logger should write to stdout, or false if to the buffer.
+     * The default implementation writes to the buffer when gradle info logging is disabled.
      */
     protected boolean useStdout() {
         return logger.isInfoEnabled()

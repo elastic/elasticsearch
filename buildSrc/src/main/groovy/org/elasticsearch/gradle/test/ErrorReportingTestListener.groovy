@@ -48,13 +48,13 @@ class ErrorReportingTestListener implements TestOutputListener, TestListener {
                     // It's not explicit what the threading guarantees are for TestListener method execution so we'll
                     // be explicitly safe here to avoid interleaving output from multiple test suites
                     synchronized (this) {
-                        logger.lifecycle("\nSuite: {}", suite)
+                        println("\nSuite: ${suite}")
 
                         for (TestOutputEvent event : events) {
                             if (event.getDestination() == TestOutputEvent.Destination.StdOut) {
-                                logger.lifecycle(event.getMessage())
+                                print(event.getMessage())
                             } else {
-                                logger.error(event.getMessage())
+                                System.err.print(event.getMessage())
                             }
                         }
                     }

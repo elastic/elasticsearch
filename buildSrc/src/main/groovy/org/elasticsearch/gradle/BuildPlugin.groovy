@@ -936,9 +936,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 executable = "${project.runtimeJavaHome}/bin/java"
                 workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-
-                def defaultParallel = project.rootProject.ext.defaultParallel
-                maxParallelForks = defaultParallel == 'auto' ? Runtime.runtime.availableProcessors() : Integer.parseInt(defaultParallel)
+                maxParallelForks = project.rootProject.ext.defaultParallel
 
                 exclude '**/*$*.class'
 
@@ -1008,7 +1006,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static String findDefaultParallel(Project project) {
+    private static int findDefaultParallel(Project project) {
         if (project.file("/proc/cpuinfo").exists()) {
             // Count physical cores on any Linux distro ( don't count hyper-threading )
             Map<String, Integer> socketToCore = [:]
@@ -1029,7 +1027,7 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
-            return socketToCore.values().sum().toString();
+            return socketToCore.values().sum()
         } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
             // Ask macOS to count physical CPUs for us
             ByteArrayOutputStream stdout = new ByteArrayOutputStream()
@@ -1038,9 +1036,9 @@ class BuildPlugin implements Plugin<Project> {
                 args '-n', 'hw.physicalcpu'
                 standardOutput = stdout
             }
-            return stdout.toString('UTF-8').trim();
+            return Integer.parseInt(stdout.toString('UTF-8').trim())
         }
-        return 'auto';
+        return Runtime.getRuntime().availableProcessors()
     }
 
     private static configurePrecommit(Project project) {

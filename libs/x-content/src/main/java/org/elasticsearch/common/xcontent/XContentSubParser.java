@@ -21,21 +21,15 @@ package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Wrapper for a XContentParser that makes a single object to look like a complete document.
+ * Wrapper for a XContentParser that makes a single object/array look like a complete document.
  *
  * The wrapper prevents the parsing logic to consume tokens outside of the wrapped object as well
  * as skipping to the end of the object in case of a parsing error. The wrapper is intended to be
  * used for parsing objects that should be ignored if they are malformed.
- *
- * The wrapper can be used on all token types. For non-start token types, the wrapper considers the
- * single token as the wrapped object
  */
 public class XContentSubParser implements XContentParser {
 
@@ -45,8 +39,10 @@ public class XContentSubParser implements XContentParser {
 
     public XContentSubParser(XContentParser parser) {
         this.parser = parser;
-        // we allow a non-object, non-array with semantics that it is the single item only.
-        this.level = parser.currentToken() == Token.START_OBJECT || parser.currentToken() == Token.START_ARRAY ? 1 : 0;
+        if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
+            throw new IllegalStateException("The sub parser has to be created on the start of an object or array");
+        }
+        level = 1;
     }
 
     @Override
@@ -65,9 +61,6 @@ public class XContentSubParser implements XContentParser {
             }
             return token;
         } else {
-            if (level == 0) {
-                level = -1;
-            }
             return null; // we have reached the end of the wrapped object
         }
     }
@@ -89,98 +82,92 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public Token currentToken() {
-        return level >= 0 ? parser.currentToken() : null;
+        return parser.currentToken();
     }
 
     @Override
     public String currentName() throws IOException {
-        return level >= 0 ? parser.currentName() : null;
+        return parser.currentName();
     }
 
     @Override
     public Map<String, Object> map() throws IOException {
-        return level >= 0 ? parser.map() : new HashMap<>();
+        return parser.map();
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return level >= 0 ? parser.mapOrdered() : new LinkedHashMap<>();
+        return parser.mapOrdered();
     }
 
     @Override
     public Map<String, String> mapStrings() throws IOException {
-        return level >= 0 ? parser.mapStrings() : new HashMap<>();
+        return parser.mapStrings();
     }
 
     @Override
     public Map<String, String> mapStringsOrdered() throws IOException {
-        return level >= 0 ? parser.mapStringsOrdered() : new LinkedHashMap<>();
+        return parser.mapStringsOrdered();
     }
 
     @Override
     public List<Object> list() throws IOException {
-        return level >= 0 ? parser.list() : new ArrayList<>();
+        return parser.list();
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
-        return level >= 0 ? parser.listOrderedMap() : new ArrayList<>();
+        return parser.listOrderedMap();
     }
 
     @Override
     public String text() throws IOException {
-        checkTextAccess();
         return parser.text();
     }
 
     @Override
     public String textOrNull() throws IOException {
-        checkTextAccess();
         return parser.textOrNull();
     }
 
     @Override
     public CharBuffer charBufferOrNull() throws IOException {
-        checkTextAccess();
         return parser.charBufferOrNull();
     }
 
     @Override
     public CharBuffer charBuffer() throws IOException {
-        checkTextAccess();
         return parser.charBuffer();
     }
 
     @Override
     public Object objectText() throws IOException {
-        checkTextAccess();
         return parser.objectText();
     }
 
     @Override
     public Object objectBytes() throws IOException {
-        checkTextAccess();
         return parser.objectBytes();
     }
 
     @Override
     public boolean hasTextCharacters() {
-        return level >= 0 ? parser.hasTextCharacters() : false;
+        return parser.hasTextCharacters();
     }
 
     @Override
     public char[] textCharacters() throws IOException {
-        return level >= 0 ? parser.textCharacters() : null;
+        return parser.textCharacters();
     }
 
     @Override
     public int textLength() throws IOException {
-        return level >= 0 ? parser.textLength() : 0;
+        return parser.textLength();
     }
 
     @Override
     public int textOffset() throws IOException {
-        return level >= 0 ? parser.textOffset() : 0;
+        return parser.textOffset();
     }
 
     @Override
@@ -245,19 +232,16 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public boolean isBooleanValue() throws IOException {
-        checkAccess("boolean");
         return parser.isBooleanValue();
     }
 
     @Override
     public boolean booleanValue() throws IOException {
-        checkAccess("boolean");
         return parser.booleanValue();
     }
 
     @Override
     public byte[] binaryValue() throws IOException {
-        checkAccess("binary");
         return parser.binaryValue();
     }
 
@@ -268,7 +252,6 @@ public class XContentSubParser implements XContentParser {
 
     @Override
     public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
-        checkAccess("namedObject");
         return parser.namedObject(categoryClass, name, context);
     }
 
@@ -296,16 +279,6 @@ public class XContentSubParser implements XContentParser {
                     return;
                 }
             }
-        }
-    }
-
-    private void checkTextAccess() {
-        checkAccess("text");
-    }
-
-    private void checkAccess(String type) {
-        if (level < 0) {
-            throw new IllegalStateException("Can't get " + type + " on a " + currentToken() + " at " + getTokenLocation());
         }
     }
 }

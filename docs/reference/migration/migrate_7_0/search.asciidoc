@@ -214,19 +214,21 @@ with a `value` and a `relation`. `value` indicates the number of hits that
 match and `relation` indicates whether the value is accurate (`eq`) or a lower bound
 (`gte`):
 
-```
+[source,js]
+--------------------------------------------------
 {
     "hits": {
-        "total": {   <1>
+        "total": {  
             "value": 1000,
             "relation": "eq"
         },
         ...
     }
 }
-```
+--------------------------------------------------
+// NOTCONSOLE
 
-The "total" object in the response indicates that the query matches exactly 1000
+The `total` object in the response indicates that the query matches exactly 1000
 documents ("eq"). The `value` is always accurate (`"relation": "eq"`) when
 `track_total_hits` is set to true in the request.
 You can also retrieve `hits.total` as a number in the rest response by adding

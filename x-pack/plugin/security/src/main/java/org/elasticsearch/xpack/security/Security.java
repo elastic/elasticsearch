@@ -250,7 +250,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
@@ -398,7 +398,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(),
+                SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -922,7 +923,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             // .security index is not managed by using templates anymore
-            templates.remove(SECURITY_MAIN_TEMPLATE);
+            templates.remove(SECURITY_MAIN_TEMPLATE_7);
             templates.remove("security_audit_log");
             return templates;
         };

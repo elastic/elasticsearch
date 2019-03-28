@@ -256,7 +256,7 @@ public class NativeRolesStoreTests extends ESTestCase {
                 .build();
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(securityIndexName).settings(settings))
-                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_MAIN_TEMPLATE, 0, 0,
+                .put(new IndexTemplateMetaData(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, 0, 0,
                         Collections.singletonList(securityIndexName), Settings.EMPTY, ImmutableOpenMap.of(),
                         ImmutableOpenMap.of()))
                 .build();

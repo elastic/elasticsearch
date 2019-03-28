@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -390,7 +390,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testMappingVersionMatching() throws IOException {
-        String templateString = "/" + SECURITY_MAIN_TEMPLATE + ".json";
+        String templateString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
         assertTrue(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::before));
@@ -398,7 +398,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testMissingVersionMappingThrowsError() throws IOException {
-        String templateString = "/missing-version-" + SECURITY_MAIN_TEMPLATE + ".json";
+        String templateString = "/missing-version-" + SECURITY_MAIN_TEMPLATE_7 + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
@@ -410,7 +410,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     public void testIndexTemplateIsIdentifiedAsUpToDate() throws IOException {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(
-            "/" + SECURITY_MAIN_TEMPLATE + ".json"
+            "/" + SECURITY_MAIN_TEMPLATE_7 + ".json"
         );
         manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
         // No upgrade actions run
@@ -418,20 +418,20 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testIndexTemplateVersionMatching() throws Exception {
-        String templateString = "/" + SECURITY_MAIN_TEMPLATE + ".json";
+        String templateString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithTemplate(templateString);
         final ClusterState clusterState = clusterStateBuilder.build();
 
         assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
-            SecurityIndexManager.SECURITY_MAIN_TEMPLATE, clusterState, logger,
+            SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, clusterState, logger,
             Version.V_6_0_0::before));
         assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
-            SecurityIndexManager.SECURITY_MAIN_TEMPLATE, clusterState, logger,
+            SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, clusterState, logger,
             Version.V_6_0_0::after));
     }
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {
-        String securityTemplateString = "/" + SECURITY_MAIN_TEMPLATE + ".json";
+        String securityTemplateString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(securityTemplateString);
         manager.clusterChanged(new ClusterChangedEvent("test-event",
             clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
@@ -441,8 +441,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void testMissingIndexIsIdentifiedAsUpToDate() throws IOException {
         final ClusterName clusterName = new ClusterName("test-cluster");
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(clusterName);
-        String mappingString = "/" + SECURITY_MAIN_TEMPLATE + ".json";
-        IndexTemplateMetaData.Builder templateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE, mappingString);
+        String mappingString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
+        IndexTemplateMetaData.Builder templateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, mappingString);
         MetaData.Builder builder = new MetaData.Builder(clusterStateBuilder.build().getMetaData());
         builder.put(templateMeta);
         clusterStateBuilder.metaData(builder);
@@ -453,9 +453,9 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private ClusterState.Builder createClusterStateWithTemplate(String securityTemplateString) throws IOException {
         // add the correct mapping no matter what the template
-        ClusterState clusterState = createClusterStateWithIndex("/" + SECURITY_MAIN_TEMPLATE + ".json").build();
+        ClusterState clusterState = createClusterStateWithIndex("/" + SECURITY_MAIN_TEMPLATE_7 + ".json").build();
         final MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterState.metaData());
-        metaDataBuilder.put(getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE, securityTemplateString));
+        metaDataBuilder.put(getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, securityTemplateString));
         return ClusterState.builder(clusterState).metaData(metaDataBuilder);
     }
 
@@ -469,8 +469,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
     private ClusterState.Builder createClusterStateWithMappingAndTemplate(String securityTemplateString) throws IOException {
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(securityTemplateString);
         MetaData.Builder metaDataBuilder = new MetaData.Builder(clusterStateBuilder.build().metaData());
-        String securityMappingString = "/" + SECURITY_MAIN_TEMPLATE + ".json";
-        IndexTemplateMetaData.Builder securityTemplateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE, securityMappingString);
+        String securityMappingString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
+        IndexTemplateMetaData.Builder securityTemplateMeta = getIndexTemplateMetaData(SECURITY_MAIN_TEMPLATE_7, securityMappingString);
         metaDataBuilder.put(securityTemplateMeta);
         return clusterStateBuilder.metaData(metaDataBuilder);
     }

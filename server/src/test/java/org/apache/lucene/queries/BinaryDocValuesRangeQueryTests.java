@@ -39,6 +39,33 @@ import static org.apache.lucene.queries.BinaryDocValuesRangeQuery.QueryType.WITH
 
 public class BinaryDocValuesRangeQueryTests extends ESTestCase {
 
+    public void testIncludeEndpoints() throws Exception {
+        String fieldName = "long_field";
+        RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.LONG;
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+                Document document = new Document();
+                BytesRef encodedRange = rangeType.encodeRanges(singleton(new RangeFieldMapper.Range(rangeType, 20L, 30L, false , false)));
+                document.add(new BinaryDocValuesField(fieldName, encodedRange));
+                writer.addDocument(document);
+
+                try (IndexReader reader = writer.getReader()) {
+                    IndexSearcher searcher = newSearcher(reader);
+                    // Should not match (20, 30) because the end point 20 is included in the query, but not the document range
+                    // Changing includeFrom on the query to false, however, matches 0 documents as expected
+                    Query query = rangeType.dvRangeQuery(fieldName, INTERSECTS, 11L, 20L, true, true);
+                    assertEquals(0, searcher.count(query));
+
+                    // Should not match (20, 30) because the end point 30 is included in the query but not the document range
+                    query = rangeType.dvRangeQuery(fieldName, INTERSECTS, 30L, 35L, true, true);
+                    assertEquals(0, searcher.count(query));
+                }
+            }
+        }
+
+
+    }
+
     public void testBasics() throws Exception {
         String fieldName = "long_field";
         RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.LONG;

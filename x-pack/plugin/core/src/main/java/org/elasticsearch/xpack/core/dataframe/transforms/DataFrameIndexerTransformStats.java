@@ -70,10 +70,13 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         this.transformId = transformId;
     }
 
-    public DataFrameIndexerTransformStats(String transformId, long numPages, long numInputDocuments, long numOuputDocuments,
+    public DataFrameIndexerTransformStats(String transformId, long... stats) {
+
+    }
+    public DataFrameIndexerTransformStats(String transformId, long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
                                           long indexFailures, long searchFailures) {
-        super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal, indexFailures,
+        super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal, indexFailures,
                 searchFailures);
         this.transformId = transformId;
     }

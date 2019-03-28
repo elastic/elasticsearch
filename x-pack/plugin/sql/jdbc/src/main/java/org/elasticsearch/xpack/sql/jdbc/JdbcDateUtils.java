@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetTime;
 import java.time.ZonedDateTime;
@@ -32,7 +33,7 @@ final class JdbcDateUtils {
         return ISO_DATE_WITH_MILLIS.parse(date, ZonedDateTime::from);
     }
 
-    static long asMillisSinceEpoch(String date) {
+    static long dateTimeAsMillisSinceEpoch(String date) {
         return asDateTime(date).toInstant().toEpochMilli();
     }
 
@@ -50,14 +51,22 @@ final class JdbcDateUtils {
         return new Time(zdt.toLocalTime().atDate(EPOCH).atZone(zdt.getZone()).toInstant().toEpochMilli());
     }
 
+    static Time timeAsTime(String date) {
+        OffsetTime ot = ISO_TIME_WITH_MILLIS.parse(date, OffsetTime::from);
+        return new Time(ot.atDate(EPOCH).toInstant().toEpochMilli());
+    }
+
     static Timestamp asTimestamp(long millisSinceEpoch) {
         return new Timestamp(millisSinceEpoch);
     }
 
     static Timestamp asTimestamp(String date) {
-        return new Timestamp(asMillisSinceEpoch(date));
+        return new Timestamp(dateTimeAsMillisSinceEpoch(date));
     }
 
+    static Timestamp timeAsTimestamp(String date) {
+        return new Timestamp(timeAsMillisSinceEpoch(date));
+    }
     /*
      * Handles the value received as parameter, as either String (a ZonedDateTime formatted in ISO 8601 standard with millis) -
      * date fields being returned formatted like this. Or a Long value, in case of Histograms.

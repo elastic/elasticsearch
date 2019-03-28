@@ -35,6 +35,8 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.*;
+import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -473,25 +475,34 @@ final class TypeConverter {
     }
 
     private static Date asDate(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATETIME || columnType == EsType.DATE) {
+        if (columnType == DATETIME || columnType == DATE) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asDate, Date::new);
+        }
+        if (columnType == TIME) {
+            return new Date(0L);
         }
         return failConversion(val, columnType, typeString, Date.class);
     }
 
     private static Time asTime(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATETIME) {
+        if (columnType == DATETIME) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTime, Time::new);
         }
-        if (columnType == EsType.DATE) {
+        if (columnType == TIME) {
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::timeAsTime, Time::new);
+        }
+        if (columnType == DATE) {
             return new Time(0L);
         }
         return failConversion(val, columnType, typeString, Time.class);
     }
 
     private static Timestamp asTimestamp(Object val, EsType columnType, String typeString) throws SQLException {
-        if (columnType == EsType.DATETIME || columnType == EsType.DATE) {
+        if (columnType == DATETIME || columnType == DATE) {
             return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::asTimestamp, Timestamp::new);
+        }
+        if (columnType == TIME) {
+            return JdbcDateUtils.asDateTimeField(val, JdbcDateUtils::timeAsTimestamp, Timestamp::new);
         }
         return failConversion(val, columnType, typeString, Timestamp.class);
     }

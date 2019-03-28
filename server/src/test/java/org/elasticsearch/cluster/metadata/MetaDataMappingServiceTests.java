@@ -120,7 +120,8 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
                 client().admin().indices().prepareCreate("test").addMapping("my_type"));
         final MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest().type(MapperService.SINGLE_MAPPING_NAME);
+        final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest()
+                .type(MapperService.SINGLE_MAPPING_NAME);
         request.indices(new Index[] {indexService.index()});
         request.source("{ \"properties\": { \"foo\": { \"type\": \"keyword\" } }}");
         final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =

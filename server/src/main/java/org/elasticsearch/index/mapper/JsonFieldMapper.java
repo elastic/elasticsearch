@@ -362,6 +362,9 @@ public final class JsonFieldMapper extends FieldMapper {
      * filters out values whose prefix doesn't match the requested key. Loading and caching
      * is fully delegated to the wrapped field data, so that different {@link KeyedJsonIndexFieldData}
      * for the same JSON field share the same global ordinals.
+     *
+     * Because of the code-level complexity it would introduce, it is currently not possible
+     * to retrieve the underlying global ordinals map through {@link #getOrdinalMap()}.
      */
     public static class KeyedJsonIndexFieldData implements IndexOrdinalsFieldData {
         private final String key;
@@ -421,7 +424,8 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public OrdinalMap getOrdinalMap() {
-            return delegate.getOrdinalMap();
+            throw new UnsupportedOperationException("Keyed JSON field data does not allow access to the" +
+                " underlying ordinal map.");
         }
 
         @Override

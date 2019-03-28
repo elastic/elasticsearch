@@ -30,7 +30,6 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-import static org.hamcrest.Matchers.containsString;
 
 public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
     private AtomicOrdinalsFieldData delegate;
@@ -130,32 +129,29 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
 
         int retrievedOrds = 0;
         for (long ord = docValues.nextOrd(); ord != NO_MORE_ORDS; ord = docValues.nextOrd()) {
-            assertTrue(30 <= ord && ord < 40);
+            assertTrue(0 <= ord && ord < 10);
             retrievedOrds++;
 
-            BytesRef prefixedTerm = delegate.getOrdinalsValues().lookupOrd(ord);
-            BytesRef key = JsonFieldParser.extractKey(prefixedTerm);
-            assertEquals("banana", key.utf8ToString());
+            BytesRef expectedValue = new BytesRef("value" + (ord + 30));
+            BytesRef actualValue = docValues.lookupOrd(ord);
+            assertEquals(expectedValue, actualValue);
         }
 
         assertEquals(10, retrievedOrds);
     }
 
     public void testLookupOrd() throws IOException {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
-        SortedSetDocValues docValues = fieldData.getOrdinalsValues();
+        AtomicOrdinalsFieldData appleFieldData = new KeyedJsonAtomicFieldData("apple", delegate);
+        SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
+        assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        BytesRef expectedValue = new BytesRef("value0");
-        BytesRef value = docValues.lookupOrd(0);
-        assertEquals(0, expectedValue.compareTo(value));
-    }
+        AtomicOrdinalsFieldData cantaloupeFieldData = new KeyedJsonAtomicFieldData("cantaloupe", delegate);
+        SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
+        assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-    public void testLookupInvalidOrd() {
-        AtomicOrdinalsFieldData fieldData = new KeyedJsonAtomicFieldData("apple", delegate);
-        SortedSetDocValues docValues = fieldData.getOrdinalsValues();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> docValues.lookupOrd(42));
-        assertThat(e.getMessage(), containsString("The provided ordinal [42] is outside the valid range."));
+        AtomicOrdinalsFieldData cucumberFieldData = new KeyedJsonAtomicFieldData("cucumber", delegate);
+        SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
+        assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }
 
     private static class MockAtomicOrdinalsFieldData extends AbstractAtomicOrdinalsFieldData {

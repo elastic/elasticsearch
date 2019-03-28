@@ -60,13 +60,13 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-public class ElasticsearchNode {
+public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
     private final String name;
-    private final GradleServicesAdapter services;
+    final GradleServicesAdapter services;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
-    private final Path artifactsExtractDir;
+    final Path artifactsExtractDir;
     private final Path workingDir;
 
     private static final int ES_DESTROY_TIMEOUT = 20;
@@ -95,7 +95,7 @@ public class ElasticsearchNode {
     private String version;
     private File javaHome;
     private volatile Process esProcess;
-    private final String path;
+    final String path;
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -126,6 +126,7 @@ public class ElasticsearchNode {
         return version;
     }
 
+    @Override
     public void setVersion(String version) {
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         checkFrozen();
@@ -136,50 +137,61 @@ public class ElasticsearchNode {
         return distribution;
     }
 
+    @Override
     public void setDistribution(Distribution distribution) {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.distribution = distribution;
     }
 
+    @Override
     public void plugin(URI plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();
         this.plugins.add(plugin);
     }
 
+    @Override
     public void plugin(File plugin) {
         plugin(plugin.toURI());
     }
 
+    @Override
     public void keystore(String key, String value) {
         addSupplier("Keystore", keystoreSettings, key, value);
     }
 
+    @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Keystore", keystoreSettings, key, valueSupplier);
     }
 
+    @Override
     public void setting(String key, String value) {
         addSupplier("Settings", settings, key, value);
     }
 
+    @Override
     public void setting(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Setting", settings, key, valueSupplier);
     }
 
+    @Override
     public void systemProperty(String key, String value) {
         addSupplier("Java System property", systemProperties, key, value);
     }
 
+    @Override
     public void systemProperty(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Java System property", systemProperties, key, valueSupplier);
     }
 
+    @Override
     public void environment(String key, String value) {
         addSupplier("Environment variable", environment, key, value);
     }
 
+    @Override
     public void environment(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Environment variable", environment, key, valueSupplier);
     }
@@ -205,6 +217,7 @@ public class ElasticsearchNode {
         return configFile.getParent();
     }
 
+    @Override
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
@@ -213,6 +226,7 @@ public class ElasticsearchNode {
         configurationFrozen.set(true);
     }
 
+    @Override
     public void setJavaHome(File javaHome) {
         requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
         checkFrozen();
@@ -256,7 +270,8 @@ public class ElasticsearchNode {
         return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
     }
 
-    synchronized void start() {
+    @Override
+    public synchronized void start() {
         logger.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
@@ -381,27 +396,32 @@ public class ElasticsearchNode {
         }
     }
 
+    @Override
     public String getHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal().get(0);
     }
 
+    @Override
     public String getTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal().get(0);
     }
 
+    @Override
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal();
     }
 
+    @Override
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal();
     }
 
-    synchronized void stop(boolean tailLogs) {
+    @Override
+    public synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.

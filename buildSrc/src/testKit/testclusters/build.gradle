@@ -29,7 +29,7 @@ allprojects { all ->
                 distribution = 'DEFAULT'
                 version = System.getProperty("test.version_under_test")
                 javaHome = file(System.getProperty('java.home'))
-                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${version}.zip")
+                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${System.getProperty("test.version_under_test")}.zip")
             }
         }
 

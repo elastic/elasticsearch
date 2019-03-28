@@ -107,13 +107,17 @@ subprojects {
 
   // Use resources from the rolling-upgrade project in subdirectories
   sourceSets {
+    testLib {
+        java.srcDir(coreFullClusterRestartPath)
+    }
     test {
       java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java", coreFullClusterRestartPath]
+        srcDirs = ["${mainProject.projectDir}/src/test/java"]
       }
       resources {
         srcDirs = ["${mainProject.projectDir}/src/test/resources"]
       }
+      compileClasspath += testLib.output
     }
   }
 
@@ -276,6 +280,8 @@ subprojects {
   }
 
   check.dependsOn(bwcTestSnapshots)
+
+  configurations.testLibCompile.extendsFrom configurations.testCompile
 
   dependencies {
       // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

@@ -87,6 +87,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         return super.nodeSettings(nodeOrdinal);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40587")
     public void testHttpInput() throws Exception {
         WatcherClient watcherClient = watcherClient();
         watcherClient.preparePutWatch("_id")

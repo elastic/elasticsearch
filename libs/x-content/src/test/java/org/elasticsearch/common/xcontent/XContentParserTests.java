@@ -329,7 +329,7 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
-    public void testSubParser() throws IOException {
+    public void testSubParserObject() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfTokens;
         numberOfTokens = generateRandomObjectForMarking(builder);
@@ -354,6 +354,7 @@ public class XContentParserTests extends ESTestCase {
                     // And sometimes skipping children
                     subParser.skipChildren();
                 }
+
             }  finally {
                 assertFalse(subParser.isClosed());
                 subParser.close();
@@ -362,6 +363,49 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // last field
             assertEquals("last_field", parser.currentName());
             assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testSubParserArray() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        int numberOfArrayElements = randomInt(10);
+        builder.startObject();
+        builder.field("array");
+        builder.startArray();
+        int numberOfTokens = 0;
+        for (int i = 0; i < numberOfArrayElements; ++i) {
+            numberOfTokens += generateRandomObjectForMarking(builder);
+        }
+        builder.endArray();
+        builder.endObject();
+
+        String content = Strings.toString(builder);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // array field
+            assertEquals("array", parser.currentName());
+            assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken()); // [
+            XContentParser subParser = new XContentSubParser(parser);
+            try {
+                int tokensToSkip = randomInt(numberOfTokens - 1);
+                for (int i = 0; i < tokensToSkip; i++) {
+                    // Simulate incomplete parsing
+                    assertNotNull(subParser.nextToken());
+                }
+                if (randomBoolean()) {
+                    // And sometimes skipping children
+                    subParser.skipChildren();
+                }
+
+            }  finally {
+                assertFalse(subParser.isClosed());
+                subParser.close();
+                assertTrue(subParser.isClosed());
+            }
+            assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
@@ -377,7 +421,7 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken()); // first field
             assertEquals("first_field", parser.currentName());
             IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new XContentSubParser(parser));
-            assertEquals("The sub parser has to be created on the start of an object", exception.getMessage());
+            assertEquals("The sub parser has to be created on the start of an object or array", exception.getMessage());
         }
     }
 

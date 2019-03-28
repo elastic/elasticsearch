@@ -182,60 +182,44 @@ different from the query's vector, 0 is used for missing dimensions
 in the calculations of vector functions.
 
 
-[[random-functions]]
-===== Random functions
-There are two predefined ways to produce random values:
-`randomNotReproducible` and `randomReproducible`.
+[[random-score-function]]
+===== Random score function
+`random_score` function generates scores that are uniformly distributed
+from 0 up to but not including 1.
 
-`randomNotReproducible()` uses `java.util.Random` class
-to generate a random value of the type `long`.
-The generated values are not reproducible between requests' invocations.
+`randomScore` function has the following syntax:
+`randomScore(<seed>, <fieldName>)`.
+It has a required parameter - `seed` as an integer value,
+and an optional parameter - `fieldName` as a string value.
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "randomNotReproducible()"
+    "source" : "randomScore(100, '_seq_no')"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If the `fieldName` parameter is omitted, the internal Lucene
+document ids will be used as a source of randomness. This is very efficient,
+but unfortunately not reproducible since documents might be renumbered
+by merges.
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomScore(100)"
 }
 --------------------------------------------------
 // NOTCONSOLE
 
 
-`randomReproducible(String seedValue, int seed)` produces
-reproducible random values of type `long`. This function requires
-more computational time and memory than the non-reproducible version.
-
-A good candidate for the `seedValue` is document field values that
-are unique across documents and already pre-calculated and preloaded
-in the memory. For example, values of the document's `_seq_no` field
-is a good candidate, as documents on the same shard have unique values
-for the `_seq_no` field.
-
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-
-A drawback of using `_seq_no` is that generated values change if
-documents are updated. Another drawback is not absolute uniqueness, as
-documents from different shards with the same sequence numbers
-generate the same random values.
-
-If you need random values to be distinct across different shards,
-you can use a field with unique values across shards,
-such as  `_id`, but watch out for the memory usage as all
-these unique values need to be loaded into memory.
-
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "randomReproducible(doc['_id'].value, 100)"
-}
---------------------------------------------------
-// NOTCONSOLE
+Note that documents that are within the same shard and have the
+same value for field will get the same score, so it is usually desirable
+to use a field that has unique values for all documents across a shard.
+A good default choice might be to use the `_seq_no`
+field, whose only drawback is that scores will change if the document is
+updated since update operations also update the value of the `_seq_no` field.
 
 
 [[decay-functions]]
@@ -349,8 +333,8 @@ the following script:
 
 ===== `random_score`
 
-Use `randomReproducible` and `randomNotReproducible` functions
-as described in <<random-functions, random functions>>.
+Use `randomScore` function
+as described in <<random-score-function, random score function>>.
 
 
 ===== `field_value_factor`

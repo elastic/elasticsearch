@@ -25,6 +25,8 @@ setup:
   - length: { datafeeds.0.indices: 1 }
   - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
       xpack.ml.get_datafeed_stats:
@@ -39,6 +41,8 @@ setup:
   - length: { datafeeds.0.indices: 1 }
   - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
       xpack.ml.get_datafeed_stats:

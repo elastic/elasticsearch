@@ -7,6 +7,8 @@
   - length: { datafeeds.0.indices: 1 }
   - length: { datafeeds.0.types: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
 
   - do:
       xpack.ml.get_datafeed_stats:
@@ -25,6 +27,7 @@
             "description":"Cluster upgrade",
             "analysis_config" : {
                 "bucket_span": "60s",
+                "summary_count_field_name": "doc_count",
                 "detectors" :[{"function":"count"}]
             },
             "analysis_limits" : {
@@ -44,7 +47,34 @@
             "job_id":"mixed-cluster-datafeed-job",
             "indices":["airline-data"],
             "types":["response"],
-            "scroll_size": 2000
+            "scroll_size": 2000,
+            "aggregations": {
+              "buckets": {
+                "date_histogram": {
+                  "field": "time",
+                  "interval": "30s",
+                  "time_zone": "UTC"
+                },
+                "aggregations": {
+                  "time": {
+                    "max": {"field": "time"}
+                  },
+                  "airline": {
+                    "terms": {
+                      "field": "airline",
+                      "size": 100
+                    },
+                    "aggregations": {
+                      "responsetime": {
+                        "avg": {
+                          "field": "responsetime"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
 
   - do:

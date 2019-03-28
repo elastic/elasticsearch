@@ -78,7 +78,7 @@ public class SysTables extends Command {
 
         // catalog enumeration
         if (clusterPattern == null || clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            // enumerate only if pattern is "" and no types are null
+            // enumerate only if pattern is "" and no types are specified (types is null)
             if (pattern != null && pattern.pattern().isEmpty() && index == null
                     && types == null) {
                 Object[] enumeration = new Object[10];
@@ -90,7 +90,7 @@ public class SysTables extends Command {
         }
         
         // enumerate types
-        // if no types were specified (the parser takes care of the % case)
+        // if no types are specified (the parser takes care of the % case)
         if (types == null) {
             // empty string for catalog
             if (clusterPattern != null && clusterPattern.pattern().isEmpty()

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
 import java.time.ZoneId;
@@ -34,7 +33,7 @@ public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProc
     @Override
     protected TimeProcessor mutateInstance(TimeProcessor instance) {
         DateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values()));
-        return new TimeProcessor(replaced, randomValueOtherThan(UTC, ESTestCase::randomZone));
+        return new TimeProcessor(replaced, randomZone());
     }
 
     public void testApply_withTimeZoneUTC() {

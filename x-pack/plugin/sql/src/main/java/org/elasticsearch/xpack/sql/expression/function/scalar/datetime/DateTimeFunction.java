@@ -29,11 +29,6 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         this.extractor = extractor;
     }
 
-    @Override
-    protected Object doFold(ZonedDateTime dateTime) {
-        return dateTimeChrono(dateTime, extractor.chronoField());
-    }
-
     public static Integer dateTimeChrono(ZonedDateTime dateTime, String tzId, String chronoName) {
         ZonedDateTime zdt = dateTime.withZoneSameInstant(ZoneId.of(tzId));
         return dateTimeChrono(zdt, ChronoField.valueOf(chronoName));

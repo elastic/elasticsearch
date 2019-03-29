@@ -26,7 +26,7 @@ public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
     public static final String DATE_PARSE_FORMAT = "epoch_millis";
-    // Not available in Java 8
+    // In Java 8 LocalDate.EPOCH is not yet available
     public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 

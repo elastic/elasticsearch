@@ -59,6 +59,22 @@ null      |100445
 0         |904605
 ;
 
+
+timeAsHavingFilter
+SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME + INTERVAL 10 MINUTES) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) = CAST('00:00:00.000' AS TIME) ORDER BY gender;
+
+minute:i    | gender:s
+10          | null
+10          | F
+10          | M
+;
+
+timeAsHavingFilterNoMatch
+SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) > CAST('00:00:00.000' AS TIME);
+
+minute:i    | gender:s
+;
+
 timeAndInterval
 SELECT HOUR(CAST('10:11:12.345' AS TIME) + INTERVAL '20' HOURS) AS h, SECOND(INTERVAL '40' SECONDS + CAST('10:11:12.345' AS TIME)) AS m;
 

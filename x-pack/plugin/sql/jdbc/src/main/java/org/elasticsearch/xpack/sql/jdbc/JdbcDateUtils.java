@@ -25,7 +25,7 @@ final class JdbcDateUtils {
 
     private JdbcDateUtils() {}
 
-    // Not available in Java 8
+    // In Java 8 LocalDate.EPOCH is not yet available
     private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     private static ZonedDateTime asDateTime(String date) {

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
@@ -50,16 +49,8 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     public Object fold() {
-        ZonedDateTime folded = (ZonedDateTime) field().fold();
-        if (folded == null) {
-            return null;
-        }
-
-        return doFold(folded.withZoneSameInstant(zoneId));
+        return makeProcessor().process(field().fold());
     }
-
-    protected abstract Object doFold(ZonedDateTime dateTime);
-
 
     @Override
     public boolean equals(Object obj) {

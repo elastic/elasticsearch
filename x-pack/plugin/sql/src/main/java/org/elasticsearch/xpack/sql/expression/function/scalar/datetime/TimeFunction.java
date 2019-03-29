@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
@@ -14,7 +13,6 @@ import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
@@ -28,27 +26,6 @@ public abstract class TimeFunction extends DateTimeFunction {
 
     public static Integer dateTimeChrono(OffsetTime time, String tzId, String chronoName) {
         return dateTimeChrono(asTimeAtZone(time, ZoneId.of(tzId)), ChronoField.valueOf(chronoName));
-    }
-
-    @Override
-    public Object fold() {
-        Object folded = field().fold();
-        if (folded == null) {
-            return null;
-        }
-
-        if (folded instanceof ZonedDateTime) {
-            return doFold(((ZonedDateTime) folded).withZoneSameInstant(zoneId()));
-        }
-        if (folded instanceof OffsetTime) {
-            return doFold(asTimeAtZone((OffsetTime) folded, zoneId()));
-        }
-
-        throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", field());
-    }
-
-    private Object doFold(OffsetTime time) {
-        return extractor().extract(time);
     }
 
     @Override

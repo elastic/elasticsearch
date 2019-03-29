@@ -9,7 +9,6 @@ import java.time.Duration;
 import java.time.OffsetTime;
 import java.time.Period;
 import java.time.temporal.Temporal;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
 
@@ -20,6 +19,11 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.DAY_IN_MILLIS;
 public final class Arithmetics {
 
     private Arithmetics() {}
+
+    private enum IntervalOperation {
+        ADD,
+        SUB
+    }
 
     static Number add(Number l, Number r) {
         if (l == null || r == null) {
@@ -40,11 +44,11 @@ public final class Arithmetics {
     }
 
     static Temporal add(Temporal l, Period r) {
-        return periodArithmetics(l, r, Temporal::plus);
+        return periodArithmetics(l, r, IntervalOperation.ADD);
     }
 
     static Temporal add(Temporal l, Duration r) {
-        return durationArithmetics(l, r, Temporal::plus);
+        return durationArithmetics(l, r, IntervalOperation.ADD);
     }
 
     static Number sub(Number l, Number r) {
@@ -66,11 +70,11 @@ public final class Arithmetics {
     }
 
     static Temporal sub(Temporal l, Period r) {
-        return periodArithmetics(l, r, Temporal::minus);
+        return periodArithmetics(l, r, IntervalOperation.SUB);
     }
 
     static Temporal sub(Temporal l, Duration r) {
-        return durationArithmetics(l, r, Temporal::minus);
+        return durationArithmetics(l, r, IntervalOperation.SUB);
     }
 
     static Number mul(Number l, Number r) {
@@ -153,18 +157,23 @@ public final class Arithmetics {
         return Integer.valueOf(Math.negateExact(n.intValue()));
     }
 
-    private static Temporal periodArithmetics(Temporal l, Period r, BiFunction<Temporal, Period, Temporal> f) {
+    private static Temporal periodArithmetics(Temporal l, Period r, IntervalOperation operation) {
         if (l == null || r == null) {
             return null;
         }
 
         if (l instanceof OffsetTime) {
-            r = r.withDays(0).withMonths(0).withYears(0);
+            return l;
         }
-        return f.apply(l, r);
+
+        if (operation == IntervalOperation.ADD) {
+            return l.plus(r);
+        } else {
+            return l.minus(r);
+        }
     }
 
-    private static Temporal durationArithmetics(Temporal l, Duration r, BiFunction<Temporal, Duration, Temporal> f) {
+    private static Temporal durationArithmetics(Temporal l, Duration r, IntervalOperation operation) {
         if (l == null || r == null) {
             return null;
         }
@@ -172,6 +181,11 @@ public final class Arithmetics {
         if (l instanceof OffsetTime) {
             r = Duration.ofMillis(r.toMillis() % DAY_IN_MILLIS);
         }
-        return f.apply(l, r);
+
+        if (operation == IntervalOperation.ADD) {
+            return l.plus(r);
+        } else {
+            return l.minus(r);
+        }
     }
 }

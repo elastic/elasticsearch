@@ -6,14 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.time.ZoneId;
-
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDateOrTime;
 
 /**
  * Extract the second of the minute from a datetime.
@@ -26,11 +23,6 @@ public class SecondOfMinute extends TimeFunction {
     @Override
     protected NodeCtor2<Expression, ZoneId, BaseDateTimeFunction> ctorForInfo() {
         return SecondOfMinute::new;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return isDateOrTime(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

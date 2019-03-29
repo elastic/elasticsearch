@@ -62,16 +62,15 @@ public final class StringUtils {
             return "null";
         }
 
+        if (value instanceof ZonedDateTime) {
+            return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
+        }
         if (value instanceof OffsetTime) {
             return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);
         }
         if (value instanceof Timestamp) {
             Timestamp ts = (Timestamp) value;
             return ts.toInstant().toString();
-        }
-
-        if (value instanceof ZonedDateTime) {
-            return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
         }
 
         // handle intervals

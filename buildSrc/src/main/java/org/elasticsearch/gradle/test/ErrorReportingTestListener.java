@@ -1,6 +1,5 @@
 package org.elasticsearch.gradle.test;
 
-import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
@@ -11,6 +10,7 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
@@ -103,6 +103,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
      * various {@link TestDescriptor} implementations reliably implement equals and hashCode.
      */
     private static class Descriptor {
+        private final String name;
+        private final String className;
+        private final String parent;
+
         private Descriptor(String name, String className, String parent) {
             this.name = name;
             this.className = className;
@@ -113,29 +117,19 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             return new Descriptor(d.getName(), d.getClassName(), d.getParent() == null ? null : d.getParent().toString());
         }
 
+        @Override
         public boolean equals(Object o) {
-            if (DefaultGroovyMethods.is(this, o)) return true;
-            if (!getClass().equals(o.getClass())) return false;
-
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Descriptor that = (Descriptor) o;
-
-            if (!className.equals(that.className)) return false;
-            if (!name.equals(that.name)) return false;
-            if (!parent.equals(that.parent)) return false;
-
-            return true;
+            return Objects.equals(name, that.name) &&
+                Objects.equals(className, that.className) &&
+                Objects.equals(parent, that.parent);
         }
 
+        @Override
         public int hashCode() {
-            int result;
-            result = (name != null ? name.hashCode() : 0);
-            result = 31 * result + (className != null ? className.hashCode() : 0);
-            result = 31 * result + (parent != null ? parent.hashCode() : 0);
-            return result;
+            return Objects.hash(name, className, parent);
         }
-
-        private final String name;
-        private final String className;
-        private final String parent;
     }
 }

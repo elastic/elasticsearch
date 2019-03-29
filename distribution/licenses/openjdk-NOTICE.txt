@@ -2,4 +2,4 @@ Copyright (c) 1995, 2013, Oracle and/or its affiliates.
 
 OpenJDK is licensed under the GPLv2+CE. A copy of that license is included in
 this distribution immediately below this notice. You can find a copy of the
-source through the downloads page at https://elastic.co.
+OpenJDK source through the downloads page at https://elastic.co.

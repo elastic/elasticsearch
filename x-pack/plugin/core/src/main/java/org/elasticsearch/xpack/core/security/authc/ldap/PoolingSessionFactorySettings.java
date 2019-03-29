@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authc.ldap;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
@@ -34,6 +35,26 @@ public final class PoolingSessionFactorySettings {
                     RealmSettings.realmSettingPrefix(realmType), "secure_bind_password",
                     key -> secureString(key, null)
             );
+
+    public static final Function<String, Setting.AffixSetting<String>> BIND_MODE = RealmSettings.affixSetting("bind.mode",
+            key -> new Setting<>(key, "simple", Function.identity(), v -> {
+                switch (v) {
+                case "simple":
+                case "sasl_gssapi":
+                    break;
+                default:
+                    throw new IllegalArgumentException("only [simple] and [sasl_gssapi] bind mode are allowed, [" + v + "] is invalid");
+                }
+            }, Setting.Property.NodeScope));
+
+    public static final Function<String, Setting.AffixSetting<String>> SASL_GSSAPI_PRINCIPAL = RealmSettings
+            .affixSetting("sasl_gssapi.bind.principal", key -> Setting.simpleString(key, Setting.Property.NodeScope, Property.Filtered));
+    public static final Function<String, Setting.AffixSetting<Boolean>> SASL_GSSAPI_USE_KEYTAB = RealmSettings
+            .affixSetting("sasl_gssapi.bind.use_keytab", key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+    public static final Function<String, Setting.AffixSetting<String>> SASL_GSSAPI_KEYTAB_PATH = RealmSettings
+            .affixSetting("sasl_gssapi.bind.keytab.path", key -> Setting.simpleString(key, Setting.Property.NodeScope, Property.Filtered));
+    public static final Function<String, Setting.AffixSetting<Boolean>> SASL_GSSAPI_DEBUG = RealmSettings
+            .affixSetting("sasl_gssapi.bind.debug", key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
 
     public static final int DEFAULT_CONNECTION_POOL_INITIAL_SIZE = 0;
     public static final Function<String, Setting.AffixSetting<Integer>> POOL_INITIAL_SIZE = RealmSettings.affixSetting(
@@ -63,7 +84,8 @@ public final class PoolingSessionFactorySettings {
     public static Set<Setting.AffixSetting<?>> getSettings(String realmType) {
         return Stream.of(
             POOL_INITIAL_SIZE, POOL_SIZE, HEALTH_CHECK_ENABLED, HEALTH_CHECK_INTERVAL, HEALTH_CHECK_DN, BIND_DN,
-            LEGACY_BIND_PASSWORD, SECURE_BIND_PASSWORD
+            LEGACY_BIND_PASSWORD, SECURE_BIND_PASSWORD, BIND_MODE, SASL_GSSAPI_PRINCIPAL, SASL_GSSAPI_USE_KEYTAB, SASL_GSSAPI_KEYTAB_PATH,
+            SASL_GSSAPI_DEBUG
         ).map(f -> f.apply(realmType)).collect(Collectors.toSet());
     }
 }

@@ -9,6 +9,7 @@ import com.unboundid.ldap.listener.InMemoryDirectoryServer;
 import com.unboundid.ldap.listener.InMemoryDirectoryServerConfig;
 import com.unboundid.ldap.listener.InMemoryListenerConfig;
 import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.BindRequest;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
@@ -218,20 +219,27 @@ public abstract class LdapTestCase extends ESTestCase {
         return future.actionGet();
     }
 
-    protected static void assertConnectionValid(LDAPInterface conn, SimpleBindRequest bindRequest) {
+    protected static void assertConnectionValid(LDAPInterface conn, BindRequest bindRequest) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
                 try {
                     if (conn instanceof LDAPConnection) {
                         assertTrue(((LDAPConnection) conn).isConnected());
-                        assertEquals(bindRequest.getBindDN(),
-                                ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN());
+                        assertEquals(bindRequest.getBindType(), ((LDAPConnection) conn).getLastBindRequest().getBindType());
+                        if (bindRequest instanceof SimpleBindRequest) {
+                            assertEquals(((SimpleBindRequest) bindRequest).getBindDN(),
+                                    ((SimpleBindRequest) ((LDAPConnection) conn).getLastBindRequest()).getBindDN());
+                        }
                         ((LDAPConnection) conn).reconnect();
                     } else if (conn instanceof LDAPConnectionPool) {
                         try (LDAPConnection c = ((LDAPConnectionPool) conn).getConnection()) {
                             assertTrue(c.isConnected());
-                            assertEquals(bindRequest.getBindDN(), ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
+                            assertEquals(bindRequest.getBindType(), c.getLastBindRequest().getBindType());
+                            if (bindRequest instanceof SimpleBindRequest) {
+                                assertEquals(((SimpleBindRequest) bindRequest).getBindDN(),
+                                        ((SimpleBindRequest) c.getLastBindRequest()).getBindDN());
+                            }
                             c.reconnect();
                         }
                     }

@@ -10,12 +10,13 @@ import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.SASLBindRequest;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -24,7 +25,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -32,9 +32,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 
 import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
 /**
  * Base class for LDAP session factories that can make use of a connection pool
@@ -44,7 +41,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
     private final boolean useConnectionPool;
     private final LDAPConnectionPool connectionPool;
 
-    final SimpleBindRequest bindCredentials;
+    final BindRequest bindRequestCredentials;
     final LdapMetaDataResolver metaDataResolver;
     final LdapSession.GroupsResolver groupResolver;
 
@@ -54,41 +51,23 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
      * @param sslService the ssl service to get a socket factory or context from
      * @param groupResolver the resolver to use to find groups belonging to a user
      * @param poolingEnabled the setting that should be used to determine if connection pooling is enabled
-     * @param bindDn the DN of the user to be used for pooled connections (or null to perform anonymous bind)
+     * @param bindRequestCredentials bind request {@link BindRequest} to perform an LDAPv3 bind operation, which
+     *        authenticates using a either {@link SimpleBindRequest} or {@link SASLBindRequest}.
      * @param healthCheckDNSupplier a supplier for the dn to query for health checks
      * @param threadPool a thread pool used for async queries execution
      */
     PoolingSessionFactory(RealmConfig config, SSLService sslService, LdapSession.GroupsResolver groupResolver,
-                          Setting.AffixSetting<Boolean> poolingEnabled, @Nullable String bindDn, Supplier<String> healthCheckDNSupplier,
-                          ThreadPool threadPool) throws LDAPException {
+                          Setting.AffixSetting<Boolean> poolingEnabled, BindRequest bindRequestCredentials,
+                          Supplier<String> healthCheckDNSupplier, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, threadPool);
         this.groupResolver = groupResolver;
         this.metaDataResolver = new LdapMetaDataResolver(config, ignoreReferralErrors);
 
-        final byte[] bindPassword;
-        if (config.hasSetting(LEGACY_BIND_PASSWORD)) {
-            if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-                throw new IllegalArgumentException("You cannot specify both ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD) + "] and ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD) + "]");
-            } else {
-                bindPassword = CharArrays.toUtf8Bytes(config.getSetting(LEGACY_BIND_PASSWORD).getChars());
-            }
-        } else if (config.hasSetting(SECURE_BIND_PASSWORD)) {
-            bindPassword = CharArrays.toUtf8Bytes(config.getSetting(SECURE_BIND_PASSWORD).getChars());
-        } else {
-            bindPassword = null;
-        }
-
-        if (bindDn == null) {
-            bindCredentials = new SimpleBindRequest();
-        } else {
-            bindCredentials = new SimpleBindRequest(bindDn, bindPassword);
-        }
+        this.bindRequestCredentials = bindRequestCredentials;
 
         this.useConnectionPool = config.getSetting(poolingEnabled);
         if (useConnectionPool) {
-            this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindCredentials, healthCheckDNSupplier);
+            this.connectionPool = createConnectionPool(config, serverSet, timeout, logger, bindRequestCredentials, healthCheckDNSupplier);
         } else {
             this.connectionPool = null;
         }

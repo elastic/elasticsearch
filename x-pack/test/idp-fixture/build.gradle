@@ -2,3 +2,23 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
 
 test.enabled = false
+
+preProcessFixture.doLast {
+  // We need to create these up-front because if docker creates them they will be owned by root and we won't be
+  // able to clean them up
+  file("${buildDir}/shared/keytabs/${it}").mkdirs()
+  file("${buildDir}/shared/krb-conf/${it}").mkdirs()
+}
+
+postProcessFixture {
+    inputs.dir("${buildDir}/shared")
+    File confTemplate = file("${buildDir}/shared/krb-conf/krb5.conf.template")
+    File confFile = file("${buildDir}/shared/krb-conf/krb5.conf")
+    outputs.file(confFile)
+    doLast {
+        assert confTemplate.exists()
+        String confContents = confTemplate.text
+            .replace("\${MAPPED_PORT}", "${ext."test.fixtures.kdc-kadmin.tcp.88"}")
+        confFile.text = confContents
+    }
+}

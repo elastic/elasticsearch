@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSett
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.authc.ldap.bind.BindRequestBuilder;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -46,7 +47,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
 
     LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) throws LDAPException {
         super(config, sslService, groupResolver(config), LdapUserSearchSessionFactorySettings.POOL_ENABLED,
-                config.getSetting(BIND_DN, () -> null),
+                new BindRequestBuilder(config, c -> c.getSetting(BIND_DN, () -> null)).build(),
                 () -> config.getSetting(BIND_DN, () -> config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN)),
                 threadPool);
         userSearchBaseDn = config.getSetting(LdapUserSearchSessionFactorySettings.SEARCH_BASE_DN,
@@ -110,7 +111,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     void getSessionWithoutPool(String user, SecureString password, ActionListener<LdapSession> listener) {
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindRequestCredentials, threadPool, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     findUser(user, connection, ActionListener.wrap((entry) -> {
@@ -124,7 +125,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
                             LdapUtils.maybeForkThenBind(connection, userBind, threadPool, new AbstractRunnable() {
                                 @Override
                                 protected void doRun() throws Exception {
-                                    LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+                                    LdapUtils.maybeForkThenBind(connection, bindRequestCredentials, threadPool, new AbstractRunnable() {
 
                                         @Override
                                         protected void doRun() throws Exception {
@@ -187,7 +188,7 @@ class LdapUserSearchSessionFactory extends PoolingSessionFactory {
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
         try {
             final LDAPConnection connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            LdapUtils.maybeForkThenBind(connection, bindCredentials, threadPool, new AbstractRunnable() {
+            LdapUtils.maybeForkThenBind(connection, bindRequestCredentials, threadPool, new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     findUser(user, connection, ActionListener.wrap((entry) -> {

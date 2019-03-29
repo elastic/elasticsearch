@@ -13,3 +13,15 @@ olcAccess: {2}to *
           by dn.base="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" write
           by dn="cn=admin,DC=oldap,DC=test,DC=elasticsearch,DC=com" write
           by * read
+
+# Following configures SASL to enable SASL binds on the LDAP, for testing SASL logins are mapped to cn=admin,{{ LDAP_BASE_DN }}
+dn: cn=config
+changetype: modify
+add: olcSaslHost
+olcSaslHost: localhost
+-
+add: olcSaslRealm
+olcSaslRealm: DEV.LOCAL
+-
+add: olcAuthzRegexp
+olcAuthzRegexp: uid=([^,]+),cn=dev.local,cn=gssapi,cn=auth cn=admin,{{ LDAP_BASE_DN }}

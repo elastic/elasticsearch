@@ -18,7 +18,7 @@ grant {
   permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KeyTab * \"*\"", "read";
   permission javax.security.auth.PrivateCredentialPermission "javax.security.auth.kerberos.KerberosTicket * \"*\"", "read";
   permission javax.security.auth.AuthPermission "doAs";
-  permission javax.security.auth.kerberos.ServicePermission "*","initiate,accept";
+  permission javax.security.auth.kerberos.ServicePermission "*","initiate,accept,resovle";
 
   permission java.util.PropertyPermission "javax.security.auth.useSubjectCredsOnly","write";
   permission java.util.PropertyPermission "java.security.krb5.conf","write";
@@ -29,6 +29,10 @@ grant {
   // needed for kerberos file permission tests to access user information
   permission java.lang.RuntimePermission "accessUserInformation";
   permission java.lang.RuntimePermission "getFileStoreAttributes";
+
+  // needed for GSSAPI bind to LDAP
+  permission javax.security.auth.AuthPermission "createLoginContext.GSSAPIBindRequest";
+  permission javax.security.auth.AuthPermission "setLoginConfiguration";
 };
 
 grant codeBase "${codebase.xmlsec-2.0.8.jar}" {

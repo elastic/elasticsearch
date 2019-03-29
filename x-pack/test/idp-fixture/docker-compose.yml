@@ -1,8 +1,28 @@
 version: '3.1'
 services:
+  kdc-kadmin:
+    build: ./kdc-kadmin
+    image: kdc:latest
+    environment:
+      REALM: "DEV.LOCAL"
+      SUPPORTED_ENCRYPTION_TYPES: "aes256-cts-hmac-sha1-96:normal"
+      KADMIN_PRINCIPAL: "kadmin/admin"
+      KADMIN_PASSWORD: "esadmin"
+    volumes:
+      # This is needed otherwise there won't be enough entropy to generate a new kerberos realm
+      - /dev/urandom:/dev/random
+      - ./:/fixture
+    ports:
+      - "749"
+      - "88"
+    networks:
+      - test-net
+
   openldap:
     command: --copy-service --loglevel debug
-    image: "osixia/openldap:1.2.3"
+    image: "osixia/openldap:1.2.4"
+    hostname: openldap
+    domainname: idp-fixture_dev.local
     ports:
       - "389"
       - "636"
@@ -17,10 +37,17 @@ services:
       LDAP_TLS_VERIFY_CLIENT: "never"
       LDAP_TLS_CIPHER_SUITE: "NORMAL"
       LDAP_LOG_LEVEL: 256
+      HOSTNAME: openldap.idp-fixture_dev.local
     volumes:
       - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
       - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
       - ./openldap/certs:/container/service/slapd/assets/certs
+      - ./build/shared/keytabs/ldap.keytab:/etc/krb5.keytab
+      - ./build/shared/krb-conf/ldap-krb5.conf:/etc/krb5.conf
+    depends_on:
+      - kdc-kadmin
+    networks:
+      - test-net
 
   shibboleth-idp:
     image: "unicon/shibboleth-idp:3.4.2"
@@ -38,6 +65,8 @@ services:
       - ./idp/shibboleth-idp/conf:/opt/shibboleth-idp/conf
       - ./idp/shibboleth-idp/credentials:/opt/shibboleth-idp/credentials
       - ./idp/shib-jetty-base/start.d/ssl.ini:/opt/shib-jetty-base/start.d/ssl.ini
+    networks:
+      - test-net
 
   oidc-provider:
     image: "c2id/c2id-server:7.8"
@@ -45,3 +74,9 @@ services:
       - "8080"
     volumes:
       - ./oidc/override.properties:/etc/c2id/override.properties
+    networks:
+      - test-net
+
+networks:
+  test-net:
+

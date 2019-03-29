@@ -71,6 +71,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 pullFixture.setEnabled(false);
                 return;
             }
+            preProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
+            postProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
 
             project.apply(spec -> spec.plugin(BasePlugin.class));
             project.apply(spec -> spec.plugin(DockerComposePlugin.class));
@@ -94,21 +96,26 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, port) -> postProcessFixture.getExtensions()
                     .getByType(ExtraPropertiesExtension.class).set(name, port)
             );
+            extension.fixtures.add(project);
         }
 
-        extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+        extension.fixtures
+            .matching(fixtureProject -> fixtureProject.equals(project) == false)
+            .all(fixtureProject ->  project.evaluationDependsOn(fixtureProject.getPath()));
+
+        conditionTaskByType(tasks, extension, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+        conditionTaskByType(tasks, extension, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
+        conditionTaskByType(tasks, extension, TestingConventionsTasks.class);
+        conditionTaskByType(tasks, extension, ComposeUp.class);
+
         if (dockerComposeSupported(project) == false) {
             project.getLogger().warn(
                 "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
                     "but none could be found so these will be skipped", project.getPath()
             );
-            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
-            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
-            // conventions are not honored when the tasks are disabled
-            disableTaskByType(tasks, TestingConventionsTasks.class);
-            disableTaskByType(tasks, ComposeUp.class);
             return;
         }
+
         tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
             extension.fixtures.all(fixtureProject -> {
                 fixtureProject.getTasks().matching(it -> it.getName().equals("buildFixture")).all(buildFixture ->
@@ -126,6 +133,16 @@ public class TestFixturesPlugin implements Plugin<Project> {
             })
         );
 
+    }
+
+    private void conditionTaskByType(TaskContainer tasks, TestFixtureExtension extension, Class<? extends DefaultTask> taskClass) {
+        tasks.withType(
+            taskClass,
+            task -> task.onlyIf(spec ->
+                extension.fixtures.stream()
+                    .anyMatch(fixtureProject -> fixtureProject.getTasks().getByName("buildFixture").getEnabled() == false) == false
+            )
+        );
     }
 
     private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {

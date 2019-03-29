@@ -10,6 +10,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -43,6 +46,33 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         long version = randomNonNegativeLong();
         SnapshotLifecyclePolicyMetadata meta = new SnapshotLifecyclePolicyMetadata(policy, Collections.emptyMap(), version, 1);
         assertThat(SnapshotLifecycleService.getJobId(meta), equalTo(id + "-" + version));
+    }
+
+    public void testRepositoryExistence() {
+        ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> SnapshotLifecycleService.validateRepositoryExists("repo", state));
+
+        assertThat(e.getMessage(), containsString("no such repository [repo]"));
+
+        boolean shouldExist = randomBoolean();
+        RepositoryMetaData repo = new RepositoryMetaData(shouldExist ? "repo" : "other", "fs", Settings.EMPTY);
+        RepositoriesMetaData repoMeta = new RepositoriesMetaData(Collections.singletonList(repo));
+        ClusterState stateWithRepo = ClusterState.builder(state)
+            .metaData(MetaData.builder()
+            .putCustom(RepositoriesMetaData.TYPE, repoMeta))
+            .build();
+
+        if (shouldExist) {
+            SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
+        } else {
+            // There is a repo, but not the one we're looking for
+            IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
+                () -> SnapshotLifecycleService.validateRepositoryExists("repo", state));
+
+            assertThat(e2.getMessage(), containsString("no such repository [repo]"));
+        }
     }
 
     /**

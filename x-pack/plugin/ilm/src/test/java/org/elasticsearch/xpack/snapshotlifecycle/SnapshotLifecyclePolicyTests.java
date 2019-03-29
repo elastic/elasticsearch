@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.snapshotlifecycle;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -39,6 +41,28 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
 
         p = new SnapshotLifecyclePolicy("id", "<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", "1 * * * * ?", "repo", Collections.emptyMap());
         assertThat(p.generateSnapshotName(context), startsWith("name-2019-03-15.21:09:00-"));
+    }
+
+    public void testValidation() {
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
+            "* * * * * L", "  ", Collections.emptyMap());
+
+        ValidationException e = policy.validate();
+        assertThat(e.validationErrors(),
+            containsInAnyOrder("invalid policy id [a,b]: must not contain ','",
+                "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
+                    " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
+                "invalid repository name [  ]: cannot be empty",
+                "invalid schedule with invalid cron expression: invalid cron expression [* * * * * L]"));
+
+        policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
+            " ", "repo", Collections.emptyMap());
+
+        e = policy.validate();
+        assertThat(e.validationErrors(),
+            containsInAnyOrder("invalid policy id [_my_policy]: must not start with '_'",
+                "invalid snapshot name [mySnap]: must be lowercase",
+                "invalid schedule [ ]: must not be empty"));
     }
 
     @Override

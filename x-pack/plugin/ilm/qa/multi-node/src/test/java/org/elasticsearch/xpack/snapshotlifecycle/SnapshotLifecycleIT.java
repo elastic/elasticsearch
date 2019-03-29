@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.snapshotlifecycle;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,11 +30,28 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleIT extends ESRestTestCase {
+
+    public void testMissingRepo() throws Exception {
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
+            "*/1 * * * * ?", "missing-repo", Collections.emptyMap());
+
+        Request putLifecycle = new Request("PUT", "/_ilm/snapshot/test-policy");
+        XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
+        policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
+        putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(putLifecycle));
+        Response resp = e.getResponse();
+        assertThat(resp.getStatusLine().getStatusCode(), equalTo(400));
+        String jsonError = EntityUtils.toString(resp.getEntity());
+        assertThat(jsonError, containsString("\"type\":\"illegal_argument_exception\""));
+        assertThat(jsonError, containsString("\"reason\":\"no such repository [missing-repo]\""));
+    }
 
     @SuppressWarnings("unchecked")
     public void testFullPolicySnapshot() throws Exception {

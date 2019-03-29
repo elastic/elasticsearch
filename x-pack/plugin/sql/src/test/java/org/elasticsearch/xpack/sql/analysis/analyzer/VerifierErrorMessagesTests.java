@@ -216,6 +216,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DAY_OF_YEAR(CAST(date AS TIME)) FROM test"));
     }
 
+    public void testGroupByOnTimeNotAllowed() {
+        assertEquals("1:36: Function [CAST(date AS TIME)] with data type [time] cannot be used for grouping",
+            error("SELECT count(*) FROM test GROUP BY CAST(date AS TIME)"));
+    }
+
+    public void testGroupByOnTimeWrappedWithScalar() {
+        accept("SELECT count(*) FROM test GROUP BY MINUTE(CAST(date AS TIME))");
+    }
+
+    public void testHistogramOnTimeNotAllowed() {
+        assertEquals("1:8: first argument of [HISTOGRAM] must be [date, datetime or numeric], " +
+                "found value [CAST(date AS TIME)] type [time]",
+            error("SELECT HISTOGRAM(CAST(date AS TIME), INTERVAL 1 MONTH), COUNT(*) FROM test GROUP BY 1"));
+    }
+
     public void testSubtractFromInterval() {
         assertEquals("1:8: Cannot subtract a datetime[CAST('2000-01-01' AS DATETIME)] " +
                 "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
@@ -310,7 +325,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOnInexact() {
-        assertEquals("1:36: Field of data type [text] cannot be used for grouping; " +
+        assertEquals("1:36: Field [text] of data type [text] cannot be used for grouping; " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT COUNT(*) FROM test GROUP BY text"));
     }

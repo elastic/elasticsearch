@@ -123,11 +123,4 @@ public final class DateUtils {
         }
         return l - (l % DAY_IN_MILLIS);
     }
-
-    public static long maxDayInterval(long l) {
-        if (l > DAY_IN_MILLIS ) {
-            return DAY_IN_MILLIS;
-        }
-        return l;
-    }
 }

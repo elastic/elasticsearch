@@ -82,6 +82,5 @@ actually used will be `INTERVAL '2' DAY`. If the interval specified is less than
 `HISTOGRAM(CAST(birth_date AS DATE), INTERVAL '20' HOUR)` then the interval used will be `INTERVAL '1' DAY`.
 
 [IMPORTANT]
-When the histogram in SQL is applied on **TIME** type instead of **DATETIME**, the interval specified is converted
-to maximum one day. E.g.: for `HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '2' MONTHS)` the interval
-actually used will be `INTERVAL '1' DAY`.
+Histogram in SQL cannot be applied applied on **TIME** type.
+E.g.: `HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES)` is currently not supported.

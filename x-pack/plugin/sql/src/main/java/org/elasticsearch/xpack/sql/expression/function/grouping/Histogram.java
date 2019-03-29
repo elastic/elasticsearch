@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDateOrTime;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumericOrDate;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isType;
 
 public class Histogram extends GroupingFunction {
@@ -44,10 +44,10 @@ public class Histogram extends GroupingFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isNumericOrDateOrTime(field(), "HISTOGRAM", ParamOrdinal.FIRST);
+        TypeResolution resolution = isNumericOrDate(field(), "HISTOGRAM", ParamOrdinal.FIRST);
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
-            if (field().dataType().isDateOrTimeBased()) {
+            if (field().dataType().isDateBased()) {
                 resolution = isType(interval, DataTypes::isInterval, "(Date) HISTOGRAM", ParamOrdinal.SECOND, "interval");
             } else {
                 resolution = isNumeric(interval, "(Numeric) HISTOGRAM", ParamOrdinal.SECOND);

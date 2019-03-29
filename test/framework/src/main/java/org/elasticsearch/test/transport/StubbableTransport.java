@@ -88,7 +88,7 @@ public final class StubbableTransport implements Transport {
             behavior.clearCallback();
         }
         OpenConnectionBehavior openConnectionBehavior = connectBehaviors.remove(transportAddress);
-        if (behavior != null) {
+        if (openConnectionBehavior != null) {
             openConnectionBehavior.clearCallback();
         }
     }

@@ -41,12 +41,7 @@ services:
 
   oidc-provider:
     image: "c2id/c2id-server:7.8"
-    depends_on:
-      - openldap
     ports:
       - "8080"
-    links:
-      - openldap:openldap
     volumes:
       - ./oidc/override.properties:/etc/c2id/override.properties
-      - ./oidc/ldapAuth/WEB-INF:/c2id-server/tomcat/webapps/ldapauth/WEB-INF

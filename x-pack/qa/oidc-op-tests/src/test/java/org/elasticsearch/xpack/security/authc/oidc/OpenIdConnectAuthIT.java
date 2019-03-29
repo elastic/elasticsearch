@@ -54,7 +54,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -77,7 +77,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
      */
     @BeforeClass
     public static void registerClient() throws Exception {
-        try (CloseableHttpClient httpClient = HttpClients.custom().build()) {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPost = new HttpPost(REGISTRATION_URL);
             final BasicHttpContext context = new BasicHttpContext();
             String json = "{" +
@@ -107,7 +107,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private String authenticateAtOP(URI opAuthUri) throws Exception {
         // C2ID doesn't have a non JS login page :/, so use their API directly
         // see https://connect2id.com/products/server/docs/guides/login-page
-        try (CloseableHttpClient httpClient = getHttpClient()) {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             final BasicHttpContext context = new BasicHttpContext();
             // Initiate the authentication process
             HttpPost httpPost = new HttpPost(LOGIN_API + "initAuthRequest");
@@ -124,8 +124,8 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             // Actually authenticate the user with ldapAuth
             HttpPost loginHttpPost = new HttpPost(LOGIN_API + "authenticateSubject?cacheBuster=" + randomAlphaOfLength(8));
             String loginJson = "{" +
-                "\"username\":\"thor\"," +
-                "\"password\":\"NickFuryHeartsES\"" +
+                "\"username\":\"alice\"," +
+                "\"password\":\"secret\"" +
                 "}";
             configureJsonRequest(loginHttpPost, loginJson);
             JSONObject loginJsonResponse = execute(httpClient, loginHttpPost, context, response -> {
@@ -190,11 +190,6 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         return entityAsMap(client().performRequest(request));
     }
 
-    private static void assertSingletonList(Object value, String expectedElement) {
-        assertThat(value, instanceOf(List.class));
-        assertThat(((List<?>) value), contains(expectedElement));
-    }
-
     private <T> T execute(CloseableHttpClient client, HttpEntityEnclosingRequestBase request,
                           HttpContext context, CheckedFunction<HttpResponse, T, Exception> body)
         throws Exception {
@@ -248,24 +243,24 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private void verifyElasticsearchAccessTokenForCodeFlow(String accessToken) throws IOException {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         logger.info("Authentication with token Response: " + map);
-        assertThat(map.get("username"), equalTo("thor"));
-        assertSingletonList(map.get("roles"), "kibana_user");
+        assertThat(map.get("username"), equalTo("alice"));
+        assertThat((List<?>) map.get("roles"), containsInAnyOrder("kibana_user", "auditor"));
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
-        assertThat(metadata.get("oidc(sub)"), equalTo("thor"));
+        assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
         assertThat(metadata.get("oidc(iss)"), equalTo("http://localhost:8080"));
     }
 
     private void verifyElasticsearchAccessTokenForImplicitFlow(String accessToken) throws IOException {
         final Map<String, Object> map = callAuthenticateApiUsingAccessToken(accessToken);
         logger.info("Authentication with token Response: " + map);
-        assertThat(map.get("username"), equalTo("thor"));
-        assertSingletonList(map.get("roles"), "limited_user");
+        assertThat(map.get("username"), equalTo("alice"));
+        assertThat((List<?>) map.get("roles"), containsInAnyOrder("limited_user", "auditor"));
 
         assertThat(map.get("metadata"), instanceOf(Map.class));
         final Map<?, ?> metadata = (Map<?, ?>) map.get("metadata");
-        assertThat(metadata.get("oidc(sub)"), equalTo("thor"));
+        assertThat(metadata.get("oidc(sub)"), equalTo("alice"));
         assertThat(metadata.get("oidc(iss)"), equalTo("http://localhost:8080"));
     }
 
@@ -296,10 +291,6 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
         assertNotNull(responseBody.get("access_token"));
         assertNotNull(responseBody.get("refresh_token"));
         return new Tuple(responseBody.get("access_token"), responseBody.get("refresh_token"));
-    }
-
-    private CloseableHttpClient getHttpClient() {
-        return HttpClients.custom().build();
     }
 
     private Request buildRequest(String method, String endpoint, Map<String, ?> body, Header... headers) throws IOException {
@@ -359,6 +350,15 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
             "\"enabled\": true," +
             "\"rules\": {" +
             "\"field\": { \"realm.name\": \"" + REALM_NAME_IMPLICIT + "\"}" +
+            "}" +
+            "}");
+        adminClient().performRequest(createRoleMappingRequest);
+
+        createRoleMappingRequest = new Request("PUT", "/_security/role_mapping/oidc_auditor");
+        createRoleMappingRequest.setJsonEntity("{ \"roles\" : [\"auditor\"]," +
+            "\"enabled\": true," +
+            "\"rules\": {" +
+            "\"field\": { \"groups\": \"audit\"}" +
             "}" +
             "}");
         adminClient().performRequest(createRoleMappingRequest);

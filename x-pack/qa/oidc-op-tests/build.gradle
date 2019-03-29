@@ -44,6 +44,7 @@ integTestCluster {
     setting 'xpack.security.authc.realms.oidc.c2id.claims.principal', 'sub'
     setting 'xpack.security.authc.realms.oidc.c2id.claims.name', 'name'
     setting 'xpack.security.authc.realms.oidc.c2id.claims.mail', 'email'
+    setting 'xpack.security.authc.realms.oidc.c2id.claims.groups', 'groups'
     // OpenID Connect Realm 2 configured for implicit flow
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.order', '3'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.name', 'c2id-implicit'
@@ -59,8 +60,7 @@ integTestCluster {
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.principal', 'sub'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.name', 'name'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.mail', 'email'
-    // Allow for troubleshooting CI errors
-    setting 'logger.org.elasticsearch.xpack.security.authc', 'TRACE'
+    setting 'xpack.security.authc.realms.oidc.c2id-implicit.claims.groups', 'groups'
     setting 'xpack.ml.enabled', 'false'
     
     extraConfigFile 'op-jwks.json', idpFixtureProject.file("oidc/op-jwks.json")

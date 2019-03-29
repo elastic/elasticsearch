@@ -23,7 +23,6 @@ import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

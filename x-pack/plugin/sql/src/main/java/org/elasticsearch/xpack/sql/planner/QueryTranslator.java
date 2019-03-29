@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Supplier;
@@ -470,7 +471,6 @@ final class QueryTranslator {
             af.nodeString());
     }
 
-    // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
     @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
@@ -478,34 +478,23 @@ final class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(RegexMatch e, boolean onAggs) {
             Query q = null;
-            boolean inexact = true;
-            String target = null;
+            String targetFieldName = null;
 
             if (e.field() instanceof FieldAttribute) {
-                target = nameOf(((FieldAttribute) e.field()).exactAttribute());
+                targetFieldName = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
-                        Expressions.name(e.field()));
+                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for "
+                        + e.getClass().getSimpleName().toUpperCase(Locale.ROOT), Expressions.name(e.field()));
             }
 
             if (e instanceof Like) {
                 LikePattern p = ((Like) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), p.asLuceneWildcard(), target);
-                }
-                else {
-                    q = new WildcardQuery(e.source(), nameOf(e.field()), p.asLuceneWildcard());
-                }
+                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
             }
 
             if (e instanceof RLike) {
                 String pattern = ((RLike) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), "/" + pattern + "/", target);
-                }
-                else {
-                    q = new RegexQuery(e.source(), nameOf(e.field()), pattern);
-                }
+                q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 
             return q != null ? new QueryTranslation(wrapIfNested(q, e.field())) : null;

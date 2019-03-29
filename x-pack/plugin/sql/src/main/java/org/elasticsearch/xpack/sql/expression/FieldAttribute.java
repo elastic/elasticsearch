@@ -88,7 +88,7 @@ public class FieldAttribute extends TypedAttribute {
     public FieldAttribute exactAttribute() {
         EsField exactField = field.getExactField();
         if (exactField.equals(field) == false) {
-            return innerField(field.getExactField());
+            return innerField(exactField);
         }
         return this;
     }

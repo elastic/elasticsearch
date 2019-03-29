@@ -105,7 +105,7 @@ public class WaitForHttpResource {
         final long sleep = Long.max(durationInMs / 10, 100);
 
         final SSLContext ssl;
-        KeyStore trustStore = buildTrustStore();
+        final KeyStore trustStore = buildTrustStore();
         if (trustStore != null) {
             ssl = createSslContext(trustStore);
         } else {
@@ -114,18 +114,10 @@ public class WaitForHttpResource {
         IOException failure = null;
         for (; ; ) {
             try {
-                final HttpURLConnection connection = buildConnection(ssl);
-                connection.connect();
-                final Integer response = connection.getResponseCode();
-                if (validResponseCodes.contains(response)) {
-                    logger.info("Got successful response [{}] from URL [{}]", response, url);
-                    return true;
-                } else {
-                    logger.debug("Got failure response [{}] from URL [{}]", response, url);
-                    failure = new IOException(connection.getResponseMessage());
-                }
+                checkResource(ssl);
+                return true;
             } catch (IOException e) {
-                logger.debug("Failed to access [{}]", url, e);
+                logger.debug("Failed to access resource [{}]", url, e);
                 failure = e;
             }
             if (System.nanoTime() < waitUntil) {
@@ -134,6 +126,22 @@ public class WaitForHttpResource {
                 logger.error("Failed to access url [{}]", url, failure);
                 return false;
             }
+        }
+    }
+
+    protected void checkResource(SSLContext ssl) throws IOException {
+        try {
+            final HttpURLConnection connection = buildConnection(ssl);
+            connection.connect();
+            final Integer response = connection.getResponseCode();
+            if (validResponseCodes.contains(response)) {
+                logger.info("Got successful response [{}] from URL [{}]", response, url);
+                return;
+            } else {
+                throw new IOException(response + " " + connection.getResponseMessage());
+            }
+        } catch (IOException e) {
+            throw e;
         }
     }
 

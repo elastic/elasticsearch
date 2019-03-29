@@ -1,7 +1,5 @@
-The software included in this distribution contains copyrighted software that is
-licensed under the GPLv2+CE. A copy of that license is included in this
-distribution immediately below this notice. You may obtain the complete
-corresponding source code from us for a period of three years after the build
-date of this distribution.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates.
 
-You can also find a copy of the source at http://hg.openjdk.java.net/jdk.
+OpenJDK is licensed under the GPLv2+CE. A copy of that license is included in
+this distribution immediately below this notice. You can find a copy of the
+source through the downloads page at https://elastic.co.

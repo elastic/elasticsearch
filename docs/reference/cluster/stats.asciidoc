@@ -156,7 +156,7 @@ Will return, for example:
          "versions": [
             {
                "version": "12",
-               "vm_name": "OpenJDK 64-Bit Server V",
+               "vm_name": "OpenJDK 64-Bit Server VM",
                "vm_version": "12+33",
                "vm_vendor": "Oracle Corporation",
                "bundled_jdk": true,

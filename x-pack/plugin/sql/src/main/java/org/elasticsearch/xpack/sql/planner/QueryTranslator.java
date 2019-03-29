@@ -673,14 +673,9 @@ final class QueryTranslator {
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
 
-            if (bc instanceof GreaterThan) {
-                return new RangeQuery(source, name, value, false, null, false, format);
-            }
-            if (bc instanceof GreaterThanOrEqual) {
-                return new RangeQuery(source, name, value, true, null, false, format);
-            }
-            if (bc instanceof LessThan) {
-                if (bc.left() instanceof StDistance && value instanceof Number) {
+            // Possible geo optimization
+            if (bc.left() instanceof StDistance && value instanceof Number) {
+                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                     // Special case for ST_Distance translatable into geo_distance query
                     StDistance stDistance = (StDistance) bc.left();
                     if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
@@ -695,6 +690,14 @@ final class QueryTranslator {
                         }
                     }
                 }
+            }
+            if (bc instanceof GreaterThan) {
+                return new RangeQuery(source, name, value, false, null, false, format);
+            }
+            if (bc instanceof GreaterThanOrEqual) {
+                return new RangeQuery(source, name, value, true, null, false, format);
+            }
+            if (bc instanceof LessThan) {
                 return new RangeQuery(source, name, null, false, value, false, format);
             }
             if (bc instanceof LessThanOrEqual) {

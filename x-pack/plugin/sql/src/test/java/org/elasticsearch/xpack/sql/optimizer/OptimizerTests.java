@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.StDistanceLiteralsOnTheRight;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -626,7 +625,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testLiteralsOnTheRightInStDistance() {
         Alias a = new Alias(EMPTY, "a", L(10));
-        Expression result = new StDistanceLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
+        Expression result = new BooleanLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
         assertTrue(result instanceof StDistance);
         StDistance sd = (StDistance) result;
         assertEquals(a, sd.left());

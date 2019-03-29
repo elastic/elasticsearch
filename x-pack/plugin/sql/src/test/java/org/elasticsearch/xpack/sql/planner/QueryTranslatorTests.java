@@ -598,21 +598,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTranslateStDistanceToScript() {
-        String operator = randomFrom(">", ">=", "<=");
-        String operatorFunction = null;
-        switch (operator) {
-            case ">":
-                operatorFunction = "gt";
-                break;
-            case ">=":
-                operatorFunction = "gte";
-                break;
-            case "<=":
-                operatorFunction = "lte";
-                break;
-            default:
-                fail("Unexpected operator [" + operator + "]");
-        }
+        String operator = randomFrom(">", ">=");
+        String operatorFunction = operator.equalsIgnoreCase(">") ? "gt" : "gte";
         LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
@@ -631,7 +618,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTranslateStDistanceToQuery() {
-        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) < 25");
+        String operator = randomFrom("<", "<=");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();

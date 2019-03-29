@@ -282,7 +282,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
-    public void testCastOperatorPresedence() {
+    public void testCastOperatorPrecedence() {
         Expression expr = parser.createExpression("(10* 2::long)");
         assertEquals(Mul.class, expr.getClass());
         Mul mul = (Mul) expr;

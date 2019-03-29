@@ -14,14 +14,13 @@ testFixtures.useFixture ":x-pack:test:idp-fixture"
 
 String ephemeralPort;
 task setupPorts {
+    // Don't attempt to get ephemeral ports when Docker is not available
+    onlyIf { idpFixtureProject.postProcessFixture.enabled }
     dependsOn idpFixtureProject.postProcessFixture
     doLast {
         ephemeralPort = idpFixtureProject.postProcessFixture.ext."test.fixtures.oidc-provider.tcp.8080"
     }
 }
-
-// Don't attempt to get ephemeral ports when Docker is not available
-setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
 
 integTestCluster {
     dependsOn setupPorts

@@ -62,9 +62,9 @@ buildscript {
 }
 
 void addProcessFilesTask(String type, boolean oss, boolean jdk) {
-  String packagingFiles = "build/packaging/${ oss ? 'oss-' : ''}${type}${ jdk ? '' : 'no-jdk' }"
+  String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
-  String taskName = "process${oss ? 'Oss' : ''}${type.capitalize()}${jdk ? '' : 'NoJdk'}Files"
+  String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   task(taskName, type: Copy) {
     into packagingFiles
 
@@ -105,7 +105,7 @@ addProcessFilesTask('rpm', false, false)
 // is the same
 Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
-    dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}${jdk ? '' : 'NoJdk'}Files"
+    dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
     arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
@@ -114,7 +114,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
 
     String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDir = file("${prefix}/build/distributions")
-    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${type}${jdk ? '' : 'no-jdk'}"
+    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")

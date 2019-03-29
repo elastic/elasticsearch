@@ -171,7 +171,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
          */
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
-        return javaHome.startsWith(PathUtils.get(userDir).resolve("jdk").toAbsolutePath().toString());
+        return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
     }
 
     public static JvmInfo jvmInfo() {

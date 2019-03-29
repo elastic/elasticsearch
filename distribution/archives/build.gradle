@@ -54,10 +54,10 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('config') {
         dirMode 0750
         fileMode 0660
-        with configFiles(distributionType, oss)
+        with configFiles(distributionType, oss, jdk)
       }
       into('bin') {
-        with binFiles(distributionType, oss)
+        with binFiles(distributionType, oss, jdk)
       }
       if (jdk) {
         into('jdk') {

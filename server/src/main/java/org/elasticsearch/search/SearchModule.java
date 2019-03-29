@@ -32,10 +32,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.FieldMaskingSpanQueryBuilder;
 import org.elasticsearch.index.query.FuzzyQueryBuilder;
@@ -109,8 +111,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
@@ -206,26 +208,19 @@ import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggre
 import org.elasticsearch.search.aggregations.pipeline.CumulativeSumPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.EwmaModel;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.ExtendedStatsBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.HoltWintersModel;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.InternalStatsBucket;
-import org.elasticsearch.search.aggregations.pipeline.LinearModel;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovFnPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
@@ -233,7 +228,6 @@ import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineA
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.SerialDiffPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
@@ -294,8 +288,6 @@ public class SearchModule {
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
-    private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
-            "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
 
@@ -324,7 +316,6 @@ public class SearchModule {
         registerSorts();
         registerValueFormats();
         registerSignificanceHeuristics(plugins);
-        registerMovingAverageModels(plugins);
         registerAggregations(plugins);
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
@@ -353,13 +344,6 @@ public class SearchModule {
      */
     public ParseFieldRegistry<SignificanceHeuristicParser> getSignificanceHeuristicParserRegistry() {
         return significanceHeuristicParserRegistry;
-    }
-
-    /**
-     * The registry of {@link MovAvgModel}s.
-     */
-    public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
-        return movingAverageModelParserRegistry;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -529,12 +513,6 @@ public class SearchModule {
                 PercentilesBucketPipelineAggregator::new,
                 PercentilesBucketPipelineAggregationBuilder.PARSER)
                     .addResultReader(InternalPercentilesBucket::new));
-        registerPipelineAggregation(new PipelineAggregationSpec(
-                MovAvgPipelineAggregationBuilder.NAME,
-                MovAvgPipelineAggregationBuilder::new,
-                MovAvgPipelineAggregator::new,
-                (n, c) -> MovAvgPipelineAggregationBuilder.parse(movingAverageModelParserRegistry, n, c))
-                    /* Uses InternalHistogram for buckets */);
         registerPipelineAggregation(new PipelineAggregationSpec(
                 CumulativeSumPipelineAggregationBuilder.NAME,
                 CumulativeSumPipelineAggregationBuilder::new,
@@ -729,22 +707,6 @@ public class SearchModule {
                 heuristic.getReader()));
     }
 
-    private void registerMovingAverageModels(List<SearchPlugin> plugins) {
-        registerMovingAverageModel(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
-        registerMovingAverageModel(new SearchExtensionSpec<>(LinearModel.NAME, LinearModel::new, LinearModel.PARSER));
-        registerMovingAverageModel(new SearchExtensionSpec<>(EwmaModel.NAME, EwmaModel::new, EwmaModel.PARSER));
-        registerMovingAverageModel(new SearchExtensionSpec<>(HoltLinearModel.NAME, HoltLinearModel::new, HoltLinearModel.PARSER));
-        registerMovingAverageModel(new SearchExtensionSpec<>(HoltWintersModel.NAME, HoltWintersModel::new, HoltWintersModel.PARSER));
-
-        registerFromPlugin(plugins, SearchPlugin::getMovingAverageModels, this::registerMovingAverageModel);
-    }
-
-    private void registerMovingAverageModel(SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser> movAvgModel) {
-        movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
-        namedWriteables.add(
-                new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
-    }
-
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
         registerFetchSubPhase(new ExplainFetchSubPhase());
         registerFetchSubPhase(new DocValueFieldsFetchSubPhase());
@@ -832,6 +794,10 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(IntervalQueryBuilder.NAME, IntervalQueryBuilder::new, IntervalQueryBuilder::fromXContent));
+        registerQuery(new QuerySpec<>(DistanceFeatureQueryBuilder.NAME, DistanceFeatureQueryBuilder::new,
+            DistanceFeatureQueryBuilder::fromXContent));
+        registerQuery(
+            new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent));
 
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));

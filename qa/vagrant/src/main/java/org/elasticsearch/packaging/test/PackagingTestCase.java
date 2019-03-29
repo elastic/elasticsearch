@@ -27,6 +27,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -70,5 +72,19 @@ public abstract class PackagingTestCase extends Assert {
     /** The {@link Distribution} that should be tested in this case */
     protected abstract Distribution distribution();
 
+    protected Shell newShell() {
+        Shell sh = new Shell();
+        if (distribution().hasJdk == false) {
+            Platforms.onLinux(() -> {
+                String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+            Platforms.onWindows(() -> {
+                final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            });
+        }
+        return sh;
+    }
 
 }

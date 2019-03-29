@@ -156,6 +156,8 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
+import static org.elasticsearch.index.IndexService.IndexCreationContext.META_DATA_VERIFICATION;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class IndicesService extends AbstractLifecycleComponent
@@ -491,7 +493,7 @@ public class IndicesService extends AbstractLifecycleComponent
         finalListeners.add(oldShardsStats);
         final IndexService indexService =
                 createIndexService(
-                        "create index",
+                        CREATE_INDEX,
                         indexMetaData,
                         indicesQueryCache,
                         indicesFieldDataCache,
@@ -513,7 +515,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * This creates a new IndexService without registering it
      */
-    private synchronized IndexService createIndexService(final String reason,
+    private synchronized IndexService createIndexService(IndexService.IndexCreationContext indexCreationContext,
                                                          IndexMetaData indexMetaData,
                                                          IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
@@ -526,7 +528,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexMetaData.getIndex(),
             idxSettings.getNumberOfShards(),
             idxSettings.getNumberOfReplicas(),
-            reason);
+            indexCreationContext);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry, getEngineFactory(idxSettings), indexStoreFactories);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -537,6 +539,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexEventListener(listener);
         }
         return indexModule.newIndexService(
+                indexCreationContext,
                 nodeEnv,
                 xContentRegistry,
                 this,
@@ -615,7 +618,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service =
-                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
+                createIndexService(META_DATA_VERIFICATION, metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {

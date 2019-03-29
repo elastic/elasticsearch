@@ -115,7 +115,8 @@ class ClusterFormationTasks {
             String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
-                if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
+                if (project.bwcVersions.unreleased.contains(config.bwcVersion) && 
+                    (project.version != elasticsearchVersion)) {
                     elasticsearchVersion += "-SNAPSHOT"
                 }
                 distro = bwcDistro
@@ -690,6 +691,13 @@ class ClusterFormationTasks {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    // Having no TMP on Windows defaults to C:\Windows and permission errors
+                    // Since we configure ant to run with a new  environment above, we need to explicitly pass this
+                    String tmp = System.getenv("TMP")
+                    assert tmp != null
+                    env(key: "TMP", value: tmp)
+                }
             }
         }
 

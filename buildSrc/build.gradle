@@ -232,6 +232,11 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
+    String defaultParallel = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+    if (defaultParallel == "auto") {
+        defaultParallel = Math.max(Runtime.getRuntime().availableProcessors(), 4)
+    }
+    maxParallelForks defaultParallel as Integer
   }
   check.dependsOn(integTest)
 

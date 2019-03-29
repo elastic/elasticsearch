@@ -5,8 +5,27 @@
 
 {es-sql} provides a comprehensive set of built-in operators and functions:
 
-* <<sql-operators>>
+* <<sql-operators, Operators>>
+** <<sql-operators-equality>>
+** <<sql-operators-null-safe-equality>>
+** <<sql-operators-inequality>>
+** <<sql-operators-comparison>>
+** <<sql-operators-between>>
+** <<sql-operators-is-null>>
+** <<sql-operators-in>>
+** <<sql-operators-and>>
+** <<sql-operators-or>>
+** <<sql-operators-not>>
+** <<sql-operators-plus>>
+** <<sql-operators-subtract>>
+** <<sql-operators-negate>>
+** <<sql-operators-multiply>>
+** <<sql-operators-divide>>
+** <<sql-operators-remainder>>
+** <<sql-operators-cast-cast>>
 * <<sql-like-rlike-operators>>
+** <<sql-like-operator>>
+** <<sql-rlike-operator>>
 * <<sql-functions-aggs>>
 ** <<sql-functions-aggs-avg>>
 ** <<sql-functions-aggs-count>>

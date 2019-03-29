@@ -1,10 +1,78 @@
 [[query-dsl-nested-query]]
 === Nested Query
 
-A nested query allows you to query nested objects / docs (see
-<<nested,nested mapping>>), executing against each object as a separate doc. This offers the ability to query each object independently while maintaining the relationship between fields in a record, for example, a user's first name, last name, and address.
+A `nested` query allows you to query objects of the <<nested,nested datatype>> type, executing against each field in an array. You can query each field independently while maintaining the relationship between fields in a record, for example, a user's first name, last name, and address.
 
-Here is a sample mapping we will work with:
+As an example, let's use the same mapping from <<nested,nested datatype>>. This `nested` query will correctly select only the arrays that contain both the first name Alice and the last name White. Because the objects are mapped as nested, if you queried for user.first Alice and user.last Smith, this query would return no results.
+
+Enter the mappings, add the data you wish to query, then query the data with a `nested` query:
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "user": {
+          "type": "nested"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "group" : "fans",
+  "user" : [
+    {
+      "first" : "John",
+      "last" :  "Smith"
+    },
+    {
+      "first" : "Alice",
+      "last" :  "White"
+    }
+  ]
+}
+
+GET my_index/_search
+{
+  "query": {
+    "nested": {
+      "path": "user",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "user.first": "Alice" }},
+            { "match": { "user.last":  "White" }}
+          ]
+        }
+      },
+      "inner_hits": {
+        "highlight": {
+          "fields": {
+            "user.first": {}
+          }
+        }
+      }
+    }
+  }
+}
+
+--------------------------------------------------
+// CONSOLE
+
+The query `path` points to the nested object path, and the `query`
+includes the query that will run on the nested docs matching the
+direct path, and joining with the root parent docs.
+
+NOTE: Any fields referenced inside the query must use the complete path (fully
+qualified).
+
+Here is a second example with refinements. First, the mappings:
 
 [source,js]
 --------------------------------------------------
@@ -23,7 +91,7 @@ PUT /my_index
 // CONSOLE
 // TESTSETUP
 
-And here is a sample nested query usage:
+And then the nested query usage:
 
 [source,js]
 --------------------------------------------------
@@ -47,21 +115,10 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-The query `path` points to the nested object path, and the `query`
-includes the query that will run on the nested docs matching the
-direct path, and joining with the root parent docs. Note that any
-fields referenced inside the query must use the complete path (fully
-qualified).
-
-The `score_mode` allows you to set how inner children matching affects
-scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
+Adding the option `score_mode` allows you to set how inner children matching affects scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
 `max` and `none`.
 
-There is also an `ignore_unmapped` option, which when set to `true` will
-ignore an unmapped `path` and will not match any documents for this query.
-This can be useful when querying multiple indexes which might have different
-mappings. When set to `false` (the default value) the query will throw an
-exception if the `path` is not mapped.
+The `ignore_unmapped` option set to `true` will ignore an unmapped `path` and will not match any documents for this query. This can be useful when querying multiple indexes which might have different mappings. Set to `false` (the default value) the query will throw an exception if the `path` is not mapped.
 
 ==== Multi-level nesting
 
@@ -73,17 +130,121 @@ To set up a multi-level nested query, use this example. Notice that each level w
 
 [source,js]
 --------------------------------------------------
-GET /_search
+PUT my_index
+{
+    "mappings": {
+        "customers": {
+            "properties": {
+                "lastUpdated": {
+                    "type": "long"
+                },
+                "isDeleted": {
+                    "type": "boolean"
+                },
+                "person": {
+                    "type": "nested",
+                    "properties": {
+                        "car": {
+                            "type": "nested",
+                            "properties": {
+                                "model": {
+                                    "type": "string"
+                                },
+                                "make": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "last_name": {
+                            "type": "string"
+                        },
+                        "first_name": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+PUT my_index/_doc/1
+{
+    "person": {
+        "first_name": "Zach",
+        "last_name": "Foobar",
+        "car": [
+            {
+                "make": "Saturn",
+                "model": "SL"
+            },
+            {
+                "make": "Subaru",
+                "model": "Imprezza"
+            }
+        ]
+    },
+    "isDeleted": false,
+    "lastUpdated": 1433257051959
+}
+
+{
+    "person": {
+        "first_name": "Bob",
+        "last_name": "Doe",
+        "car": [
+            {
+                "make": "Saturn",
+                "model": "Imprezza"
+            },
+            {
+                "make": "Honda",
+                "model": "Accord"
+            }
+        ]
+    },
+    "isDeleted": false,
+    "lastUpdated": 1433257051959
+}
+
+
+GET my_index/_search
+{
+  "query": {
+    "nested": {
+      "path": "user",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "user.first": "Alice" }},
+            { "match": { "user.last":  "White" }}
+          ]
+        }
+      },
+      "inner_hits": {
+        "highlight": {
+          "fields": {
+            "user.first": {}
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
+GET my_index/_search
 {
     "query": {
         "nested": {
-            "path": "name",
+            "path": "person",
             "query": {
                 "nested" : {
-                    "path" :  "name.state",
+                    "path" :  "person.car",
                     "query" :  {
                        "match": {
-                           "name.state.city": "Atlanta"
+                           "person.car.make": "Honda"
                         }
                     }
                 }

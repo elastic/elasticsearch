@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -129,10 +130,14 @@ public class SysColumns extends Command {
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
             Pattern columnMatcher, Mode mode) {
-        int pos = 0;
+        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
+    }
+
+    private static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
+            Pattern columnMatcher, Counter position, Mode mode) {
         boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
-            pos++; // JDBC is 1-based so we start with 1 here
+            position.addAndGet(1); // JDBC is 1-based so we start with 1 here
 
             String name = entry.getKey();
             name = prefix != null ? prefix + "." + name : name;
@@ -168,7 +173,7 @@ public class SysColumns extends Command {
                             // char octet length
                             type.isString() || type == DataType.BINARY ? type.size : null,
                             // position
-                            pos,
+                            (int) position.get(),
                             "YES",
                             null,
                             null,
@@ -181,7 +186,7 @@ public class SysColumns extends Command {
             }
             // skip nested fields
             if (field.getProperties() != null && type != DataType.NESTED) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, mode);
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode);
             }
         }
     }

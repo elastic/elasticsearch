@@ -449,11 +449,13 @@ public class SysColumnsTests extends ESTestCase {
         executeCommand("SYS COLUMNS", emptyList(), r -> {
             assertEquals(13, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
-            assertEquals("test", r.column(2));
+            // no index specified
+            assertEquals("", r.column(2));
             assertEquals("bool", r.column(3));
             r.advanceRow();
             assertEquals(CLUSTER_NAME, r.column(0));
-            assertEquals("test", r.column(2));
+            // no index specified
+            assertEquals("", r.column(2));
             assertEquals("int", r.column(3));
         }, mapping);
     }

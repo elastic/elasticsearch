@@ -205,6 +205,15 @@ dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack,
 endif::include-xpack[]
 
 [float]
+[[change-node-role]]
+=== Changing the role of a node
+
+Changing the role of a node will in some cases require cleanup of on disk data. A node will refuse to start if it has
+excess shard data or index metadata. The <<node-tool-repurpose,`elasticsearch-node repurpose`>> tool
+should be used to perform the necessary cleanup. For more details on the cleanups necessary and how to use the tool, see
+<<node-tool-repurpose,`elasticsearch-node repurpose`>>.
+
+[float]
 == Node data path settings
 
 [float]

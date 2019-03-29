@@ -1836,12 +1836,5 @@ public class FieldSortIT extends ESIntegTestCase {
         assertSearchResponse(response);
         assertHitCount(response, 3);
         assertOrderedSearchHits(response, "2", "1", "3");
-
-        response = client().prepareSearch("test")
-            .addSort(new FieldSortBuilder("json_field.key").order(SortOrder.DESC).missing("Z"))
-            .get();
-        assertSearchResponse(response);
-        assertHitCount(response, 3);
-        assertOrderedSearchHits(response, "3", "2", "1");
     }
 }

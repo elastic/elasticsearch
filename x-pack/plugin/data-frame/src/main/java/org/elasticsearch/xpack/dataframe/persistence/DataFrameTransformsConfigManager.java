@@ -185,9 +185,10 @@ public class DataFrameTransformsConfigManager {
     }
 
     /**
-     * Given some expression, queries our internal index for the transform Ids that match the expression.
-     * <p>
-     * They sorted in ascending order
+     * Given some expression comma delimited string of id expressions,
+     *   this queries our internal index for the transform Ids that match the expression.
+     *
+     * The results are sorted in ascending order
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
@@ -195,35 +196,18 @@ public class DataFrameTransformsConfigManager {
      */
     public void expandTransformIds(String transformIdsExpression, PageParams pageParams, ActionListener<List<String>> foundIdsListener) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
+        QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, DataFrameTransformConfig.NAME);
 
-        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME));
-        if (Strings.isAllOrWildcard(idTokens) == false) {
-            List<String> terms = new ArrayList<>();
-            BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
-            for (String token : idTokens) {
-                if (Regex.isSimpleMatchPattern(token)) {
-                    shouldQueries.should(QueryBuilders.wildcardQuery(DataFrameField.ID.getPreferredName(), token));
-                } else {
-                    terms.add(token);
-                }
-            }
-            if (terms.isEmpty() == false) {
-                shouldQueries.should(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), terms));
-            }
-
-            if (shouldQueries.should().isEmpty() == false) {
-                queryBuilder.filter(shouldQueries);
-            }
-        }
         SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
             .setFrom(pageParams.getFrom())
             .setSize(pageParams.getSize())
-            .setQuery(QueryBuilders.constantScoreQuery(queryBuilder))
-            .setFetchSource(DataFrameField.ID.getPreferredName(), "").request();
+            .setQuery(queryBuilder)
+            // We only care about the `id` field, small optimization
+            .setFetchSource(DataFrameField.ID.getPreferredName(), "")
+            .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, true);
+        final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, true);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
             ActionListener.<SearchResponse>wrap(
@@ -332,7 +316,7 @@ public class DataFrameTransformsConfigManager {
                 resultListener.onFailure(e);
             }
         }, e -> {
-            if (e.getClass() == IndexNotFoundException.class) {
+            if (e instanceof ResourceNotFoundException) {
                 resultListener.onFailure(new ResourceNotFoundException(
                     DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
             } else {
@@ -363,5 +347,29 @@ public class DataFrameTransformsConfigManager {
             logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS, transformId), e);
             transformListener.onFailure(e);
         }
+    }
+
+    private QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
+        BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
+        if (Strings.isAllOrWildcard(idTokens) == false) {
+            List<String> terms = new ArrayList<>();
+            BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
+            for (String token : idTokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    shouldQueries.should(QueryBuilders.wildcardQuery(DataFrameField.ID.getPreferredName(), token));
+                } else {
+                    terms.add(token);
+                }
+            }
+            if (terms.isEmpty() == false) {
+                shouldQueries.should(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), terms));
+            }
+
+            if (shouldQueries.should().isEmpty() == false) {
+                queryBuilder.filter(shouldQueries);
+            }
+        }
+        return QueryBuilders.constantScoreQuery(queryBuilder);
     }
 }

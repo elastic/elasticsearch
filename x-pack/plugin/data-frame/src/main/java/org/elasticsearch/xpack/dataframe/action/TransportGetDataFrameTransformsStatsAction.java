@@ -146,6 +146,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
         transformsWithoutTasks.removeAll(response.getTransformsStateAndStats().stream().map(DataFrameTransformStateAndStats::getId)
             .collect(Collectors.toList()));
 
+        // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
+        assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;
+
         ActionListener<SearchResponse> searchStatsListener = ActionListener.wrap(
             searchResponse -> {
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();

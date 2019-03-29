@@ -432,16 +432,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             logger.info("Updating persistent state of transform [" + transform.getId() + "] to [" + state.toString() + "]");
 
             // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
-            // only every-so-often when doing the bulk indexing calls
+            // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
             ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
                 task -> {
-                    // Make a copy of the previousStats so that they the stats are not constantly updated when `merge` is called
-                    // as `merge` mutates the calling class. See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
-                    DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats);
-                    // Only persist the stats if something has actually changed, the IndexerState could potentially fluctuate
-                    // while nothing new has actually occurred
+                    // Make a copy of the previousStats so that they are not constantly updated when `merge` is called
+                    DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats).merge(getStats());
+
+                    // Only persist the stats if something has actually changed
                     if (previouslyPersistedStats == null || previouslyPersistedStats.equals(tempStats) == false) {
-                        transformsConfigManager.putOrUpdateTransformStats(tempStats.merge(getStats()),
+                        transformsConfigManager.putOrUpdateTransformStats(tempStats,
                             ActionListener.wrap(
                                 r -> {
                                     previouslyPersistedStats = tempStats;

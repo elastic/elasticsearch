@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
-import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.STATS_TO_PROVIDE;
+import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
     private boolean indicesCreated = false;
@@ -75,7 +75,6 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
                 DataFrameIndexerTransformStats.NAME);
         // Verify that we have our two stats documents
         assertBusy(() -> {
-            refreshIndex(DataFrameInternalIndex.INDEX_NAME);
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
             assertEquals(2, XContentMapValues.extractValue("hits.total.value", hasStatsMap));
         });
@@ -83,7 +82,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         Request getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         Map<String, Integer> expectedStats = new HashMap<>();
-        for(String statName : STATS_TO_PROVIDE) {
+        for(String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
             List<Integer> specificStatistic = ((List<Integer>)XContentMapValues.extractValue("transforms.stats." + statName, stats));
             assertNotNull(specificStatistic);
@@ -93,7 +92,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
 
         getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage_no_task/_stats");
         stats = entityAsMap(client().performRequest(getRequest));
-        for(String statName : STATS_TO_PROVIDE) {
+        for(String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
             List<Integer> specificStatistic = ((List<Integer>)XContentMapValues.extractValue("transforms.stats." + statName, stats));
             assertNotNull(specificStatistic);
@@ -109,7 +108,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("data_frame.transforms._all", usageAsMap));
         assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", usageAsMap));
         assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", usageAsMap));
-        for(String statName : STATS_TO_PROVIDE) {
+        for(String statName : PROVIDED_STATS) {
             assertEquals(expectedStats.get(statName), XContentMapValues.extractValue("data_frame.stats."+statName, usageAsMap));
         }
     }

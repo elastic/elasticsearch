@@ -52,7 +52,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
-    public static final String[] STATS_TO_PROVIDE = new String[] {
+    public static final String[] PROVIDED_STATS = new String[] {
         DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName(),
         DataFrameIndexerTransformStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
         DataFrameIndexerTransformStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
@@ -163,9 +163,9 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     }
 
     static DataFrameIndexerTransformStats parseSearchAggs(SearchResponse searchResponse) {
-        List<Long> statisticsList = new ArrayList<>(STATS_TO_PROVIDE.length);
+        List<Long> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
-        for(String statName : STATS_TO_PROVIDE) {
+        for(String statName : PROVIDED_STATS) {
             Aggregation agg = searchResponse.getAggregations().get(statName);
             if (agg instanceof NumericMetricsAggregation.SingleValue) {
                 statisticsList.add((long)((NumericMetricsAggregation.SingleValue)agg).value());
@@ -195,7 +195,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             .setSize(0)
             .setQuery(queryBuilder);
 
-        for(String statName : STATS_TO_PROVIDE) {
+        for(String statName : PROVIDED_STATS) {
             requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(statName));
         }
 

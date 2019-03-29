@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.STATS_TO_PROVIDE;
+import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -90,14 +90,14 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             4,  // numInvocations
             5,  // indexTime
             6,  // searchTime
-           7,  // indexTotal
+            7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
             10); // searchFailures
 
         int currentStat = 1;
-        List<Aggregation> aggs = new ArrayList<>(STATS_TO_PROVIDE.length);
-        for (String statName : STATS_TO_PROVIDE) {
+        List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
+        for (String statName : PROVIDED_STATS) {
             aggs.add(buildAgg(statName, (double) currentStat++));
         }
         Aggregations aggregations = new Aggregations(aggs);

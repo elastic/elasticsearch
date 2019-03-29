@@ -49,7 +49,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         private String id;
         private PageParams pageParams = PageParams.defaultParams();
 
-        private static final int MAX_SIZE_RETURN = 1000;
+        public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
         private List<String> expandedIds = Collections.emptyList();
 

@@ -53,6 +53,9 @@ public final class DataFrameField {
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
 
+    // internal document id
+    public static String DOCUMENT_ID_FIELD = "_id";
+
     private DataFrameField() {
     }
 }

@@ -31,7 +31,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
 
 import java.lang.reflect.InvocationTargetException;
@@ -104,6 +103,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     "but none could be found so these will be skipped", project.getPath()
             );
             disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
+            disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
             // conventions are not honored when the tasks are disabled
             disableTaskByType(tasks, TestingConventionsTasks.class);
             disableTaskByType(tasks, ComposeUp.class);
@@ -122,6 +122,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                     fixtureProject,
                     (name, port) -> setSystemProperty(task, name, port)
                 );
+                task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
             })
         );
 
@@ -155,7 +156,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    @Input
     public boolean dockerComposeSupported(Project project) {
         if (OS.current().equals(OS.WINDOWS)) {
             return false;

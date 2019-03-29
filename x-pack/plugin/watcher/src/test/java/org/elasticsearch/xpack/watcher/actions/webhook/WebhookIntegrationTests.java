@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private MockWebServer webServer = new MockWebServer();

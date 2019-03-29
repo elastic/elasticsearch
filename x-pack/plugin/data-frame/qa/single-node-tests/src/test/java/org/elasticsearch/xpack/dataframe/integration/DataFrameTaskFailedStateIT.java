@@ -21,6 +21,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
+    public void testDummy() {
+        // remove once the awaits fix below is resolved
+    }
+
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40543")
     public void testFailureStateInteraction() throws Exception {
         createReviewsIndex();
         String transformId = "failure_pivot_1";

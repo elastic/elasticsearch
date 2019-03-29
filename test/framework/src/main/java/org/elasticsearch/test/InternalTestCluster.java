@@ -631,13 +631,9 @@ public final class InternalTestCluster extends TestCluster {
                 .put("node.name", name)
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        final String discoveryType = DISCOVERY_TYPE_SETTING.get(updatedSettings.build());
-        final boolean usingSingleNodeDiscovery = discoveryType.equals("single-node");
-        if (usingSingleNodeDiscovery == false) {
-            if (autoManageMinMasterNodes) {
-                assertThat("automatically managing min master nodes require nodes to complete a join cycle when starting",
-                    updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()), nullValue());
-            }
+        if (autoManageMinMasterNodes) {
+            assertThat("automatically managing min master nodes require nodes to complete a join cycle when starting",
+                updatedSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()), nullValue());
         }
 
         return updatedSettings.build();
@@ -1160,7 +1156,7 @@ public final class InternalTestCluster extends TestCluster {
 
         nextNodeId.set(newSize);
         assert size() == newSize;
-        if (newSize > 0) {
+        if (autoManageMinMasterNodes && newSize > 0) {
             validateClusterFormed();
         }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]",

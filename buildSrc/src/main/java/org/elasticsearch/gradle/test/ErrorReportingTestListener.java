@@ -50,15 +50,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
                         for (TestOutputEvent event : events) {
                             log(event.getMessage(), event.getDestination());
-
                         }
-
                     }
-
                 }
-
             }
-
         } finally {
             // make sure we don't hold on to test output in memory after the suite has finished
             eventBuffer.remove(Descriptor.of(suite));

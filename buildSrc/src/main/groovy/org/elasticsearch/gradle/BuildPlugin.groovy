@@ -959,6 +959,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
                 systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
+                        'gradle.worker.jar': "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar",
                         'gradle.user.home': project.gradle.getGradleUserHomeDir(),
                         'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',

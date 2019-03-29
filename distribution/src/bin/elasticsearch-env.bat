@@ -56,6 +56,7 @@ for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
 set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 set ES_DISTRIBUTION_TYPE=${es.distribution.type}
+set ES_BUNDLED_JDK=${es.bundled_jdk}
 
 if not defined ES_TMPDIR (
   for /f "tokens=* usebackq" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory""`) do set ES_TMPDIR=%%a

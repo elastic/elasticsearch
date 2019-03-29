@@ -138,7 +138,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       /* Use a closure on the string to delay evaluation until right before we
        * run the integration tests so that we can be sure that the file is
        * ready. */
-      systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+      nonInputProperties.systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
     }
   }
 }

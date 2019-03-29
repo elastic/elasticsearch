@@ -21,14 +21,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
@@ -166,13 +162,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         } else {
             likeItems = randomLikeItems;
         }
-        if (randomBoolean()) { // for the default field
-            queryBuilder = new MoreLikeThisQueryBuilder(likeTexts, likeItems);
+        if (randomBoolean() && likeItems != null && likeItems.length > 0) { // for the default field
+            queryBuilder = new MoreLikeThisQueryBuilder(null, likeItems);
         } else {
             queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
         }
 
-        if (randomBoolean()) {
+        if (randomBoolean() && queryBuilder.fields() != null) {
             queryBuilder.unlike(generateRandomStringArray(5, 5, false, false));
         }
         if (randomBoolean()) {

@@ -28,6 +28,16 @@ setup:
                 "name": "write",
                 "actions": [ "data:write/*" ]
               }
+            },
+            "yourapp-v1" : {
+              "read": {
+                "actions": [ "data:read/*" ]
+              }
+            },
+            "yourapp-v2" : {
+              "read": {
+                "actions": [ "data:read/*" ]
+              }
             }
           }
 
@@ -83,6 +93,21 @@ setup:
                 }
               ]
             }
+  - do:
+      security.put_role:
+        name: "yourapp_read_config"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [],
+              "applications": [
+                {
+                  "application": "yourapp-*",
+                  "privileges": ["read"],
+                  "resources": ["settings/*"]
+                }
+              ]
+            }
 
   # And a user for each role
   - do:
@@ -101,6 +126,14 @@ setup:
                 "password": "p@ssw0rd",
                 "roles" : [ "myapp_engineering_write" ]
               }
+  - do:
+      security.put_user:
+          username: "your_read"
+          body:  >
+              {
+                "password": "p@ssw0rd",
+                "roles" : [ "yourapp_read_config" ]
+              }
 
 ---
 teardown:
@@ -108,6 +141,16 @@ teardown:
       security.delete_privileges:
         application: myapp
         name: "user,read,write"
+        ignore: 404
+  - do:
+      security.delete_privileges:
+        application: yourapp-v1
+        name: "read"
+        ignore: 404
+  - do:
+      security.delete_privileges:
+        application: yourapp-v2
+        name: "read"
         ignore: 404
 
   - do:
@@ -121,6 +164,11 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_user:
+        username: "your_read"
+        ignore: 404
+
+  - do:
       security.delete_role:
         name: "myapp_engineering_read"
         ignore: 404
@@ -128,6 +176,11 @@ teardown:
   - do:
       security.delete_role:
         name: "myapp_engineering_write"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "yourapp_read_config"
         ignore: 404
 ---
 "Test has_privileges with application-privileges":
@@ -188,3 +241,53 @@ teardown:
       }
     } }
 
+  - do:
+      headers: { Authorization: "Basic eW91cl9yZWFkOnBAc3N3MHJk" } # your_read
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "application": [
+              {
+                "application" : "yourapp-v1",
+                "resources" : [ "settings/host", "settings/port", "system/key" ],
+                "privileges" : [ "data:read/settings", "data:write/settings", "read", "write" ]
+              },
+              {
+                "application" : "yourapp-v2",
+                "resources" : [ "settings/host" ],
+                "privileges" : [ "data:read/settings", "data:write/settings" ]
+              }
+            ]
+          }
+
+  - match: { "username" : "your_read" }
+  - match: { "has_all_requested" : false }
+  - match: { "application": {
+      "yourapp-v1": {
+        "settings/host": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+          "read": true,
+          "write": false
+        },
+        "settings/port": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+          "read": true,
+          "write": false
+        },
+        "system/key": {
+          "data:read/settings": false,
+          "data:write/settings": false,
+          "read": false,
+          "write": false
+        }
+      },
+      "yourapp-v2": {
+        "settings/host": {
+          "data:read/settings": true,
+          "data:write/settings": false,
+        }
+      }
+    } }

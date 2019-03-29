@@ -913,6 +913,11 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyTestConfig(Project project) {
+        // Default test task should run only unit tests
+        project.tasks.withType(Test).matching { it.name == 'test' }.all {
+            include '**/*Tests.class'
+        }
+
         // none of this stuff is applicable to the `:buildSrc` project tests
         if (project.path != ':build-tools') {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
@@ -921,11 +926,6 @@ class BuildPlugin implements Plugin<Project> {
                 doFirst {
                     heapdumpDir.mkdirs()
                     workingDir.mkdirs()
-                }
-
-                // Default test task should run only unit tests
-                if (test.name == 'test') {
-                    include '**/*Tests.class'
                 }
 
                 def listener = new ErrorReportingTestListener()

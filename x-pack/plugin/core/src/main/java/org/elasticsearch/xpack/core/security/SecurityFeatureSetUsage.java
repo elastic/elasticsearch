@@ -107,6 +107,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(AUDIT_XFIELD, auditUsage);
             builder.field(IP_FILTER_XFIELD, ipFilterUsage);
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
+        } else {
+            // On a trial or basic license, it is possible to have SSL enabled without security
+            builder.field(SSL_XFIELD, sslUsage);
         }
     }
 

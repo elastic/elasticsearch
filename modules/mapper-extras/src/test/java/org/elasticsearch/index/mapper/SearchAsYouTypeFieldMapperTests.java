@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -178,6 +179,60 @@ public class SearchAsYouTypeFieldMapperTests extends ESSingleNodeTestCase {
             getShingleFieldMapper(defaultMapper, "a_field._3gram").fieldType(), 3, analyzerName, prefixFieldMapper.fieldType());
         assertShingleFieldType(
             getShingleFieldMapper(defaultMapper, "a_field._4gram").fieldType(), 4, analyzerName, prefixFieldMapper.fieldType());
+    }
+
+    public void testSimpleMerge() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                            .field("analyzer", "standard")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            DocumentMapper mapper = mapperService.merge("_doc",
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        }
+
+        {
+           String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                            .field("analyzer", "standard")
+                        .endObject()
+                        .startObject("b_field")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            DocumentMapper mapper = mapperService.merge("_doc",
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "search_as_you_type")
+                            .field("analyzer", "standard")
+                            .field("max_shingle_size", "4")
+                        .endObject()
+                        .startObject("b_field")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("_doc",
+                    new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+            assertThat(e.getMessage(), containsString("different [max_shingle_size]"));
+        }
     }
 
     public void testIndexOptions() throws IOException {

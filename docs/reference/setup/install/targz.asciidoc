@@ -1,9 +1,7 @@
-[[zip-targz]]
-=== Install Elasticsearch with `.zip` or `.tar.gz`
+[[targz]]
+=== Install Elasticsearch from archive on Linux or MacOS
 
-Elasticsearch is provided as a `.zip` and as a `.tar.gz` package.  These
-packages can be used to install Elasticsearch on any system and are the
-easiest package format to use when trying out Elasticsearch.
+Elasticsearch is as a `.tar.gz` archive for Linux and MacOS. 
 
 include::license.asciidoc[]
 
@@ -12,45 +10,12 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
-[[install-zip]]
-==== Download and install the `.zip` package
-
-ifeval::["{release-state}"=="unreleased"]
-
-Version {version} of Elasticsearch has not yet been released.
-
-endif::[]
-
-ifeval::["{release-state}"!="unreleased"]
-
-The `.zip` archive for Elasticsearch v{version} can be downloaded and installed as follows:
-
-
-["source","sh",subs="attributes"]
---------------------------------------------
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip
-wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-windows-x86_64.zip.sha512
-shasum -a 512 -c elasticsearch-{version}-windows-x86_64.zip.sha512 <1>
-unzip elasticsearch-{version}-windows-x86_64.zip
-cd elasticsearch-{version}/ <2>
---------------------------------------------
-<1> Compares the SHA of the downloaded `.zip` archive and the published checksum, which should output
-    `elasticsearch-{version}-windows-x86_64.zip: OK`.
-<2> This directory is known as `$ES_HOME`.
-
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-windows-x86_64.zip
-
-endif::[]
-
-
-[[install-targz]]
-==== Download and install the `.tar.gz` package
+[[install-linux]]
+==== Download and install archive for Linux
 
 ifeval::["{release-state}"=="unreleased"]
 
@@ -60,7 +25,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The `.tar.gz` archive for Elasticsearch v{version} can be downloaded and installed as follows:
+The Linux archive for Elasticsearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -80,8 +45,39 @@ https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}
 
 endif::[]
 
+[[install-macos]]
+==== Download and install archive for MacOS
+
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+The MacOS archive for Elasticsearch v{version} can be downloaded and installed as follows:
+
+["source","sh",subs="attributes"]
+--------------------------------------------
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-darwin-x86_64.tar.gz.sha512
+shasum -a 512 -c elasticsearch-{version}-darwin-x86_64.tar.gz.sha512 <1>
+tar -xzf elasticsearch-{version}-darwin-x86_64.tar.gz
+cd elasticsearch-{version}/ <2>
+--------------------------------------------
+<1> Compares the SHA of the downloaded `.tar.gz` archive and the published checksum, which should output
+    `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
+<2> This directory is known as `$ES_HOME`.
+
+Alternatively, you can download the following package, which includes only 
+Apache 2.0 licensed code: 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
+
+endif::[]
+
 ifdef::include-xpack[]
-[[zip-targz-enable-indices]]
+[[targz-enable-indices]]
 ==== Enable automatic creation of {xpack} indices
 
 {xpack} will try to automatically create a number of indices within {es}.
@@ -89,8 +85,8 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[zip-targz-running]]
-include::zip-targz-start.asciidoc[]
+[[targz-running]]
+include::targz-start.asciidoc[]
 
 include::check-running.asciidoc[]
 
@@ -98,9 +94,9 @@ Log printing to `stdout` can be disabled using the `-q` or `--quiet`
 option on the command line.
 
 [[setup-installation-daemon]]
-include::zip-targz-daemon.asciidoc[]
+include::targz-daemon.asciidoc[]
 
-[[zip-targz-configuring]]
+[[targz-configuring]]
 ==== Configuring Elasticsearch on the command line
 
 Elasticsearch loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
@@ -119,10 +115,10 @@ TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
-[[zip-targz-layout]]
-==== Directory layout of `.zip` and `.tar.gz` archives
+[[targz-layout]]
+==== Directory layout of archives
 
-The `.zip` and `.tar.gz` packages are entirely self-contained. All files and
+The archive distributions are entirely self-contained. All files and
 directories are, by default, contained within `$ES_HOME` -- the directory
 created when unpacking the archive.
 

@@ -7,12 +7,14 @@
 
 These `execution_hint` are removed and should be replaced by `global_ordinals`.
 
+//tag::notable-breaking-changes[]
 [float]
 ==== `search.max_buckets` in the cluster setting
 
 The dynamic cluster setting named `search.max_buckets` now defaults
 to 10,000 (instead of unlimited in the previous version).
 Requests that try to return more than the limit will fail with an exception.
+//end::notable-breaking-changes[]
 
 [float]
 ==== `missing` option of the `composite` aggregation has been removed

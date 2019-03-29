@@ -1216,7 +1216,7 @@ public final class InternalTestCluster extends TestCluster {
 
         nextNodeId.set(newSize);
         assert size() == newSize;
-        if (newSize > 0) {
+        if (autoManageMinMasterNodes && newSize > 0) {
             validateClusterFormed();
         }
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]",

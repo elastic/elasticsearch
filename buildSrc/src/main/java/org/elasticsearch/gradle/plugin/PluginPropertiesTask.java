@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -58,14 +59,16 @@ public class PluginPropertiesTask extends DefaultTask {
         templateFile.getParentFile().mkdirs();
 
         try (InputStream resourceTemplate = this.getClass().getResourceAsStream("/" + descriptorOutput.getName())) {
-            Files.copy(resourceTemplate, templateFile.toPath());
+            Files.copy(resourceTemplate, templateFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
 
         project.copy(copyArg -> {
-            copyArg.from(templateFile.getParentFile()).include(descriptorOutput.getName())
-                .into(descriptorOutput.getParentFile()).expand(this.generateSubstitutions());
+            copyArg.from(templateFile.getParentFile());
+            copyArg.include(descriptorOutput.getName());
+            copyArg.into(descriptorOutput.getParentFile());
+            copyArg.expand(this.generateSubstitutions());
         });
     }
 

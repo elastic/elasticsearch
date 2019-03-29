@@ -61,23 +61,23 @@ buildscript {
   }
 }
 
-void addProcessFilesTask(String type, boolean oss) {
-  String packagingFiles = "build/packaging/${ oss ? 'oss-' : ''}${type}"
+void addProcessFilesTask(String type, boolean oss, boolean jdk) {
+  String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
-  String taskName = "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+  String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
   task(taskName, type: Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
     }
 
     into('etc/elasticsearch') {
-      with configFiles(type, oss)
+      with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -91,17 +91,21 @@ void addProcessFilesTask(String type, boolean oss) {
     }
   }
 }
-addProcessFilesTask('deb', true)
-addProcessFilesTask('deb', false)
-addProcessFilesTask('rpm', true)
-addProcessFilesTask('rpm', false)
+addProcessFilesTask('deb', true, true)
+addProcessFilesTask('deb', true, false)
+addProcessFilesTask('deb', false, true)
+addProcessFilesTask('deb', false, false)
+addProcessFilesTask('rpm', true, true)
+addProcessFilesTask('rpm', true, false)
+addProcessFilesTask('rpm', false, true)
+addProcessFilesTask('rpm', false, false)
 
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
 Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
-    dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+    dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
     arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
@@ -110,7 +114,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
 
     String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDir = file("${prefix}/build/distributions")
-    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${type}"
+    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -125,7 +129,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, oss)
+        with binFiles(type, oss, jdk)
       }
       from(rootProject.projectDir) {
         include 'README.textile'
@@ -202,7 +206,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, false)['path.env']
+    String envFile = expansionsForDistribution(type, oss, jdk)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE

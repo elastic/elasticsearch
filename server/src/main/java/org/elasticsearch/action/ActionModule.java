@@ -289,6 +289,7 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
 import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
 import org.elasticsearch.rest.action.cat.RestHealthAction;
 import org.elasticsearch.rest.action.cat.RestIndicesAction;
@@ -665,7 +666,7 @@ public class ActionModule extends AbstractModule {
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings, restController));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestRecoveryAction(settings, restController));
+        registerHandler.accept(new RestCatRecoveryAction(settings, restController));
         registerHandler.accept(new RestHealthAction(settings, restController));
         registerHandler.accept(new org.elasticsearch.rest.action.cat.RestPendingClusterTasksAction(settings, restController));
         registerHandler.accept(new RestAliasAction(settings, restController));

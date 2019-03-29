@@ -114,26 +114,25 @@ https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
 Elasticsearch Service for free].
 ==============
 
-Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
-[source,sh]
---------------------------------------------------
-java -version
-echo $JAVA_HOME
---------------------------------------------------
-
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package.
+The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`]
+along with all the releases that have been made in the past. For each release, platform
+dependent archive versions are available for Windows, Linux and MacOS, as well as `DEB` and `RPM`
+packages for Linux, and `MSI` installation packages for Windows.
 
 [float]
-=== Installation example with tar
+=== Installation example on Linux
 
-For simplicity, let's use the {ref}/zip-targz.html[tar] file.
+For simplicity, let's use the {ref}/targz.html[tar] file.
 
-Let's download the Elasticsearch {version} tar as follows:
+Let's download the Elasticsearch {version} Linux tar as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -141,7 +140,7 @@ Then extract it as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-{version}.tar.gz
+tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 
 It will then create a bunch of files and folders in your current directory. We then go into the bin directory as follows:
@@ -172,7 +171,7 @@ Then double-click the downloaded file to launch the GUI. Within the first screen
 image::images/msi_installer/msi_installer_locations.png[]
 
 Then select whether to install as a service or start Elasticsearch manually as needed.
-To align with the tar example, choose not to install as a service:
+To align with the Linux example, choose not to install as a service:
 
 [[getting-started-msi-installer-service]]
 image::images/msi_installer/msi_installer_no_service.png[]

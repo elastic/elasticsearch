@@ -145,8 +145,6 @@ public abstract class RemoteClusterAware {
 
     /**
      * A proxy address for the remote cluster.
-     * NOTE: this settings is undocumented until we have at last one transport that supports passing
-     * on the hostname via a mechanism like SNI.
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
             "cluster.remote.",

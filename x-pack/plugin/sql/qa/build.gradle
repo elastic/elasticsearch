@@ -12,7 +12,7 @@ dependencies {
   compile project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
 
   compile project(path: xpackModule('sql:sql-action'))
-  compile "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
+  compile "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
@@ -54,8 +54,8 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
 
     // JDBC testing dependencies
-    testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.34"
-    testRuntime "com.h2database:h2:1.4.197"
+    testRuntime "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+    testRuntime "com.h2database:h2:${h2Version}"
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
     testRuntime xpackProject('plugin:sql:sql-client')
 

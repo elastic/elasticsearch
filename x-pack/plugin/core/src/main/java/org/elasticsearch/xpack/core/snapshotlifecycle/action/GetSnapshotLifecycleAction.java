@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 
@@ -158,28 +159,24 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
         private final long version;
         private final long modifiedDate;
         @Nullable
-        private final Long lastSuccessDate;
+        private final SnapshotInvocationRecord lastSuccess;
         @Nullable
-        private final Long lastFailureDate;
-        @Nullable
-        private final String lastFailureInfo;
+        private final SnapshotInvocationRecord lastFailure;
 
         public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicyMetadata policyMetadata) {
             this.policy = policyMetadata.getPolicy();
             this.version = policyMetadata.getVersion();
             this.modifiedDate = policyMetadata.getModifiedDate();
-            this.lastSuccessDate = policyMetadata.getLastSuccessDate();
-            this.lastFailureDate = policyMetadata.getLastFailureDate();
-            this.lastFailureInfo = policyMetadata.getLastFailureInfo();
+            this.lastSuccess = policyMetadata.getLastSuccess();
+            this.lastFailure = policyMetadata.getLastFailure();
         }
 
         public SnapshotLifecyclePolicyItem(StreamInput in) throws IOException {
             this.policy = new SnapshotLifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readVLong();
-            this.lastSuccessDate = in.readOptionalLong();
-            this.lastFailureDate = in.readOptionalLong();
-            this.lastFailureInfo = in.readOptionalString();
+            this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
+            this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         }
 
         public SnapshotLifecyclePolicy getPolicy() {
@@ -199,9 +196,8 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
             policy.writeTo(out);
             out.writeVLong(version);
             out.writeVLong(modifiedDate);
-            out.writeOptionalLong(lastSuccessDate);
-            out.writeOptionalLong(lastFailureDate);
-            out.writeOptionalString(lastFailureInfo);
+            out.writeOptionalWriteable(lastSuccess);
+            out.writeOptionalWriteable(lastFailure);
         }
 
         @Override
@@ -229,14 +225,11 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
             builder.field("version", version);
             builder.field("modified_date", modifiedDate);
             builder.field("policy", policy);
-            if (lastSuccessDate != null) {
-                builder.field("last_success_date", lastSuccessDate);
+            if (lastSuccess != null) {
+                builder.field("last_success", lastSuccess);
             }
-            if (lastFailureDate != null) {
-                builder.field("last_failure_date", lastFailureDate);
-            }
-            if (lastFailureInfo != null) {
-                builder.field("last_failure_info", lastFailureInfo);
+            if (lastFailure != null) {
+                builder.field("last_failure", lastFailure);
             }
             builder.endObject();
             return builder;

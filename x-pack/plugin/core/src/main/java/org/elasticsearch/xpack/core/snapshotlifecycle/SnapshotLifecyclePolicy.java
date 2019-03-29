@@ -73,7 +73,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
     public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
                                    final String repository, Map<String, Object> configuration) {
-        this.id = id;
+        this.id = Objects.requireNonNull(id);
         this.name = name;
         this.schedule = schedule;
         this.repository = repository;

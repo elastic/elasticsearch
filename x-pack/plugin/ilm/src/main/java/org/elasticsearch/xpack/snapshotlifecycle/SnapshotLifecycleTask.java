@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicySecurityClient;
@@ -64,16 +65,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
                     logger.info("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
-                    clusterService.submitStateUpdateTask("slm-record-success",
-                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), Instant.now().toEpochMilli()));
+                    clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
+                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli()));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to issue create snapshot request for snapshot lifecycle policy " +
+                    logger.error("failed to issue create snapshot request for snapshot lifecycle policy [{}]: {}",
                         policyMetadata.getPolicy().getId(), e);
-                    clusterService.submitStateUpdateTask("slm-record-failure",
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), Instant.now().toEpochMilli(), e));
+                    clusterService.submitStateUpdateTask("slm-record-failure-" + policyMetadata.getPolicy().getId(),
+                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli(), e));
                 }
             });
             return true;
@@ -100,30 +101,33 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
 
         private final String policyName;
+        private final String snapshotName;
         private final long timestamp;
         private final Optional<Exception> exception;
 
-        private WriteJobStatus(String policyName, long timestamp, Optional<Exception> exception) {
+        private WriteJobStatus(String policyName, String snapshotName, long timestamp, Optional<Exception> exception) {
             this.policyName = policyName;
+            this.snapshotName = snapshotName;
             this.exception = exception;
             this.timestamp = timestamp;
         }
 
-        static WriteJobStatus success(String policyId, long timestamp) {
-            return new WriteJobStatus(policyId, timestamp, Optional.empty());
+        static WriteJobStatus success(String policyId, String snapshotName, long timestamp) {
+            return new WriteJobStatus(policyId, snapshotName, timestamp, Optional.empty());
         }
 
-        static WriteJobStatus failure(String policyId, long timestamp, Exception exception) {
-            return new WriteJobStatus(policyId, timestamp, Optional.of(exception));
+        static WriteJobStatus failure(String policyId, String snapshotName, long timestamp, Exception exception) {
+            return new WriteJobStatus(policyId, snapshotName, timestamp, Optional.of(exception));
         }
 
         private String exceptionToString() throws IOException {
             if (exception.isPresent()) {
-                XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
-                causeXContentBuilder.startObject();
-                ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, exception.get());
-                causeXContentBuilder.endObject();
-                return BytesReference.bytes(causeXContentBuilder).utf8ToString();
+                try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
+                    causeXContentBuilder.startObject();
+                    ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, exception.get());
+                    causeXContentBuilder.endObject();
+                    return BytesReference.bytes(causeXContentBuilder).utf8ToString();
+                }
             }
             return null;
         }
@@ -142,7 +146,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
             if (policyMetadata == null) {
-                logger.error("failed to record snapshot [{}] for snapshot policy [{}]: policy not found",
+                logger.warn("failed to record snapshot [{}] for snapshot policy [{}]: policy not found",
                     exception.isPresent() ? "failure" : "success", policyName);
                 return currentState;
             }
@@ -150,10 +154,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
 
             if (exception.isPresent()) {
-                newPolicyMetadata.setLastFailureDate(timestamp);
-                newPolicyMetadata.setLastFailureInfo(exceptionToString());
+                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, timestamp, exceptionToString()));
             } else {
-                newPolicyMetadata.setLastSuccessDate(timestamp);
+                newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, timestamp, null));
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());

@@ -200,9 +200,6 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .setHeaders(headers)
             .setVersion(1)
             .setModifiedDate(1)
-            .setLastSuccessDate(null)
-            .setLastFailureDate(null)
-            .setLastFailureInfo(null)
             .build();
     }
 }

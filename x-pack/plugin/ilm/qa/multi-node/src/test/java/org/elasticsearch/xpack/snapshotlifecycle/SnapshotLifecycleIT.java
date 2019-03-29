@@ -72,11 +72,16 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             Map<String, Object> policyMetadataMap = (Map<String, Object>) policyResponseMap.get(policyName);
-            Long lastSuccess = (Long) policyMetadataMap.get("last_success_date");
+            Map<String, Object> lastSuccessObject = (Map<String, Object>) policyMetadataMap.get("last_success");
+            assertNotNull(lastSuccessObject);
+            Long lastSuccess = (Long) lastSuccessObject.get("time");
             Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
             assertNotNull(lastSuccess);
             assertNotNull(modifiedDate);
             assertThat(lastSuccess, greaterThan(modifiedDate));
+
+            String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
+            assertThat(lastSnapshotName, startsWith("snap-"));
         });
 
         Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
@@ -89,6 +94,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     public void testPolicyFailure() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
@@ -108,15 +114,22 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             try (InputStream is = policyMetadata.getEntity().getContent()) {
                 Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 Map<String, Object> policyMetadataMap = (Map<String, Object>) responseMap.get(policyName);
-                Long lastFailure = (Long) policyMetadataMap.get("last_failure_date");
-                String lastFailureInfo = (String) policyMetadataMap.get("last_failure_info");
+                Map<String, Object> lastFailureObject = (Map<String, Object>) policyMetadataMap.get("last_failure");
+                assertNotNull(lastFailureObject);
+
+                Long lastFailure = (Long) lastFailureObject.get("time");
                 Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
                 assertNotNull(lastFailure);
                 assertNotNull(modifiedDate);
                 assertThat(lastFailure, greaterThan(modifiedDate));
 
+                String lastFailureInfo = (String) lastFailureObject.get("details");
                 assertNotNull(lastFailureInfo);
                 assertThat(lastFailureInfo, containsString("[bad-repo] missing"));
+
+                String snapshotName = (String) lastFailureObject.get("snapshot_name");
+                assertNotNull(snapshotName);
+                assertThat(snapshotName, startsWith("snap-"));
             }
         });
 
@@ -124,7 +137,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         assertOK(client().performRequest(delReq));
     }
 
-    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId, String indexPattern) throws IOException {
+    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
+                                      String indexPattern) throws IOException {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);

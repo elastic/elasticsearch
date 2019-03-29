@@ -1,3 +1,4 @@
+[[persistence]]
 == Persistence
 
 The `elasticsearch-persistence` http://rubygems.org/gems/elasticsearch-persistence[Rubygem]

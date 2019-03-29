@@ -550,7 +550,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
-        Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
+        Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
@@ -784,7 +784,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
-        Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
+        Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, 0);
         Engine.IndexResult mappingUpdate =

@@ -366,6 +366,7 @@ public final class IndexModule {
     }
 
     public IndexService newIndexService(
+            IndexService.IndexCreationContext indexCreationContext,
             NodeEnvironment environment,
             NamedXContentRegistry xContentRegistry,
             IndexService.ShardStoreDeleter shardStoreDeleter,
@@ -395,7 +396,7 @@ public final class IndexModule {
         } else {
             queryCache = new DisabledQueryCache(indexSettings);
         }
-        return new IndexService(indexSettings, environment, xContentRegistry,
+        return new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,

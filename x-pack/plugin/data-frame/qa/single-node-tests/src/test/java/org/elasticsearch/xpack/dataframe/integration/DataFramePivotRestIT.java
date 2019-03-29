@@ -96,8 +96,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -134,8 +134,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-                + " \"source\": \"reviews\","
-                + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
                 + "   \"group_by\": {"
@@ -209,8 +209,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -245,7 +245,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\",";
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"}  ,";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -268,6 +268,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40537")
     public void testPivotWithMaxOnDateField() throws Exception {
         String transformId = "simpleDateHistogramPivotWithMaxTime";
         String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";
@@ -277,8 +278,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
-            + " \"source\": \"" + REVIEWS_INDEX_NAME + "\","
-            + " \"dest\": \"" + dataFrameIndex + "\",";
+            + " \"source\": {\"index\": \"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
 
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +

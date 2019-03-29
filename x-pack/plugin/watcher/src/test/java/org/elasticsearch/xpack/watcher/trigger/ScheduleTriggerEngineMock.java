@@ -50,7 +50,10 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public void start(Collection<Watch> jobs) {
-        jobs.forEach(this::add);
+        synchronized (watches) {
+            watches.clear();
+            jobs.forEach(this::add);
+        }
     }
 
     @Override
@@ -80,23 +83,25 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     public boolean trigger(String jobName, int times, TimeValue interval) {
-        if (watches.containsKey(jobName) == false) {
-            return false;
-        }
+        synchronized (watches) {
+            if (watches.containsKey(jobName) == false) {
+                return false;
+            }
 
-        for (int i = 0; i < times; i++) {
-            ZonedDateTime now = ZonedDateTime.now(clock);
-            logger.debug("firing watch [{}] at [{}]", jobName, now);
-            ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
-            consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));
-            if (interval != null)  {
-                if (clock instanceof ClockMock) {
-                    ((ClockMock) clock).fastForward(interval);
-                } else {
-                    try {
-                        Thread.sleep(interval.millis());
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
+            for (int i = 0; i < times; i++) {
+                ZonedDateTime now = ZonedDateTime.now(clock);
+                logger.debug("firing watch [{}] at [{}]", jobName, now);
+                ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
+                consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));
+                if (interval != null)  {
+                    if (clock instanceof ClockMock) {
+                        ((ClockMock) clock).fastForward(interval);
+                    } else {
+                        try {
+                            Thread.sleep(interval.millis());
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
                     }
                 }
             }

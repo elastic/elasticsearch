@@ -598,9 +598,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
-            boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
-            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
-            assertThat(msg, isTriggered, is(true));
+            long triggeredCount = schedulers.stream().map(scheduler -> scheduler.trigger(watchId, times, timeValue))
+                .filter(b -> b)
+                .count();
+            String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+            assertThat(msg, triggeredCount, is(1L));
         }
     }
 

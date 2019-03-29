@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
@@ -50,7 +51,7 @@ import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class RestRecoveryActionTests extends ESTestCase {
+public class RestCatRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
@@ -189,10 +190,10 @@ public class RestRecoveryActionTests extends ESTestCase {
                     state.getIndex().recoveredFileCount(),
                     percent(state.getIndex().recoveredFilesPercent()),
                     state.getIndex().totalFileCount(),
-                    state.getIndex().totalRecoverBytes(),
-                    state.getIndex().recoveredBytes(),
+                    new ByteSizeValue(state.getIndex().totalRecoverBytes()),
+                    new ByteSizeValue(state.getIndex().recoveredBytes()),
                     percent(state.getIndex().recoveredBytesPercent()),
-                    state.getIndex().totalBytes(),
+                    new ByteSizeValue(state.getIndex().totalBytes()),
                     state.getTranslog().totalOperations(),
                     state.getTranslog().recoveredOperations(),
                     percent(state.getTranslog().recoveredPercent()));

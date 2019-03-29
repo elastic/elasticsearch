@@ -35,10 +35,10 @@
                 \d+         \s+                                 # files_recovered
                 \d+\.\d+%   \s+                                 # files_percent
                 \d+         \s+                                 # files_total
-                \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes
-                \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes_recovered
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
                 \d+\.\d+%   \s+                                 # bytes_percent
-                \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes_total
+                \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
                 -?\d+       \s+                                 # translog_ops
                 \d+         \s+                                 # translog_ops_recovered
                 -?\d+\.\d+%                                     # translog_ops_percent
@@ -122,10 +122,10 @@
           \d+         \s+                                 # files_recovered
           \d+\.\d+%   \s+                                 # files_percent
           \d+         \s+                                 # files_total
-          \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes
-          \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes_recovered
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_recovered
           \d+\.\d+%   \s+                                 # bytes_percent
-          \d+(b|kb|mb|gb|tb|pb) \s+                                 # bytes_total
+          \d+(b|kb|mb|gb|tb|pb) \s+                       # bytes_total
           0          \s+                                  # translog_ops (always 0 for closed indices)
           0           \s+                                 # translog_ops_recovered (always 0 for closed indices)
           100\.0%                                         # translog_ops_percent (always 100.0% for closed indices)

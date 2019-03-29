@@ -268,7 +268,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40537")
     public void testPivotWithMaxOnDateField() throws Exception {
         String transformId = "simpleDateHistogramPivotWithMaxTime";
         String dataFrameIndex = "pivot_reviews_via_date_histogram_with_max_time";

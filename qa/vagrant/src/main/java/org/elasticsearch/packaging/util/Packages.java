@@ -270,8 +270,7 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static void startElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void startElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
@@ -281,6 +280,10 @@ public class Packages {
             sh.run("service elasticsearch start");
         }
 
+        assertElasticsearchStarted(sh);
+    }
+
+    public static void assertElasticsearchStarted(Shell sh) throws IOException {
         waitForElasticsearch();
 
         if (isSystemd()) {
@@ -291,12 +294,21 @@ public class Packages {
         }
     }
 
-    public static void stopElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void stopElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl stop elasticsearch.service");
         } else {
             sh.run("service elasticsearch stop");
         }
+    }
+
+    public static void restartElasticsearch(Shell sh) throws IOException {
+        if (isSystemd()) {
+            sh.run("systemctl restart elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch restart");
+        }
+
+        waitForElasticsearch();
     }
 }

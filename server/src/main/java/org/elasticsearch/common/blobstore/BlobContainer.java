@@ -121,6 +121,8 @@ public interface BlobContainer {
         for (String blobName : blobNames) {
             try {
                 deleteBlob(blobName);
+            } catch (NoSuchFileException e) {
+                // ignored
             } catch (IOException e) {
                 if (ioe == null) {
                     ioe = e;

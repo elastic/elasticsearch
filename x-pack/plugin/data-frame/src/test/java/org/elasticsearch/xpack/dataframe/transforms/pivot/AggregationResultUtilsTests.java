@@ -501,7 +501,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           "value", 122.55),
                                   DOC_COUNT, 44)
                     ));
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withNullTransformId();
 
         Map<String, String> fieldTypeMap = asStringMap(
                 aggName, "double",

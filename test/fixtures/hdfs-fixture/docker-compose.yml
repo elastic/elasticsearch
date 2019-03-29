@@ -2,10 +2,11 @@ version: '3'
 services:
   hdfs:
     hostname: hdfs.build.elastic.co
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ubuntu:14.04
     volumes:
       - ./build/fixture:/fixture
     ports:
+        # FIXME: Don't fix the host ports  
       - "9999:9999"
+      - "9998:9999"
+    entrypoint:  apt-get update && apt-get install net-tools && java -cp "/fixture:/fixture/*" hdfs.MiniHDFS /data

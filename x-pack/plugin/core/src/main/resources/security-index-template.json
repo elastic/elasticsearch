@@ -33,7 +33,7 @@
     }
   },
   "mappings" : {
-    "doc" : {
+    "_doc" : {
       "_meta": {
         "security-version": "${security.template.version}"
       },
@@ -44,6 +44,16 @@
         },
         "roles" : {
           "type" : "keyword"
+        },
+        "role_templates" : {
+          "properties": {
+            "template" : {
+              "type": "text"
+            },
+            "format" : {
+              "type": "keyword"
+            }
+          }
         },
         "password" : {
           "type" : "keyword",
@@ -198,6 +208,13 @@
             },
             "refreshed" : {
               "type" : "boolean"
+            },
+            "refresh_time": {
+              "type": "date",
+              "format": "epoch_millis"
+            },
+            "superseded_by": {
+              "type": "keyword"
             },
             "invalidated" : {
               "type" : "boolean"

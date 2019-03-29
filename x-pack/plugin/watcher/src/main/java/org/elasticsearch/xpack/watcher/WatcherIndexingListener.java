@@ -101,7 +101,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-        if (isWatchDocument(shardId.getIndexName(), operation.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             ZonedDateTime now = Instant.ofEpochMilli(clock.millis()).atZone(ZoneOffset.UTC);
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
@@ -150,7 +150,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
-        if (isWatchDocument(shardId.getIndexName(), index.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             logger.debug(() -> new ParameterizedMessage("removing watch [{}] from trigger", index.id()), ex);
             triggerService.remove(index.id());
         }
@@ -166,7 +166,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      */
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        if (isWatchDocument(shardId.getIndexName(), delete.type())) {
+        if (isWatchDocument(shardId.getIndexName())) {
             triggerService.remove(delete.id());
         }
 
@@ -177,11 +177,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
      * Check if a supplied index and document matches the current configuration for watcher
      *
      * @param index   The index to check for
-     * @param docType The document type
      * @return true if this is a watch in the active watcher index, false otherwise
      */
-    private boolean isWatchDocument(String index, String docType) {
-        return configuration.isIndexAndActive(index) && docType.equals(Watch.DOC_TYPE);
+    private boolean isWatchDocument(String index) {
+        return configuration.isIndexAndActive(index);
     }
 
     /**

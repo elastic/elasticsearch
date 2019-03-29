@@ -19,15 +19,9 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
-import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.tasks.TaskSubmissionResponse;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.client.migration.IndexUpgradeRequest;
-
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,34 +39,6 @@ public final class MigrationClient {
 
     MigrationClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
-    }
-
-    /**
-     * Get Migration Assistance for one or more indices
-     *
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public IndexUpgradeInfoResponse getAssistance(IndexUpgradeInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
-            IndexUpgradeInfoResponse::fromXContent, Collections.emptySet());
-    }
-
-    public BulkByScrollResponse upgrade(IndexUpgradeRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::migrate, options,
-            BulkByScrollResponse::fromXContent, Collections.emptySet());
-    }
-
-    public TaskSubmissionResponse submitUpgradeTask(IndexUpgradeRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::submitMigrateTask, options,
-            TaskSubmissionResponse::fromXContent, Collections.emptySet());
-    }
-
-    public void upgradeAsync(IndexUpgradeRequest request, RequestOptions options, ActionListener<BulkByScrollResponse> listener)  {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::migrate, options,
-            BulkByScrollResponse::fromXContent, listener, Collections.emptySet());
     }
 
     /**

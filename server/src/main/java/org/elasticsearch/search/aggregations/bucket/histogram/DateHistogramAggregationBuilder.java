@@ -173,7 +173,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
-        order = InternalOrder.Streams.readHistogramOrder(in, true);
+        order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         interval = in.readLong();
@@ -184,7 +184,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        InternalOrder.Streams.writeHistogramOrder(order, out, true);
+        InternalOrder.Streams.writeHistogramOrder(order, out);
         out.writeBoolean(keyed);
         out.writeVLong(minDocCount);
         out.writeLong(interval);

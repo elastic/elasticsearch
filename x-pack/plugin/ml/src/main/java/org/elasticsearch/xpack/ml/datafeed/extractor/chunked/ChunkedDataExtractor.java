@@ -114,7 +114,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("[{}]Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+            LOGGER.debug("[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
                     context.jobId, dataSummary.getClass().getSimpleName(), dataSummary.getDataTimeSpread(), chunkSpan);
         } else {
             // search is over
@@ -168,6 +168,11 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentExtractor.cancel();
         }
         isCancelled = true;
+    }
+
+    @Override
+    public long getEndTime() {
+        return context.end;
     }
 
     ChunkedDataExtractorContext getContext() {

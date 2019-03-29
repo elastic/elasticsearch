@@ -86,12 +86,12 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     private String getProperty(String key) {
-        String port = System.getProperty(key);
-        if (port == null) {
+        String value = System.getProperty(key);
+        if (value == null) {
             throw new IllegalStateException("Could not find system properties from test.fixtures. " +
                 "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
         }
-        return port;
+        return value;
     }
 
     @Before
@@ -112,7 +112,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }

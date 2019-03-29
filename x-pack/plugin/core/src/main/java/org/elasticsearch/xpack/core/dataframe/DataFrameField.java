@@ -26,12 +26,14 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FORCE = new ParseField("force");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH = "/_data_frame/";
     public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
     public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
+    public static final String DATA_FRAME_TRANSFORM_AUDIT_ID_FIELD = "transform_id";
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";
@@ -50,6 +52,9 @@ public final class DataFrameField {
      * API's)
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+
+    // internal document id
+    public static String DOCUMENT_ID_FIELD = "_id";
 
     private DataFrameField() {
     }

@@ -13,6 +13,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -112,6 +116,8 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         }
         dfBuilder.setIndices(Collections.singletonList("airline-data"));
         dfBuilder.setTypes(Collections.singletonList("doc"));
+        addAggregations(dfBuilder);
+
 
         Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
         putDatafeed.setJsonEntity(Strings.toString(dfBuilder.build()));
@@ -133,6 +139,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
             stoppedDfBuilder.setDelayedDataCheckConfig(null);
         }
         stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
+        addAggregations(stoppedDfBuilder);
 
         Request putStoppedDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
         putStoppedDatafeed.setJsonEntity(Strings.toString(stoppedDfBuilder.build()));
@@ -270,5 +277,12 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
                 .filter(id -> id.equals(jobId)).findFirst();
         assertFalse(config.isPresent());
+    }
+
+    private void addAggregations(DatafeedConfig.Builder dfBuilder) {
+        TermsAggregationBuilder airline = AggregationBuilders.terms("airline");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time").subAggregation(airline);
+        dfBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
     }
 }

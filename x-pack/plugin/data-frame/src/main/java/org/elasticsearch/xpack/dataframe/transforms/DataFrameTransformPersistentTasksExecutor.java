@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
@@ -60,6 +61,11 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
                 DataFrameTransformTask.SCHEDULE_NAME + "_" + params.getId(), next());
 
+        DataFrameTransformState transformState = (DataFrameTransformState) state;
+        if (transformState != null && transformState.getTaskState() == DataFrameTransformTaskState.FAILED) {
+            logger.warn("Tried to start failed transform [" + params.getId() + "] failure reason: " + transformState.getReason());
+            return;
+        }
         // Note that while the task is added to the scheduler here, the internal state will prevent
         // it from doing any work until the task is "started" via the StartTransform api
         schedulerEngine.register(buildTask);

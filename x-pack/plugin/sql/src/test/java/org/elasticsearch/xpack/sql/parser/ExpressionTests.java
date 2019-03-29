@@ -361,12 +361,12 @@ public class ExpressionTests extends ESTestCase {
 
     public void testConvertWithInvalidODBCDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INVALID)"));
-        assertEquals("line 1:13: Invalid data type [SQL_INVALID] provided", ex.getMessage());
+        assertEquals("line 1:13: Does not recognize type [SQL_INVALID]", ex.getMessage());
     }
 
     public void testConvertWithInvalidESDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
-        assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
+        assertEquals("line 1:13: Does not recognize type [INVALID]", ex.getMessage());
     }
 
     public void testCurrentDate() {

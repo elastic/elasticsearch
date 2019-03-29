@@ -57,10 +57,21 @@ class JdbcConfiguration extends ConnectionConfiguration {
     static final String FIELD_MULTI_VALUE_LENIENCY = "field.multi.value.leniency";
     static final String FIELD_MULTI_VALUE_LENIENCY_DEFAULT = "true";
 
-
+    // since a good chunk of JDBC clients don't escape _ and % inside string patterns
+    // try to overcome this through a dedicated setting
+    static final String COMPAT_META_ESCAPE_WILDCARDS = "compat.meta.escape.wildcards";
+    static final String COMPAT_META_ESCAPE_WILDCARDS_DEFAULT = EscapeWildcard.AUTO.name();
+    
+    enum EscapeWildcard {
+        NEVER,  // never escape
+        ALWAYS, // escape if the char might be escaped
+        AUTO;   // escape only if the escaping char is not encountered
+    }
+    
+    
     // options that don't change at runtime
     private static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
-            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, DEBUG, DEBUG_OUTPUT));
+            Arrays.asList(TIME_ZONE, FIELD_MULTI_VALUE_LENIENCY, COMPAT_META_ESCAPE_WILDCARDS, DEBUG, DEBUG_OUTPUT));
 
     static {
         // trigger version initialization
@@ -77,6 +88,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     // mutable ones
     private ZoneId zoneId;
     private boolean fieldMultiValueLeniency;
+    private EscapeWildcard escapeWildcards;
 
     public static JdbcConfiguration create(String u, Properties props, int loginTimeoutSeconds) throws JdbcSQLException {
         URI uri = parseUrl(u);
@@ -159,6 +171,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
                 s -> TimeZone.getTimeZone(s).toZoneId().normalized());
         this.fieldMultiValueLeniency = parseValue(FIELD_MULTI_VALUE_LENIENCY,
                 props.getProperty(FIELD_MULTI_VALUE_LENIENCY, FIELD_MULTI_VALUE_LENIENCY_DEFAULT), Boolean::parseBoolean);
+        this.escapeWildcards = parseValue(COMPAT_META_ESCAPE_WILDCARDS,
+                props.getProperty(COMPAT_META_ESCAPE_WILDCARDS, COMPAT_META_ESCAPE_WILDCARDS_DEFAULT), EscapeWildcard::valueOf);
     }
 
     @Override
@@ -184,6 +198,10 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     public boolean fieldMultiValueLeniency() {
         return fieldMultiValueLeniency;
+    }
+
+    EscapeWildcard escapeWildcards() {
+        return escapeWildcards;
     }
 
     public static boolean canAccept(String url) {

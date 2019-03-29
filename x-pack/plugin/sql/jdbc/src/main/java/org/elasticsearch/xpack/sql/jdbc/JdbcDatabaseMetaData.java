@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.xpack.sql.client.ObjectUtils;
+import org.elasticsearch.xpack.sql.client.StringUtils;
 import org.elasticsearch.xpack.sql.client.Version;
+import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration.EscapeWildcard;
 
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -32,9 +34,12 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     private final JdbcConnection con;
+    private final EscapeWildcard escapeWildcards = null;
 
     JdbcDatabaseMetaData(JdbcConnection con) {
         this.con = con;
+        // enable after #40641 gets merged
+        //this.escapeWildcards = con.cfg.escapeWildcards();
     }
 
     @Override
@@ -737,9 +742,11 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             }
         }
 
+        EscapeWildcard escapeWildcards = con.cfg.escapeWildcards();
+
         PreparedStatement ps = con.prepareStatement(statement);
-        ps.setString(1, catalog != null ? catalog.trim() : "%");
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        ps.setString(1, catalog != null ? escapeStringPattern(catalog.trim(), EscapeWildcard.ALWAYS) : "%");
+        ps.setString(2, tableNamePattern != null ? escapeStringPattern(tableNamePattern.trim(), escapeWildcards) : "%");
 
         if (types != null && types.length > 0) {
             for (int i = 0; i < types.length; i++) {
@@ -787,11 +794,13 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
+
+        EscapeWildcard escapeWildcards = con.cfg.escapeWildcards();
         PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
         // TODO: until passing null works, pass an empty string
         ps.setString(1, catalog != null ? catalog.trim() : EMPTY);
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
-        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : "%");
+        ps.setString(2, tableNamePattern != null ? escapeStringPattern(tableNamePattern.trim(), escapeWildcards) : "%");
+        ps.setString(3, columnNamePattern != null ? escapeStringPattern(columnNamePattern.trim(), escapeWildcards) : "%");
         return ps.executeQuery();
     }
 
@@ -1218,6 +1227,63 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         @Override
         public void close() throws SQLException {
             // this cursor doesn't hold any resource - no need to clean up
+        }
+    }
+
+    static String escapeStringPattern(String pattern, EscapeWildcard strategy) {
+        if (StringUtils.hasText(pattern) == false || "%".equals(pattern)) {
+            return pattern;
+        }
+
+        char esc = '\\';
+
+        switch (strategy) {
+            case NEVER:
+                return pattern;
+            case ALWAYS:
+                return pattern.replace("_", esc + "_").replace("%", esc + "%");
+            default:
+                // first detect if there's any escaping in the string, if so bail out
+                boolean escaped = false;
+                boolean hasEscaping = false;
+
+                for (int i = 0; i < pattern.length(); i++) {
+                    char curr = pattern.charAt(i);
+                    if (escaped == false && (curr == esc) && esc != 0) {
+                        escaped = true;
+                    } else {
+                        if ((curr == '%' || curr == '_' || curr == esc) && (escaped == true)) {
+                            hasEscaping = true;
+                            break;
+                        }
+                        escaped = false;
+                    }
+                }
+
+                // looks like the string is using escaping, bail out
+                if (hasEscaping) {
+                    return pattern;
+                }
+
+                // escape _ only if not escaped (% is ignored for now)
+                StringBuilder wildcard = new StringBuilder(pattern.length());
+
+                for (int i = 0; i < pattern.length(); i++) {
+                    char curr = pattern.charAt(i);
+
+                    if (escaped == false && (curr == esc) && esc != 0) {
+                        escaped = true;
+                    } else {
+                        //
+                        if (curr == '_' && (escaped == false)) {
+                            wildcard.append(esc);
+                        }
+                        escaped = false;
+                    }
+
+                    wildcard.append(curr);
+                }
+                return wildcard.toString();
         }
     }
 }

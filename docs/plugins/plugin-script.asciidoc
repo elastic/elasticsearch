@@ -225,7 +225,8 @@ bin\elasticsearch-plugin install analysis-icu
 
 The default location of the `plugins` directory depends on which package you install:
 
-* {ref}/zip-targz.html#zip-targz-layout[Directory layout of `.zip` and `.tar.gz` archives]
+* {ref}/targz.html#targz-layout[Directory layout of `.tar.gz` archives]
+* {ref}/zip-windows.html#windows-layout[Directory layout of Windows `.zip` archives]
 * {ref}/deb.html#deb-layout[Directory layout of Debian package]
 * {ref}/rpm.html#rpm-layout[Directory layout of RPM]
 

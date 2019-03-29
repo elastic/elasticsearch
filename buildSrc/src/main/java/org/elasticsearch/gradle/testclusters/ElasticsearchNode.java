@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +53,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -75,6 +75,12 @@ public class ElasticsearchNode {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 30;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private final int TAIL_LOG_MESSAGES_COUNT = 40;
+    private final List<String> MESSAGES_WE_DONT_CARE_ABOUT = Arrays.asList(
+        "Option UseConcMarkSweepGC was deprecated",
+        "is a pre-release version of Elasticsearch",
+        "max virtual memory areas vm.max_map_count"
+    );
 
     private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
     private final List<URI> plugins = new ArrayList<>();
@@ -466,47 +472,66 @@ public class ElasticsearchNode {
     }
 
     private void logFileContents(String description, Path from) {
-        logger.error("{} `{}`", description, this);
-        long lineCutoff;
-        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
-            lineCutoff = lines.count();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        final Map<String, Long> errorsAndWarnings;
-        try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
-            errorsAndWarnings = lines
-                .filter(line -> line.contains("ERROR") || line.contains("WARN"))
-                .map(this::normalizeLogLine)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        lineCutoff -= 50;
+        final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
+        LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
-            String line = null;
-            do {
-                line = reader.readLine();
-                if (line == null) {
-                    continue;
-                }
-                String normalizedLine = normalizeLogLine(line);
-                if (errorsAndWarnings.keySet().contains(normalizedLine)) {
-                    logger.lifecycle("  " + line);
-                    if (errorsAndWarnings.get(normalizedLine) != 1) {
-                        logger.lifecycle("    ↑ repeated another " + errorsAndWarnings.get(normalizedLine) + " times ↑");
+            for (String line = reader.readLine(); line != null ; line = reader.readLine()) {
+                final String lineToAdd;
+                if (line.startsWith("[")) {
+                    // check to see if the previous message (possibly combined from multiple lines) was an error or
+                    // warning as we want to show all of them
+                    if (ring.isEmpty() == false) {
+                        String previousMessage = normalizeLogLine(ring.getLast());
+                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(match -> previousMessage.contains(match))) {
+                            ring.removeLast();
+                        } else {
+                            if (previousMessage.contains("ERROR") || previousMessage.contains("WARN")) {
+                                errorsAndWarnings.put(
+                                    previousMessage,
+                                    errorsAndWarnings.getOrDefault(previousMessage, 0) + 1
+                                );
+                            }
+                        }
                     }
-                    errorsAndWarnings.remove(normalizedLine);
+                    lineToAdd = line;
+                } else {
+                    // We combine multi line log messages to make sure we never break exceptions apart
+                    if (ring.isEmpty()) {
+                        lineToAdd = line;
+                    } else {
+                        lineToAdd = ring.removeLast() + "\n" + line;
+                    }
                 }
-                if (reader.getLineNumber() == lineCutoff) {
-                    logger.lifecycle("    ↓ tail of the log " + from +  " ↓");
+                if (MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(match -> lineToAdd.contains(match)) == false) {
+                    ring.add(lineToAdd);
                 }
-                if (reader.getLineNumber() >= lineCutoff) {
-                    logger.lifecycle("  " + line);
+                if (ring.size() >= TAIL_LOG_MESSAGES_COUNT) {
+                    ring.removeFirst();
                 }
-            } while (line != null);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+
+        if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
+            logger.error("\n=== {} `{}` ===", description, this);
+        }
+        if (errorsAndWarnings.isEmpty() == false) {
+            logger.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
+            errorsAndWarnings.forEach((message, count) -> {
+                logger.lifecycle("» " + message.replace("\n", "\n»  "));
+                if (count > 1) {
+                    logger.lifecycle("»   ↑ repeated " + count + " times ↑");
+                }
+            });
+        }
+        if (ring.isEmpty() == false) {
+            logger.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
+            ring.forEach(message -> {
+                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                    logger.lifecycle("» " + message.replace("\n", "\n»  "));
+                }
+            });
         }
     }
 

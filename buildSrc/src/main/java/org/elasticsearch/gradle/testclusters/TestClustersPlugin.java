@@ -108,26 +108,22 @@ public class TestClustersPlugin implements Plugin<Project> {
             rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, sync -> {
                 sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
                 sync.getOutputs().dir(getTestClustersConfigurationExtractDir(project));
-                sync.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.sync(spec ->
-                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
-                                final FileTree files;
-                                File file = resolvedArtifact.getFile();
-                                if (file.getName().endsWith(".zip")) {
-                                    files = project.zipTree(file);
-                                } else if (file.getName().endsWith("tar.gz")) {
-                                    files = project.tarTree(file);
-                                } else {
-                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                }
-                                spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" +
-                                    resolvedArtifact.getModuleVersion().getId().getGroup()
-                                );
-                            }));
-                    }
-                });
+                sync.doFirst(task -> project.delete(getTestClustersConfigurationExtractDir(project)));
+                sync.doLast(task -> project.sync(spec ->
+                    helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
+                        final FileTree files;
+                        File file = resolvedArtifact.getFile();
+                        if (file.getName().endsWith(".zip")) {
+                            files = project.zipTree(file);
+                        } else if (file.getName().endsWith("tar.gz")) {
+                            files = project.tarTree(file);
+                        } else {
+                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                        }
+                        spec.from(files).into(getTestClustersConfigurationExtractDir(project) + "/" +
+                            resolvedArtifact.getModuleVersion().getId().getGroup()
+                        );
+                    })));
             });
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters

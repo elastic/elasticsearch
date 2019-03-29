@@ -28,14 +28,14 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     private final String id;
     private final DataFrameTransformState transformState;
     private final DataFrameIndexerTransformStats transformStats;
-    private final DataFrameTransformCheckpointStats checkpointStats;
+    private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
             a -> new DataFrameTransformStateAndStats((String) a[0],
                     (DataFrameTransformState) a[1],
                     (DataFrameIndexerTransformStats) a[2],
-                    (DataFrameTransformCheckpointStats) a[3]));
+                    (DataFrameTransformCheckpointingInfo) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
@@ -43,29 +43,30 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerTransformStats.fromXContent(p),
                 DataFrameField.STATS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                                (p, c) -> DataFrameTransformCheckpointStats.fromXContent(p), CHECKPOINT_STATS_FIELD);
+                                (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINT_STATS_FIELD);
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
         return new DataFrameTransformStateAndStats(id,
             new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
             new DataFrameIndexerTransformStats(),
-            new DataFrameTransformCheckpointStats());
+            // TODO: needs refactoring, returns empty stats for dataframes without tasks
+            new DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats.EMPTY, DataFrameTransformCheckpointStats.EMPTY, 0L));
     }
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats,
-            DataFrameTransformCheckpointStats checkpointStats) {
+            DataFrameTransformCheckpointingInfo checkpointingInfo) {
         this.id = Objects.requireNonNull(id);
         this.transformState = Objects.requireNonNull(state);
         this.transformStats = Objects.requireNonNull(stats);
-        this.checkpointStats = Objects.requireNonNull(checkpointStats);
+        this.checkpointingInfo = Objects.requireNonNull(checkpointingInfo);
     }
 
     public DataFrameTransformStateAndStats(StreamInput in) throws IOException {
         this.id = in.readString();
         this.transformState = new DataFrameTransformState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
-        this.checkpointStats = new DataFrameTransformCheckpointStats(in);
+        this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
     }
 
     @Override
@@ -74,7 +75,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState, params);
         builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
-        builder.field(CHECKPOINT_STATS_FIELD.getPreferredName(), checkpointStats, params);
+        builder.field(CHECKPOINT_STATS_FIELD.getPreferredName(), checkpointingInfo, params);
         builder.endObject();
         return builder;
     }
@@ -84,12 +85,12 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         out.writeString(id);
         transformState.writeTo(out);
         transformStats.writeTo(out);
-        checkpointStats.writeTo(out);
+        checkpointingInfo.writeTo(out);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, transformState, transformStats, checkpointStats);
+        return Objects.hash(id, transformState, transformStats, checkpointingInfo);
     }
 
     @Override
@@ -106,7 +107,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
         return Objects.equals(this.id, that.id) && Objects.equals(this.transformState, that.transformState)
                 && Objects.equals(this.transformStats, that.transformStats)
-                && Objects.equals(this.checkpointStats, that.checkpointStats);
+                && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
     }
 
     public String getId() {

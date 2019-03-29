@@ -128,7 +128,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     public DataFrameTransformState getState() {
-        return new DataFrameTransformState(taskState.get(), indexer.getState(), indexer.getPosition(), currentCheckpoint.get(), stateReason.get());
+        return new DataFrameTransformState(
+                taskState.get(),
+                indexer.getState(),
+                indexer.getPosition(),
+                currentCheckpoint.get(),
+                stateReason.get());
     }
 
     public DataFrameIndexerTransformStats getStats() {
@@ -456,14 +461,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void createCheckpoint() {
             CountDownLatch latch = new CountDownLatch(1);
 
-            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1, new LatchedActionListener<>(ActionListener.wrap(checkpoint -> {
-                transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
-                }, createCheckpointException -> {
-                    throw new RuntimeException("Failed to create checkpoint", createCheckpointException);
-                }));
-            }, getCheckPointException -> {
-                throw new RuntimeException("Failed to retrieve checkpoint", getCheckPointException);
-            }), latch));
+            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1,
+                    new LatchedActionListener<>(ActionListener.wrap(checkpoint -> {
+                        transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
+                        }, createCheckpointException -> {
+                            throw new RuntimeException("Failed to create checkpoint", createCheckpointException);
+                        }));
+                    }, getCheckPointException -> {
+                        throw new RuntimeException("Failed to retrieve checkpoint", getCheckPointException);
+                    }), latch));
 
             // wait for async operations and return
             try {

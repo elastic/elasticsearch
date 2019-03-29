@@ -17,14 +17,14 @@ public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDat
         return new DataFrameTransformStateAndStats(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats(),
-                DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats());
+                DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {
         return new DataFrameTransformStateAndStats(randomAlphaOfLengthBetween(1, 10),
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats(),
-                DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats());
+                DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
     @Override

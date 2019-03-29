@@ -11,11 +11,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointStats> {
-
+public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointStats>
+{
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(SingleCheckpointStatsTests.randomSingleCheckpointStats(),
-                SingleCheckpointStatsTests.randomSingleCheckpointStats(), randomNonNegativeLong());
+        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -32,4 +31,5 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingD
     protected Reader<DataFrameTransformCheckpointStats> instanceReader() {
         return DataFrameTransformCheckpointStats::new;
     }
+
 }

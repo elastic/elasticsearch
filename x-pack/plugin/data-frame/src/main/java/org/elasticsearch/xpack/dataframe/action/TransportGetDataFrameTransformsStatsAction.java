@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -41,7 +39,6 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
@@ -65,11 +62,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
         GetDataFrameTransformsStatsAction.Request,
         GetDataFrameTransformsStatsAction.Response,
         GetDataFrameTransformsStatsAction.Response> {
-
-    // timeout for retrieving checkpoint information
-    private static final int CHECKPOINT_STATS_TIMEOUT_SECONDS = 5;
-
-    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameTransformsStatsAction.class);
 
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
@@ -106,7 +98,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         if (task.isCancelled() == false) {
             DataFrameTransformStateAndStats transformStateAndStats = new DataFrameTransformStateAndStats(task.getTransformId(),
-                    task.getState(), task.getStats(), new DataFrameTransformCheckpointStats());
+                    task.getState(), task.getStats(), transformsCheckpointService.getCheckpointStats(task));
             transformsStateAndStats = Collections.singletonList(transformStateAndStats);
         }
 

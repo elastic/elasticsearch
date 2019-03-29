@@ -18,8 +18,8 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.SingleCheckpointStats;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
@@ -115,7 +115,7 @@ public class DataFrameTransformsCheckpointService {
 
     }
 
-    public DataFrameTransformCheckpointStats getCheckpointStats(DataFrameTransformTask task) {
+    public DataFrameTransformCheckpointingInfo getCheckpointStats(DataFrameTransformTask task) {
 
         long current = task.getCheckpoint();
         long inProgress = task.getInProgressCheckpoint();
@@ -159,11 +159,15 @@ public class DataFrameTransformsCheckpointService {
             logger.warn("Failed to retrieve checkpoints for data frame [" + task.getTransformId() + "]", e);
         }
 
-        return new DataFrameTransformCheckpointStats(
-                new SingleCheckpointStats(checkpoints.currentCheckpoint.getTimestamp(), checkpoints.currentCheckpoint.getTimeUpperBound()),
-                new SingleCheckpointStats(checkpoints.inProgressCheckpoint.getTimestamp(),
+        return new DataFrameTransformCheckpointingInfo(
+                new DataFrameTransformCheckpointStats(
+                        checkpoints.currentCheckpoint.getTimestamp(),
+                        checkpoints.currentCheckpoint.getTimeUpperBound()),
+                new DataFrameTransformCheckpointStats(
+                        checkpoints.inProgressCheckpoint.getTimestamp(),
                         checkpoints.inProgressCheckpoint.getTimeUpperBound()),
-                checkpoints.currentCheckpoint.getBehind(checkpoints.sourceCheckpoint));
+                checkpoints.currentCheckpoint.getBehind(
+                        checkpoints.sourceCheckpoint));
     }
 
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {

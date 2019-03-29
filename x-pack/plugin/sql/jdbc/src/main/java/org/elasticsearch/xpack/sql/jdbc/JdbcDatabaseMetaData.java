@@ -259,8 +259,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public boolean supportsConvert() throws SQLException {
-        //TODO: add Convert
-        return false;
+        return true;
     }
 
     @Override
@@ -776,14 +775,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     @Override
     public ResultSet getCatalogs() throws SQLException {
         // TABLE_CAT is the first column
-        Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '%'", 1);
+        Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '%' LIKE ''", 1);
         return memorySet(con.cfg, columnInfo("", "TABLE_CAT"), data);
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
         // TABLE_TYPE (4)
-        Object[][] data = queryColumn(con, "SYS TABLES TYPE '%'", 4);
+        Object[][] data = queryColumn(con, "SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", 4);
         return memorySet(con.cfg, columnInfo("", "TABLE_TYPE"), data);
     }
 

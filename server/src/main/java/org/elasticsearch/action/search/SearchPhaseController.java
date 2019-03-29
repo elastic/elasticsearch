@@ -486,7 +486,7 @@ public final class SearchPhaseController {
         }
         ReduceContext reduceContext = reduceContextFunction.apply(performFinalReduce);
         final InternalAggregations aggregations = aggregationsList.isEmpty() ? null :
-            InternalAggregations.reduce(aggregationsList, firstResult.pipelineAggregators(), reduceContext);
+            InternalAggregations.reduce(aggregationsList, reduceContext);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, queryResults, bufferedTopDocs, topDocsStats, from, size,
             reducedCompletionSuggestions);

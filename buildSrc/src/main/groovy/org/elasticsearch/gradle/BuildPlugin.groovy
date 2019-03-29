@@ -930,7 +930,7 @@ class BuildPlugin implements Plugin<Project> {
                     workingDir.mkdirs()
                 }
 
-                def listener = new ErrorReportingTestListener(test.logger)
+                def listener = new ErrorReportingTestListener()
                 addTestOutputListener(listener)
                 addTestListener(listener)
 

@@ -1041,7 +1041,7 @@ class BuildPlugin implements Plugin<Project> {
             }
             return Integer.parseInt(stdout.toString('UTF-8').trim())
         }
-        return Math.max(4, Runtime.getRuntime().availableProcessors())
+        return Runtime.getRuntime().availableProcessors() / 2
     }
 
     private static configurePrecommit(Project project) {

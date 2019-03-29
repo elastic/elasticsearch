@@ -57,6 +57,11 @@ import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING
 
 class S3BlobContainer extends AbstractBlobContainer {
 
+    /**
+     * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     */
+    private static final int MAX_BULK_DELETES = 1000;
+
     private final S3BlobStore blobStore;
     private final String keyPath;
 
@@ -130,7 +135,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             final List<String> partition = new ArrayList<>();
             for (String blob : blobNames) {
                 partition.add(buildKey(blob));
-                if (partition.size() == 1000 ) {
+                if (partition.size() == MAX_BULK_DELETES ) {
                     deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                     partition.clear();
                 }
@@ -139,9 +144,20 @@ class S3BlobContainer extends AbstractBlobContainer {
                 deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
             }
             SocketAccess.doPrivilegedVoid(() -> {
+                AmazonClientException aex = null;
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
-                    clientReference.client().deleteObjects(
-                        deleteRequest);
+                    try {
+                        clientReference.client().deleteObjects(deleteRequest);
+                    } catch (AmazonClientException e) {
+                        if (aex == null) {
+                            aex = e;
+                        } else {
+                            aex.addSuppressed(e);
+                        }
+                    }
+                }
+                if (aex != null) {
+                    throw aex;
                 }
             });
         } catch (final AmazonClientException e) {

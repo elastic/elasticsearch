@@ -110,11 +110,10 @@ public interface BlobContainer {
     void deleteBlob(String blobName) throws IOException;
 
     /**
-     * Deletes the blobs with giving names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
+     * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
      * @param   blobNames  The names of the blob to delete.
-     * @throws  NoSuchFileException if the blob does not exist
      * @throws  IOException if the blob exists but could not be deleted.
      */
     default void deleteBlobs(List<String> blobNames) throws IOException {

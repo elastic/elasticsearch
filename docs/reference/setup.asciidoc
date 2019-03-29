@@ -24,7 +24,7 @@ platforms, but it is possible that it will work on other platforms too.
 == Java (JVM) Version
 
 Elasticsearch is built using Java, and includes a bundled version of
-http://openjdk.java.net[OpenJDK] from the JDK maintainers (GPL+CE)
+http://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM exists within the `jdk` directory of
 the Elasticsearch home directory.
 

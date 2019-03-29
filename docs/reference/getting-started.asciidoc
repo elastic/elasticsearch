@@ -115,7 +115,7 @@ Elasticsearch Service for free].
 ==============
 
 NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
-from the JDK maintainers (GPL+CE).  To use your own version of Java,
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
 The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`]

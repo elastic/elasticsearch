@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -47,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * in a string format, designed to be used at the command line. An Index can
  * be specified to limit output to a particular index or indices.
  */
-public class RestRecoveryAction extends AbstractCatAction {
-    public RestRecoveryAction(Settings settings, RestController restController) {
+public class RestCatRecoveryAction extends AbstractCatAction {
+    public RestCatRecoveryAction(Settings settings, RestController restController) {
         super(settings);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
@@ -86,6 +87,10 @@ public class RestRecoveryAction extends AbstractCatAction {
         t.startHeaders()
                 .addCell("index", "alias:i,idx;desc:index name")
                 .addCell("shard", "alias:s,sh;desc:shard name")
+                .addCell("start_time", "default:false;alias:start;desc:recovery start time")
+                .addCell("start_time_millis", "default:false;alias:start_millis;desc:recovery start time in epoch milliseconds")
+                .addCell("stop_time", "default:false;alias:stop;desc:recovery stop time")
+                .addCell("stop_time_millis", "default:false;alias:stop_millis;desc:recovery stop time in epoch milliseconds")
                 .addCell("time", "alias:t,ti;desc:recovery time")
                 .addCell("type", "alias:ty;desc:recovery type")
                 .addCell("stage", "alias:st;desc:recovery stage")
@@ -149,6 +154,10 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardId().id());
+                t.addCell(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
+                t.addCell(state.getTimer().startTime());
+                t.addCell(XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
+                t.addCell(state.getTimer().stopTime());
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));

@@ -213,6 +213,8 @@ The following settings are supported:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `true`.
 
+include::repository-shared-settings.asciidoc[]
+
 `server_side_encryption`::
 
     When set to `true` files are encrypted on server side using AES256

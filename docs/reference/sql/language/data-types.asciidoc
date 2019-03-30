@@ -67,7 +67,7 @@ s|SQL precision
 
 
 | date                      | 24
-| time                      | 13
+| time                      | 24
 | interval_year             | 7
 | interval_month            | 7
 | interval_day              | 23

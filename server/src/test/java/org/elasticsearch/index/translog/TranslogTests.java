@@ -2912,15 +2912,7 @@ public class TranslogTests extends ESTestCase {
             Long repeatingTermSeqNo = randomFrom(seqNos.stream().map(Tuple::v1).collect(Collectors.toList()));
             seqNos.add(Tuple.tuple(repeatingTermSeqNo, terms.get(repeatingTermSeqNo)));
         }
-        int numberOfGenerationsWithoutSeqNo = between(0, 3);
-        for (int i = 0; i < numberOfGenerationsWithoutSeqNo; i++) {
-            int opsWithoutSeqNo = between(0, 20);
-            for (int op = 0; op < opsWithoutSeqNo; op++) {
-                translog.add(new Translog.Index("_doc", Integer.toString(randomInt()),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO, primaryTerm.get(), new byte[]{1}));
-            }
-            translog.rollGeneration();
-        }
+
         for (final Tuple<Long, Long> tuple : seqNos) {
             translog.add(new Translog.NoOp(tuple.v1(), tuple.v2(), "test"));
             if (rarely()) {

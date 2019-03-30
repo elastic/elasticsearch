@@ -38,8 +38,8 @@ public class SequenceNumbersTests extends ESTestCase {
         final long minSeqNo = randomNonNegativeLong();
         assertThat(SequenceNumbers.min(minSeqNo, seqNo), equalTo(Math.min(minSeqNo, seqNo)));
 
-        final AssertionError e =
-                expectThrows(AssertionError.class, () -> SequenceNumbers.min(minSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(minSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertThat(e, hasToString(containsString("sequence number must be assigned")));
     }
 
@@ -53,8 +53,8 @@ public class SequenceNumbersTests extends ESTestCase {
         final long maxSeqNo = randomNonNegativeLong();
         assertThat(SequenceNumbers.min(maxSeqNo, seqNo), equalTo(Math.min(maxSeqNo, seqNo)));
 
-        final AssertionError e =
-                expectThrows(AssertionError.class, () -> SequenceNumbers.min(maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> SequenceNumbers.min(maxSeqNo, SequenceNumbers.UNASSIGNED_SEQ_NO));
         assertThat(e, hasToString(containsString("sequence number must be assigned")));
     }
 

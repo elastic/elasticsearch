@@ -89,7 +89,6 @@ public class SequenceNumbers {
             return seqNo;
         } else {
             if (seqNo == UNASSIGNED_SEQ_NO) {
-                assert false : "sequence number must be assigned";
                 throw new IllegalArgumentException("sequence number must be assigned");
             }
             return Math.min(minSeqNo, seqNo);
@@ -114,7 +113,6 @@ public class SequenceNumbers {
             return seqNo;
         } else {
             if (seqNo == UNASSIGNED_SEQ_NO) {
-                assert false : "sequence number must be assigned";
                 throw new IllegalArgumentException("sequence number must be assigned");
             }
             return Math.max(maxSeqNo, seqNo);

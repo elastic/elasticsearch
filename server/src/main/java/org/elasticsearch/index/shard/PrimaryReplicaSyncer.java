@@ -246,8 +246,8 @@ public class PrimaryReplicaSyncer {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
-                assert seqNo >= 0 : "resync should not send operation with unassigned sequence number [" + operation + "]";
-                if (seqNo < startingSeqNo) {
+                if (startingSeqNo >= 0 &&
+                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }

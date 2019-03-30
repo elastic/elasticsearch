@@ -5,17 +5,16 @@ The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
 twitter, under a type called `_doc`, with id valued 0:
 
-[source,js]
---------------------------------------------------
+
+
 GET twitter/_doc/0
---------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
 The result of the above get operation is:
 
 [source,js]
---------------------------------------------------
+
 {
     "_index" : "twitter",
     "_type" : "_doc",
@@ -28,10 +27,8 @@ The result of the above get operation is:
         "user" : "kimchy",
         "date" : "2009-11-15T14:12:12",
         "likes": 0,
-        "message" : "trying out Elasticsearch"
-    }
+        "message" : "trying out Elasticsearch
 }
---------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 The above result includes the `_index`, `_type`, `_id`, and `_version`
@@ -69,9 +66,8 @@ you have used the `stored_fields` parameter or if the `_source` field is disable
 You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,js]
---------------------------------------------------
 GET twitter/_doc/0?_source=false
---------------------------------------------------
+
 // CONSOLE
 // TEST[setup:twitter]
 
@@ -81,7 +77,6 @@ with large documents where partial retrieval can save on network overhead. Both 
 of fields or wildcard expressions. Example:
 
 [source,js]
---------------------------------------------------
 GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
 // CONSOLE
@@ -90,26 +85,21 @@ GET twitter/_doc/0?_source_includes=*.id&_source_excludes=entities
 If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
---------------------------------------------------
+
 GET twitter/_doc/0?_source=*.id,retweeted
---------------------------------------------------
+
 // CONSOLE
 // TEST[setup:twitter]
 
 [float]
 [[get-stored-fields]]
-=== Stored Fields
-
-The get operation allows specifying a set of stored fields that will be
+=== Stored Field   
+The get operation allows specifying a set of stored fields that will
 returned by passing the `stored_fields` parameter.
 If the requested fields are not stored, they will be ignored.
 Consider for instance the following mapping:
-
-[source,js]
---------------------------------------------------
-PUT twitter
-{
-   "mappings": {
+[source,js
+   "mappings"
       "_doc": {
          "properties": {
             "counter": {
@@ -124,35 +114,25 @@ PUT twitter
       }
    }
 }
---------------------------------------------------
 // CONSOLE
 
 Now we can add a document:
 
 [source,js]
---------------------------------------------------
+
 PUT twitter/_doc/1
 {
     "counter" : 1,
     "tags" : ["red"]
 }
---------------------------------------------------
 // CONSOLE
 // TEST[continued]
-
-And then try to retrieve it:
-
 [source,js]
---------------------------------------------------
-GET twitter/_doc/1?stored_fields=tags,counter
---------------------------------------------------
+GET twitter/_doc/1?stored_fields=tags,counte
 // CONSOLE
 // TEST[continued]
-
 The result of the above get operation is:
-
-[source,js]
---------------------------------------------------
+[source,js
 {
    "_index": "twitter",
    "_type": "_doc",
@@ -176,22 +156,17 @@ Since the `counter` field is not stored the get request simply ignores it when t
 
 It is also possible to retrieve metadata fields like the `_routing` field:
 
-[source,js]
---------------------------------------------------
+[source,j
 PUT twitter/_doc/2?routing=user1
 {
     "counter" : 1,
     "tags" : ["white"]
-}
---------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
 [source,js]
---------------------------------------------------
-GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
---------------------------------------------------
-// CONSOLE
+
+GET twitter/_doc/2?routing=user1&stored_fields=tags,cou// CONSOLE
 // TEST[continued]
 
 The result of the above get operation is:
@@ -210,10 +185,9 @@ The result of the above get operation is:
    "fields": {
       "tags": [
          "white"
-      ]
    }
 }
---------------------------------------------------
+
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Also only leaf fields can be returned via the `stored_field` option. So object fields can't be returned and such requests
@@ -221,16 +195,13 @@ will fail.
 
 [float]
 [[_source]]
-=== Getting the +_source+ directly
-
 Use the `/{index}/{type}/{id}/_source` endpoint to get
 just the `_source` field of the document,
 without any additional content around it. For example:
 
 [source,js]
---------------------------------------------------
+
 GET twitter/_doc/1/_source
---------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
@@ -261,9 +232,8 @@ When indexing using the ability to control the routing, in order to get
 a document, the routing value should also be provided. For example:
 
 [source,js]
---------------------------------------------------
-GET twitter/_doc/2?routing=user1
---------------------------------------------------
+
+GET twitter/_doc/2?routing=user 
 // CONSOLE
 // TEST[continued]
 

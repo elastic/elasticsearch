@@ -2380,7 +2380,7 @@ SELECT CURRENT_DATE() AS result;
 
 curDateFunction-Ignore
 // tag::curDateFunction
-SELECT CURRENT_DATE() AS result;
+SELECT CURDATE() AS result;
 
          result
 ------------------------

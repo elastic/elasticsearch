@@ -71,7 +71,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[wildcardWithOrder]
 which essentially returns all(top-level fields, sub-fields, such as multi-fields are ignored] columns found.
 
 [[sql-syntax-from]]
-[float]
 ==== FROM Clause
 
 The `FROM` clause specifies one table for the `SELECT` and has the following syntax:
@@ -111,7 +110,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableAlias]
 ----
 
 [[sql-syntax-where]]
-[float]
 ==== WHERE Clause
 
 The optional `WHERE` clause is used to filter rows from the query and has the following syntax:
@@ -133,7 +131,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[basicWhere]
 ----
 
 [[sql-syntax-group-by]]
-[float]
 ==== GROUP BY
 
 The `GROUP BY` clause is used to divide the results into groups of rows on matching values from the designated columns. It has the following syntax:
@@ -208,7 +205,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndMultipleAggs]
 ----
 
 [[sql-syntax-group-by-implicit]]
-[float]
 ===== Implicit Grouping
 
 When an aggregation is used without an associated `GROUP BY`, an __implicit grouping__ is applied, meaning all selected rows are considered to form a single default, or implicit group.
@@ -229,7 +225,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[groupByImplicitMultipleAggs]
 ----
 
 [[sql-syntax-having]]
-[float]
 ==== HAVING
 
 The `HAVING` clause can be used _only_ along aggregate functions (and thus `GROUP BY`) to filter what groups are kept or not and has the following syntax:
@@ -263,7 +258,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHavingMultiple]
 ----
 
 [[sql-syntax-having-group-by-implicit]]
-[float]
 ===== Implicit Grouping
 
 As indicated above, it is possible to have a `HAVING` clause without a `GROUP BY`. In this case, the so-called <<sql-syntax-group-by-implicit, __implicit grouping__>> is applied, meaning all selected rows are considered to form a single group and `HAVING` can be applied on any of the aggregate functions specified on this group.
@@ -285,7 +279,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[groupByHavingImplicitMatch]
 
 
 [[sql-syntax-order-by]]
-[float]
 ==== ORDER BY
 
 The `ORDER BY` clause is used to sort the results of `SELECT` by one or more expressions:
@@ -373,7 +366,6 @@ Trying to return `score` from a non full-text query will return the same value f
 all are equally relevant.
 
 [[sql-syntax-limit]]
-[float]
 ==== LIMIT
 
 The `LIMIT` clause restricts (limits) the number of rows returns using the format:

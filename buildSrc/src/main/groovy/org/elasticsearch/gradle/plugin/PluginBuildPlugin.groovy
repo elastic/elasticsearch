@@ -44,6 +44,7 @@ public class PluginBuildPlugin extends BuildPlugin {
     public void apply(Project project) {
         super.apply(project)
         configureDependencies(project)
+
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
@@ -69,7 +70,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 if (isModule) {
                     throw new RuntimeException("Testclusters does not support modules yet");
                 } else {
-                    project.testClusters.integTestCluster.plugin(
+                    project.testClusters.integTest.plugin(
                             project.file(project.tasks.bundlePlugin.archiveFile)
                     )
                 }

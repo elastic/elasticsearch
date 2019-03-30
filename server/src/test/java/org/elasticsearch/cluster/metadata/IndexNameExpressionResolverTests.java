@@ -580,7 +580,26 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, new String[]{})),
             equalTo(newHashSet("kuku", "testXXX")));
     }
+    public void testConcreteIndicesNoIndicesErrorMessage() {
+        MetaData.Builder mdBuilder = MetaData.builder();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+            IndicesOptions.fromOptions(false, false, true, true));
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
+        assertThat(infe.getMessage(), is("no such index [null] and no indices exist"));
+    }
 
+    public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
+        MetaData.Builder mdBuilder = MetaData.builder();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, 
+            IndicesOptions.fromOptions(false, false, false, false));
+        IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(context, new String[]{}));
+        assertThat(infe.getMessage(), is("no such index [_all] and no indices exist"));
+    }
+    
     public void testConcreteIndicesWildcardExpansion() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(State.OPEN))

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 
-import java.io.IOException;
 import java.text.ParseException;
 import java.util.Map;
 
@@ -54,29 +53,25 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     @Override
     protected void doExecute(Task task, OpenIdConnectLogoutRequest request, ActionListener<OpenIdConnectLogoutResponse> listener) {
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
-            try {
-                final String token = request.getToken();
-                tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
-                    tuple -> {
-                        final Authentication authentication = tuple.v1();
-                        final Map<String, Object> tokenMetadata = tuple.v2();
-                        validateAuthenticationAndMetadata(authentication, tokenMetadata);
-                        tokenService.invalidateAccessToken(token, ActionListener.wrap(
-                            result -> {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("OpenID Connect Logout for user [{}] and token [{}...{}]",
-                                        authentication.getUser().principal(),
-                                        token.substring(0, 8),
-                                        token.substring(token.length() - 8));
-                                }
-                                OpenIdConnectLogoutResponse response = buildResponse(authentication, tokenMetadata);
-                                listener.onResponse(response);
-                            }, listener::onFailure)
-                        );
-                    }, listener::onFailure));
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
+            final String token = request.getToken();
+            tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
+                tuple -> {
+                    final Authentication authentication = tuple.v1();
+                    final Map<String, Object> tokenMetadata = tuple.v2();
+                    validateAuthenticationAndMetadata(authentication, tokenMetadata);
+                    tokenService.invalidateAccessToken(token, ActionListener.wrap(
+                        result -> {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("OpenID Connect Logout for user [{}] and token [{}...{}]",
+                                    authentication.getUser().principal(),
+                                    token.substring(0, 8),
+                                    token.substring(token.length() - 8));
+                            }
+                            OpenIdConnectLogoutResponse response = buildResponse(authentication, tokenMetadata);
+                            listener.onResponse(response);
+                        }, listener::onFailure)
+                    );
+                }, listener::onFailure));
         }, listener::onFailure));
     }
 

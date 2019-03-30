@@ -294,8 +294,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
             .jwtID(randomAlphaOfLength(8))
             .audience(rpConfig.getClientId().getValue())
-            // Expired 61 seconds ago with an allowed clock skew of 60 seconds
-            .expirationTime(Date.from(now().minusSeconds(61)))
+            // Expired 65 seconds ago with an allowed clock skew of 60 seconds
+            .expirationTime(Date.from(now().minusSeconds(65)))
             .issuer(opConfig.getIssuer().getValue())
             .issueTime(Date.from(now().minusSeconds(200)))
             .notBeforeTime(Date.from(now().minusSeconds(200)))
@@ -333,11 +333,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         JWTClaimsSet.Builder idTokenBuilder = new JWTClaimsSet.Builder()
             .jwtID(randomAlphaOfLength(8))
             .audience(rpConfig.getClientId().getValue())
-            // Expired 61 seconds ago with an allowed clock skew of 60 seconds
             .expirationTime(Date.from(now().plusSeconds(3600)))
             .issuer(opConfig.getIssuer().getValue())
-            .issueTime(Date.from(now().plusSeconds(61)))
-            .notBeforeTime(Date.from(now().minusSeconds(61)))
+            // Issued 80 seconds in the future with max allowed clock skew of 60
+            .issueTime(Date.from(now().plusSeconds(80)))
+            .notBeforeTime(Date.from(now().minusSeconds(80)))
             .claim("nonce", nonce)
             .subject(subject);
         final Tuple<AccessToken, JWT> tokens = buildTokens(idTokenBuilder.build(), key, jwk.getAlgorithm().getName(), keyId,

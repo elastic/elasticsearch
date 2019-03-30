@@ -196,10 +196,10 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         tokenMetadata.put("oidc_realm", REALM_NAME);
 
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, tokenMetadata, true);
+        tokenService.createOAuth2Tokens(authentication, authentication, tokenMetadata, true, future);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, false, client);
-        final String tokenString = tokenService.getUserTokenString(userToken);
+        final String tokenString = tokenService.getAccessTokenAsString(userToken);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();
         request.setToken(tokenString);

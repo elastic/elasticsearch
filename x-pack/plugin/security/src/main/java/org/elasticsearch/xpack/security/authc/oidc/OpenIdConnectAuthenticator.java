@@ -138,8 +138,8 @@ public class OpenIdConnectAuthenticator {
         this.rpConfig = rpConfig;
         this.sslService = sslService;
         this.httpClient = createHttpClient();
-        this.idTokenValidator.set(createIdTokenValidator());
         this.watcherService = watcherService;
+        this.idTokenValidator.set(createIdTokenValidator());
     }
 
     // For testing
@@ -278,19 +278,22 @@ public class OpenIdConnectAuthenticator {
             if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token")) ||
                 rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
                 assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
-                final boolean optional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
+                final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
                 // only "Bearer" is defined in the specification but check just in case
                 if (accessToken.getType().toString().equals("Bearer") == false) {
                     throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
                         accessToken.getType());
                 }
                 String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
-                if (null == atHashValue && optional == false) {
-                    throw new ElasticsearchSecurityException("Failed to verify access token. at_hash claim is missing from the ID Token");
+                if (Strings.hasText(atHashValue) == false) {
+                    if (isValidationOptional == false) {
+                        throw new ElasticsearchSecurityException("Failed to verify access token. ID Token doesn't contain at_hash claim ");
+                    }
+                } else {
+                    AccessTokenHash atHash = new AccessTokenHash(atHashValue);
+                    JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
+                    AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
                 }
-                AccessTokenHash atHash = new AccessTokenHash(atHashValue);
-                JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(idToken.getHeader().getAlgorithm().getName());
-                AccessTokenValidator.validate(accessToken, jwsAlgorithm, atHash);
             } else if (rpConfig.getResponseType().equals(ResponseType.parse("id_token")) && accessToken != null) {
                 // This should NOT happen and indicates a misconfigured OP. Warn the user but do not fail
                 LOGGER.warn("Access Token incorrectly returned from the OpenId Connect Provider while using \"id_token\" response type.");
@@ -324,7 +327,6 @@ public class OpenIdConnectAuthenticator {
         if (rpConfig.getResponseType().equals(response.impliedResponseType()) == false) {
             throw new ElasticsearchSecurityException("Unexpected response type [{}], while [{}] is configured",
                 response.impliedResponseType(), rpConfig.getResponseType());
-
         }
     }
 

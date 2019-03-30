@@ -2359,18 +2359,28 @@ SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('19
 
 
 currentDate-Ignore
-// tag::curDate
-SELECT CURRENT_TIMESTAMP AS result;
+// tag::currentDate
+SELECT CURRENT_DATE AS result;
 
          result
 ------------------------
 2018-12-12
-// end::curDate
+// end::currentDate
 ;
 
 currentDateFunction-Ignore
+// tag::currentDateFunction
+SELECT CURRENT_DATE() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::currentDateFunction
+;
+
+curDateFunction-Ignore
 // tag::curDateFunction
-SELECT CURRENT_TIMESTAMP() AS result;
+SELECT CURRENT_DATE() AS result;
 
          result
 ------------------------

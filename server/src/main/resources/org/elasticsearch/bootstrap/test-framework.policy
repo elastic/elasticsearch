@@ -100,3 +100,8 @@ grant codeBase "file:${gradle.worker.jar}" {
   // dependency and there's no point in exercising the security policy against it
   permission java.security.AllPermission;
 };
+
+grant {
+  // since the gradle test worker jar is on the test classpath, our tests should be able to read it
+  permission java.io.FilePermission "${gradle.worker.jar}", "read";
+};

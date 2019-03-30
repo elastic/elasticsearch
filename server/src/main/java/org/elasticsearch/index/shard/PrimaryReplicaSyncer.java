@@ -246,11 +246,12 @@ public class PrimaryReplicaSyncer {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
-                if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                // do not send operations if the global checkpoint is still unassigned.
+                if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || startingSeqNo < 0 || seqNo < startingSeqNo) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
+                assert operation.seqNo() >= 0 : "sending operation with unassigned sequence number [" + operation + "]";
                 operations.add(operation);
                 size += operation.estimateSize();
                 totalSentOps.incrementAndGet();
@@ -260,7 +261,6 @@ public class PrimaryReplicaSyncer {
                     break;
                 }
             }
-
             final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
             if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {

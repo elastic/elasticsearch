@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
@@ -48,7 +47,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                     .field("field");
 
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-            fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            fieldType.setHasDocValues(true);
             fieldType.setName("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -72,13 +71,13 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-                fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+                fieldType.setHasDocValues(true);
                 fieldType.setName("another_field");
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
 
                 fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-                fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+                fieldType.setHasDocValues(true);
                 fieldType.setName("field");
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
@@ -140,7 +139,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
     private void assertCentroid(RandomIndexWriter w, GeoPoint expectedCentroid) throws IOException {
         MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
-        fieldType.setDocValuesType(DocValuesType.SORTED_NUMERIC);
+        fieldType.setHasDocValues(true);
         fieldType.setName("field");
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")
                 .field("field");

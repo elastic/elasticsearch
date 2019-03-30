@@ -260,6 +260,9 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch' + (oss ? '' : '-oss'))
+
+    into '/usr/share/elasticsearch'
+    with noticeFile(oss, jdk)
   }
 }
 
@@ -294,7 +297,6 @@ ospackage {
   permissionGroup 'root'
 
   into '/usr/share/elasticsearch'
-  with noticeFile
 }
 
 Closure commonDebConfig(boolean oss, boolean jdk) {

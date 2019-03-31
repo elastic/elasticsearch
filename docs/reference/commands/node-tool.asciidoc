@@ -285,9 +285,9 @@ to `0`, meaning to use the first node in the data path.
 === Examples
 
 [float]
-==== Repurposing node as master, no-data
+==== Repurposing node as dedicated master (master: true, data: false)
 
-In this example, a node that previously held data is repurposed as master, no-data.
+In this example, a node that previously held data is repurposed as a dedicated master node.
 First update the node's settings to `node.master: true` and `node.data: false` in its `elasticsearch.yml` config file. Then run the
 `elasticsearch-node repurpose` command to check for and remove excess shard data:
 
@@ -306,9 +306,9 @@ Node successfully repurposed to master and no-data.
 ----
 
 [float]
-==== Repurposing node as no-master, no-data
+==== Repurposing node as coordinating-only (master: false, data: false)
 
-In this example, a node that previously held data is repurposed as no-master, no-data.
+In this example, a node that previously held data is repurposed as a coordinating-only node.
 First update the node's settings to `node.master: false` and `node.data: false` in its `elasticsearch.yml` config file. Then run the
 `elasticsearch-node repurpose` command to check for and remove excess index meta-data and
 shard data:

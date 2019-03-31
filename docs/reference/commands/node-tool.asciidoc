@@ -309,7 +309,7 @@ Node successfully repurposed to master and no-data.
 ==== Repurposing node as no-master, no-data
 
 In this example, a node that previously held data is repurposed as no-master, no-data.
-First update the node settings to `node.master=true` and `node.data=false`. Then run the
+First update the node's settings to `node.master: false` and `node.data: false` in its `elasticsearch.yml` config file. Then run the
 `elasticsearch-node repurpose` command to check for and remove excess index meta-data and
 shard data:
 

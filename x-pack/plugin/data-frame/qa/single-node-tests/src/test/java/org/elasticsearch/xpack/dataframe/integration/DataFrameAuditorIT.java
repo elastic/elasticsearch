@@ -49,6 +49,7 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
         setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40594")
     @SuppressWarnings("unchecked")
     public void testAuditorWritesAudits() throws Exception {
         String transformId = "simplePivotForAudit";

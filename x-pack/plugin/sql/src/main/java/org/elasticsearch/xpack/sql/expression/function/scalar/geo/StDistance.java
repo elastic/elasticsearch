@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -23,7 +22,7 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 /**
  * Calculates the distance between two points
  */
-public class StDistance extends BinaryOperator<Object, Object, Double, StDistance.StDistanceFunction> {
+public class StDistance extends BinaryOperator<Object, Object, Double, StDistanceFunction> {
 
     private static final StDistanceFunction FUNCTION = new StDistanceFunction();
 
@@ -71,23 +70,5 @@ public class StDistance extends BinaryOperator<Object, Object, Double, StDistanc
     @Override
     protected String scriptMethodName() {
         return "stDistance";
-    }
-
-    public static class StDistanceFunction implements PredicateBiFunction<Object, Object, Double> {
-
-        @Override
-        public String name() {
-            return "ST_DISTANCE";
-        }
-
-        @Override
-        public String symbol() {
-            return "ST_DISTANCE";
-        }
-
-        @Override
-        public Double doApply(Object s1, Object s2) {
-            return StDistanceProcessor.process(s1, s2);
-        }
     }
 }

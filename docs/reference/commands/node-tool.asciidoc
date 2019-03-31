@@ -288,7 +288,7 @@ to `0`, meaning to use the first node in the data path.
 ==== Repurposing node as master, no-data
 
 In this example, a node that previously held data is repurposed as master, no-data.
-First update the node settings to `node.master=true` and `node.data=false`. Then run the
+First update the node's settings to `node.master: true` and `node.data: false` in its `elasticsearch.yml` config file. Then run the
 `elasticsearch-node repurpose` command to check for and remove excess shard data:
 
 [source,txt]

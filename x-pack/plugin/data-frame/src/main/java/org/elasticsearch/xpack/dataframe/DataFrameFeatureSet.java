@@ -135,7 +135,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(
             transformCountSuccess -> {
                 if (transformCountSuccess.getShardFailures().length > 0) {
-                    logger.error("total transform count search request returned shard failures: {}",
+                    logger.error("total transform count search returned shard failures: {}",
                         Arrays.toString(transformCountSuccess.getShardFailures()));
                 }
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
@@ -210,7 +210,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(
             searchResponse -> {
                 if (searchResponse.getShardFailures().length > 0) {
-                    logger.error("get statistics summations search request returned shard failures: {}",
+                    logger.error("statistics summations search returned shard failures: {}",
                         Arrays.toString(searchResponse.getShardFailures()));
                 }
                 statsListener.onResponse(parseSearchAggs(searchResponse));

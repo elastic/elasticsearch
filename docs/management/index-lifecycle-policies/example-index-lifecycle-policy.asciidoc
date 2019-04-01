@@ -1,3 +1,4 @@
+[role="xpack"]
 [[example-using-index-lifecycle-policy]]
 === Example of using an index lifecycle policy
 

@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -217,8 +216,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         // Note: this is on purpose. While usually we would use Strings.toString(this) to render
         // this using toXContent, it may contain sensitive information in the headers and thus
         // should not emit them in case it accidentally gets logged.
-//        return super.toString();
-        return Strings.toString(this); //NOCOMMIT
+        return super.toString();
     }
 
     public static class Builder {

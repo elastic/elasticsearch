@@ -451,7 +451,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                      RepositoryData updatedRepositoryData, ActionListener<Void> listener) {
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         final ActionListener<Void> deleteListener = new GroupedActionListener<>(
-            ActionListener.wrap(() -> deleteIndices(snapshot, repositoryData, snapshotId, updatedRepositoryData, listener)), 2);
+            ActionListener.wrap(v -> deleteIndices(snapshot, repositoryData, snapshotId,
+                ActionListener.wrap(
+                    vv -> deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener), listener::onFailure)),
+                listener::onFailure), 2);
         executor.execute(new ActionRunnable<Void>(listener) {
             @Override
             protected void doRun() {
@@ -471,25 +474,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void deleteIndices(@Nullable SnapshotInfo snapshot, RepositoryData repositoryData, SnapshotId snapshotId,
-                               RepositoryData updatedRepositoryData, ActionListener<Void> listener) {
+                               ActionListener<Void> listener) {
         // Now delete all indices
         if (snapshot != null) {
             final List<String> indices = snapshot.indices();
             if (indices.isEmpty()) {
-                deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
+                listener.onResponse(null);
                 return;
             }
-            final ActionListener<Void> groupedListener = new GroupedActionListener<>(new ActionListener<Collection<Void>>() {
-                @Override
-                public void onResponse(final Collection<Void> voids) {
-                    deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            }, indices.size());
+            final ActionListener<Void> groupedListener =
+                new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
             for (String index : indices) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
 
@@ -521,7 +515,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 });
             }
         } else {
-            deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener);
+            listener.onResponse(null);
         }
     }
 

@@ -1291,13 +1291,16 @@ public final class TokenService {
      */
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
             throws IllegalStateException, DateTimeException {
-        final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final String plainRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");
         if (null != filter && filter.test(userTokenSource) == false) {
             return null;
         }
-        return new Tuple<>(UserToken.fromSourceMap(userTokenSource), refreshToken);
+        final UserToken userToken = UserToken.fromSourceMap(userTokenSource);
+        final String versionedRefreshToken = plainRefreshToken != null ?
+                prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
+        return new Tuple<>(userToken, versionedRefreshToken);
     }
 
     private static String getTokenDocumentId(UserToken userToken) {

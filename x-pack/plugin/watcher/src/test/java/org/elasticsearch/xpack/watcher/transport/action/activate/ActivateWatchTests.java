@@ -48,6 +48,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30699")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")

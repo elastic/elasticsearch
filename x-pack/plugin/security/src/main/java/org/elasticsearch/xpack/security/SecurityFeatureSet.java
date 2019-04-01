@@ -152,7 +152,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     static Map<String, Object> sslUsage(Settings settings) {
         // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
         //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
-        // But, if security has not been explicitly configure, but has defaulted to off due to the current license type,
+        // But, if security has not been explicitly configured, but has defaulted to off due to the current license type,
         // then these SSL settings are still respected (that is SSL might be enabled, while the rest of security is disabled).
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             Map<String, Object> map = new HashMap<>(2);

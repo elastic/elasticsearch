@@ -6,7 +6,27 @@
 {es-sql} provides a comprehensive set of built-in operators and functions:
 
 * <<sql-operators, Operators>>
-* <<sql-functions-aggs, Aggregate>>
+** <<sql-operators-equality>>
+** <<sql-operators-null-safe-equality>>
+** <<sql-operators-inequality>>
+** <<sql-operators-comparison>>
+** <<sql-operators-between>>
+** <<sql-operators-is-null>>
+** <<sql-operators-in>>
+** <<sql-operators-and>>
+** <<sql-operators-or>>
+** <<sql-operators-not>>
+** <<sql-operators-plus>>
+** <<sql-operators-subtract>>
+** <<sql-operators-negate>>
+** <<sql-operators-multiply>>
+** <<sql-operators-divide>>
+** <<sql-operators-remainder>>
+** <<sql-operators-cast-cast>>
+* <<sql-like-rlike-operators>>
+** <<sql-like-operator>>
+** <<sql-rlike-operator>>
+* <<sql-functions-aggs>>
 ** <<sql-functions-aggs-avg>>
 ** <<sql-functions-aggs-count>>
 ** <<sql-functions-aggs-count-all>>
@@ -24,9 +44,10 @@
 ** <<sql-functions-aggs-stddev-pop>>
 ** <<sql-functions-aggs-sum-squares>>
 ** <<sql-functions-aggs-var-pop>>
-* <<sql-functions-grouping, Grouping>>
+* <<sql-functions-grouping>>
 ** <<sql-functions-grouping-histogram>>
-* <<sql-functions-datetime, Date-Time>>
+* <<sql-functions-datetime-interval, Date-Time Operators>>
+* <<sql-functions-current-date, Date-Time Functions>>
 ** <<sql-functions-current-date>>
 ** <<sql-functions-current-timestamp>>
 ** <<sql-functions-datetime-day>>
@@ -47,11 +68,11 @@
 ** <<sql-functions-datetime-week>>
 ** <<sql-functions-datetime-year>>
 ** <<sql-functions-datetime-extract>>
-* <<sql-functions-search, Full-Text Search>>
+* <<sql-functions-search>>
 ** <<sql-functions-search-match>>
 ** <<sql-functions-search-query>>
 ** <<sql-functions-search-score>>
-* <<sql-functions-math, Mathematical>>
+* <<sql-functions-math>>
 ** <<sql-functions-math-abs>>
 ** <<sql-functions-math-cbrt>>
 ** <<sql-functions-math-ceil>>
@@ -80,7 +101,7 @@
 ** <<sql-functions-math-sin>>
 ** <<sql-functions-math-sinh>>
 ** <<sql-functions-math-tan>>
-* <<sql-functions-string, String>>
+* <<sql-functions-string>>
 ** <<sql-functions-string-ascii>>
 ** <<sql-functions-string-bit-length>>
 ** <<sql-functions-string-char>>
@@ -101,10 +122,10 @@
 ** <<sql-functions-string-space>>
 ** <<sql-functions-string-substring>>
 ** <<sql-functions-string-ucase>>
-* <<sql-functions-type-conversion, Type Conversion>>
+* <<sql-functions-type-conversion>>
 ** <<sql-functions-type-conversion-cast>>
 ** <<sql-functions-type-conversion-convert>>
-* <<sql-functions-conditional, Conditional>>
+* <<sql-functions-conditional>>
 ** <<sql-functions-conditional-coalesce>>
 ** <<sql-functions-conditional-greatest>>
 ** <<sql-functions-conditional-ifnull>>
@@ -112,11 +133,12 @@
 ** <<sql-functions-conditional-least>>
 ** <<sql-functions-conditional-nullif>>
 ** <<sql-functions-conditional-nvl>>
-* <<sql-functions-system, System>>
+* <<sql-functions-system>>
 ** <<sql-functions-system-database>>
 ** <<sql-functions-system-user>>
 
 include::operators.asciidoc[]
+include::like-rlike.asciidoc[]
 include::aggs.asciidoc[]
 include::grouping.asciidoc[]
 include::date-time.asciidoc[]

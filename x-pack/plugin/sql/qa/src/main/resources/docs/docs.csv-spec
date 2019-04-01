@@ -2495,3 +2495,25 @@ SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_n
  Anoosh        |Peyn
  Arumugam      |Ossenbruggen
 ;
+
+simpleLikeOperator
+// tag::simpleLike
+SELECT author, name FROM library WHERE name LIKE 'Dune%';
+
+    author     |     name
+---------------+---------------
+Frank Herbert  |Dune
+Frank Herbert  |Dune Messiah
+// end::simpleLike
+;
+
+simpleRLikeOperator
+// tag::simpleRLike
+SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
+
+    author     |      name
+---------------+----------------
+Frank Herbert  |Children of Dune
+// end::simpleRLike
+;
+

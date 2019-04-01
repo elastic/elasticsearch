@@ -80,7 +80,7 @@ NOTE: These values are invalid; you must substitute the appropriate content
 from your license file.
 
 You can also install your license file using a `curl` command. Be sure to add
-`@` before the license path.
+`@` before the license file path to instruct curl to treat it as an input file.
 
 [source,shell]
 ------------------------------------------------------------

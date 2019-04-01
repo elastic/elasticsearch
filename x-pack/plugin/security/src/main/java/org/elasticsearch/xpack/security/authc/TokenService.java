@@ -176,7 +176,7 @@ public final class TokenService {
     public static final Setting<TimeValue> DELETE_TIMEOUT = Setting.timeSetting("xpack.security.authc.token.delete.timeout",
             TimeValue.MINUS_ONE, Property.NodeScope);
 
-    private static final String TOKEN_DOC_TYPE = "token";
+    static final String TOKEN_DOC_TYPE = "token";
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
@@ -214,7 +214,7 @@ public final class TokenService {
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
-        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client);
+        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client, securityMainIndex, securityTokensIndex);
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
                 new BytesKey(saltArr));
@@ -235,16 +235,20 @@ public final class TokenService {
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
                                    Map<String, Object> metadata, boolean includeRefreshToken,
                                    ActionListener<Tuple<UserToken, String>> listener) {
-        createOAuth2Tokens(UUIDs.randomBase64UUID(), authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
+        // the created token is compatible with the oldest node version in the cluster
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        // the id of the created tokens ought be unguessable
+        final String userTokenId = UUIDs.randomBase64UUID();
+        createOAuth2Tokens(userTokenId, minNodeVersion, authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
     }
 
     /**
      * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata, with the given
      * token document id. The created tokens are be stored in the security index.
      */
-    private void createOAuth2Tokens(String userTokenId, Authentication authentication, Authentication originatingClientAuth,
-                                    Map<String, Object> metadata, boolean includeRefreshToken,
-                                    ActionListener<Tuple<UserToken, String>> listener) {
+    private void createOAuth2Tokens(String userTokenId, Version version, Authentication authentication,
+                                    Authentication originatingClientAuth, Map<String, Object> metadata,
+                                    boolean includeRefreshToken, ActionListener<Tuple<UserToken, String>> listener) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -252,29 +256,19 @@ public final class TokenService {
             listener.onFailure(traceLog("create token",
                 new IllegalArgumentException("originating client authentication must be provided")));
         } else {
-            final Instant created = clock.instant();
-            final Instant expiration = getExpirationTime(created);
-            final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
             final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), minNodeVersion, AuthenticationType.TOKEN, authentication.getMetadata());
-            final UserToken userToken = new UserToken(userTokenId, minNodeVersion, tokenAuth, expiration, metadata);
-            final String documentId = getTokenDocumentId(userToken);
+                authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
+            final UserToken userToken = new UserToken(userTokenId, version, tokenAuth, getExpirationTime(), metadata);
             final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
-            final String versionedRefreshToken;
+            final String versionedRefreshToken = includeRefreshToken ? prependVersionAndEncode(version, plainRefreshToken) : null;
             final BytesReference tokenDocument;
-            try {
-                versionedRefreshToken = includeRefreshToken ? prependVersionAndEncode(minNodeVersion, plainRefreshToken) : null;
-                if (minNodeVersion.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
-                    tokenDocument = createTokenDocument(created, userToken, plainRefreshToken, authentication, originatingClientAuth);
-                } else {
-                    tokenDocument = createTokenDocument(created, userToken, versionedRefreshToken, authentication, originatingClientAuth);
-                }
-            } catch (IOException e) {
-                // unexpected exception
-                listener.onFailure(e);
-                return;
+            if (version.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+                tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
+            } else {
+                tokenDocument = createTokenDocument(userToken, versionedRefreshToken, originatingClientAuth);
             }
-            final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(minNodeVersion);
+            final String documentId = getTokenDocumentId(userToken);
+            final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(version);
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
@@ -819,13 +813,13 @@ public final class TokenService {
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
                     tokenDocId, refreshTokenStatus.getSupersedingDocId());
-            getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), new ActionListener<GetResponse>() {
+            getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
                 private final Consumer<Exception> maybeRetryOnFailure = ex -> {
                     if (backoff.hasNext()) {
                         final TimeValue backofTimeValue = backoff.next();
                         logger.debug("retrying after [" + backofTimeValue + "] back off");
                         final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                .preserveContext(() -> getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), this));
+                                .preserveContext(() -> getSupersedingTokenDocAsync(refreshTokenStatus, this));
                         client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
                     } else {
                         logger.warn("back off retries exhausted");
@@ -870,13 +864,19 @@ public final class TokenService {
             });
         } else {
             final String newUserTokenId = UUIDs.randomBase64UUID();
+            final Version newTokenVersion = clusterService.state().nodes().getMinNodeVersion();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());
-            updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
+            if (newTokenVersion.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+                updateMap.put("superseded_by", prependVersionAndEncode(newTokenVersion, getTokenDocumentId(newUserTokenId)));
+            } else {
+                updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
+            }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final UpdateRequestBuilder updateRequest = client.prepareUpdate(securityMainIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
+            final SecurityIndexManager refreshedTokenIndex = getSecurityIndexManagerForVersion(refreshTokenStatus.getVersion());
+            final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
@@ -889,7 +889,7 @@ public final class TokenService {
                                     updateResponse.getGetResult().sourceAsMap()));
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createOAuth2Tokens(newUserTokenId, toRefreshUserToken.getAuthentication(), clientAuth,
+                            createOAuth2Tokens(newUserTokenId, newTokenVersion, toRefreshUserToken.getAuthentication(), clientAuth,
                                     toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
                             logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
@@ -908,7 +908,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -926,7 +926,7 @@ public final class TokenService {
                                         if (backoff.hasNext()) {
                                             logger.info("could not get token document [{}] for refresh, retrying", tokenDocId);
                                             final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                                    .preserveContext(() -> getTokenDocAsync(tokenDocId, this));
+                                                    .preserveContext(() -> getTokenDocAsync(tokenDocId, refreshedTokenIndex, this));
                                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                                         } else {
                                             logger.warn("could not get token document [{}] for refresh after all retries", tokenDocId);
@@ -955,14 +955,27 @@ public final class TokenService {
         }
     }
 
-    private void getTokenDocAsync(String tokenDocId, ActionListener<GetResponse> listener) {
-        final GetRequest getRequest = client.prepareGet(securityMainIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
+    private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {
+        Tuple<Version, String> versionAndSupersedingTokenDocId;
+        try {
+            versionAndSupersedingTokenDocId = unpackVersionAndPayload(refreshTokenStatus.getSupersedingDocId());
+        } catch (IOException e) {
+            // could be an old format refresh token
+            logger.debug("superseding token-doc-id in old unversioned format");
+            versionAndSupersedingTokenDocId = new Tuple<Version, String>(Version.V_7_0_0, refreshTokenStatus.getSupersedingDocId());
+        }
+        final SecurityIndexManager securityIndexManager = getSecurityIndexManagerForVersion(versionAndSupersedingTokenDocId.v1());
+        getTokenDocAsync(versionAndSupersedingTokenDocId.v2(), securityIndexManager, listener);
+    }
+
+    private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
+        final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
     /**
-     * A refresh token has a hardcoded maximum lifetime of 24h. This checks if the token document represents a valid token wrt this time
-     * interval.
+     * A refresh token has a fixed maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. This checks if the
+     * token document represents a valid token wrt this time interval.
      */
     private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant now, Map<String, Object> source) {
         final Long creationEpochMilli = (Long) source.get("creation_time");
@@ -970,7 +983,7 @@ public final class TokenService {
             throw new IllegalStateException("token document is missing creation time value");
         } else {
             final Instant creationTime = Instant.ofEpochMilli(creationEpochMilli);
-            if (now.isAfter(creationTime.plus(24L, ChronoUnit.HOURS))) {
+            if (now.isAfter(creationTime.plus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
                 return Optional.of(invalidGrantException("token document has expired"));
             } else {
                 return Optional.empty();
@@ -987,12 +1000,13 @@ public final class TokenService {
             Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
+        refreshTokenStatus.setVersion(userToken.getVersion());
         final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(now, source).orElseGet(() -> {
             if (refreshTokenStatus.isInvalidated()) {
                 return invalidGrantException("token has been invalidated");
             } else {
                 return checkClientCanRefresh(refreshTokenStatus, clientAuth)
-                        .orElse(checkMultipleRefreshes(now, refreshTokenStatus, userToken).orElse(null));
+                        .orElse(checkMultipleRefreshes(now, refreshTokenStatus).orElse(null));
             }
         });
         return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
@@ -1045,10 +1059,9 @@ public final class TokenService {
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
-    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken,
-                                                                                   UserToken userToken) {
+    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken) {
         if (refreshToken.isRefreshed()) {
-            if (userToken.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (refreshToken.getVersion().onOrAfter(Version.V_7_1_0)) {
                 if (now.isAfter(refreshToken.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
@@ -1074,15 +1087,39 @@ public final class TokenService {
     public void findActiveTokensForRealm(String realmName, @Nullable Predicate<Map<String, Object>> filter,
                                          ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
-        final SecurityIndexManager frozenSecurityIndex = securityMainIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
             listener.onFailure(new IllegalArgumentException("Realm name is required"));
-        } else if (frozenSecurityIndex.indexExists() == false) {
+            return;
+        }
+        final Instant now = clock.instant();
+        findActiveTokensForRealm(realmName, securityTokensIndex, now, filter, ActionListener.wrap(tokens -> {
+            if (false == securityTokensIndex.indexExists()
+                    || Instant.now().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS)
+                            .isBefore(securityTokensIndex.getCreationTime())) {
+                findActiveTokensForRealm(realmName, securityMainIndex, now, filter, ActionListener.wrap(tokensInSecurityMain -> {
+                    if (false == tokensInSecurityMain.isEmpty()) {
+                        final List<Tuple<UserToken, String>> allTokens = new ArrayList<>();
+                        allTokens.addAll(tokens);
+                        allTokens.addAll(tokensInSecurityMain);
+                        listener.onResponse(Collections.unmodifiableList(allTokens));
+                    } else {
+                        listener.onResponse(tokens);
+                    }
+                }, listener::onFailure));
+            } else {
+                listener.onResponse(tokens);
+            }
+        }, listener::onFailure));
+    }
+    private void findActiveTokensForRealm(String realmName, SecurityIndexManager tokensIndex, Instant now,
+                                          @Nullable Predicate<Map<String, Object>> filter,
+                                          ActionListener<Collection<Tuple<UserToken, String>>> listener) {
+        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
+        if (frozenTokensIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenTokensIndex.isAvailable() == false) {
+            listener.onFailure(frozenTokensIndex.getUnavailableReason());
         } else {
-            final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                 .filter(QueryBuilders.termQuery("access_token.realm", realmName))
@@ -1093,18 +1130,18 @@ public final class TokenService {
                     )
                     .should(QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli() - TimeValue.timeValueHours(24).millis()))
+                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
+                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                     )
                 );
-
-            final SearchRequest request = client.prepareSearch(securityMainIndex.aliasName())
+            final SearchRequest request = client.prepareSearch(tokensIndex.aliasName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
                 .setSize(1000)
                 .setFetchSource(true)
                 .request();
-            securityMainIndex.checkIndexVersionThenExecute(listener::onFailure,
+            tokensIndex.checkIndexVersionThenExecute(listener::onFailure,
                 () -> ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter)));
         }
     }
@@ -1118,15 +1155,39 @@ public final class TokenService {
      */
     public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
-        final SecurityIndexManager frozenSecurityIndex = securityMainIndex.freeze();
         if (Strings.isNullOrEmpty(username)) {
             listener.onFailure(new IllegalArgumentException("username is required"));
-        } else if (frozenSecurityIndex.indexExists() == false) {
+            return;
+        }
+        final Instant now = clock.instant();
+        findActiveTokensForUser(username, securityTokensIndex, now, ActionListener.wrap(tokens -> {
+            if (false == securityTokensIndex.indexExists()
+                    || Instant.now().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS)
+                            .isBefore(securityTokensIndex.getCreationTime())) {
+                findActiveTokensForUser(username, securityMainIndex, now, ActionListener.wrap(tokensInSecurityMain -> {
+                    if (false == tokensInSecurityMain.isEmpty()) {
+                        final List<Tuple<UserToken, String>> allTokens = new ArrayList<>();
+                        allTokens.addAll(tokens);
+                        allTokens.addAll(tokensInSecurityMain);
+                        listener.onResponse(Collections.unmodifiableList(allTokens));
+                    } else {
+                        listener.onResponse(tokens);
+                    }
+                }, listener::onFailure));
+            } else {
+                listener.onResponse(tokens);
+            }
+        }, listener::onFailure));
+    }
+
+    private void findActiveTokensForUser(String username, SecurityIndexManager tokensIndex, Instant now,
+                                         ActionListener<Collection<Tuple<UserToken, String>>> listener) {
+        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
+        if (frozenTokensIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenTokensIndex.isAvailable() == false) {
+            listener.onFailure(frozenTokensIndex.getUnavailableReason());
         } else {
-            final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
                 .filter(QueryBuilders.boolQuery()
@@ -1136,31 +1197,30 @@ public final class TokenService {
                     )
                     .should(QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli() - TimeValue.timeValueHours(24).millis()))
+                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
+                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
                     )
                 );
-
-            final SearchRequest request = client.prepareSearch(securityMainIndex.aliasName())
+            final SearchRequest request = client.prepareSearch(tokensIndex.aliasName())
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
                 .setSize(1000)
                 .setFetchSource(true)
                 .request();
-            securityMainIndex.checkIndexVersionThenExecute(listener::onFailure,
+            tokensIndex.checkIndexVersionThenExecute(listener::onFailure,
                 () -> ScrollHelper.fetchAllByEntity(client, request, listener,
                     (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))));
         }
     }
 
-    private static BytesReference createTokenDocument(Instant created, UserToken userToken, @Nullable String refreshToken,
-                                                      Authentication authentication,@Nullable Authentication originatingClientAuth)
-                                                              throws IOException {
+    private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
+                                               @Nullable Authentication originatingClientAuth) {
         assert refreshToken == null || originatingClientAuth != null;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
-            builder.field("creation_time", created.toEpochMilli());
+            builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
             if (refreshToken != null) {
                 builder.startObject("refresh_token")
                     .field("token", refreshToken)
@@ -1176,10 +1236,12 @@ public final class TokenService {
             builder.startObject("access_token")
                     .field("invalidated", false)
                     .field("user_token", userToken)
-                    .field("realm", authentication.getAuthenticatedBy().getName())
+                    .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName())
                     .endObject();
             builder.endObject();
             return BytesReference.bytes(builder);
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected exception when constructing a JSON document.", e);
         }
     }
 
@@ -1249,9 +1311,10 @@ public final class TokenService {
     }
 
     /**
-     * In version 7.1 tokens moved into a separate index away from other objects. But they moved "seamlessly" - without manual intervention.
-     * In this way, new tokens were created in the new index, while existing ones were left in place, to be removed by the
-     * {@code ExpiredTokenRemover}. But when searching for a token we need to consider both indices. 
+     * In version 7.1 tokens moved into a separate index away from the other entities due to their ephemeral nature. But they moved
+     * "seamlessly" - without manual intervention. In this way, new tokens are created in the new index, while the existing ones were left
+     * in place - to be accessed from the old index - and due to be removed automatically by the {@code ExpiredTokenRemover} periodic job.
+     * Therefore, in general, when searching for a token we need to consider both the new and the old indices.
      */
     private SecurityIndexManager getSecurityIndexManagerForVersion(Version version) {
         if (version.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
@@ -1317,14 +1380,17 @@ public final class TokenService {
         return expirationDelay;
     }
 
-    private Instant getExpirationTime(Instant now) {
-        return now.plusSeconds(expirationDelay.getSeconds());
+    private Instant getExpirationTime() {
+        return clock.instant().plusSeconds(expirationDelay.getSeconds());
+    }
+
+    private Instant getCreationTime(Instant expire) {
+        return expire.minusSeconds(expirationDelay.getSeconds());
     }
 
     private void maybeStartTokenRemover() {
-        if (securityMainIndex.isAvailable()) {
-            if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-                expiredTokenRemover.submit(client.threadPool());
+        if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
+            if (expiredTokenRemover.submit(client.threadPool())) {
                 lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
             }
         }
@@ -1382,7 +1448,7 @@ public final class TokenService {
         }
     }
 
-    private static String prependVersionAndEncode(Version version, String payload) throws IOException {
+    private static String prependVersionAndEncode(Version version, String payload) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream();
                 OutputStream base64 = Base64.getEncoder().wrap(os);
                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
@@ -1390,6 +1456,8 @@ public final class TokenService {
             Version.writeVersion(version, out);
             out.writeString(payload);
             return new String(os.toByteArray(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected exception when working with small in memory streams", e);
         }
     }
 
@@ -1941,6 +2009,7 @@ public final class TokenService {
         private final boolean refreshed;
         @Nullable private final Instant refreshInstant;
         @Nullable private final String supersededByDocId;
+        private Version version;
 
         private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
                                    Instant refreshInstant, String supersededByDocId) {
@@ -1974,6 +2043,14 @@ public final class TokenService {
 
         @Nullable String getSupersedingDocId() {
             return supersededByDocId;
+        }
+
+        Version getVersion() {
+            return version;
+        }
+
+        void setVersion(Version version) {
+            this.version = version;
         }
 
         static RefreshTokenStatus fromSourceMap(Map<String, Object> refreshTokenSource) {

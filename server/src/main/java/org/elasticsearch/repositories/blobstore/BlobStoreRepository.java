@@ -447,7 +447,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 vv -> deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener), listener::onFailure);
             deleteSnapshotBlobs(snapshot, snapshotId,
                 snapshot == null || snapshot.indices().isEmpty()
-                    ? afterDeleteIndices
+                    ? afterDeleteIndices // if we don't have any indices to delete move to cleaning up unreferenced indices right away
                     : ActionListener.wrap(
                         v -> deleteIndices(finalSnapshotInfo, repositoryData, snapshotId, afterDeleteIndices), listener::onFailure)
             );

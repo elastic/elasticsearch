@@ -284,8 +284,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                         }
                                     ));
                             }))));
-        runUntil(
-            () -> createdSnapshot.get() && snapshotRestored.get() && documentCountVerified.get(), TimeUnit.MINUTES.toMillis(5L));
+        runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
         assertTrue(createdSnapshot.get());
         assertTrue(snapshotRestored.get());
         assertTrue(documentCountVerified.get());

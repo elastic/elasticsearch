@@ -79,9 +79,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             "date", "1119-01-15T00:00:00.000Z", 24);
 
         assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)",
-            "time", "12:29:25.123Z", 24);
+            "time", "12:29:25.123Z", 18);
+        assertQuery("SELECT CAST('12:29:25.123456789+05:00' AS TIME)", "CAST('12:29:25.123456789+05:00' AS TIME)",
+            "time", "12:29:25.123+05:00", 18);
         assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)",
-            "time", "12:37:29.000Z", 24);
+            "time", "12:37:29.000Z", 18);
     }
     
     public void testIPs() throws IOException {

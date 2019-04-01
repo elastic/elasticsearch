@@ -193,10 +193,15 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
                     if (inconsistentReplica == replica) {
                         // overwrite
-                        SeqNoStats invalidSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
-                        shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));
+                        SeqNoStats invalidSeqNoStats =
+                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));
                     } else {
-                        shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null));
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null));
                     }
                 }
             }

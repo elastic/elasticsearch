@@ -292,7 +292,8 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void messageReceived(ConcreteShardRequest<Request> request, TransportChannel channel, Task task) {
-            new AsyncPrimaryAction(request.request, request.targetAllocationID, request.primaryTerm, channel, (ReplicationTask) task).run();
+            new AsyncPrimaryAction(request.request, request.targetAllocationID, request.primaryTerm,
+                new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
         }
     }
 
@@ -303,15 +304,15 @@ public abstract class TransportReplicationAction<
         private final String targetAllocationID;
         // primary term of the shard this request is meant for
         private final long primaryTerm;
-        private final TransportChannel channel;
+        private final ActionListener<Response> listener;
         private final ReplicationTask replicationTask;
 
-        AsyncPrimaryAction(Request request, String targetAllocationID, long primaryTerm, TransportChannel channel,
+        AsyncPrimaryAction(Request request, String targetAllocationID, long primaryTerm, ActionListener<Response> listener,
                            ReplicationTask replicationTask) {
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
-            this.channel = channel;
+            this.listener = listener;
             this.replicationTask = replicationTask;
         }
 
@@ -371,9 +372,7 @@ public abstract class TransportReplicationAction<
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId(), primaryTerm),
                         transportOptions,
-                        new TransportChannelResponseHandler<Response>(logger, channel, "rerouting indexing to target primary " + primary,
-                            reader) {
-
+                        new ActionListenerResponseHandler<Response>(listener, reader) {
                             @Override
                             public void handleResponse(Response response) {
                                 setPhase(replicationTask, "finished");
@@ -403,12 +402,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            try {
-                channel.sendResponse(e);
-            } catch (IOException inner) {
-                inner.addSuppressed(e);
-                logger.warn("failed to send response", inner);
-            }
+            listener.onFailure(e);
         }
 
         private ActionListener<Response> createResponseListener(final PrimaryShardReference primaryShardReference) {
@@ -433,22 +427,14 @@ public abstract class TransportReplicationAction<
                     }
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
-                    try {
-                        channel.sendResponse(response);
-                    } catch (IOException e) {
-                        onFailure(e);
-                    }
+                    listener.onResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException e1) {
-                        logger.warn("failed to send response", e);
-                    }
+                    listener.onFailure(e);
                 }
             };
         }

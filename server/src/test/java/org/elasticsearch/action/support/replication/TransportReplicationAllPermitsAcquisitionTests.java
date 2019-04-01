@@ -204,7 +204,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
             Thread thread = new Thread(() -> {
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                    singlePermitAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(listener), null) {
+                    singlePermitAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), listener, null) {
                         @Override
                         protected void doRun() throws Exception {
                             if (delayed) {
@@ -255,7 +255,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                allPermitsAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(allPermitFuture), null) {
+                allPermitsAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), allPermitFuture, null) {
                     @Override
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired", 0, reference.indexShard.getActiveOperationsCount());
@@ -529,33 +529,5 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     static class Response extends ReplicationResponse {
-    }
-
-    /**
-     * Transport channel that is needed for replica operation testing.
-     */
-    public TransportChannel transportChannel(final PlainActionFuture<Response> listener) {
-        return new TransportChannel() {
-
-            @Override
-            public String getProfileName() {
-                return "";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) throws IOException {
-                listener.onResponse(((Response) response));
-            }
-
-            @Override
-            public void sendResponse(Exception exception) throws IOException {
-                listener.onFailure(exception);
-            }
-
-            @Override
-            public String getChannelType() {
-                return "replica_test";
-            }
-        };
     }
 }

@@ -332,7 +332,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
         final TransportReplicationAction.AsyncPrimaryAction asyncPrimaryActionWithBlocks =
-            actionWithBlocks.new AsyncPrimaryAction(request, targetAllocationID, primaryTerm, createTransportChannel(listener), task);
+            actionWithBlocks.new AsyncPrimaryAction(request, targetAllocationID, primaryTerm, listener, task);
         asyncPrimaryActionWithBlocks.run();
 
         final ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
@@ -589,7 +589,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             isRelocated.set(true);
             executeOnPrimary = false;
         }
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(
@@ -646,7 +646,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
         action.new AsyncPrimaryAction(request, primaryShard.allocationId().getRelocationId(), primaryTerm,
-            createTransportChannel(listener), task) {
+            listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(
@@ -817,7 +817,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean throwExceptionOnCreation = i == 1;
         final boolean throwExceptionOnRun = i == 2;
         final boolean respondWithError = i == 3;
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(

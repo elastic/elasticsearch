@@ -239,8 +239,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Constructs new BlobStoreRepository
-     *  @param metadata       The metadata for this repository including name and settings
-     * @param settings Settings for the node this repository object is created on
+     * @param metadata   The metadata for this repository including name and settings
+     * @param settings   Settings for the node this repository object is created on
+     * @param threadPool Threadpool to run long running repository manipulations on asynchronously
      */
     protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
                                   ThreadPool threadPool) {

@@ -16,9 +16,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
@@ -35,15 +38,20 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
+    private final Auditor<DataFrameAuditMessage> auditor;
 
-    public DataFrameTransformPersistentTasksExecutor(Client client, DataFrameTransformsConfigManager transformsConfigManager,
-            DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService, SchedulerEngine schedulerEngine,
-            ThreadPool threadPool) {
+    public DataFrameTransformPersistentTasksExecutor(Client client,
+                                                     DataFrameTransformsConfigManager transformsConfigManager,
+                                                     DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService,
+                                                     SchedulerEngine schedulerEngine,
+                                                     Auditor<DataFrameAuditMessage> auditor,
+                                                     ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformsConfigManager = transformsConfigManager;
         this.dataFrameTransformsCheckpointService = dataFrameTransformsCheckpointService;
         this.schedulerEngine = schedulerEngine;
+        this.auditor = auditor;
         this.threadPool = threadPool;
     }
 
@@ -53,6 +61,11 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
                 DataFrameTransformTask.SCHEDULE_NAME + "_" + params.getId(), next());
 
+        DataFrameTransformState transformState = (DataFrameTransformState) state;
+        if (transformState != null && transformState.getTaskState() == DataFrameTransformTaskState.FAILED) {
+            logger.warn("Tried to start failed transform [" + params.getId() + "] failure reason: " + transformState.getReason());
+            return;
+        }
         // Note that while the task is added to the scheduler here, the internal state will prevent
         // it from doing any work until the task is "started" via the StartTransform api
         schedulerEngine.register(buildTask);
@@ -71,7 +84,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> persistentTask, Map<String, String> headers) {
         return new DataFrameTransformTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager, dataFrameTransformsCheckpointService,
-                schedulerEngine, threadPool, headers);
+            (DataFrameTransformState) persistentTask.getState(), client, transformsConfigManager,
+            dataFrameTransformsCheckpointService, schedulerEngine, auditor, threadPool, headers);
     }
 }

@@ -82,6 +82,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40368")
     public void testExtractIndexCheckpointsInconsistentGlobalCheckpoints() {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();
@@ -140,9 +141,19 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 // we need at least one replica for testing
                 int numShardCopies = randomIntBetween(2, 4);
 
+                int primaryShard = 0;
+                if (skipPrimaries) {
+                    primaryShard = randomInt(numShardCopies - 1);
+                }
                 int inconsistentReplica = -1;
                 if (inconsistentGlobalCheckpoints) {
-                    inconsistentReplica = randomIntBetween(0, numShardCopies - 1);
+                    List<Integer> replicas = new ArrayList<>(numShardCopies - 1);
+                    for (int i = 0; i < numShardCopies; i++) {
+                        if (primaryShard != i) {
+                            replicas.add(i);
+                        }
+                    }
+                    inconsistentReplica = randomFrom(replicas);
                 }
 
                 // SeqNoStats asserts that checkpoints are logical
@@ -155,11 +166,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
                 for (int replica = 0;  replica < numShardCopies; replica++) {
                     ShardId shardId = new ShardId(index, shardIndex);
-                    boolean primary = (replica == 0);
-
-                    if (skipPrimaries) {
-                        primary = randomBoolean();
-                    }
+                    boolean primary = (replica == primaryShard);
 
                     Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve(String.valueOf(shardIndex));
                     ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, primary,

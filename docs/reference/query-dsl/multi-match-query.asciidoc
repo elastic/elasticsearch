@@ -91,6 +91,10 @@ parameter, which can be set to:
 `phrase_prefix`::   Runs a `match_phrase_prefix` query on each field and
                     combines the `_score` from each field.  See <<type-phrase>>.
 
+`bool_prefix`::     Creates a `match_bool_prefix` query on each field and
+                    combines the `_score` from each field. See
+                    <<type-bool-prefix>>.
+
 [[type-best-fields]]
 ==== `best_fields`
 
@@ -516,3 +520,36 @@ per-term `blended` queries. It accepts:
 ===================================================
 The `fuzziness` parameter cannot be used with the `cross_fields` type.
 ===================================================
+
+[[type-bool-prefix]]
+==== `bool_prefix`
+
+The `bool_prefix` type's scoring behaves like <<type-most-fields>>, but using a
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>> instead of a
+`match` query.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "multi_match" : {
+      "query":      "quick brown f",
+      "type":       "bool_prefix",
+      "fields":     [ "subject", "message" ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `analyzer`, `boost`, `operator`, `minimum_should_match`, `lenient`,
+`zero_terms_query`, and `auto_generate_synonyms_phrase_query` parameters as
+explained in <<query-dsl-match-query, match query>> are supported. The
+`fuzziness`, `prefix_length`, `max_expansions`, `rewrite`, and
+`fuzzy_transpositions` parameters are supported for the terms that are used to
+construct term queries, but do not have an effect on the prefix query
+constructed from the final term.
+
+The `slop` and `cutoff_frequency` parameters are not supported by this query
+type.

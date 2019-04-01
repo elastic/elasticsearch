@@ -202,7 +202,6 @@ process. It does not support field name prefixes, wildcard characters,
 or other "advanced" features. For this reason, chances of it failing are
 very small / non existent, and it provides an excellent behavior when it
 comes to just analyze and run that text as a query behavior (which is
-usually what a text search box does). Also, the <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix`>>
-type can provide a great "as you type" behavior to automatically load search results.
+usually what a text search box does).
 
 **************************************************

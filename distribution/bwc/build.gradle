@@ -183,8 +183,10 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
       return "buildBwc${projectName.replaceAll(/-\w/){ it[1].toUpperCase() }.capitalize()}"
     }
 
+    task buildBwc {}
+
     Closure createBuildBwcTask = { projectName, projectDir, projectArtifact->
-        createRunBwcGradleTask(buildBwcTaskName(projectName)) {
+        Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
             args ":${projectDir.replace('/', ':')}:assemble"
             doLast {
                 if (projectArtifact.exists() == false) {
@@ -192,6 +194,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
                 }
             }
         }
+        buildBwc.dependsOn bwcTask
     }
 
     Map<String, File> artifactFiles = [:]

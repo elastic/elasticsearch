@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,6 +70,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -78,6 +78,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
+    private static final String JSON_FIELD_NAME = "labels";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
 
     @Override
@@ -126,7 +127,8 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(client().admin().indices().prepareCreate("idx")
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
-                        "tag", "type=keyword").get());
+                        "tag", "type=keyword",
+                        JSON_FIELD_NAME, "type=json").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(
@@ -138,7 +140,12 @@ public class StringTermsIT extends AbstractTermsTestCase {
                             .startArray(MULTI_VALUED_FIELD_NAME)
                                 .value("val" + i)
                                 .value("val" + (i + 1))
-                            .endArray().endObject()));
+                            .endArray()
+                            .startObject(JSON_FIELD_NAME)
+                                .field("priority", "urgent")
+                                .field("release", "v1.2." + i)
+                            .endObject()
+                        .endObject()));
         }
 
         getMultiSortDocs(builders);
@@ -574,7 +581,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 ElasticsearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
-                    assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));
+                    assertThat(aggException.getMessage(), startsWith("Invalid aggregation order path"));
                 } else {
                     throw e;
                 }
@@ -1106,6 +1113,74 @@ public class StringTermsIT extends AbstractTermsTestCase {
             assertThat(key(bucket), equalTo(i == 0 ? "idx" : "empty_bucket_idx"));
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
+        }
+    }
+
+    public void testJsonField() {
+        TermsAggregationBuilder builder = terms("terms")
+            .field(JSON_FIELD_NAME)
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(builder)
+            .get();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        Bucket bucket1 = terms.getBuckets().get(0);
+        assertEquals("urgent", bucket1.getKey());
+        assertEquals(5, bucket1.getDocCount());
+
+        Bucket bucket2 = terms.getBuckets().get(1);
+        assertThat(bucket2.getKeyAsString(), startsWith("v1.2."));
+        assertEquals(1, bucket2.getDocCount());
+    }
+    
+    public void testKeyedJsonField() {
+        // Aggregate on the 'priority' subfield.
+        TermsAggregationBuilder priorityAgg = terms("terms")
+            .field(JSON_FIELD_NAME + ".priority")
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchResponse priorityResponse = client().prepareSearch("idx")
+            .addAggregation(priorityAgg)
+            .get();
+        assertSearchResponse(priorityResponse);
+
+        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
+        assertThat(priorityTerms, notNullValue());
+        assertThat(priorityTerms.getName(), equalTo("terms"));
+        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
+
+        Bucket priorityBucket = priorityTerms.getBuckets().get(0);
+        assertEquals("urgent", priorityBucket.getKey());
+        assertEquals(5, priorityBucket.getDocCount());
+
+        // Aggregate on the 'release' subfield.
+        TermsAggregationBuilder releaseAgg = terms("terms")
+            .field(JSON_FIELD_NAME + ".release")
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint());
+
+        SearchResponse releaseResponse = client().prepareSearch("idx")
+            .addAggregation(releaseAgg)
+            .get();
+        assertSearchResponse(releaseResponse);
+
+        Terms releaseTerms = releaseResponse.getAggregations().get("terms");
+        assertThat(releaseTerms, notNullValue());
+        assertThat(releaseTerms.getName(), equalTo("terms"));
+        assertThat(releaseTerms.getBuckets().size(), equalTo(5));
+
+        for (Bucket bucket : releaseTerms.getBuckets()) {
+            assertThat(bucket.getKeyAsString(), startsWith("v1.2."));
+            assertEquals(1, bucket.getDocCount());
         }
     }
 

@@ -73,6 +73,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -1783,5 +1784,57 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertThat(exc.getDetailedMessage(), containsString("[numeric_type] option cannot be set on a non-numeric field"));
             }
         }
+    }
+
+    public void testJsonField() throws Exception {
+         XContentBuilder mapping = jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("json_field")
+                            .field("type", "json")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        ensureGreen("test");
+
+        index("test", "_doc", "1", jsonBuilder()
+            .startObject()
+                .startObject("json_field")
+                    .field("key", "A")
+                    .field("other_key", "D")
+                .endObject()
+            .endObject());
+        index("test", "_doc", "2", jsonBuilder()
+            .startObject()
+                .startObject("json_field")
+                    .field("key", "B")
+                    .field("other_key", "C")
+                .endObject()
+            .endObject());
+        index("test", "_doc", "3", jsonBuilder()
+            .startObject()
+                .startObject("json_field")
+                    .field("other_key", "E")
+                .endObject()
+            .endObject());
+        refresh("test");
+
+        SearchResponse response = client().prepareSearch("test")
+            .addSort("json_field", SortOrder.DESC)
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 3);
+        assertOrderedSearchHits(response, "3", "1", "2");
+
+        response = client().prepareSearch("test")
+            .addSort("json_field.key", SortOrder.DESC)
+            .get();
+
+        assertSearchResponse(response);
+        assertHitCount(response, 3);
+        assertOrderedSearchHits(response, "2", "1", "3");
     }
 }

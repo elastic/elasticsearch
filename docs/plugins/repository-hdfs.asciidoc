@@ -64,6 +64,8 @@ The following settings are supported:
 
     Whether to compress the metadata or not. (Enabled by default)
 
+include::repository-shared-settings.asciidoc[]
+
 `chunk_size`::
 
     Override the chunk size. (Disabled by default)

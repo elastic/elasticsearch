@@ -11,6 +11,7 @@ See also <<breaking-changes-7.0,Breaking changes>> and
 //Installation and Upgrade Guide
 
 //tag::notable-highlights[]
+[float]
 === Adaptive replica selection enabled by default
 
 In Elasticsearch 6.x and prior, a series of search requests to the same shard
@@ -19,8 +20,9 @@ could prove problematic if one node starts a long garbage collection --- sea
 requests could still be forwarded to the slow node regardless and would have an
 impact on search latency.
 
-In 6.1, we added an experimental <<search-adaptive-replica,adaptive replica
-selection>> feature. Each node tracks and compares how long search requests to
+In 6.1, we added an experimental
+{ref}/search.html#search-adaptive-replica[adaptive replica selection] feature.
+Each node tracks and compares how long search requests to
 other nodes take, and uses this information to adjust how frequently to send
 requests to shards on particular nodes. In our benchmarks, this results in an
 overall improvement in search throughput and reduced 99th percentile latencies.
@@ -31,27 +33,32 @@ turned it on by default starting in Elasticsearch 7.0.0.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Skip shard refreshes if a shard is "search idle"
 
-Elasticsearch 6.x and prior <<indices-refresh,refreshed>> indices automatically
-in the background, by default every second. This provides the “near real-time”
-search capabilities Elasticsearch is known for: results are available for search
-requests within one second after they'd been added, by default. However, this
-behavior has a significant impact on indexing performance if the refreshes are
-not needed, (e.g., if Elasticsearch isn’t servicing any active searches).
+Elasticsearch 6.x and prior {ref}/indices-refresh.html[refreshed] indices
+automatically in the background, by default every second. This provides the
+“near real-time” search capabilities Elasticsearch is known for: results are
+available for search requests within one second after they'd been added, by
+default. However, this behavior has a significant impact on indexing performance
+if the refreshes are not needed, (e.g., if Elasticsearch isn’t servicing any
+active searches).
 
 Elasticsearch 7.0 is much smarter about this behavior by introducing the
 notion of a shard being "search idle". A shard now transitions to being search
-idle after it hasn't had any searches for <<dynamic-index-settings,thirty
-seconds>>, by default. Once a shard is search idle, all scheduled refreshes will
+idle after it hasn't had any searches for
+{ref}/index-modules.html#dynamic-index-settings[thirty seconds], by default.
+Once a shard is search idle, all scheduled refreshes will
 be skipped until a search comes through, which will trigger the next scheduled
 refresh. We know that this is going to significantly increase the indexing
 throughput for many users. The new behavior is only applied if there is no
-explicit <<dynamic-index-settings,refresh interval set>>, so do set the refresh
+explicit {ref}/index-modules.html#dynamic-index-settings[refresh interval set],
+so do set the refresh
 interval explicitly for any indices on which you prefer the old behavior.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Default to one shard
 
 One of the biggest sources of troubles we’ve seen over the years from our users
@@ -69,6 +76,7 @@ can set it via the index settings.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Lucene 8
 
 As with every major release, we look to support the latest major version of
@@ -81,10 +89,11 @@ combine relevance signals for your searches while still maintaining speed.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Introduce the ability to minimize round-trips in {ccs}
 
 In Elasticsearch 5.3, we released a feature called
-<<modules-cross-cluster-search,{ccs}>> for users to query across multiple
+{ref}/modules-cross-cluster-search.html[{ccs}] for users to query across multiple
 clusters. We’ve since improved on the {ccs} framework, adding features to
 ultimately use it to deprecate and replace tribe nodes as a way to federate
 queries. In Elasticsearch 7.0, we’re adding a new execution mode for {ccs}: one
@@ -94,6 +103,7 @@ spans high-latencies (e.g., across a WAN).
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === New cluster coordination implementation
 
 Since the beginning, we focused on making Elasticsearch easy to scale and
@@ -118,12 +128,13 @@ use-cases to come.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Better support for small heaps (the real-memory circuit breaker)
 
-Elasticsearch 7.0 adds an all-new <<circuit-breaker,circuit breaker>> that keeps
-track of the total memory used by the JVM and will reject requests if they would
-cause the reserved plus actual heap usage to exceed 95%. We'll also be changing
-the default maximum buckets to return as part of an aggregation
+Elasticsearch 7.0 adds an all-new {ref}/circuit-breaker.html[circuit breaker]
+that keeps track of the total memory used by the JVM and will reject requests if
+they would cause the reserved plus actual heap usage to exceed 95%. We'll also
+be changing the default maximum buckets to return as part of an aggregation
 (`search.max_buckets`) to 10,000, which is unbounded by default in 6.x and
 prior. These two show great signs at seriously improving the out-of-memory
 protection of Elasticsearch in 7.x, helping you keep your cluster alive even in
@@ -131,6 +142,7 @@ the face of adversarial or novice users running large queries and aggregations.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === {ccr-cap} is production-ready
 
 We introduced {ccr-cap} as a beta feature in Elasticsearch
@@ -156,6 +168,7 @@ guide, or visit the reference documentation to learn more.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === {ilm} is production-ready
 
 Index Lifecycle Management (ILM) was
@@ -181,6 +194,7 @@ ILM is free to use and part of the default distribution of Elasticsearch.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === SQL is production-ready
 
 The SQL interface to Elasticsearch is now GA.
@@ -204,6 +218,7 @@ driver].
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === High-level REST client is feature-complete
 
 If you’ve been following our
@@ -232,6 +247,7 @@ guide].
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Support nanosecond timestamps
 
 Up until 7.0 Elasticsearch could only store timestamps with millisecond
@@ -252,6 +268,7 @@ with this field to avoid having an explosion of buckets.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Faster retrieval of top hits
 
 When it comes to search, query performance is a key feature. We have achieved a
@@ -282,6 +299,7 @@ WAND: Faster Retrieval of Top Hits in Elasticsearch].
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Support for TLS 1.3
 
 Elasticsearch has supported encrypted communications for a long time, however,
@@ -297,6 +315,7 @@ setup instructions] if you need help getting started.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Bundle JDK in Elasticsearch distribution
 
 One of the more prominent "getting started hurdles" we’ve seen users run into
@@ -311,6 +330,7 @@ JAVA_HOME] before starting Elasticsearch.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Rank features
 
 Elasticsearch 7.0 has several new field types to get the most out of your data.
@@ -326,6 +346,7 @@ post].
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === JSON logging
 
 JSON logging is now enabled in Elasticsearch in addition to plaintext
@@ -339,6 +360,7 @@ running on docker.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]
+[float]
 === Script score query (aka function score 2.0)
 
 With 7.0, we are introducing the

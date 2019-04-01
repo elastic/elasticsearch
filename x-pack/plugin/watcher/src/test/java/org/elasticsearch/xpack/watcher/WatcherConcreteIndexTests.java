@@ -40,6 +40,7 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
             .get();
 
         assertTrue(putWatchResponse.isCreated());
+        refresh();
 
         timeWarp().trigger("mywatch");
 

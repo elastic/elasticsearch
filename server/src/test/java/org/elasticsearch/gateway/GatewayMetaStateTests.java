@@ -374,7 +374,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39077")
     public void testAtomicityWithFailures() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateServiceWithFailures metaStateService =

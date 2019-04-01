@@ -416,7 +416,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
-        return new Cast(source(ctx), expression(ctx.valueExpression()), typedParsing(ctx.dataType(), DataType.class));
+        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(ctx.dataType(), DataType.class));
     }
 
     @Override

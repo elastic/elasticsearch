@@ -6,7 +6,7 @@
     "number_of_replicas" : 0,
     "auto_expand_replicas" : "0-1",
     "index.priority": 1000,
-    "index.format": 7,
+    "index.format": 7
   },
   "mappings" : {
     "_doc" : {

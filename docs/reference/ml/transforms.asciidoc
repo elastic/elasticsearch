@@ -134,7 +134,7 @@ PUT _ml/datafeeds/datafeed-test1
     "total_error_count": { <2>
       "script": {
         "lang": "expression",
-        "inline": "doc['error_count'].value + doc['aborted_count'].value"
+        "source": "doc['error_count'].value + doc['aborted_count'].value"
       }
     }
   }
@@ -239,7 +239,7 @@ PUT _ml/datafeeds/datafeed-test2
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "doc['some_field'].value + '_' + doc['another_field'].value" <2>
+        "source": "doc['some_field'].value + '_' + doc['another_field'].value" <2>
       }
     }
   }
@@ -276,7 +276,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "doc['another_field'].value.trim()" <1>
+        "source": "doc['another_field'].value.trim()" <1>
       }
     }
   }
@@ -312,7 +312,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "doc['some_field'].value.toLowerCase()" <1>
+        "source": "doc['some_field'].value.toLowerCase()" <1>
       }
     }
   }
@@ -349,7 +349,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "doc['some_field'].value.substring(0, 1).toUpperCase() + doc['some_field'].value.substring(1).toLowerCase()" <1>
+        "source": "doc['some_field'].value.substring(0, 1).toUpperCase() + doc['some_field'].value.substring(1).toLowerCase()" <1>
       }
     }
   }
@@ -386,7 +386,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "/\\s/.matcher(doc['tokenstring2'].value).replaceAll('_')" <1>
+        "source": "/\\s/.matcher(doc['tokenstring2'].value).replaceAll('_')" <1>
       }
     }
   }
@@ -422,7 +422,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_script_field": {
       "script": {
         "lang": "painless",
-        "inline": "def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';" <1>
+        "source": "def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';" <1>
       }
     }
   }
@@ -554,7 +554,7 @@ PUT _ml/datafeeds/datafeed-test4
   "script_fields": {
     "my_coordinates": {
       "script": {
-        "inline": "doc['coords.lat'].value + ',' + doc['coords.lon'].value",
+        "source": "doc['coords.lat'].value + ',' + doc['coords.lon'].value",
         "lang": "painless"
       }
     }

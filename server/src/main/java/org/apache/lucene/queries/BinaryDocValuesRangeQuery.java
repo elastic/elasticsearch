@@ -181,25 +181,25 @@ public final class BinaryDocValuesRangeQuery extends Query {
     public enum LengthType {
         FIXED_4 {
             @Override
-            int readLength(byte[] bytes, int offset) {
+            public int readLength(byte[] bytes, int offset) {
                 return 4;
             }
         },
         FIXED_8 {
             @Override
-            int readLength(byte[] bytes, int offset) {
+            public int readLength(byte[] bytes, int offset) {
                 return 8;
             }
         },
         FIXED_16 {
             @Override
-            int readLength(byte[] bytes, int offset) {
+            public int readLength(byte[] bytes, int offset) {
                 return 16;
             }
         },
         VARIABLE {
             @Override
-            int readLength(byte[] bytes, int offset) {
+            public int readLength(byte[] bytes, int offset) {
                 // the first bit encodes the sign and the next 4 bits encode the number
                 // of additional bytes
                 int token = Byte.toUnsignedInt(bytes[offset]);
@@ -214,6 +214,6 @@ public final class BinaryDocValuesRangeQuery extends Query {
         /**
          * Return the length of the value that starts at {@code offset} in {@code bytes}.
          */
-        abstract int readLength(byte[] bytes, int offset);
+        public abstract int readLength(byte[] bytes, int offset);
     }
 }

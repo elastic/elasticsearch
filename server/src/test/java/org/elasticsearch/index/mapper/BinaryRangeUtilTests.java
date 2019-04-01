@@ -21,6 +21,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.List;
+
+import static java.util.Collections.singleton;
+
 public class BinaryRangeUtilTests extends ESTestCase {
 
     public void testBasics() {
@@ -138,6 +143,24 @@ public class BinaryRangeUtilTests extends ESTestCase {
             cmp = normalize(Double.compare(number2, number1));
             assertEquals(cmp, normalize(encodedNumber2.compareTo(encodedNumber1)));
         }
+    }
+
+    public void testDecodeLongRanges() throws IOException {
+        // TODO: Apply randomized testing here
+        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.LONG, -10, 42, true, true);
+        List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeLongRanges(BinaryRangeUtil.encodeLongRanges(singleton(expected)));
+        assertEquals(1, decoded.size());
+        RangeFieldMapper.Range actual = decoded.get(1);
+        assertEquals(expected, actual);
+    }
+
+    public void testDecodeDoubleRanges() throws IOException {
+        // TODO: Apply randomized testing here
+        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.DOUBLE, -10.0D, 42.3D, true, true);
+        List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeDoubleRanges(BinaryRangeUtil.encodeDoubleRanges(singleton(expected)));
+        assertEquals(1, decoded.size());
+        RangeFieldMapper.Range actual = decoded.get(0);
+        assertEquals(expected, actual);
     }
 
     private static int normalize(int cmp) {

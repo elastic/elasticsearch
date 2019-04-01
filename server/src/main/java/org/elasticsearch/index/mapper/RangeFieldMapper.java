@@ -970,6 +970,27 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Range range = (Range) o;
+            return includeFrom == range.includeFrom &&
+                includeTo == range.includeTo &&
+                type == range.type &&
+                from.equals(range.from) &&
+                to.equals(range.to);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, from, to, includeFrom, includeTo);
+        }
+
+        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append(includeFrom ? '[' : '(');

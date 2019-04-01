@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -51,6 +53,10 @@ enum BinaryRangeUtil {
         return new BytesRef(encoded, 0, out.getPosition());
     }
 
+    static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
+        return null;
+    }
+
     static BytesRef encodeDoubleRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
         List<RangeFieldMapper.Range> sortedRanges = new ArrayList<>(ranges);
         Comparator<RangeFieldMapper.Range> fromComparator = Comparator.comparingDouble(range -> ((Number) range.from).doubleValue());
@@ -67,6 +73,30 @@ enum BinaryRangeUtil {
             out.writeBytes(encodedTo, encodedTo.length);
         }
         return new BytesRef(encoded, 0, out.getPosition());
+    }
+
+    static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges)  {
+        BinaryDocValuesRangeQuery.LengthType lengthType = BinaryDocValuesRangeQuery.LengthType.FIXED_8;
+
+        ByteArrayDataInput in = new ByteArrayDataInput();
+        in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
+        int numRanges = in.readVInt();
+
+        List<RangeFieldMapper.Range> ranges = new ArrayList<>(numRanges);
+
+        final byte[] bytes = encodedRanges.bytes;
+        int offset = in.getPosition();
+        for (int i = 0; i < numRanges; i++) {
+            int length = lengthType.readLength(bytes, offset);
+            double from = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, offset));
+            offset += length;
+
+            length = lengthType.readLength(bytes, offset);
+            double to = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, offset));
+            offset += length;
+            ranges.add(new RangeFieldMapper.Range(RangeFieldMapper.RangeType.DOUBLE, from, to, true, true));
+        }
+        return ranges;
     }
 
     static BytesRef encodeFloatRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {

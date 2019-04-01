@@ -964,12 +964,13 @@ public abstract class TransportReplicationAction<
         replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor, request);
     }
 
-    class ShardReference implements Releasable {
+    class PrimaryShardReference implements Releasable,
+            ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
 
-        ShardReference(IndexShard indexShard, Releasable operationLock) {
+        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
         }
@@ -985,15 +986,6 @@ public abstract class TransportReplicationAction<
 
         public ShardRouting routingEntry() {
             return indexShard.routingEntry();
-        }
-
-    }
-
-    class PrimaryShardReference extends ShardReference
-            implements ReplicationOperation.Primary<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> {
-
-        PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
-            super(indexShard, operationLock);
         }
 
         public boolean isRelocated() {

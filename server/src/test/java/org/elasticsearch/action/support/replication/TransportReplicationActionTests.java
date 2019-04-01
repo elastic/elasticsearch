@@ -797,9 +797,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 }
             };
 
-        TransportReplicationAction<Request, Request, TestResponse>.PrimaryOperationTransportHandler primaryPhase =
-            action.new PrimaryOperationTransportHandler();
-        primaryPhase.messageReceived(concreteShardRequest, createTransportChannel(listener), null);
+        action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
         assertThat(requestsToReplicas, arrayWithSize(1));
         assertThat(((TransportReplicationAction.ConcreteShardRequest<Request>) requestsToReplicas[0].request).getPrimaryTerm(),
@@ -945,7 +943,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean wrongAllocationId = randomBoolean();
         final long requestTerm = wrongAllocationId && randomBoolean() ? primaryTerm : primaryTerm + randomIntBetween(1, 10);
         Request request = new Request(shardId).timeout("1ms");
-            action.new PrimaryOperationTransportHandler().messageReceived(
+            action.handlePrimaryRequest(
                 new TransportReplicationAction.ConcreteShardRequest<>(request,
                     wrongAllocationId ? "_not_a_valid_aid_" : primary.allocationId().getId(),
                     requestTerm),

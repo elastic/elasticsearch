@@ -71,7 +71,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         transportService.registerRequestHandler(transportPrimaryAction,
             () -> new ConcreteShardRequest<>(request),
             executor, true, true,
-            new PrimaryOperationTransportHandler());
+            this::handlePrimaryRequest);
         transportService.registerRequestHandler(transportReplicaAction,
             () -> new ConcreteReplicaRequest<>(replicaRequest),
             executor, true, true,

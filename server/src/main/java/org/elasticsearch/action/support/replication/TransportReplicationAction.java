@@ -156,7 +156,7 @@ public abstract class TransportReplicationAction<
                                            Supplier<ReplicaRequest> replicaRequest, String executor) {
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
         transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
-            new PrimaryOperationTransportHandler());
+            this::handlePrimaryRequest);
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(transportReplicaAction,
             () -> new ConcreteReplicaRequest<>(replicaRequest),
@@ -275,17 +275,9 @@ public abstract class TransportReplicationAction<
         execute(task, request, new ChannelActionListener<>(channel, actionName, request));
     }
 
-    protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
-
-        public PrimaryOperationTransportHandler() {
-
-        }
-
-        @Override
-        public void messageReceived(ConcreteShardRequest<Request> request, TransportChannel channel, Task task) {
-            new AsyncPrimaryAction(
-                request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
-        }
+    protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
+        new AsyncPrimaryAction(
+            request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {

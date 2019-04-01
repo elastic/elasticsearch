@@ -20,20 +20,16 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
 import org.gradle.api.logging.Logging;
-import org.gradle.internal.impldep.org.joda.time.Seconds;
 import org.slf4j.Logger;
 
 import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static java.util.concurrent.TimeUnit.*;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 public interface TestClusterConfiguration {
 
@@ -89,7 +85,7 @@ public interface TestClusterConfiguration {
             boolean conditionMet = false;
             Throwable lastException = null;
             while (
-                System.currentTimeMillis() - startedAtMillis < MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
+                System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
             ) {
                 if (context.isProcessAlive() == false) {
                     throw new TestClustersException(

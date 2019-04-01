@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
-import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;

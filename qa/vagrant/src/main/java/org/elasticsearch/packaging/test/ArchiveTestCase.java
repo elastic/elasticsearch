@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
@@ -36,6 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -224,7 +226,8 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
-            final String test_java_home = sh.runIgnoreExitCode("mkdir ~/\"java home\"").stdout.trim();
+            String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
+            String test_java_home = FileUtils.mkdir(Paths.get("~", nameWithSpace)).toAbsolutePath().toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 final String java = systemJavaHome + "/bin/java";
@@ -244,7 +247,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
             } finally {
-                FileUtils.rm(Paths.get(test_java_home));
+                FileUtils.rm(Paths.get("\"" + test_java_home + "\""));
             }
         });
     }

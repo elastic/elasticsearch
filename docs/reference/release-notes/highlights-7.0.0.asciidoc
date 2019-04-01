@@ -10,6 +10,365 @@ See also <<breaking-changes-7.0,Breaking changes>> and
 //NOTE: The notable-highlights tagged regions are re-used in the
 //Installation and Upgrade Guide
 
-// tag::notable-highlights[]
+//tag::notable-highlights[]
+[float]
+==== Adaptive replica selection enabled by default
 
-// end::notable-highlights[]
+In Elasticsearch 6.x and prior, a series of search requests to the same shard
+would be forwarded to the primary and each replica in round-robin fashion. This
+could prove problematic if one node starts a long garbage collection --- search
+requests could still be forwarded to the slow node regardless and would have an
+impact on search latency.
+
+In 6.1, we added an experimental
+{ref}/search.html#search-adaptive-replica[adaptive replica selection] feature.
+Each node tracks and compares how long search requests to
+other nodes take, and uses this information to adjust how frequently to send
+requests to shards on particular nodes. In our benchmarks, this results in an
+overall improvement in search throughput and reduced 99th percentile latencies.
+
+This option was disabled by default throughout 6.x, but we’ve heard feedback
+from our users that have found the setting to be very beneficial, so we’ve
+turned it on by default starting in Elasticsearch 7.0.0.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Skip shard refreshes if a shard is "search idle"
+
+Elasticsearch 6.x and prior {ref}/indices-refresh.html[refreshed] indices
+automatically in the background, by default every second. This provides the
+“near real-time” search capabilities Elasticsearch is known for: results are
+available for search requests within one second after they'd been added, by
+default. However, this behavior has a significant impact on indexing performance
+if the refreshes are not needed, (e.g., if Elasticsearch isn’t servicing any
+active searches).
+
+Elasticsearch 7.0 is much smarter about this behavior by introducing the
+notion of a shard being "search idle". A shard now transitions to being search
+idle after it hasn't had any searches for
+{ref}/index-modules.html#dynamic-index-settings[thirty seconds], by default.
+Once a shard is search idle, all scheduled refreshes will
+be skipped until a search comes through, which will trigger the next scheduled
+refresh. We know that this is going to significantly increase the indexing
+throughput for many users. The new behavior is only applied if there is no
+explicit {ref}/index-modules.html#dynamic-index-settings[refresh interval set],
+so do set the refresh
+interval explicitly for any indices on which you prefer the old behavior.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Default to one shard
+
+One of the biggest sources of troubles we’ve seen over the years from our users
+has been over-sharding and defaults play a big role in that. In Elasticsearch
+6.x and prior, we defaulted to five shards by default per index. If you had one
+daily index for ten different applications and each had the default of five
+shards, you were creating fifty shards per day and it wasn't long before you had
+thousands of shards even if you were only indexing a few gigabytes of data per
+day. Index Lifecycle Management was a first step to help with this: providing
+native rollover functions to create indexes by size instead of (just) by day and
+built-in shrink functionality to shrink the number of shards per
+index. Defaulting indices to one shard is the next step in helping to reduce
+over-sharding. Of course, if you have another preferred primary shard count, you
+can set it via the index settings.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Lucene 8
+
+As with every major release, we look to support the latest major version of
+Lucene, along with all the goodness that comes with it. That includes all the
+developments that we contributed to the new Lucene version. Elasticsearch 7.0
+bundles Lucene 8, which is the latest version of Lucene. Lucene version 8 serves
+as the foundation for many functional improvements in the rest of Elasticsearch,
+including improved search performance for top-k queries and better ways to
+combine relevance signals for your searches while still maintaining speed.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Introduce the ability to minimize round-trips in {ccs}
+
+In Elasticsearch 5.3, we released a feature called
+{ref}/modules-cross-cluster-search.html[{ccs}] for users to query across multiple
+clusters. We’ve since improved on the {ccs} framework, adding features to
+ultimately use it to deprecate and replace tribe nodes as a way to federate
+queries. In Elasticsearch 7.0, we’re adding a new execution mode for {ccs}: one
+which has fewer round-trips when they aren't necessary. This mode
+(`ccs_minimize_roundtrips`) can result in faster searches when the {ccs} query
+spans high-latencies (e.g., across a WAN).
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== New cluster coordination implementation
+
+Since the beginning, we focused on making Elasticsearch easy to scale and
+resilient to catastrophic failures. To support these requirements, we created a
+pluggable cluster coordination system, with the default implementation known as
+Zen Discovery. Zen Discovery was meant to be effortless, and give our users
+peace of mind (as the name implies). The meteoric rise in Elasticsearch usage
+has taught us a great deal. For instance, Zen's `minimum_master_nodes` setting
+was often misconfigured, which put clusters at a greater risk of split brains
+and losing data. Maintaining this setting across large and dynamically resizing
+clusters was also difficult.
+
+In Elasticsearch 7.0, we have completely rethought and rebuilt the cluster
+coordination layer. The new implementation gives safe sub-second master election
+times, where Zen may have taken several seconds to elect a new master, valuable
+time for a mission-critical deployment. With the `minimum_master_nodes` setting
+removed, growing and shrinking clusters becomes safer and easier, and leaves
+much less room to misconfigure the system. Most importantly, the new cluster
+coordination layer gives us strong building blocks for the future of
+Elasticsearch, ensuring we can build functionality for even more advanced
+use-cases to come.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Better support for small heaps (the real-memory circuit breaker)
+
+Elasticsearch 7.0 adds an all-new {ref}/circuit-breaker.html[circuit breaker]
+that keeps track of the total memory used by the JVM and will reject requests if
+they would cause the reserved plus actual heap usage to exceed 95%. We'll also
+be changing the default maximum buckets to return as part of an aggregation
+(`search.max_buckets`) to 10,000, which is unbounded by default in 6.x and
+prior. These two show great signs at seriously improving the out-of-memory
+protection of Elasticsearch in 7.x, helping you keep your cluster alive even in
+the face of adversarial or novice users running large queries and aggregations.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== {ccr-cap} is production-ready
+
+We introduced {ccr-cap} as a beta feature in Elasticsearch
+6.5. {ccr-cap} was the most heavily requested features for Elasticsearch. We're
+excited to announce {ccr-cap} is now generally available and ready for production use
+in Elasticsearch 6.7 and 7.0! {ccr-cap} has a variety of use cases, including
+cross-datacenter and cross-region replication, replicating data to get closer to
+the application server and user, and maintaining a centralized reporting cluster
+replicated from a large number of smaller clusters.
+
+In addition to maturing to a GA feature, there were a number of important
+technical advancements in CCR for 6.7 and 7.0. Previous versions of {ccr-cap} required
+replication to start on new indices only: existing indices could not be
+replicated. {ccr-cap} can now start replicating existing indices that have soft
+deletes enabled in 6.7 and 7.0, and new indices default to having soft deletes
+enabled. We also introduced new technology to prevent a follower index from
+falling fatally far behind its leader index. We’ve added a management UI in
+Kibana for configuring remote clusters, indices to replicate, and index naming
+patterns for automatic replication (e.g. for replicating `metricbeat-*`
+indices). We've also added a monitoring UI for insight into {ccr} progress and
+alerting on errors. Check out the Getting started with {ccr}
+guide, or visit the reference documentation to learn more.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== {ilm-cap} is production-ready
+
+Index Lifecycle Management (ILM) was
+https://www.elastic.co/blog/elastic-stack-6-6-0-released[released] as a beta
+feature in Elasticsearch 6.6. We’ve officially moved ILM out of beta and into
+GA, ready for production usage! ILM makes it easy to manage the lifecycle of
+data in Elasticsearch, including how data progresses between
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/ilm-policy-definition.html[hot, warm, cold, and deletion phases].
+Specific rules regarding how data moves through these phases can be created via
+APIs in Elasticsearch, or a beautiful management UI in Kibana.
+
+In Elasticsearch 6.7 and 7.0, ILM can now manage frozen indices. Frozen indices
+are valuable for long term data storage in Elasticsearch, and require a smaller
+amount of memory (heap) in relation to the amount of data managed by a node. In
+6.7 and 7.0,
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/_actions.html[frozen indices]
+can now be frozen as part of the cold phase in ILM. In addition, ILM now works
+directly with Cross-Cluster Replication (CCR), which also GA’d in the
+Elasticsearch 6.7 and 7.0 releases. The potential actions available in each ILM
+phase can be found in the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/_actions.html[documentation].
+ILM is free to use and part of the default distribution of Elasticsearch.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== SQL is production-ready
+
+The SQL interface to Elasticsearch is now GA.
+https://www.elastic.co/blog/elasticsearch-6-3-0-released[Introduced in 6.3] as
+an alpha release, the SQL interface allows developers and data scientists
+familiar with SQL to use the speed, scalability, and full-text power of
+Elasticsearch that others know and love. It also allows BI tools using SQL to
+easily access data in Elasticsearch. In addition to approving SQL access as a GA
+feature in Elasticsearch, we’ve designated our
+https://www.elastic.co/downloads/jdbc-client[JDBC] and
+https://www.elastic.co/downloads/odbc-client[ODBC] drivers as GA. There are four
+methods to access Elasticsearch SQL: through the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/sql-rest.html[Elasticsearch
+REST endpoints], the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/sql-cli.html[Elasticsearch
+SQL command line interface], the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/sql-jdbc.html[JDBC
+driver], and the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/sql-odbc.html[ODBC
+driver].
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== High-level REST client is feature-complete
+
+If you’ve been following our
+https://www.elastic.co/blog/the-elasticsearch-java-high-level-rest-client-is-out[blog]
+or our https://github.com/elastic/elasticsearch/issues/27205[GitHub repository],
+you may be aware of a task we’ve been working on for quite a while now: creating
+a next-generation Java client for accessing an Elasticsearch cluster. We
+started off by working on the most commonly-used features like search and
+aggregations, and have been working our way through administrative and
+monitoring APIs. Many of you that use Java are already using this new client,
+but for those that are still using the TransportClient, now is a great time to
+upgrade to our High Level REST Client, or HLRC.
+
+As of 7.0.0, the HLRC now has all the API checkboxes checked to call it
+“complete” so those of you still using the TransportClient should be able to
+migrate. We’ll of course continue to develop our REST APIs and will add them to
+this client as we go. For a list of all of the APIs that are available, have a
+look at our
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.0/java-rest-high.html[HLRC
+documentation]. To get started, have a look at the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.0/java-rest-high-getting-started.html[getting
+started with the HLRC] section of our docs and if you need help migrating from
+the TransportClient, have a look at our
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.0/java-rest-high-level-migration.html[migration
+guide].
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Support nanosecond timestamps
+
+Up until 7.0 Elasticsearch could only store timestamps with millisecond
+precision. If you wanted to process events that occur at a higher rate -- for
+example if you want to store and analyze tracing or network packet data in
+Elasticsearch -- you may want higher precision. Historically, we have used the
+https://www.joda.org/joda-time/[Joda time library] to handle dates and times,
+and Joda lacked support for such high precision timestamps.
+
+With JDK 8, an official Java time API has been introduced which can also handle
+nanosecond precision timestamps and over the past year, we’ve been working to
+migrate our Joda time usage to the native Java time while trying to maintain
+backwards compatibility. As of 7.0.0, you can now make use of these nanosecond
+timestamps via a dedicated
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/date_nanos.html[date_nanos
+field mapper]. Note that aggregations are still on a millisecond resolution
+with this field to avoid having an explosion of buckets.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Faster retrieval of top hits
+
+When it comes to search, query performance is a key feature. We have achieved a
+significant improvement to search performance in Elasticsearch 7.0 for
+situations in which the exact hit count is not needed and it is sufficient to
+set a lower boundary to the number of results. For example, if your users
+typically just look at the first page of results on your site and don’t care
+about exactly how many documents matched, you may be able to show them “more
+than 10,000 hits” and then provide them with paginated results. It’s quite
+common to have users enter frequently-occurring terms like “the” and “a” in
+their queries, which has historically forced Elasticsearch to score a lot of
+documents even when those frequent terms couldn’t possibly add much to the
+score.
+
+In these conditions Elasticsearch can now skip calculating scores for records
+that are identified at an early stage as records that will not be ranked at the
+top of the result set. This can significantly improve the query speed. The
+actual number of top results that are scored is
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/search-request-track-total-hits.html[configurable],
+but the default is 10,000. The behavior of queries that have a result set that
+is smaller than this threshold will not change - i.e. the results count is
+accurate but there is no performance improvement for queries that match a small
+number of documents. Because the improvement is based on skipping low ranking
+records, it does not apply to aggregations. You can read more about this
+powerful algorithmic development in our blog post
+https://www.elastic.co/blog/faster-retrieval-of-top-hits-in-elasticsearch-with-block-max-wand[Magic
+WAND: Faster Retrieval of Top Hits in Elasticsearch].
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Support for TLS 1.3
+
+Elasticsearch has supported encrypted communications for a long time, however,
+we recently started https://www.elastic.co/support/matrix#matrix_jvm[supporting
+JDK 11], which gives us new capabilities. JDK 11 now has TLSv1.3 support so
+starting with 7.0, we’re now supporting TLSv1.3 within Elasticsearch for those
+of you running JDK 11. In order to help new users from inadvertently running
+with low security, we’ve also dropped TLSv1.0 from our defaults. For those
+running older versions of Java, we have default options of TLSv1.2 and
+TLSv1.1. Have a look at our
+https://www.elastic.co/guide/en/elastic-stack-overview/7.0/ssl-tls.html[TLS
+setup instructions] if you need help getting started.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Bundle JDK in Elasticsearch distribution
+
+One of the more prominent "getting started hurdles" we’ve seen users run into
+has been not knowing that Elasticsearch is a Java application and that they need
+to install one of the supported JDKs first. With 7.0, we’re now bundling a
+distribution of OpenJDK to help users get started with Elasticsearch even
+faster. We understand that some users have preferred JDK distributions, so we
+also support bringing your own JDK. If you want to bring your own JDK, you can
+still do so by
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/setup.html#jvm-version[setting
+JAVA_HOME] before starting Elasticsearch.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Rank features
+
+Elasticsearch 7.0 has several new field types to get the most out of your data.
+Two to help with core search use cases are
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/rank-feature.html[`rank_feature`]
+and
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/rank-features.html[`rank_features`].
+These can be used to boost documents based on numeric or categorical values
+while still maintaining the performance of the new fast top hits query
+capabilities. For more information on these fields and how to use them, read our
+https://www.elastic.co/blog/easier-relevance-tuning-elasticsearch-7-0[blog
+post].
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== JSON logging
+
+JSON logging is now enabled in Elasticsearch in addition to plaintext
+logs. Starting in 7.0, you will find new files with `.json` extensions in your
+log directory. This means you can now use filtering tools like
+https://stedolan.github.io/jq/[`jq`] to pretty print and process your logs in a
+much more structured manner. You can also expect finding additional information
+like `node.id`, `cluster.uuid`, `type` (and more) in each log line. The `type`
+field per each JSON log line will let you to distinguish log streams when
+running on docker.
+//end::notable-highlights[]
+
+//tag::notable-highlights[]
+[float]
+=== Script score query (aka function score 2.0)
+
+With 7.0, we are introducing the
+https://www.elastic.co/guide/en/elasticsearch/reference/7.0/query-dsl-script-score-query.html[next
+generation of our function score capability]. This new script_score query
+provides a new, simpler, and more flexible way to generate a ranking score per
+record. The script_score query is constructed of a set of functions, including
+arithmetic and distance functions, which the user can mix and match to construct
+arbitrary function score calculations. The modular structure is simpler to use
+and will open this important functionality to additional users.
+//end::notable-highlights[]

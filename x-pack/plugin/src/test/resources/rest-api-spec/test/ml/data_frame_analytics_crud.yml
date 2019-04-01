@@ -33,17 +33,21 @@
         id: "simple-outlier-detection-with-query"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}],
-            "query": {"term" : { "user" : "Kimchy" }},
             "analyses_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source: "index-source" }
-  - match: { dest: "index-dest" }
+  - match: { source.index: "index-source" }
+  - match: { source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { dest.index: "index-dest" }
   - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { query: {"term" : { "user" : "Kimchy"} } }
   - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
 
 ---
@@ -54,10 +58,14 @@
         id: "data_frame_with_header"
         body:  >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}],
-            "query": {"term" : { "user" : "Kimchy" }},
             "headers":{ "a_security_header" : "secret" }
           }
 
@@ -69,15 +77,19 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "simple-outlier-detection" }
-  - match: { source: "index-source" }
-  - match: { dest: "index-dest" }
+  - match: { source.index: "index-source" }
+  - match: { source.query: {"match_all" : {} } }
+  - match: { dest.index: "index-dest" }
   - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { query: {"match_all" : {} } }
 
 ---
 "Test put config with inconsistent body/param ids":
@@ -89,8 +101,12 @@
         body: >
           {
             "id": "body_id",
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -103,8 +119,12 @@
         id: "this id contains spaces"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -117,8 +137,12 @@
         id: "unknown_field"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}],
             "unknown_field": 42
           }
@@ -132,8 +156,12 @@
         id: "unknown_field"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{"unknown_field": 42}}]
           }
 
@@ -146,7 +174,44 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "dest": "index-dest",
+            "dest": {
+              "index": "index-dest"
+            },
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given source with empty index":
+
+  - do:
+      catch: /\[index\] must be non-empty/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": ""
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given source without index":
+
+  - do:
+      catch: /Required \[index\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -159,7 +224,44 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "source": "index-source",
+            "source": {
+              "index": "index-source"
+            },
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given dest with empty index":
+
+  - do:
+      catch: /\[index\] must be non-empty/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": ""
+            },
+            "analyses": [{"outlier_detection":{}}]
+          }
+
+---
+"Test put config given dest without index":
+
+  - do:
+      catch: /Required \[index\]/
+      ml.put_data_frame_analytics:
+        id: "simple-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -172,8 +274,12 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest"
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            }
           }
 
 ---
@@ -185,8 +291,12 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": []
           }
 
@@ -199,8 +309,12 @@
         id: "simple-outlier-detection"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}, {"outlier_detection":{}}]
           }
 
@@ -212,8 +326,12 @@
         id: "foo-1"
         body: >
           {
-            "source": "index-foo-1_source",
-            "dest": "index-foo-1_dest",
+            "source": {
+              "index": "index-foo-1_source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -222,8 +340,12 @@
         id: "foo-2"
         body: >
           {
-            "source": "index-foo-2_source",
-            "dest": "index-foo-2_dest",
+            "source": {
+              "index": "index-foo-2_source"
+            },
+            "dest": {
+              "index": "index-foo-2_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "foo-2" }
@@ -233,8 +355,12 @@
         id: "bar"
         body: >
           {
-            "source": "index-bar_source",
-            "dest": "index-bar_dest",
+            "source": {
+              "index": "index-bar_source"
+            },
+            "dest": {
+              "index": "index-bar_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "bar" }
@@ -297,8 +423,12 @@
         id: "foo-1"
         body: >
           {
-            "source": "index-foo-1_source",
-            "dest": "index-foo-1_dest",
+            "source": {
+              "index": "index-foo-1_source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -307,8 +437,12 @@
         id: "foo-2"
         body: >
           {
-            "source": "index-foo-2_source",
-            "dest": "index-foo-2_dest",
+            "source": {
+              "index": "index-foo-2_source"
+            },
+            "dest": {
+              "index": "index-foo-2_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "foo-2" }
@@ -318,8 +452,12 @@
         id: "bar"
         body: >
           {
-            "source": "index-bar_source",
-            "dest": "index-bar_dest",
+            "source": {
+              "index": "index-bar_source"
+            },
+            "dest": {
+              "index": "index-bar_dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
   - match: { id: "bar" }
@@ -383,8 +521,12 @@
         id: "foo"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -426,10 +568,14 @@
         id: "simple-outlier-detection-with-query"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}],
-            "query": {"term" : { "user" : "Kimchy" }},
             "model_memory_limit": "8gb",
             "analyses_fields": [ "obj1.*", "obj2.*" ]
           }
@@ -440,17 +586,21 @@
         id: "simple-outlier-detection-with-query"
         body: >
           {
-            "source": "index-source",
-            "dest": "index-dest",
+            "source": {
+              "index": "index-source",
+              "query": {"term" : { "user" : "Kimchy" }}
+            },
+            "dest": {
+              "index": "index-dest"
+            },
             "analyses": [{"outlier_detection":{}}],
-            "query": {"term" : { "user" : "Kimchy" }},
             "analyses_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
-  - match: { source: "index-source" }
-  - match: { dest: "index-dest" }
+  - match: { source.index: "index-source" }
+  - match: { source.query: {"term" : { "user" : "Kimchy"} } }
+  - match: { dest.index: "index-dest" }
   - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { query: {"term" : { "user" : "Kimchy"} } }
   - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - match: { model_memory_limit: "20mb" }
 

@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalysisConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
@@ -58,16 +60,16 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
 
@@ -110,7 +112,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertTrue(isCompleted()), 120, TimeUnit.SECONDS);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest()).setTrackTotalHits(true).get();
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
         Assert.assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 5));
         for(SearchHit hit : searchResponse.getHits().getHits()) {
             Map<String, Object> src = hit.getSourceAsMap();
@@ -132,7 +134,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         putDataFrameAnalyticsConfig(config);
 
         // Create the "results" index, as if we ran reindex already in the process, but did not transition from the state properly
-        createAnalysesResultsIndex(config.getDest(), false);
+        createAnalysesResultsIndex(config.getDest().getIndex(), false);
         List<AnalyticsResult> results = buildExpectedResults(sourceIndex);
 
         DataFrameAnalyticsManager manager = createManager(results);
@@ -144,7 +146,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertTrue(isCompleted()), 120, TimeUnit.SECONDS);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest()).setTrackTotalHits(true).get();
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
         Assert.assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 5));
         for(SearchHit hit : searchResponse.getHits().getHits()) {
             Map<String, Object> src = hit.getSourceAsMap();
@@ -165,7 +167,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex);
         putDataFrameAnalyticsConfig(config);
         // Create the "results" index to simulate running reindex already and having partially ran analysis
-        createAnalysesResultsIndex(config.getDest(), true);
+        createAnalysesResultsIndex(config.getDest().getIndex(), true);
         List<AnalyticsResult> results = buildExpectedResults(sourceIndex);
 
         DataFrameAnalyticsManager manager = createManager(results);
@@ -177,7 +179,7 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertTrue(isCompleted()), 120, TimeUnit.SECONDS);
 
         // Check we've got all docs
-        SearchResponse searchResponse = client().prepareSearch(config.getDest()).setTrackTotalHits(true).get();
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
         Assert.assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) 5));
         for(SearchHit hit : searchResponse.getHits().getHits()) {
             Map<String, Object> src = hit.getSourceAsMap();
@@ -201,8 +203,8 @@ public class DataFrameAnalyticsManagerIT extends BaseMlIntegTestCase {
 
     private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex) {
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
-        configBuilder.setSource(sourceIndex);
-        configBuilder.setDest(sourceIndex + "-results");
+        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
+        configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results"));
         Map<String, Object> analysisConfig = new HashMap<>();
         analysisConfig.put("outlier_detection", Collections.emptyMap());
         configBuilder.setAnalyses(Collections.singletonList(new DataFrameAnalysisConfig(analysisConfig)));

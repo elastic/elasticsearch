@@ -9,6 +9,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -262,6 +264,9 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSES.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName(),
+            DataFrameAnalyticsDest.INDEX.getPreferredName(),
+            DataFrameAnalyticsSource.INDEX.getPreferredName(),
+            DataFrameAnalyticsSource.QUERY.getPreferredName(),
             "outlier_detection",
             "method",
             "number_neighbours",

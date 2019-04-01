@@ -331,8 +331,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ReplicationTask task = maybeTask();
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
+        final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+            = new TransportReplicationAction.ConcreteShardRequest<>(request, targetAllocationID, primaryTerm);
         final TransportReplicationAction.AsyncPrimaryAction asyncPrimaryActionWithBlocks =
-            actionWithBlocks.new AsyncPrimaryAction(request, targetAllocationID, primaryTerm, listener, task);
+            actionWithBlocks.new AsyncPrimaryAction(primaryRequest, listener, task);
         asyncPrimaryActionWithBlocks.run();
 
         final ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
@@ -589,7 +591,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             isRelocated.set(true);
             executeOnPrimary = false;
         }
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, listener, task) {
+        final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+            = new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
+        action.new AsyncPrimaryAction(primaryRequest, listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(
@@ -645,8 +649,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getRelocationId(), primaryTerm,
-            listener, task) {
+        final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+            = new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getRelocationId(), primaryTerm);
+        action.new AsyncPrimaryAction(primaryRequest, listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(
@@ -817,7 +822,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean throwExceptionOnCreation = i == 1;
         final boolean throwExceptionOnRun = i == 2;
         final boolean respondWithError = i == 3;
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, listener, task) {
+        final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+            = new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm);
+        action.new AsyncPrimaryAction(primaryRequest, listener, task) {
             @Override
             protected ReplicationOperation<Request, Request, TransportReplicationAction.PrimaryResult<Request, TestResponse>>
             createReplicatedOperation(

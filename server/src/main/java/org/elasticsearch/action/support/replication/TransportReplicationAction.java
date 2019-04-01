@@ -291,33 +291,26 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void messageReceived(ConcreteShardRequest<Request> request, TransportChannel channel, Task task) {
-            new AsyncPrimaryAction(request.request, request.targetAllocationID, request.primaryTerm,
-                new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
+            new AsyncPrimaryAction(
+                request, new ChannelActionListener<>(channel, transportPrimaryAction, request), (ReplicationTask) task).run();
         }
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {
-
-        private final Request request;
-        // targetAllocationID of the shard this request is meant for
-        private final String targetAllocationID;
-        // primary term of the shard this request is meant for
-        private final long primaryTerm;
         private final ActionListener<Response> listener;
         private final ReplicationTask replicationTask;
+        private final ConcreteShardRequest<Request> primaryRequest;
 
-        AsyncPrimaryAction(Request request, String targetAllocationID, long primaryTerm, ActionListener<Response> listener,
+        AsyncPrimaryAction(ConcreteShardRequest<Request> primaryRequest, ActionListener<Response> listener,
                            ReplicationTask replicationTask) {
-            this.request = request;
-            this.targetAllocationID = targetAllocationID;
-            this.primaryTerm = primaryTerm;
+            this.primaryRequest = primaryRequest;
             this.listener = listener;
             this.replicationTask = replicationTask;
         }
 
         @Override
         protected void doRun() throws Exception {
-            final ShardId shardId = request.shardId();
+            final ShardId shardId = primaryRequest.getRequest().shardId();
             final IndexShard indexShard = getIndexShard(shardId);
             final ShardRouting shardRouting = indexShard.routingEntry();
             // we may end up here if the cluster state used to route the primary is so stale that the underlying
@@ -327,17 +320,17 @@ public abstract class TransportReplicationAction<
                 throw new ReplicationOperation.RetryOnPrimaryException(shardId, "actual shard is not a primary " + shardRouting);
             }
             final String actualAllocationId = shardRouting.allocationId().getId();
-            if (actualAllocationId.equals(targetAllocationID) == false) {
-                throw new ShardNotFoundException(shardId, "expected allocation id [{}] but found [{}]", targetAllocationID,
-                    actualAllocationId);
+            if (actualAllocationId.equals(primaryRequest.getTargetAllocationID()) == false) {
+                throw new ShardNotFoundException(shardId, "expected allocation id [{}] but found [{}]",
+                    primaryRequest.getTargetAllocationID(), actualAllocationId);
             }
             final long actualTerm = indexShard.getPendingPrimaryTerm();
-            if (actualTerm != primaryTerm) {
-                throw new ShardNotFoundException(shardId, "expected allocation id [{}] with term [{}] but found [{}]", targetAllocationID,
-                    primaryTerm, actualTerm);
+            if (actualTerm != primaryRequest.getPrimaryTerm()) {
+                throw new ShardNotFoundException(shardId, "expected allocation id [{}] with term [{}] but found [{}]",
+                    primaryRequest.getTargetAllocationID(), primaryRequest.getPrimaryTerm(), actualTerm);
             }
 
-            acquirePrimaryOperationPermit(indexShard, request, ActionListener.wrap(
+            acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), ActionListener.wrap(
                 releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
                 this::onFailure
             ));
@@ -369,7 +362,8 @@ public abstract class TransportReplicationAction<
                     };
                     DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
-                        new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId(), primaryTerm),
+                        new ConcreteShardRequest<>(primaryRequest.getRequest(), primary.allocationId().getRelocationId(),
+                            primaryRequest.getPrimaryTerm()),
                         transportOptions,
                         new ActionListenerResponseHandler<Response>(listener, reader) {
                             @Override
@@ -387,7 +381,7 @@ public abstract class TransportReplicationAction<
                 } else {
                     setPhase(replicationTask, "primary");
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
-                    createReplicatedOperation(request,
+                    createReplicatedOperation(primaryRequest.getRequest(),
                             ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
                             primaryShardReference)
                             .execute();
@@ -442,7 +436,7 @@ public abstract class TransportReplicationAction<
             Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener,
             PrimaryShardReference primaryShardReference) {
             return new ReplicationOperation<>(request, primaryShardReference, listener,
-                    newReplicasProxy(primaryTerm), logger, actionName);
+                    newReplicasProxy(primaryRequest.getPrimaryTerm()), logger, actionName);
         }
     }
 

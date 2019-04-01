@@ -154,7 +154,7 @@ public abstract class TransportReplicationAction<
 
     protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
                                            Supplier<ReplicaRequest> replicaRequest, String executor) {
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
         transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
             new PrimaryOperationTransportHandler());
         // we must never reject on because of thread pool capacity on replicas
@@ -271,16 +271,8 @@ public abstract class TransportReplicationAction<
         return false;
     }
 
-    protected class OperationTransportHandler implements TransportRequestHandler<Request> {
-
-        public OperationTransportHandler() {
-
-        }
-
-        @Override
-        public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
-        }
+    protected void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
+        execute(task, request, new ChannelActionListener<>(channel, actionName, request));
     }
 
     protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {

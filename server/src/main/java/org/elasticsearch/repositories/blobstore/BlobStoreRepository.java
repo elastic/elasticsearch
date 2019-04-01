@@ -137,7 +137,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  *      |  |- 0/ - data for shard "0" of index "foo"
  *      |  |  |- __1                      \
  *      |  |  |- __2                      |
- *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snapshot-* for their mappings to real segment files
+ *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
  *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |  (files with numeric names were created by older ES versions)
  *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....

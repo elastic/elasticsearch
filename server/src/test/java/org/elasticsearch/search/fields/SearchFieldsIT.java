@@ -1227,7 +1227,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
 
-    public void testStoredJsonField() throws Exception {
+    public void testJsonStoredFields() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("_doc")
@@ -1253,6 +1253,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("test")
             .addStoredField("json_field")
+            .addStoredField("json_field.key")
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
@@ -1260,6 +1261,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
         DocumentField field = fields.get("json_field");
         assertEquals("json_field", field.getName());
+        assertFalse(fields.containsKey("json_field.key"));
 
         // We make sure to pretty-print here, since the field is always stored in pretty-printed format.
         BytesReference storedValue = BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -1269,4 +1271,46 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .endObject());
         assertEquals(storedValue.utf8ToString(), field.getValue());
     }
+
+     public void testJsonDocValuesFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("json_field")
+                            .field("type", "json")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        ensureGreen("test");
+
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("json_field")
+                    .field("key", "value")
+                    .field("other_key", "other_value")
+                .endObject()
+            .endObject();
+        index("test", "_doc", "1", source);
+        refresh("test");
+
+        SearchResponse response = client().prepareSearch("test")
+            .addDocValueField("json_field")
+            .addDocValueField("json_field.key")
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
+
+        DocumentField field = fields.get("json_field");
+        assertEquals("json_field", field.getName());
+        assertEquals(Arrays.asList("other_value", "value"), field.getValues());
+
+        DocumentField keyedField = fields.get("json_field.key");
+        assertEquals("json_field.key", keyedField.getName());
+        assertEquals("value", keyedField.getValue());
+     }
 }

@@ -68,19 +68,26 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.indices("a", "b");
         searchRequest.types("c", "d");
         assertEquals("/a,b/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
-
         searchRequest.indices("cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("cat,", "dog");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("dog", "cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
+        assertEquals("/cat%2C/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/", "dog");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
-        searchRequest.indices("dog", "cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F,dog/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        // test a specific date math + all characters that need escaping.
+        searchRequest.indices("<cat{now/d}>", "<>/{}|+:,");
+        assertEquals("/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/c,d/_search",
+            initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+
+        // pass-through if already escaped.
+        searchRequest.indices("%2f", "%3a");
+        assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+
+        // do not allow , and / if already escaped.
+        searchRequest.indices("%2fcat,");
+        expectBadStartRequest(searchRequest, "Index", ",", "%2fcat,");
+        searchRequest.indices("%3ccat/");
+        expectBadStartRequest(searchRequest, "Index", "/", "%3ccat/");
 
         searchRequest.indices("ok");
         searchRequest.types("cat,");

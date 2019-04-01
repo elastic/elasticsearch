@@ -38,6 +38,10 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -54,8 +58,8 @@ final class RemoteRequestBuilders {
     static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
-        addIndexesOrTypes(path, "Index", searchRequest.indices());
-        addIndexesOrTypes(path, "Type", searchRequest.types());
+        addIndices(path, searchRequest.indices());
+        addTypes(path, searchRequest.types());
         path.append("_search");
         Request request = new Request("POST", path.toString());
 
@@ -158,14 +162,34 @@ final class RemoteRequestBuilders {
         return request;
     }
 
-    private static void addIndexesOrTypes(StringBuilder path, String name, String[] indicesOrTypes) {
-        if (indicesOrTypes == null || indicesOrTypes.length == 0) {
+    private static void addIndices(StringBuilder path, String[] indices) {
+        if (indices == null || indices.length == 0) {
             return;
         }
-        for (String indexOrType : indicesOrTypes) {
-            checkIndexOrType(name, indexOrType);
+
+        path.append(Arrays.stream(indices).map(RemoteRequestBuilders::encodeIndex).collect(Collectors.joining(","))).append('/');
+    }
+
+    private static String encodeIndex(String s) {
+        if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
+            checkIndexOrType("Index", s);
+            return s;
         }
-        path.append(Strings.arrayToCommaDelimitedString(indicesOrTypes)).append('/');
+        try {
+            return URLEncoder.encode(s, "utf-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void addTypes(StringBuilder path, String[] types) {
+        if (types == null || types.length == 0) {
+            return;
+        }
+        for (String indexOrType : types) {
+            checkIndexOrType("Type", indexOrType);
+        }
+        path.append(Strings.arrayToCommaDelimitedString(types)).append('/');
     }
 
     private static void checkIndexOrType(String name, String indexOrType) {

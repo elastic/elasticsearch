@@ -588,16 +588,16 @@ public final class TokenService {
             }
         }
         if (false == idsOfOlderTokens.isEmpty()) {
-            indexInvalidation(idsOfOlderTokens, securityMainIndex, backoff, srcPrefix, null, ActionListener.wrap(result -> {
+            indexInvalidation(idsOfOlderTokens, securityMainIndex, backoff, srcPrefix, previousResult, ActionListener.wrap(newResult -> {
                 if (false == idsOfRecentTokens.isEmpty()) {
-                    // carry-over result of the invalidation for the main security index
-                    indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, result, listener);
+                    // carry-over result of the invalidation for the tokens security index
+                    indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, newResult, listener);
                 } else {
-                    listener.onResponse(result);
+                    listener.onResponse(newResult);
                 }
             }, listener::onFailure));
         } else {
-            indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, null, listener);
+            indexInvalidation(idsOfRecentTokens, securityTokensIndex, backoff, srcPrefix, previousResult, listener);
         }
     }
 

@@ -442,18 +442,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
                 return;
             }
-            deleteSnapshotBlobs(snapshot, snapshotId, repositoryData, updatedRepositoryData, listener);
+            final SnapshotInfo finalSnapshotInfo = snapshot;
+            final ActionListener<Void> afterDeleteIndices = ActionListener.wrap(
+                vv -> deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener), listener::onFailure);
+            deleteSnapshotBlobs(snapshot, snapshotId,
+                snapshot == null || snapshot.indices().isEmpty()
+                    ? afterDeleteIndices
+                    : ActionListener.wrap(
+                        v -> deleteIndices(finalSnapshotInfo, repositoryData, snapshotId, afterDeleteIndices), listener::onFailure)
+            );
         }
     }
 
-    private void deleteSnapshotBlobs(@Nullable  SnapshotInfo snapshot, SnapshotId snapshotId, RepositoryData repositoryData,
-                                     RepositoryData updatedRepositoryData, ActionListener<Void> listener) {
+    private void deleteSnapshotBlobs(@Nullable SnapshotInfo snapshot, SnapshotId snapshotId, ActionListener<Void> listener) {
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final ActionListener<Void> deleteListener = new GroupedActionListener<>(
-            ActionListener.wrap(v -> deleteIndices(snapshot, repositoryData, snapshotId,
-                ActionListener.wrap(
-                    vv -> deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener), listener::onFailure)),
-                listener::onFailure), 2);
+        final ActionListener<Void> deleteListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), 2);
         executor.execute(new ActionRunnable<Void>(listener) {
             @Override
             protected void doRun() {
@@ -472,49 +475,40 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private void deleteIndices(@Nullable SnapshotInfo snapshot, RepositoryData repositoryData, SnapshotId snapshotId,
+    private void deleteIndices(SnapshotInfo snapshot, RepositoryData repositoryData, SnapshotId snapshotId,
                                ActionListener<Void> listener) {
-        // Now delete all indices
-        if (snapshot != null) {
-            final List<String> indices = snapshot.indices();
-            if (indices.isEmpty()) {
-                listener.onResponse(null);
-                return;
-            }
-            final ActionListener<Void> groupedListener =
-                new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
-            for (String index : indices) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
+        final List<String> indices = snapshot.indices();
+        final ActionListener<Void> groupedListener =
+            new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
+        for (String index : indices) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
 
-                    @Override
-                    protected void doRun() {
-                        final IndexId indexId = repositoryData.resolveIndexId(index);
-                        IndexMetaData indexMetaData = null;
-                        try {
-                            indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                        } catch (Exception ex) {
-                            logger.warn(() ->
-                                new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
-                        }
-                        deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
-                        if (indexMetaData != null) {
-                            for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
-                                try {
-                                    final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
-                                    new Context(snapshotId, indexId, sid, sid).delete();
-                                } catch (SnapshotException ex) {
-                                    final int finalShardId = shardId;
-                                    logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                        snapshotId, index, finalShardId), ex);
-                                }
+                @Override
+                protected void doRun() {
+                    final IndexId indexId = repositoryData.resolveIndexId(index);
+                    IndexMetaData indexMetaData = null;
+                    try {
+                        indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                    } catch (Exception ex) {
+                        logger.warn(() ->
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                    }
+                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+                    if (indexMetaData != null) {
+                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                            try {
+                                final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
+                                new Context(snapshotId, indexId, sid, sid).delete();
+                            } catch (SnapshotException ex) {
+                                final int finalShardId = shardId;
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
+                                    snapshotId, index, finalShardId), ex);
                             }
                         }
-                        groupedListener.onResponse(null);
                     }
-                });
-            }
-        } else {
-            listener.onResponse(null);
+                    groupedListener.onResponse(null);
+                }
+            });
         }
     }
 

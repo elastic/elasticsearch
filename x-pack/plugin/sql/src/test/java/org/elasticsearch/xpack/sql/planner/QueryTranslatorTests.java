@@ -41,11 +41,12 @@ import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
-import org.elasticsearch.xpack.sql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -186,20 +187,41 @@ public class QueryTranslatorTests extends ESTestCase {
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         QueryTranslation qt = QueryTranslator.toQuery(condition, false);
-        assertEquals(QueryStringQuery.class, qt.query.getClass());
-        QueryStringQuery qsq = ((QueryStringQuery) qt.query);
-        assertEquals(1, qsq.fields().size());
-        assertEquals("some.string.typical", qsq.fields().keySet().iterator().next());
+        assertEquals(WildcardQuery.class, qt.query.getClass());
+        WildcardQuery qsq = ((WildcardQuery) qt.query);
+        assertEquals("some.string.typical", qsq.field());
+    }
+    
+    public void testRLikeOnInexact() {
+        LogicalPlan p = plan("SELECT * FROM test WHERE some.string RLIKE '.*a.*'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QueryTranslation qt = QueryTranslator.toQuery(condition, false);
+        assertEquals(RegexQuery.class, qt.query.getClass());
+        RegexQuery qsq = ((RegexQuery) qt.query);
+        assertEquals("some.string.typical", qsq.field());
     }
     
     public void testLikeConstructsNotSupported() {
-        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) LIKE '%a%'");
+        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) like '%a%'");
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
         assertTrue(p instanceof Filter);
         Expression condition = ((Filter) p).condition();
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
-        assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
+        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for LIKE", ex.getMessage());
+    }
+    
+    public void testRLikeConstructsNotSupported() {
+        LogicalPlan p = plan("SELECT LTRIM(keyword) lt FROM test WHERE LTRIM(keyword) RLIKE '.*a.*'");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
+        assertEquals("Scalar function [LTRIM(keyword)] not allowed (yet) as argument for RLIKE", ex.getMessage());
     }
     
     public void testDifferentLikeAndNotLikePatterns() {
@@ -213,20 +235,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
-        assertTrue(bq.left() instanceof QueryStringQuery);
+        assertTrue(bq.left() instanceof WildcardQuery);
         assertTrue(bq.right() instanceof NotQuery);
         
         NotQuery nq = (NotQuery) bq.right();
-        assertTrue(nq.child() instanceof QueryStringQuery);
-        QueryStringQuery lqsq = (QueryStringQuery) bq.left();
-        QueryStringQuery rqsq = (QueryStringQuery) nq.child();
+        assertTrue(nq.child() instanceof WildcardQuery);
+        WildcardQuery lqsq = (WildcardQuery) bq.left();
+        WildcardQuery rqsq = (WildcardQuery) nq.child();
         
         assertEquals("X*", lqsq.query());
-        assertEquals(1, lqsq.fields().size());
-        assertEquals("keyword", lqsq.fields().keySet().iterator().next());
+        assertEquals("keyword", lqsq.field());
         assertEquals("Y*", rqsq.query());
-        assertEquals(1, rqsq.fields().size());
-        assertEquals("keyword", rqsq.fields().keySet().iterator().next());
+        assertEquals("keyword", rqsq.field());
     }
     
     public void testRLikePatterns() {
@@ -248,20 +268,18 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(BoolQuery.class, qt.query.getClass());
         BoolQuery bq = ((BoolQuery) qt.query);
         assertTrue(bq.isAnd());
-        assertTrue(bq.left() instanceof QueryStringQuery);
+        assertTrue(bq.left() instanceof RegexQuery);
         assertTrue(bq.right() instanceof NotQuery);
         
         NotQuery nq = (NotQuery) bq.right();
-        assertTrue(nq.child() instanceof QueryStringQuery);
-        QueryStringQuery lqsq = (QueryStringQuery) bq.left();
-        QueryStringQuery rqsq = (QueryStringQuery) nq.child();
+        assertTrue(nq.child() instanceof RegexQuery);
+        RegexQuery lqsq = (RegexQuery) bq.left();
+        RegexQuery rqsq = (RegexQuery) nq.child();
         
-        assertEquals("/" + firstPattern + "/", lqsq.query());
-        assertEquals(1, lqsq.fields().size());
-        assertEquals("keyword", lqsq.fields().keySet().iterator().next());
-        assertEquals("/" + secondPattern + "/", rqsq.query());
-        assertEquals(1, rqsq.fields().size());
-        assertEquals("keyword", rqsq.fields().keySet().iterator().next());
+        assertEquals(firstPattern, lqsq.regex());
+        assertEquals("keyword", lqsq.field());
+        assertEquals(secondPattern, rqsq.regex());
+        assertEquals("keyword", rqsq.field());
     }
 
     public void testTranslateNotExpression_WhereClause_Painless() {

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskS
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -51,6 +54,8 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     private final Client client;
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
+
+    private static final Logger logger = LogManager.getLogger(DataFrameFeatureSet.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
         DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName(),
@@ -104,7 +109,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             listener.onResponse(new DataFrameFeatureSetUsage(available(),
                 enabled(),
                 Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withNullTransformId()));
+                DataFrameIndexerTransformStats.withDefaultTransformId()));
             return;
         }
 
@@ -129,12 +134,16 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
         ActionListener<SearchResponse> totalTransformCountListener = ActionListener.wrap(
             transformCountSuccess -> {
+                if (transformCountSuccess.getShardFailures().length > 0) {
+                    logger.error("total transform count search request returned shard failures: {}",
+                        Arrays.toString(transformCountSuccess.getShardFailures()));
+                }
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
                 if (totalTransforms == 0) {
                     listener.onResponse(new DataFrameFeatureSetUsage(available(),
                         enabled(),
                         transformsCountByState,
-                        DataFrameIndexerTransformStats.withNullTransformId()));
+                        DataFrameIndexerTransformStats.withDefaultTransformId()));
                     return;
                 }
                 transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
@@ -173,8 +182,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 statisticsList.add(0L);
             }
         }
-        return new DataFrameIndexerTransformStats(null,
-            statisticsList.get(0),  // numPages
+        return DataFrameIndexerTransformStats.withDefaultTransformId(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -200,10 +208,16 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         }
 
         ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(
-            searchResponse -> statsListener.onResponse(parseSearchAggs(searchResponse)),
+            searchResponse -> {
+                if (searchResponse.getShardFailures().length > 0) {
+                    logger.error("get statistics summations search request returned shard failures: {}",
+                        Arrays.toString(searchResponse.getShardFailures()));
+                }
+                statsListener.onResponse(parseSearchAggs(searchResponse));
+            },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(DataFrameIndexerTransformStats.withNullTransformId());
+                    statsListener.onResponse(DataFrameIndexerTransformStats.withDefaultTransformId());
                 } else {
                     statsListener.onFailure(failure);
                 }

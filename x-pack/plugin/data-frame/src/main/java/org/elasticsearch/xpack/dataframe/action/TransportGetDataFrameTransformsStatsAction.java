@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -61,6 +64,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
         GetDataFrameTransformsStatsAction.Request,
         GetDataFrameTransformsStatsAction.Response,
         GetDataFrameTransformsStatsAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameTransformsStatsAction.class);
 
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
@@ -151,6 +156,10 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
         ActionListener<SearchResponse> searchStatsListener = ActionListener.wrap(
             searchResponse -> {
+                if (searchResponse.getShardFailures().length > 0) {
+                    logger.error("get transform stats search request returned shard failures: {}",
+                        Arrays.toString(searchResponse.getShardFailures()));
+                }
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
                 for(SearchHit hit : searchResponse.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();

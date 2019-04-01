@@ -66,7 +66,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState);
-        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.endObject();
         return builder;
     }

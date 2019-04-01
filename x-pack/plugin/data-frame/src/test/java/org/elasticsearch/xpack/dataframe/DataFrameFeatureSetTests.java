@@ -81,9 +81,9 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(DataFrameIndexerTransformStats.withNullTransformId()));
+        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(DataFrameIndexerTransformStats.withDefaultTransformId()));
 
-        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats(null,
+        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats("_all",
             1,  // numPages
             2,  // numInputDocuments
             3,  // numOutputDocuments

@@ -32,8 +32,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     private static boolean indicesCreated = false;
 
-    private final List<String> createdTransforms = new ArrayList<>();
-
     // preserve indices in order to reuse source indices in several test cases
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -56,18 +54,12 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
     @After
     public void clearOutTransforms() throws Exception {
-        for(String transformId : createdTransforms) {
-            stopDataFrameTransform(transformId, false);
-            deleteDataFrameTransform(transformId);
-        }
-        createdTransforms.clear();
+        wipeDataFrameTransforms();
     }
 
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
-        createdTransforms.add("pivot_1");
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
-        createdTransforms.add("pivot_2");
 
         startAndWaitForTransform("pivot_1", "pivot_reviews_1");
         startAndWaitForTransform("pivot_2", "pivot_reviews_2");
@@ -117,7 +109,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
     @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
-        createdTransforms.add("pivot_stats_1");
         startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");
         stopDataFrameTransform("pivot_stats_1", false);
 
@@ -130,7 +121,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertTrue(((Map<?, ?>)XContentMapValues.extractValue("nodes", tasks)).isEmpty());
 
         createPivotReviewsTransform("pivot_stats_2", "pivot_reviews_stats_2", null);
-        createdTransforms.add("pivot_stats_2");
         startAndWaitForTransform("pivot_stats_2", "pivot_reviews_stats_2");
 
         Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
@@ -145,6 +135,5 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));
             assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
         }
-
     }
 }

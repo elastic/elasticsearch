@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
@@ -28,30 +29,29 @@ public class QueryStringQuery extends LeafQuery {
     static {
         HashMap<String, BiConsumer<QueryStringQueryBuilder, String>> appliers = new HashMap<>(28);
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
+        appliers.put("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s)));
+        appliers.put("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s)));
+        appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
+        appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
         appliers.put("default_field", (qb, s) -> qb.defaultField(s));
         appliers.put("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s)));
-        appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
-        appliers.put("quote_analyzer", (qb, s) -> qb.quoteAnalyzer(s));
-        appliers.put("allow_leading_wildcard", (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s)));
-        appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
-        appliers.put("lowercase_expanded_terms", (qb, s) -> {});
         appliers.put("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s)));
         appliers.put("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s)));
-        appliers.put("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s)));
+        appliers.put("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.build(s)));
         appliers.put("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s)));
+        appliers.put("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s)));
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
-        appliers.put("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s)));
-        appliers.put("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s)));
-        appliers.put("analyze_wildcard", (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s)));
-        appliers.put("rewrite", (qb, s) -> qb.rewrite(s));
-        appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
-        appliers.put("quote_field_suffix", (qb, s) -> qb.quoteFieldSuffix(s));
+        appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
         appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));
-        appliers.put("locale", (qb, s) -> {});
+        appliers.put("max_determinized_states", (qb, s) -> qb.maxDeterminizedStates(Integer.valueOf(s)));
+        appliers.put("minimum_should_match", (qb, s) -> qb.minimumShouldMatch(s));
+        appliers.put("phrase_slop", (qb, s) -> qb.phraseSlop(Integer.valueOf(s)));
+        appliers.put("rewrite", (qb, s) -> qb.rewrite(s));
+        appliers.put("quote_analyzer", (qb, s) -> qb.quoteAnalyzer(s));
+        appliers.put("quote_field_suffix", (qb, s) -> qb.quoteFieldSuffix(s));
+        appliers.put("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s)));
         appliers.put("time_zone", (qb, s) -> qb.timeZone(s));
         appliers.put("type", (qb, s) -> qb.type(MultiMatchQueryBuilder.Type.parse(s, LoggingDeprecationHandler.INSTANCE)));
-        appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
-        appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
         BUILDER_APPLIERS = Collections.unmodifiableMap(appliers);
     }
 

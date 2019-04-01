@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptor
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -698,7 +699,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -773,13 +774,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         };
 
         compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null));
+            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null));
         assertEquals(1, numInvalidation.get());
 
         compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null));
+            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null));
         assertEquals(2, numInvalidation.get());
     }
 

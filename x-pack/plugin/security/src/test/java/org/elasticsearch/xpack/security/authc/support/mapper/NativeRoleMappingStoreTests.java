@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -127,7 +128,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -172,13 +173,13 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation);
 
         store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null));
+            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null));
         assertEquals(1, numInvalidation.get());
 
         store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(true, true, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(true, false, true, true, null, concreteSecurityIndexName, null));
+            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null),
+            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null));
         assertEquals(2, numInvalidation.get());
     }
 

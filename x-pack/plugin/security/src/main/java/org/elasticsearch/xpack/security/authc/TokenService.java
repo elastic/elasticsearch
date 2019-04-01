@@ -180,6 +180,7 @@ public final class TokenService {
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_8_0_0; // TODO change upon backport
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -262,7 +263,7 @@ public final class TokenService {
             final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
             final String versionedRefreshToken = includeRefreshToken ? prependVersionAndEncode(version, plainRefreshToken) : null;
             final BytesReference tokenDocument;
-            if (version.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+            if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
             } else {
                 tokenDocument = createTokenDocument(userToken, versionedRefreshToken, originatingClientAuth);
@@ -569,7 +570,7 @@ public final class TokenService {
         final Set<String> idsOfRecentTokens = new HashSet<>();
         final Set<String> idsOfOlderTokens = new HashSet<>();
         for (UserToken userToken : userTokens) {
-            if (userToken.getVersion().onOrAfter(Version.V_8_0_0)) { // change upon backport
+            if (userToken.getVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 idsOfRecentTokens.add(userToken.getId());
             } else {
                 idsOfOlderTokens.add(userToken.getId());
@@ -868,7 +869,7 @@ public final class TokenService {
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());
-            if (newTokenVersion.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+            if (newTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                 updateMap.put("superseded_by", prependVersionAndEncode(newTokenVersion, getTokenDocumentId(newUserTokenId)));
             } else {
                 updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
@@ -1317,7 +1318,7 @@ public final class TokenService {
      * Therefore, in general, when searching for a token we need to consider both the new and the old indices.
      */
     private SecurityIndexManager getSecurityIndexManagerForVersion(Version version) {
-        if (version.onOrAfter(Version.V_8_0_0)) { // TODO change upon backport
+        if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
             return securityMainIndex;

@@ -11,10 +11,10 @@ If you installed {es} with a `.tar.gz` package, you can start {es} from the
 command line.  
 
 [float]
-include::install/zip-targz-start.asciidoc[]
+include::install/targz-start.asciidoc[]
 
 [float]
-include::install/zip-targz-daemon.asciidoc[]
+include::install/targz-daemon.asciidoc[]
 
 [float]
 [[start-zip]]

@@ -113,6 +113,8 @@ Query timeout (in seconds). That is the maximum amount of time waiting for a que
 
 `ssl.truststore.pass`:: trust store password
 
+`ssl.truststore.type` (default `JKS`):: trust store type. `PKCS12` is a common, alternative format
+
 `ssl.protocol`(default `TLS`):: SSL protocol to be used
 
 [float]

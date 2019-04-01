@@ -443,14 +443,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
-            final ActionListener<Void> afterDeleteIndices = ActionListener.wrap(
-                vv -> deleteUnreferencedIndices(repositoryData, updatedRepositoryData, listener), listener::onFailure);
+            final Collection<IndexId> unreferencedIndices = Sets.newHashSet(repositoryData.getIndices().values());
+            unreferencedIndices.removeAll(updatedRepositoryData.getIndices().values());
+            final ActionListener<Void> afterDeleteIndices = unreferencedIndices.isEmpty()
+                ? listener // if we don't have any newly unreferenced indices we move to the next step directly
+                : ActionListener.wrap(
+                    vv -> deleteUnreferencedIndices(unreferencedIndices, listener), listener::onFailure);
             deleteSnapshotBlobs(snapshot, snapshotId,
                 snapshot == null || snapshot.indices().isEmpty()
-                    ? afterDeleteIndices // if we don't have any indices to delete move to cleaning up unreferenced indices right away
+                    ? afterDeleteIndices // if we don't have any indices to delete we move to the next step
                     : ActionListener.wrap(
-                        v -> deleteIndices(finalSnapshotInfo, repositoryData, snapshotId, afterDeleteIndices), listener::onFailure)
-            );
+                        v -> deleteIndices(
+                            finalSnapshotInfo.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()),
+                            snapshotId, afterDeleteIndices), listener::onFailure));
         }
     }
 
@@ -475,25 +480,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private void deleteIndices(SnapshotInfo snapshot, RepositoryData repositoryData, SnapshotId snapshotId,
-                               ActionListener<Void> listener) {
-        final List<String> indices = snapshot.indices();
+    private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {
         final ActionListener<Void> groupedListener =
             new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
-        for (String index : indices) {
+        for (IndexId indexId: indices) {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
 
                 @Override
                 protected void doRun() {
-                    final IndexId indexId = repositoryData.resolveIndexId(index);
                     IndexMetaData indexMetaData = null;
                     try {
                         indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
                     } catch (Exception ex) {
                         logger.warn(() ->
-                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
                     }
-                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
+                    deleteIndexMetaDataBlobIgnoringErrors(snapshotId, indexId);
                     if (indexMetaData != null) {
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
@@ -502,7 +504,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             } catch (SnapshotException ex) {
                                 final int finalShardId = shardId;
                                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                    snapshotId, index, finalShardId), ex);
+                                    snapshotId, indexId.getName(), finalShardId), ex);
                             }
                         }
                     }
@@ -512,17 +514,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void deleteUnreferencedIndices(RepositoryData repositoryData, RepositoryData updatedRepositoryData,
-            ActionListener<Void> listener) {
-        // cleanup indices that are no longer part of the repository
-        final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
-        indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
+    // cleanup indices that are no longer part of the repository
+    private void deleteUnreferencedIndices(Collection<IndexId> indicesToCleanUp, ActionListener<Void> listener) {
         final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-        if (indicesToCleanUp.isEmpty()) {
-            // We're done, no indices to clean up
-            listener.onResponse(null);
-            return;
-        }
         final ActionListener<Void> groupedListener =
             new GroupedActionListener<>(ActionListener.map(listener, v -> null), indicesToCleanUp.size());
         for (final IndexId indexId : indicesToCleanUp) {
@@ -573,8 +567,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void deleteIndexMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final IndexId indexId) {
-        final SnapshotId snapshotId = snapshotInfo.snapshotId();
+    private void deleteIndexMetaDataBlobIgnoringErrors(SnapshotId snapshotId, IndexId indexId) {
         BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()));
         try {
             indexMetaDataFormat.delete(indexMetaDataBlobContainer, snapshotId.getUUID());

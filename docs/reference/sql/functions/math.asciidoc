@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-functions-math]]
-=== Math Functions
+=== Mathematical Functions
 
 All math and trigonometric functions require their input (where applicable)
 to be numeric.

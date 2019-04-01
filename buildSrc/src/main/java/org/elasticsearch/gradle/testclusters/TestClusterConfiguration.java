@@ -108,7 +108,6 @@ public interface TestClusterConfiguration {
                     if (lastException == null) {
                         lastException = e;
                     } else {
-                        e.addSuppressed(lastException);
                         lastException = e;
                     }
                 }
@@ -131,9 +130,15 @@ public interface TestClusterConfiguration {
             logger.info(
                 "{}: {} took {} seconds",
                 this,  description,
-                SECONDS.convert(System.currentTimeMillis() - thisConditionStartedAt, MILLISECONDS)
+                (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0
             );
         });
+    }
+
+    default String safeName(String name) {
+        return name
+            .replaceAll("^[^a-zA-Z0-9]+", "")
+            .replaceAll("[^a-zA-Z0-9]+", "-");
     }
 
 

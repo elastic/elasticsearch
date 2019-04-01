@@ -46,11 +46,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Objects.requireNonNull;
-
 public class ElasticsearchCluster implements TestClusterConfiguration {
 
-    private static final int CLUSTER_UP_TIMEOUT = 20;
+    private static final int CLUSTER_UP_TIMEOUT = 40;
     private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
@@ -185,16 +183,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     public void start() {
         String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         for (ElasticsearchNode node : nodes) {
+            node.defaultConfig.put("cluster.name", safeName(clusterName));
             if (Version.fromString(node.getVersion()).getMajor() >= 7) {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                node.defaultConfig.put("discovery.seed_providers", "file");
             }
         }
         nodes.forEach(ElasticsearchNode::start);
-
-        logger.info("Waiting for nodes");
-        nodes.forEach(ElasticsearchNode::waitForAllConditions);
-
-        writeUnicastHostsFiles();
     }
 
     private void writeUnicastHostsFiles() {
@@ -234,7 +229,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     public void waitForAllConditions() {
         long startedAt = System.currentTimeMillis();
-        logger.info("Starting to wait for cluster to come up");
+        logger.info("Waiting for nodes");
+        nodes.forEach(ElasticsearchNode::waitForAllConditions);
+
+        writeUnicastHostsFiles();
+
+        logger.info("Starting to wait for cluster to form");
         addWaitForUri(
             "cluster health yellow", "/_cluster/health?wait_for_nodes=>=" + nodes.size()  + "&wait_for_status=yellow"
         );

@@ -107,11 +107,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         esStdoutFile = confPathLogs.resolve("es.stdout.log");
         esStderrFile = confPathLogs.resolve("es.stderr.log");
         tmpDir = workingDir.resolve("tmp");
-        waitConditions.put("http ports file", node -> {
-            ElasticsearchNode node1 = (ElasticsearchNode) node;
-            node1.logger.lifecycle("Looking for " + node1.httpPortsFile);
-            return Files.exists(((ElasticsearchNode) node).httpPortsFile);
-        });
+        waitConditions.put("http ports file", node -> Files.exists(((ElasticsearchNode) node).httpPortsFile));
         waitConditions.put("transport ports file", node -> Files.exists(((ElasticsearchNode)node).transportPortFile));
         defaultConfig = new LinkedHashMap<>();
     }
@@ -531,9 +527,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void createConfiguration()  {
-        String nodeName = safeName(name);
-        defaultConfig.put("cluster.name",nodeName);
-        defaultConfig.put("node.name", nodeName);
+        defaultConfig.put("node.name", safeName(name));
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
@@ -550,7 +544,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (Version.fromString(version).getMajor() >= 6) {
             defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
-        defaultConfig.put("discovery.seed_providers", "file");
+        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
+        if (Version.fromString(version).getMajor() >= 7) {
+            defaultConfig.put("indices.breaker.total.use_real_memory",  "false");
+        }
+        // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+        defaultConfig.put("discovery.initial_state_timeout",  "0s");
 
         checkSuppliers("Settings", settings);
         Map<String, String> userConfig = settings.entrySet().stream()
@@ -586,12 +587,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (configurationFrozen.get()) {
             throw new IllegalStateException("Configuration for " + this +  " can not be altered, already locked");
         }
-    }
-
-    private static String safeName(String name) {
-        return name
-            .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
     }
 
     private List<String> getTransportPortInternal() {

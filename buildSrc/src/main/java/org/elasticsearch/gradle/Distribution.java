@@ -21,8 +21,8 @@ package org.elasticsearch.gradle;
 public enum Distribution {
 
     INTEG_TEST("elasticsearch", "org.elasticsearch.distribution.integ-test-zip"),
-    DEFAULT("elasticsearch", "org.elasticsearch"),
-    OSS("elasticsearch-oss", "otg.elasticsearch-oss");
+    DEFAULT("elasticsearch", "elasticsearch"),
+    OSS("elasticsearch-oss", "elasticsearch-oss");
 
     private final String artifactName;
     private final String group;

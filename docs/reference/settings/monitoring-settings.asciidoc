@@ -70,11 +70,11 @@ to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`::
 
-Sets the timeout for collecting the cluster statistics. Defaults to `10s`.
+(<<time-units,time value>>) Timeout for collecting the cluster statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.node.stats.timeout`::
 
-Sets the timeout for collecting the node statistics. Defaults to `10s`.
+(<<time-units,time value>>) Timeout for collecting the node statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.indices` (<<cluster-update-settings,Dynamic>>)::
 
@@ -87,7 +87,7 @@ ensure monitoring of system indices. For example `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`::
 
-Sets the timeout for collecting index statistics. Defaults to `10s`.
+(<<time-units,time value>>) Timeout for collecting index statistics. Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`::
 
@@ -96,11 +96,11 @@ collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`::
 
-Sets the timeout for collecting the recovery information. Defaults to `10s`.
+(<<time-units,time value>>) Timeout for collecting the recovery information. Defaults to `10s`.
 
 `xpack.monitoring.history.duration`::
 
-Sets the retention duration beyond which the indices created by a Monitoring
+(<<time-units,time value>>) Retention duration beyond which the indices created by a Monitoring
 exporter are automatically deleted. Defaults to `7d` (7 days).
 +
 --
@@ -206,12 +206,12 @@ The password for the `auth.username`.
 
 `connection.timeout`::
 
-The amount of time that the HTTP connection is supposed to wait for a socket to open for the
+(<<time-units,time value>>) Amount of time that the HTTP connection is supposed to wait for a socket to open for the
 request. The default value is `6s`.
 
 `connection.read_timeout`::
 
-The amount of time that the HTTP connection is supposed to wait for a socket to
+(<<time-units,time value>>) Amount of time that the HTTP connection is supposed to wait for a socket to
 send back a response. The default value is `10 * connection.timeout` (`60s` if neither are set).
 
 `ssl`::

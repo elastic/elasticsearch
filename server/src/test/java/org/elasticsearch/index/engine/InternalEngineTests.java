@@ -1141,6 +1141,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.getTranslog().getDeletionPolicy().getTranslogGenerationOfLastCommit(), equalTo(5L));
     }
 
+    @AwaitsFix(bugUrl = "need to investigate")
     public void testSyncedFlush() throws IOException {
         try (Store store = createStore();
              Engine engine = createEngine(defaultSettings, store, createTempDir(), new LogByteSizeMergePolicy(), null)) {

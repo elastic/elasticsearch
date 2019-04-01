@@ -158,8 +158,6 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final RepositoryMetaData repositoryMetaData;
-
     /**
      * Constructs an s3 backed repository
      */
@@ -169,8 +167,6 @@ class S3Repository extends BlobStoreRepository {
                  final S3Service service, final ThreadPool threadPool) {
         super(metadata, settings, namedXContentRegistry, threadPool);
         this.service = service;
-
-        this.repositoryMetaData = metadata;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -217,7 +213,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetaData);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata);
     }
 
     // only use for testing

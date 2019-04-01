@@ -20,7 +20,7 @@
 package org.elasticsearch.index.engine;
 
 /**
- * Exception indicating that not all requested operations from {@link LuceneChangesSnapshot}
+ * Exception indicating that not all requested operations from {@link SoftDeletesChangesSnapshot}
  * are available.
  */
 public final class MissingHistoryOperationsException extends IllegalStateException {

@@ -43,6 +43,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -130,35 +131,8 @@ public class TokenServiceTests extends ESTestCase {
         this.securityMainIndex = mockSecurityManager();
         this.securityTokensIndex = mockSecurityManager();
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        addAnotherDateNodeWithVersion(this.clusterService, Version.CURRENT);
-    }
-
-    private SecurityIndexManager mockSecurityManager() {
-        SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
-        doAnswer(invocationOnMock -> {
-            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
-            runnable.run();
-            return null;
-        }).when(mockSecurityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
-        doAnswer(invocationOnMock -> {
-            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
-            runnable.run();
-            return null;
-        }).when(mockSecurityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        when(mockSecurityIndex.indexExists()).thenReturn(true);
-        when(mockSecurityIndex.isAvailable()).thenReturn(true);
-        return mockSecurityIndex;
-    }
-
-    private void addAnotherDateNodeWithVersion(ClusterService clusterService, Version version) {
-        final ClusterState currentState = clusterService.state();
-        final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
-        final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
-                Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA), version);
-        discoBuilder.add(anotherDataNode);
-        final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
-        newStateBuilder.nodes(discoBuilder);
-        setState(clusterService, newStateBuilder.build());
+        addAnotherDateNodeWithVersion(this.clusterService,
+                randomFrom(VersionUtils.getPreviousVersion(TokenService.VERSION_TOKENS_INDEX_INTRODUCED), Version.CURRENT));
     }
 
     @After
@@ -710,6 +684,34 @@ public class TokenServiceTests extends ESTestCase {
                 return new String(os.toByteArray(), StandardCharsets.UTF_8);
             }
         }
+    }
+
+    private SecurityIndexManager mockSecurityManager() {
+        SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
+        doAnswer(invocationOnMock -> {
+            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+            runnable.run();
+            return null;
+        }).when(mockSecurityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer(invocationOnMock -> {
+            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+            runnable.run();
+            return null;
+        }).when(mockSecurityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        when(mockSecurityIndex.indexExists()).thenReturn(true);
+        when(mockSecurityIndex.isAvailable()).thenReturn(true);
+        return mockSecurityIndex;
+    }
+
+    private void addAnotherDateNodeWithVersion(ClusterService clusterService, Version version) {
+        final ClusterState currentState = clusterService.state();
+        final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
+        final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
+                Collections.emptyMap(), Collections.singleton(DiscoveryNode.Role.DATA), version);
+        discoBuilder.add(anotherDataNode);
+        final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
+        newStateBuilder.nodes(discoBuilder);
+        setState(clusterService, newStateBuilder.build());
     }
 
 }

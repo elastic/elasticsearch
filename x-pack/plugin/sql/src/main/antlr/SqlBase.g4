@@ -210,11 +210,11 @@ valueExpression
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
-    | valueExpression CAST_OP dataType                                                  #castOperatorExpression
     ;
 
 primaryExpression
     : castExpression                                                                 #cast
+    | primaryExpression CAST_OP dataType                                             #castOperatorExpression
     | extractExpression                                                              #extract
     | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault

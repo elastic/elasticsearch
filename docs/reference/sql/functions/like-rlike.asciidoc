@@ -39,7 +39,7 @@ used in combinations.
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[simpleLike]
+include-tagged::{sql-specs}/docs.csv-spec[simpleLike]
 ----
 
 There is, also, the possibility of using an escape character if one needs to match the wildcard characters themselves. This can be done
@@ -75,7 +75,7 @@ is a good starting point.
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs/docs.csv-spec[simpleRLike]
+include-tagged::{sql-specs}/docs.csv-spec[simpleRLike]
 ----
 
 IMPORTANT: Even though `RLIKE` is a valid option when searching or filtering in {es-sql}, full-text search predicates

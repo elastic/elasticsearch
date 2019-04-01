@@ -12,7 +12,7 @@ See also <<breaking-changes-7.0,Breaking changes>> and
 
 //tag::notable-highlights[]
 [float]
-=== Adaptive replica selection enabled by default
+==== Adaptive replica selection enabled by default
 
 In Elasticsearch 6.x and prior, a series of search requests to the same shard
 would be forwarded to the primary and each replica in round-robin fashion. This
@@ -169,7 +169,7 @@ guide, or visit the reference documentation to learn more.
 
 //tag::notable-highlights[]
 [float]
-=== {ilm} is production-ready
+=== {ilm-cap} is production-ready
 
 Index Lifecycle Management (ILM) was
 https://www.elastic.co/blog/elastic-stack-6-6-0-released[released] as a beta

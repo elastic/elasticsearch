@@ -50,7 +50,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override

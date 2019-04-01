@@ -140,7 +140,7 @@
           }
 
   - do:
-      xpack.ml.get_datafeed_stats:
+      ml.get_datafeed_stats:
         datafeed_id: mixed-cluster-datafeed-with-aggs
   - match: { datafeeds.0.state: stopped}
   - is_false: datafeeds.0.node

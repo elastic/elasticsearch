@@ -109,7 +109,6 @@
           {
             "job_id":"mixed-cluster-datafeed-job-with-aggs",
             "indices":["airline-data"],
-            "types":["response"],
             "scroll_size": 2000,
             "aggregations": {
               "buckets": {

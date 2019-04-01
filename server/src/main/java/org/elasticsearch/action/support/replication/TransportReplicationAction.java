@@ -158,10 +158,8 @@ public abstract class TransportReplicationAction<
         transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
             this::handlePrimaryRequest);
         // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(transportReplicaAction,
-            () -> new ConcreteReplicaRequest<>(replicaRequest),
-            executor, true, true,
-            new ReplicaOperationTransportHandler());
+        transportService.registerRequestHandler(
+            transportReplicaAction, () -> new ConcreteReplicaRequest<>(replicaRequest), executor, true, true, this::handleReplicaRequest);
     }
 
     @Override
@@ -489,19 +487,10 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    public class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
-
-        @Override
-        public void messageReceived(
-                final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
-                final TransportChannel channel,
-                final Task task)
-            throws Exception {
-            new AsyncReplicaAction(replicaRequest,
-                    new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
-                    (ReplicationTask) task).run();
-        }
-
+    protected void handleReplicaRequest(final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
+                                        final TransportChannel channel, final Task task) {
+        new AsyncReplicaAction(
+            replicaRequest, new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest), (ReplicationTask) task).run();
     }
 
     public static class RetryOnReplicaException extends ElasticsearchException {

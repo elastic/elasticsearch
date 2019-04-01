@@ -411,9 +411,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                                           final DiscoveryNode node,
                                           final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2"), node);
-            ReplicaOperationTransportHandler replicaOperationTransportHandler = new ReplicaOperationTransportHandler();
             try {
-                replicaOperationTransportHandler.messageReceived(replicaRequest, new TransportChannel() {
+                handleReplicaRequest(replicaRequest, new TransportChannel() {
                     @Override
                     public String getProfileName() {
                         return null;

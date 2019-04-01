@@ -96,6 +96,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                .findFirst());
     }
 
+    /**
+     * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
+     */
     private static class WriteJobStatus extends ClusterStateUpdateTask {
         private static final ToXContent.Params STACKTRACE_PARAMS =
             new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
@@ -138,16 +141,16 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             assert snapMeta != null : "this should never be called while the snapshot lifecycle cluster metadata is null";
             if (snapMeta == null) {
-                logger.error("failed to record snapshot [{}] for snapshot policy [{}]: snapshot lifecycle metadata is null",
-                    exception.isPresent() ? "failure" : "success", policyName);
+                logger.error("failed to record snapshot [{}] for snapshot [{}] in policy [{}]: snapshot lifecycle metadata is null",
+                    exception.isPresent() ? "failure" : "success", snapshotName, policyName);
                 return currentState;
             }
 
             Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
             SnapshotLifecyclePolicyMetadata policyMetadata = snapLifecycles.get(policyName);
             if (policyMetadata == null) {
-                logger.warn("failed to record snapshot [{}] for snapshot policy [{}]: policy not found",
-                    exception.isPresent() ? "failure" : "success", policyName);
+                logger.warn("failed to record snapshot [{}] for snapshot [{}] in policy [{}]: policy not found",
+                    exception.isPresent() ? "failure" : "success", snapshotName, policyName);
                 return currentState;
             }
 
@@ -170,7 +173,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error("failed to record snapshot policy execution status [{}]: {}", source, e);
+            logger.error("failed to record snapshot policy execution status for snapshot [{}] in policy [{}], (source: [{}]): {}",
+                snapshotName, policyName, source, e);
         }
     }
 }

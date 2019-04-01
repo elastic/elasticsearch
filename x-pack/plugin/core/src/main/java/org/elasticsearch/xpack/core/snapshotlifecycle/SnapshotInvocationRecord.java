@@ -20,6 +20,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Holds information about Snapshots kicked off by Snapshot Lifecycle Management in the cluster state, so that this information can be
+ * presented to the user. This class is used for both successes and failures as the structure of the data is very similar.
+ */
 public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocationRecord>
     implements Writeable, ToXContentObject, Diffable<SnapshotInvocationRecord> {
 

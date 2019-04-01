@@ -1010,8 +1010,8 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public PrimaryResult perform(Request request) throws Exception {
-            PrimaryResult result = shardOperationOnPrimary(request, indexShard);
+        public PrimaryResult<ReplicaRequest, Response> perform(Request request) throws Exception {
+            PrimaryResult<ReplicaRequest, Response> result = shardOperationOnPrimary(request, indexShard);
             assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
                 + "] with a primary failure [" + result.finalFailure + "]";
             return result;

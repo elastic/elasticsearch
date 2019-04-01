@@ -377,7 +377,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    private static class SimpleState {
+    private static final class SimpleState {
         private final Version safeVersion;
         private final boolean lastFailed;
 
@@ -389,6 +389,20 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         public SimpleState failed() {
             return lastFailed ? this : new SimpleState(safeVersion, true);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SimpleState that = (SimpleState) o;
+            return lastFailed == that.lastFailed &&
+                safeVersion.equals(that.safeVersion);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(safeVersion, lastFailed);
         }
     }
 

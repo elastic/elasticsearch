@@ -166,8 +166,9 @@ public class InternalAggregationsTests extends ESTestCase {
 
         byte[] aggsBytes = Base64.getDecoder().decode(aggsString);
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(aggsBytes), registry)) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
-                Version.max(Version.CURRENT.minimumCompatibilityVersion(), VersionUtils.getPreviousVersion(Version.CURRENT))));
+            Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_7_0.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(Version.V_6_7_0));
+            in.setVersion(version);
             InternalAggregations deserialized = InternalAggregations.readAggregations(in);
             assertEquals(3, deserialized.aggregations.size());
             assertThat(deserialized.aggregations.get(0), Matchers.instanceOf(StringTerms.class));

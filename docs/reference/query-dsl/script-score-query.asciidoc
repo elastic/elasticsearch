@@ -36,6 +36,10 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
+NOTE: The values returned from `script_score` cannot be negative. In general,
+Lucene requires the scores produced by queries to be non-negative in order to
+support certain search optimizations.
+
 ==== Accessing the score of a document within a script
 
 Within a script, you can
@@ -92,9 +96,9 @@ cosine similarity between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilarity(params.queryVector, doc['my_dense_vector'])",
+        "source": "cosineSimilarity(params.query_vector, doc['my_dense_vector']) + 1.0" <1>,
         "params": {
-          "queryVector": [4, 3.4, -0.2]  <1>
+          "query_vector": [4, 3.4, -0.2]  <2>
         }
       }
     }
@@ -102,7 +106,8 @@ cosine similarity between a given query vector and document vectors.
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> To take advantage of the script optimizations, provide a query vector as a script parameter.
+<1> The script adds 1.0 to the cosine similarity to prevent the score from being negative.
+<2> To take advantage of the script optimizations, provide a query vector as a script parameter.
 
 Similarly, for sparse_vector fields, `cosineSimilaritySparse` calculates cosine similarity
 between a given query vector and document vectors.
@@ -116,9 +121,9 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "cosineSimilaritySparse(params.queryVector, doc['my_sparse_vector'])",
+        "source": "cosineSimilaritySparse(params.query_vector, doc['my_sparse_vector']) + 1.0",
         "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
         }
       }
     }
@@ -139,9 +144,12 @@ dot product between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProduct(params.queryVector, doc['my_dense_vector'])",
+        "source": """
+          double value = dotProduct(params.query_vector, doc['my_vector']);
+          return sigmoid(1, Math.E, -value); <1>
+        """,
         "params": {
-          "queryVector": [4, 3.4, -0.2]
+          "query_vector": [4, 3.4, -0.2]
         }
       }
     }
@@ -149,6 +157,8 @@ dot product between a given query vector and document vectors.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+<1> Using the standard sigmoid function prevents scores from being negative.
 
 Similarly, for sparse_vector fields, `dotProductSparse` calculates dot product
 between a given query vector and document vectors.
@@ -162,9 +172,12 @@ between a given query vector and document vectors.
         "match_all": {}
       },
       "script": {
-        "source": "dotProductSparse(params.queryVector, doc['my_sparse_vector'])",
-        "params": {
-          "queryVector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
+        "source": """
+          double value = dotProductSparse(params.query_vector, doc['my_sparse_vector']);
+          return sigmoid(1, Math.E, -value);
+        """,
+         "params": {
+          "query_vector": {"2": 0.5, "10" : 111.3, "50": -1.3, "113": 14.8, "4545": 156.0}
         }
       }
     }
@@ -182,60 +195,44 @@ different from the query's vector, 0 is used for missing dimensions
 in the calculations of vector functions.
 
 
-[[random-functions]]
-===== Random functions
-There are two predefined ways to produce random values:
-`randomNotReproducible` and `randomReproducible`.
+[[random-score-function]]
+===== Random score function
+`random_score` function generates scores that are uniformly distributed
+from 0 up to but not including 1.
 
-`randomNotReproducible()` uses `java.util.Random` class
-to generate a random value of the type `long`.
-The generated values are not reproducible between requests' invocations.
+`randomScore` function has the following syntax:
+`randomScore(<seed>, <fieldName>)`.
+It has a required parameter - `seed` as an integer value,
+and an optional parameter - `fieldName` as a string value.
 
 [source,js]
 --------------------------------------------------
 "script" : {
-    "source" : "randomNotReproducible()"
+    "source" : "randomScore(100, '_seq_no')"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+If the `fieldName` parameter is omitted, the internal Lucene
+document ids will be used as a source of randomness. This is very efficient,
+but unfortunately not reproducible since documents might be renumbered
+by merges.
+
+[source,js]
+--------------------------------------------------
+"script" : {
+    "source" : "randomScore(100)"
 }
 --------------------------------------------------
 // NOTCONSOLE
 
 
-`randomReproducible(String seedValue, int seed)` produces
-reproducible random values of type `long`. This function requires
-more computational time and memory than the non-reproducible version.
-
-A good candidate for the `seedValue` is document field values that
-are unique across documents and already pre-calculated and preloaded
-in the memory. For example, values of the document's `_seq_no` field
-is a good candidate, as documents on the same shard have unique values
-for the `_seq_no` field.
-
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "randomReproducible(Long.toString(doc['_seq_no'].value), 100)"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-
-A drawback of using `_seq_no` is that generated values change if
-documents are updated. Another drawback is not absolute uniqueness, as
-documents from different shards with the same sequence numbers
-generate the same random values.
-
-If you need random values to be distinct across different shards,
-you can use a field with unique values across shards,
-such as  `_id`, but watch out for the memory usage as all
-these unique values need to be loaded into memory.
-
-[source,js]
---------------------------------------------------
-"script" : {
-    "source" : "randomReproducible(doc['_id'].value, 100)"
-}
---------------------------------------------------
-// NOTCONSOLE
+Note that documents that are within the same shard and have the
+same value for field will get the same score, so it is usually desirable
+to use a field that has unique values for all documents across a shard.
+A good default choice might be to use the `_seq_no`
+field, whose only drawback is that scores will change if the document is
+updated since update operations also update the value of the `_seq_no` field.
 
 
 [[decay-functions]]
@@ -349,8 +346,8 @@ the following script:
 
 ===== `random_score`
 
-Use `randomReproducible` and `randomNotReproducible` functions
-as described in <<random-functions, random functions>>.
+Use `randomScore` function
+as described in <<random-score-function, random score function>>.
 
 
 ===== `field_value_factor`

@@ -293,8 +293,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         // systemd's private temp directory functionally means different
         // processes can have different views of what's in these directories
         String randomName = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10);
-        String temp = sh.runIgnoreExitCode("mkdir /etc/"+randomName).stdout.trim();
-        final Path tempConf = Paths.get(temp);
+        sh.run("mkdir /etc/"+randomName);
+        final Path tempConf = Paths.get("/etc/"+randomName);
 
         try {
             mkdir(tempConf);

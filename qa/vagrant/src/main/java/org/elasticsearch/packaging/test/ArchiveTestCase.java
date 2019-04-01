@@ -227,7 +227,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
             String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
-            String test_java_home = FileUtils.mkdir(Paths.get("~", nameWithSpace)).toAbsolutePath().toString();
+            String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 final String java = systemJavaHome + "/bin/java";

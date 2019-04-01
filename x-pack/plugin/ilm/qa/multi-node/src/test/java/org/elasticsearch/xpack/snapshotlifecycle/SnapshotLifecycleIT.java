@@ -49,7 +49,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         // Create a snapshot repo
         inializeRepo(repoId);
 
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName);
+        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
         // Check that the snapshot was actually taken
         assertBusy(() -> {
@@ -96,16 +96,13 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPolicyFailure() throws Exception {
-        final String indexName = "test";
         final String policyName = "test-policy";
-        int docCount = randomIntBetween(10, 50);
-        List<IndexRequestBuilder> indexReqs = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            index(client(), indexName, "" + i, "foo", "bar");
-        }
+        final String repoName = "test-repo";
+        final String indexPattern = "index-doesnt-exist";
+        inializeRepo(repoName);
 
-        // Create a policy with a repo that doesn't exist
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", "bad-repo", indexName);
+        // Create a policy with ignore_unvailable: false and an index that doesn't exist
+        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
 
         assertBusy(() -> {
             // Check that the failure is written to the cluster state
@@ -125,7 +122,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
                 String lastFailureInfo = (String) lastFailureObject.get("details");
                 assertNotNull(lastFailureInfo);
-                assertThat(lastFailureInfo, containsString("[bad-repo] missing"));
+                assertThat(lastFailureInfo, containsString("no such index [index-doesnt-exist]"));
 
                 String snapshotName = (String) lastFailureObject.get("snapshot_name");
                 assertNotNull(snapshotName);
@@ -138,9 +135,10 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
     }
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
-                                      String indexPattern) throws IOException {
+                                      String indexPattern, boolean ignoreUnavailable) throws IOException {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
+        snapConfig.put("ignore_unavailable", ignoreUnavailable);
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);
 
         Request putLifecycle = new Request("PUT", "/_ilm/snapshot/" + policyName);

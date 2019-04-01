@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,24 +38,25 @@ import java.util.List;
  */
 public class JsonFieldParser {
     private static final String SEPARATOR = "\0";
+    private static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldName;
     private final String keyedFieldName;
 
+    private final MappedFieldType fieldType;
     private final int depthLimit;
     private final int ignoreAbove;
-    private final String nullValueAsString;
 
     JsonFieldParser(String rootFieldName,
                     String keyedFieldName,
+                    MappedFieldType fieldType,
                     int depthLimit,
-                    int ignoreAbove,
-                    String nullValueAsString) {
+                    int ignoreAbove) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
+        this.fieldType = fieldType;
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
-        this.nullValueAsString = nullValueAsString;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -116,8 +119,8 @@ public class JsonFieldParser {
             String value = parser.text();
             addField(path, currentName, value, fields);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            if (nullValueAsString != null) {
-                addField(path, currentName, nullValueAsString, fields);
+            if (fieldType.nullValueAsString() != null) {
+                addField(path, currentName, fieldType.nullValueAsString(), fields);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -141,8 +144,15 @@ public class JsonFieldParser {
         }
         String keyedValue = createKeyedValue(key, value);
 
-        fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
-        fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
+        if (fieldType.indexOptions() != IndexOptions.NONE) {
+            fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
+            fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
+        }
+
+        if (fieldType.hasDocValues()) {
+            fields.add(new SortedSetDocValuesField(rootFieldName, new BytesRef(value)));
+            fields.add(new SortedSetDocValuesField(keyedFieldName, new BytesRef(keyedValue)));
+        }
     }
 
     private void validateDepthLimit(ContentPath path) {
@@ -152,7 +162,17 @@ public class JsonFieldParser {
         }
     }
 
-    public static String createKeyedValue(String key, String value) {
+    static String createKeyedValue(String key, String value) {
         return key + SEPARATOR + value;
+    }
+
+    static BytesRef extractKey(BytesRef keyedValue) {
+        int length;
+        for (length = 0; length < keyedValue.length; length++){
+            if (keyedValue.bytes[keyedValue.offset + length] == SEPARATOR_BYTE) {
+                break;
+            }
+        }
+        return new BytesRef(keyedValue.bytes, keyedValue.offset, length);
     }
 }

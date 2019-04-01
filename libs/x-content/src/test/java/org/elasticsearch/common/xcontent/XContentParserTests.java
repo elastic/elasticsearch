@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -368,6 +369,7 @@ public class XContentParserTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/40617")
     public void testSubParserArray() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         int numberOfArrayElements = randomInt(10);

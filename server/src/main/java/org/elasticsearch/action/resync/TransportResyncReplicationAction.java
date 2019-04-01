@@ -47,7 +47,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {

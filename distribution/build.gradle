@@ -321,13 +321,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from project(':distribution').buildTransportModules
     }
 
-    configFiles = { distributionType, oss ->
+    configFiles = { distributionType, oss, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         if (oss) {
           from project(':distribution').buildOssLog4jConfig
@@ -339,7 +339,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    binFiles = { distributionType, oss ->
+    binFiles = { distributionType, oss, jdk ->
       copySpec {
         // non-windows files, for all distributions 
         with copySpec {
@@ -347,7 +347,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -355,7 +355,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
           }
           with copySpec {
             from '../src/bin'
@@ -452,7 +452,7 @@ task run(type: RunTask) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss ->
+  ext.expansionsForDistribution = { distributionType, oss, jdk ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
@@ -543,6 +543,10 @@ subprojects {
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
+      ],
+
+      'es.bundled_jdk': [
+        'def': jdk ? 'true' : 'false'
       ],
 
       'license.name': [

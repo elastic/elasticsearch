@@ -298,7 +298,8 @@ public final class Verifier {
         return checkGroupByInexactField(p, localFailures)
                 && checkGroupByAgg(p, localFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures)
-                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
+                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions)
+                && checkGroupByTime(p, localFailures);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
@@ -473,10 +474,26 @@ public final class Verifier {
             a.groupings().forEach(e -> e.forEachUp(c -> {
                 EsField.Exact exact = c.getExactInfo();
                 if (exact.hasExact() == false) {
-                    localFailures.add(fail(c, "Field of data type [" + c.dataType().typeName + "] cannot be used for grouping; " +
-                        exact.errorMsg()));
+                    localFailures.add(fail(c, "Field [" + c.sourceText()  + "] of data type [" + c.dataType().typeName + "] " +
+                        "cannot be used for grouping; " + exact.errorMsg()));
                 }
             }, FieldAttribute.class));
+        }
+        return true;
+    }
+
+    private static boolean checkGroupByTime(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Aggregate) {
+            Aggregate a = (Aggregate) p;
+
+            // TIME data type is not allowed for grouping key
+            // https://github.com/elastic/elasticsearch/issues/40639
+            a.groupings().forEach(f -> {
+                if (f.dataType().isTimeBased()) {
+                    localFailures.add(fail(f, "Function [" + f.sourceText()  + "] with data type [" + f.dataType().typeName +
+                        "] " + "cannot be used for grouping"));
+                }
+            });
         }
         return true;
     }

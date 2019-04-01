@@ -75,6 +75,8 @@ public class TopHitsAggExtractor implements BucketExtractor {
         Object value = agg.getHits().getAt(0).getFields().values().iterator().next().getValue();
         if (fieldDataType.isDateBased()) {
             return DateUtils.asDateTime(Long.parseLong(value.toString()), zoneId);
+        } else if (fieldDataType.isTimeBased()) {
+            return DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
         } else {
             return value;
         }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
@@ -180,9 +179,9 @@ public class EscapedFunctionsTests extends ESTestCase {
                 ex.getMessage());
     }
 
-    public void testTimeLiteralUnsupported() {
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> timeLiteral("10:10:10"));
-        assertThat(ex.getMessage(), is("Time (only) literals are not supported; a date component is required as well"));
+    public void testTimeLiteral() {
+        Literal l = timeLiteral("12:23:56");
+        assertThat(l.dataType(), is(DataType.TIME));
     }
 
     public void testTimeLiteralValidation() {

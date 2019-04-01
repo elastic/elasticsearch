@@ -662,7 +662,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
         }
     }
-    
+
     public void testCountAndCountDistinctFolding() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -807,57 +807,56 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-
-    public void testGlobalCountInImplicitGroupByForcesTrackHits() throws Exception {
+    public void testGlobalCountInImplicitGroupByForcesTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() throws Exception {
+    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() throws Exception {
+    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testFieldAllCountDoesNotTrackHits() throws Exception {
+    public void testFieldAllCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testFieldCountDoesNotTrackHits() throws Exception {
+    public void testFieldCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testDistinctCountDoesNotTrackHits() throws Exception {
+    public void testDistinctCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testNoCountDoesNotTrackHits() throws Exception {
+    public void testNoCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT int FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testZonedDateTimeInScripts() throws Exception {
+    public void testZonedDateTimeInScripts() {
         PhysicalPlan p = optimizeAndPlan(
                 "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
         assertEquals(EsQueryExec.class, p.getClass());

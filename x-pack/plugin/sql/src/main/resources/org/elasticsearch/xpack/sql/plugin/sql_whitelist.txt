@@ -12,6 +12,9 @@ class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
 class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
 }
 
+class java.time.OffsetTime {
+}
+
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 
 #
@@ -107,6 +110,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)
+  OffsetTime asTime(String)
 
 #
 # ASCII Functions

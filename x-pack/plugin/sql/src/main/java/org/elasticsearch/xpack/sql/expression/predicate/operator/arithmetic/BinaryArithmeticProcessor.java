@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 
 import java.io.IOException;
+import java.time.OffsetTime;
 import java.time.ZonedDateTime;
+import java.time.temporal.Temporal;
 import java.util.function.BiFunction;
 
 public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object, Object, Object, BinaryArithmeticOperation> {
@@ -41,17 +43,17 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
             }
             l = unwrapJodaTime(l);
             r = unwrapJodaTime(r);
-            if (l instanceof ZonedDateTime && r instanceof IntervalYearMonth) {
-                return Arithmetics.add((ZonedDateTime) l, ((IntervalYearMonth) r).interval());
+            if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalYearMonth) {
+                return Arithmetics.add((Temporal) l, ((IntervalYearMonth) r).interval());
             }
-            if (l instanceof ZonedDateTime && r instanceof IntervalDayTime) {
-                return Arithmetics.add((ZonedDateTime) l, ((IntervalDayTime) r).interval());
+            if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalDayTime) {
+                return Arithmetics.add((Temporal) l, ((IntervalDayTime) r).interval());
             }
-            if (r instanceof ZonedDateTime && l instanceof IntervalYearMonth) {
-                return Arithmetics.add((ZonedDateTime) r, ((IntervalYearMonth) l).interval());
+            if ((r instanceof ZonedDateTime || r instanceof OffsetTime) && l instanceof IntervalYearMonth) {
+                return Arithmetics.add((Temporal) r, ((IntervalYearMonth) l).interval());
             }
-            if (r instanceof ZonedDateTime && l instanceof IntervalDayTime) {
-                return Arithmetics.add((ZonedDateTime) r, ((IntervalDayTime) l).interval());
+            if ((r instanceof ZonedDateTime || r instanceof OffsetTime) && l instanceof IntervalDayTime) {
+                return Arithmetics.add((Temporal) r, ((IntervalDayTime) l).interval());
             }
 
             throw new SqlIllegalArgumentException("Cannot compute [+] between [{}] [{}]", l.getClass().getSimpleName(),
@@ -69,13 +71,13 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Object,
             }
             l = unwrapJodaTime(l);
             r = unwrapJodaTime(r);
-            if (l instanceof ZonedDateTime && r instanceof IntervalYearMonth) {
-                return Arithmetics.sub((ZonedDateTime) l, ((IntervalYearMonth) r).interval());
+            if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalYearMonth) {
+                return Arithmetics.sub((Temporal) l, ((IntervalYearMonth) r).interval());
             }
-            if (l instanceof ZonedDateTime && r instanceof IntervalDayTime) {
-                return Arithmetics.sub((ZonedDateTime) l, ((IntervalDayTime) r).interval());
+            if ((l instanceof ZonedDateTime || l instanceof OffsetTime) && r instanceof IntervalDayTime) {
+                return Arithmetics.sub((Temporal) l, ((IntervalDayTime) r).interval());
             }
-            if (r instanceof ZonedDateTime && l instanceof Interval<?>) {
+            if ((r instanceof ZonedDateTime  || r instanceof OffsetTime) && l instanceof Interval<?>) {
                 throw new SqlIllegalArgumentException("Cannot subtract a date from an interval; do you mean the reverse?");
             }
 

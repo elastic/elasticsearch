@@ -70,7 +70,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportChannelResponseHandler;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -526,7 +525,7 @@ public abstract class TransportReplicationAction<
                     replicaRequest.getPrimaryTerm(),
                     replicaRequest.getGlobalCheckpoint(),
                     replicaRequest.getMaxSeqNoOfUpdatesOrDeletes(),
-                    channel,
+                    new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
                     (ReplicationTask) task).run();
         }
 
@@ -551,7 +550,7 @@ public abstract class TransportReplicationAction<
         private final long primaryTerm;
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;
-        private final TransportChannel channel;
+        private final ActionListener<ReplicaResponse> listener;
         private final IndexShard replica;
         /**
          * The task on the node with the replica shard.
@@ -567,10 +566,10 @@ public abstract class TransportReplicationAction<
                 long primaryTerm,
                 long globalCheckpoint,
                 long maxSeqNoOfUpdatesOrDeletes,
-                TransportChannel channel,
+                ActionListener<ReplicaResponse> listener,
                 ReplicationTask task) {
             this.request = request;
-            this.channel = channel;
+            this.listener = listener;
             this.task = task;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
@@ -610,14 +609,10 @@ public abstract class TransportReplicationAction<
                     public void onNewClusterState(ClusterState state) {
                         // Forking a thread on local node via transport service so that custom transport service have an
                         // opportunity to execute custom logic before the replica operation begins
-                        String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
-                        TransportChannelResponseHandler<TransportResponse.Empty> handler =
-                            new TransportChannelResponseHandler<>(logger, channel, extraMessage,
-                                (in) -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             new ConcreteReplicaRequest<>(request, targetAllocationID, primaryTerm,
                                 globalCheckpoint, maxSeqNoOfUpdatesOrDeletes),
-                            handler);
+                            new ActionListenerResponseHandler<>(listener, in -> new ReplicaResponse()));
                     }
 
                     @Override
@@ -636,14 +631,8 @@ public abstract class TransportReplicationAction<
         }
 
         protected void responseWithFailure(Exception e) {
-            try {
-                setPhase(task, "finished");
-                channel.sendResponse(e);
-            } catch (IOException responseException) {
-                responseException.addSuppressed(e);
-                logger.warn(() -> new ParameterizedMessage(
-                            "failed to send error message back to client for action [{}]", transportReplicaAction), responseException);
-            }
+            setPhase(task, "finished");
+            listener.onFailure(e);
         }
 
         @Override
@@ -675,7 +664,7 @@ public abstract class TransportReplicationAction<
                 }
                 setPhase(task, "finished");
                 try {
-                    channel.sendResponse(replicaResponse);
+                    listener.onResponse(replicaResponse);
                 } catch (Exception e) {
                     onFailure(e);
                 }

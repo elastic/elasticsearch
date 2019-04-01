@@ -201,3 +201,15 @@ SELECT COUNT(*) count, FIRST(region) region FROM geo GROUP BY FLOOR(ST_Distance(
 3              |Asia
 2              |Asia
 ;
+
+selectWktToSqlOfNull
+SELECT ST_ASWKT(ST_WktToSql(NULL)) shape;
+  shape:s
+null
+;
+
+selectWktToSqlOfNull
+SELECT ST_Distance(ST_WktToSql(NULL), ST_WktToSQL('POINT (-71 42)')) shape;
+  shape:d
+null
+;

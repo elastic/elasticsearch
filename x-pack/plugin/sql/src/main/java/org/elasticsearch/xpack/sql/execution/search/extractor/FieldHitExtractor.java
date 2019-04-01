@@ -129,8 +129,13 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.GEO_POINT) {
             Object value;
-            if (values instanceof List && ((List<?>) values).size() == 1) {
+            if (values instanceof List) {
+                if (((List<?>) values).size() > 0) {
                     value = ((List<?>) values).get(0);
+                } else {
+                    // Empty list indicates null
+                   return null;
+                }
             } else {
                 value = values;
             }
@@ -143,8 +148,12 @@ public class FieldHitExtractor implements HitExtractor {
         }
         if (dataType == DataType.GEO_SHAPE) {
             Object value;
-            if (values instanceof List && ((List<?>) values).size() == 1) {
-                value = ((List<?>) values).get(0);
+            if (values instanceof List) {
+                if (((List<?>) values).size() > 1) {
+                    value = ((List<?>) values).get(0);
+                } else {
+                    return null;
+                }
             } else {
                 value = values;
             }

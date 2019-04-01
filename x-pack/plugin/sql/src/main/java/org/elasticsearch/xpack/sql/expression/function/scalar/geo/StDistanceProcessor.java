@@ -46,7 +46,11 @@ public class StDistanceProcessor extends BinaryProcessor {
         return process(left, right);
     }
 
-    public static double process(Object source1, Object source2) {
+    public static Double process(Object source1, Object source2) {
+        if (source1 == null || source2 == null) {
+            return null;
+        }
+
         if (source1 instanceof GeoShape == false) {
             throw new SqlIllegalArgumentException("A geo_point or geo_shape with type point is required; received [{}]", source1);
         }

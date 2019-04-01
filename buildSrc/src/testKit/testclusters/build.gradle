@@ -63,10 +63,11 @@ task printLog {
 
 task upToDate1 {
     useCluster testClusters.myTestCluster
-}
-
-task upToDate2 {
-    useCluster testClusters.myTestCluster
+    outputs.upToDateWhen { true }
+    inputs.file(file("build.gradle"))
+    doLast {
+        println "Some task action"
+    }
 }
 
 task skipped1 {

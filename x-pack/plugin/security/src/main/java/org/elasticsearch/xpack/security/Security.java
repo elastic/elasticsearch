@@ -618,7 +618,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
-        NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -688,7 +687,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                     throw new IllegalArgumentException("permission filters are not allowed to use the current timestamp");
 
                                 }, null),
-                                indexService.cache().bitsetFilterCache(),
+                                indexService.cache() != null ? indexService.cache().bitsetFilterCache() : null,
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
                                 indexService.getScriptService()));
                 /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.

@@ -99,6 +99,7 @@ Functions that target date/time.
 --------------------------------------------------
 CURRENT_DATE
 CURRENT_DATE()
+CURDATE()
 --------------------------------------------------
 
 *Input*: _none_
@@ -117,7 +118,12 @@ This method always returns the same value for its every occurrence within the sa
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/docs.csv-spec[curDate]
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentDate]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentDateFunction]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,callouts,macros"]

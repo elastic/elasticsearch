@@ -175,7 +175,7 @@ public final class DataTypes {
     }
 
     // https://github.com/elastic/elasticsearch/issues/30386
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-2017
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlDateTimeSub(DataType t) {
         if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
@@ -185,42 +185,44 @@ public final class DataTypes {
         return 0;
     }
 
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/decimal-digits?view=sql-server-2017
     public static Short metaSqlMinimumScale(DataType t) {
-        // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATETIME) {
-            return Short.valueOf((short) 3);
-        }
-        if (t.isInteger()) {
-            return Short.valueOf((short) 0);
-        }
-        // minimum scale?
-        if (t.isRational()) {
-            return Short.valueOf((short) 0);
-        }
-        return null;
+        return metaSqlSameScale(t);
     }
 
     public static Short metaSqlMaximumScale(DataType t) {
-        // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATETIME) {
-            return Short.valueOf((short) 3);
-        }
+        return metaSqlSameScale(t);
+    }
+
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/decimal-digits
+    // https://github.com/elastic/elasticsearch/issues/40357
+    // since the scale is fixed, minimum and maximum should return the same value
+    // hence why this method exists
+    private static Short metaSqlSameScale(DataType t) {
+        // TODO: return info for SCALED_FLOATS (should be based on field not type)
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t.isRational()) {
+        if (t.isDateBased() || t.isRational()) {
             return Short.valueOf((short) t.defaultPrecision);
         }
         return null;
     }
 
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-2017
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlRadix(DataType t) {
         // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
         // 10 means they represent the number of decimal digits allowed for the column.
         // 2 means they represent the number of bits allowed for the column.
         // null means radix is not applicable for the given type.
         return t.isInteger() ? Integer.valueOf(10) : (t.isRational() ? Integer.valueOf(2) : null);
+    }
+
+    //https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
+    //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
+    public static Integer precision(DataType t) {
+        if (t.isNumeric()) {
+            return t.defaultPrecision;
+        }
+        return t.displaySize;
     }
 }

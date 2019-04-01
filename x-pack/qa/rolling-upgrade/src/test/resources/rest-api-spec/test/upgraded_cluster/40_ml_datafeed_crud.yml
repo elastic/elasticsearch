@@ -6,7 +6,6 @@ setup:
         # wait for long enough that we give delayed unassigned shards to stop being delayed
         timeout: 70s
 
-
 ---
 "Test old and mixed cluster datafeeds without aggs":
   - do:

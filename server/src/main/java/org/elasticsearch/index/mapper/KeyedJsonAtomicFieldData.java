@@ -214,6 +214,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
             long ord = delegate.nextOrd();
             if (ord != NO_MORE_ORDS && ord <= maxOrd) {
+                assert ord >= minOrd;
                 return ord;
             } else {
                 return NO_MORE_ORDS;
@@ -223,13 +224,19 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
         @Override
         public boolean advanceExact(int target) throws IOException {
             if (delegate.advanceExact(target)) {
-                for (long ord = delegate.nextOrd(); ord != NO_MORE_ORDS; ord = delegate.nextOrd()) {
-                     if (minOrd <= ord && ord <= maxOrd) {
-                         cachedNextOrd = ord;
-                         return true;
+                while (true) {
+                    long ord = delegate.nextOrd();
+                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                        break;
+                    }
+
+                    if (ord >= minOrd) {
+                        cachedNextOrd = ord;
+                        return true;
                     }
                 }
             }
+
             cachedNextOrd = -1;
             return false;
         }

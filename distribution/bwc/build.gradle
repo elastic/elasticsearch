@@ -185,7 +185,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
     task buildBwc {}
 
-    Closure createBuildBwcTask = { projectName, projectDir, projectArtifact->
+    Closure createBuildBwcTask = { projectName, projectDir, projectArtifact ->
         Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
             args ":${projectDir.replace('/', ':')}:assemble"
             doLast {

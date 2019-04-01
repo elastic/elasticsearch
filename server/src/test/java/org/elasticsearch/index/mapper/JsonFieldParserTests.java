@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
@@ -41,7 +42,9 @@ public class JsonFieldParserTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         parser = new JsonFieldParser("field", "field._keyed",
-            Integer.MAX_VALUE, Integer.MAX_VALUE, null);
+            new FakeFieldType(),
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE);
     }
 
     public void testTextValues() throws Exception {
@@ -218,7 +221,7 @@ public class JsonFieldParserTests extends ESTestCase {
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
         JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
-            2, Integer.MAX_VALUE, null);
+            new FakeFieldType(), 2, Integer.MAX_VALUE);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> configuredParser.parse(xContentParser));
@@ -230,7 +233,7 @@ public class JsonFieldParserTests extends ESTestCase {
             "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
         XContentParser xContentParser = createXContentParser(input);
         JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
-             3, Integer.MAX_VALUE, null);
+            new FakeFieldType(), 3, Integer.MAX_VALUE);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(4, fields.size());
@@ -240,7 +243,7 @@ public class JsonFieldParserTests extends ESTestCase {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
         JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
-            Integer.MAX_VALUE, 10, null);
+            new FakeFieldType(), Integer.MAX_VALUE, 10);
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(0, fields.size());
@@ -254,8 +257,11 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
 
         xContentParser = createXContentParser(input);
+
+        MappedFieldType fieldType = new FakeFieldType();
+        fieldType.setNullValue("placeholder");
         JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
-            Integer.MAX_VALUE, Integer.MAX_VALUE, "placeholder");
+            fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         fields = configuredParser.parse(xContentParser);
         assertEquals(2, fields.size());

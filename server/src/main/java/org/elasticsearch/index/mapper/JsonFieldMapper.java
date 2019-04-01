@@ -21,15 +21,19 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -39,9 +43,21 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -93,7 +109,7 @@ public final class JsonFieldMapper extends FieldMapper {
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(false);
+            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
@@ -127,20 +143,17 @@ public final class JsonFieldMapper extends FieldMapper {
             return super.indexOptions(indexOptions);
         }
 
-        @Override
-        public Builder docValues(boolean docValues) {
-            if (docValues) {
-                throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
-            }
-            return super.docValues(docValues);
-        }
-
         public Builder depthLimit(int depthLimit) {
             if (depthLimit < 0) {
                 throw new IllegalArgumentException("[depth_limit] must be positive, got " + depthLimit);
             }
             this.depthLimit = depthLimit;
             return this;
+        }
+
+        public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            return builder;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -167,11 +180,6 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean defaultDocValues(Version indexCreated) {
-            return false;
-        }
-
-        @Override
         public JsonFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             if (fieldType().splitQueriesOnWhitespace()) {
@@ -193,6 +201,9 @@ public final class JsonFieldMapper extends FieldMapper {
                 Object propNode = entry.getValue();
                 if (propName.equals("depth_limit")) {
                     builder.depthLimit(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    iterator.remove();
+                } else if (propName.equals("eager_global_ordinals")) {
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
@@ -221,7 +232,7 @@ public final class JsonFieldMapper extends FieldMapper {
         private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        KeyedJsonFieldType(String key) {
+        public KeyedJsonFieldType(String key) {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
@@ -323,6 +334,7 @@ public final class JsonFieldMapper extends FieldMapper {
                 CONTENT_TYPE + "] fields.");
         }
 
+        @Override
         public BytesRef indexedValueForSearch(Object value) {
             if (value == null) {
                 return null;
@@ -333,6 +345,108 @@ public final class JsonFieldMapper extends FieldMapper {
                 : value.toString();
             String keyedValue = JsonFieldParser.createKeyedValue(key, stringValue);
             return new BytesRef(keyedValue);
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new KeyedJsonIndexFieldData.Builder(key);
+        }
+    }
+
+    /**
+     * A field data implementation that gives access to the values associated with
+     * a particular JSON key.
+     *
+     * This class wraps the field data that is built directly on the keyed JSON field, and
+     * filters out values whose prefix doesn't match the requested key. Loading and caching
+     * is fully delegated to the wrapped field data, so that different {@link KeyedJsonIndexFieldData}
+     * for the same JSON field share the same global ordinals.
+     */
+    public static class KeyedJsonIndexFieldData implements IndexOrdinalsFieldData {
+        private final String key;
+        private final IndexOrdinalsFieldData delegate;
+
+        private KeyedJsonIndexFieldData(String key, IndexOrdinalsFieldData delegate) {
+            this.delegate = delegate;
+            this.key = key;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        @Override
+        public String getFieldName() {
+            return delegate.getFieldName();
+        }
+
+        @Override
+        public SortField sortField(Object missingValue,
+                                   MultiValueMode sortMode,
+                                   XFieldComparatorSource.Nested nested,
+                                   boolean reverse) {
+            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
+        }
+
+        @Override
+        public void clear() {
+            delegate.clear();
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData load(LeafReaderContext context) {
+            AtomicOrdinalsFieldData fieldData = delegate.load(context);
+            return new KeyedJsonAtomicFieldData(key, fieldData);
+        }
+
+        @Override
+        public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+            AtomicOrdinalsFieldData fieldData = delegate.loadDirect(context);
+            return new KeyedJsonAtomicFieldData(key, fieldData);
+        }
+
+        @Override
+        public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
+            IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
+            return new KeyedJsonIndexFieldData(key, fieldData);
+        }
+
+        @Override
+        public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
+            IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
+            return new KeyedJsonIndexFieldData(key, fieldData);
+        }
+
+        @Override
+        public OrdinalMap getOrdinalMap() {
+            return delegate.getOrdinalMap();
+        }
+
+        @Override
+        public Index index() {
+            return delegate.index();
+        }
+
+        public static class Builder implements IndexFieldData.Builder {
+            private final String key;
+
+            Builder(String key) {
+                this.key = key;
+            }
+
+            @Override
+            public IndexFieldData<?> build(IndexSettings indexSettings,
+                                           MappedFieldType fieldType,
+                                           IndexFieldDataCache cache,
+                                           CircuitBreakerService breakerService,
+                                           MapperService mapperService) {
+                String fieldName = fieldType.name();
+                IndexOrdinalsFieldData delegate = new SortedSetDVOrdinalsIndexFieldData(indexSettings,
+                    cache, fieldName, breakerService, AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                return new KeyedJsonIndexFieldData(key, delegate);
+            }
         }
     }
 
@@ -396,7 +510,11 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            if (hasDocValues()) {
+                return new DocValuesFieldExistsQuery(name());
+            } else {
+                return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+            }
         }
 
         @Override
@@ -420,6 +538,12 @@ public final class JsonFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
                 CONTENT_TYPE + "] fields.");
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new DocValuesIndexFieldData.Builder();
+        }
     }
 
     private final JsonFieldParser fieldParser;
@@ -438,7 +562,7 @@ public final class JsonFieldMapper extends FieldMapper {
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
-            depthLimit, ignoreAbove, fieldType.nullValueAsString());
+            fieldType, depthLimit, ignoreAbove);
     }
 
     @Override
@@ -476,7 +600,9 @@ public final class JsonFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE
+                && !fieldType.hasDocValues()
+                && !fieldType.stored()) {
             context.parser().skipChildren();
             return;
         }
@@ -490,22 +616,22 @@ public final class JsonFieldMapper extends FieldMapper {
             fields.add(new StoredField(fieldType.name(), storedValue));
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE) {
-            XContentParser indexedFieldsParser = context.parser();
+        XContentParser indexedFieldsParser = context.parser();
 
-            // If store is enabled, we've already consumed the content to produce the stored field. Here we
-            // 'reset' the parser, so that we can traverse the content again.
-            if (storedValue != null) {
-                indexedFieldsParser = JsonXContent.jsonXContent.createParser(context.parser().getXContentRegistry(),
-                    context.parser().getDeprecationHandler(),
-                    storedValue.bytes);
-                indexedFieldsParser.nextToken();
-            }
-
-            fields.addAll(fieldParser.parse(indexedFieldsParser));
+        // If store is enabled, we've already consumed the content to produce the stored field. Here we
+        // 'reset' the parser, so that we can traverse the content again.
+        if (storedValue != null) {
+            indexedFieldsParser = JsonXContent.jsonXContent.createParser(context.parser().getXContentRegistry(),
+                context.parser().getDeprecationHandler(),
+                storedValue.bytes);
+            indexedFieldsParser.nextToken();
         }
 
-        createFieldNamesField(context, fields);
+        fields.addAll(fieldParser.parse(indexedFieldsParser));
+
+        if (!fieldType.hasDocValues()) {
+            createFieldNamesField(context, fields);
+        }
     }
 
     @Override

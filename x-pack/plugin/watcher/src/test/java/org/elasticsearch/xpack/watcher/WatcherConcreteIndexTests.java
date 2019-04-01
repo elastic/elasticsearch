@@ -23,11 +23,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean timeWarped() {
-        return false;
-    }
-
     public void testCanUseAnyConcreteIndexName() throws Exception {
         String newWatcherIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         String watchResultsIndex = randomAlphaOfLength(11).toLowerCase(Locale.ROOT);
@@ -45,6 +40,8 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
             .get();
 
         assertTrue(putWatchResponse.isCreated());
+
+        timeWarp().trigger("mywatch");
 
         assertBusy(() -> {
             SearchResponse searchResult = client().prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();

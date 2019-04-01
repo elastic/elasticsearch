@@ -282,6 +282,19 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
+    public void testCastOperatorPrecedence() {
+        Expression expr = parser.createExpression("(10* 2::long)");
+        assertEquals(Mul.class, expr.getClass());
+        Mul mul = (Mul) expr;
+        assertEquals(DataType.LONG, mul.dataType());
+        assertEquals(DataType.INTEGER, mul.left().dataType());
+        assertEquals(Cast.class, mul.right().getClass());
+        Cast cast = (Cast) mul.right();
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+    }
+
     public void testCastOperatorWithUnquotedDataType() {
         Expression expr = parser.createExpression("(10* 2)::long");
         assertEquals(Cast.class, expr.getClass());

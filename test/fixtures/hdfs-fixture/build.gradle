@@ -18,23 +18,10 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   compile "org.apache.hadoop:hadoop-minicluster:2.8.1"
 }
 
-task syncClasses(type: Sync) {
-  from sourceSets.test.runtimeClasspath
-  into "${buildDir}/fixture"
-}
-
-preProcessFixture {
-  dependsOn syncClasses
-
-  doLast {
-    file("${buildDir}/shared").mkdirs()
-  }
-}
-
 unitTest.enabled = false
+thirdPartyAudit.enabled = false

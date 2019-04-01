@@ -78,6 +78,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 public class TextFieldMapperTests extends ESSingleNodeTestCase {
@@ -1082,6 +1083,97 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             mpq.add(new Term("field", "motor"));
             mpq.add(new Term("field", "d"));
             assertThat(q, equalTo(mpq));
+        }
+    }
+
+    public void testSimpleMerge() throws IOException {
+        MapperService mapperService = createIndex("test_mapping_merge").mapperService();
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                            .startObject("index_prefixes").endObject()
+                            .field("index_phrases", true)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            DocumentMapper mapper = mapperService.merge("_doc",
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            assertThat(mapper.mappers().getMapper("a_field"), instanceOf(TextFieldMapper.class));
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                            .startObject("index_prefixes").endObject()
+                            .field("index_phrases", true)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            DocumentMapper mapper = mapperService.merge("_doc",
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            assertThat(mapper.mappers().getMapper("a_field"), instanceOf(TextFieldMapper.class));
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                                .startObject("index_prefixes")
+                                    .field("min_chars", "3")
+                                .endObject()
+                                .field("index_phrases", true)
+                            .endObject()
+                    .endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("_doc",
+                    new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+            assertThat(e.getMessage(), containsString("different [index_prefixes]"));
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                            .startObject("index_prefixes").endObject()
+                            .field("index_phrases", false)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("_doc",
+                    new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+            assertThat(e.getMessage(), containsString("different [index_phrases]"));
+        }
+
+        {
+            String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("a_field")
+                            .field("type", "text")
+                            .startObject("index_prefixes").endObject()
+                            .field("index_phrases", true)
+                        .endObject()
+                        .startObject("b_field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
+            DocumentMapper mapper = mapperService.merge("_doc",
+                new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            assertThat(mapper.mappers().getMapper("a_field"), instanceOf(TextFieldMapper.class));
+            assertThat(mapper.mappers().getMapper("b_field"), instanceOf(KeywordFieldMapper.class));
         }
     }
 }

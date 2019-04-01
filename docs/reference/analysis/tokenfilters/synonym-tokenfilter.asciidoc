@@ -58,10 +58,10 @@ PUT /test_index
                     }
                 },
                 "filter" : {
-                	"my_stop": {
-                		"type" : "stop",
-                		"stopwords": ["bar"]
-                	},
+                    "my_stop": {
+                        "type" : "stop",
+                        "stopwords": ["bar"]
+                    },
                     "synonym" : {
                         "type" : "synonym",
                         "lenient": true,

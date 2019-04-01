@@ -160,7 +160,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(0L, 100000000L);
                 long maxSeqNo = Math.max(localCheckpoint, globalCheckpoint);
 
-                SeqNoStats validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+                final SeqNoStats validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
                 checkpoints.add(globalCheckpoint);
 
                 for (int replica = 0;  replica < numShardCopies; replica++) {

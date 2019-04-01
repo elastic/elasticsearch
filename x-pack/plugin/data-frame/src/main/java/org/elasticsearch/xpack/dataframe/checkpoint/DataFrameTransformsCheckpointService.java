@@ -103,6 +103,7 @@ public class DataFrameTransformsCheckpointService {
                                 Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
                                 DataFrameTransformCheckpoint checkpointDoc = new DataFrameTransformCheckpoint(transformConfig.getId(),
                                         timestamp, checkpoint, checkpointsByIndex, timeUpperBound);
+
                                 listener.onResponse(checkpointDoc);
 
                             }, IndicesStatsRequestException -> {
@@ -129,29 +130,32 @@ public class DataFrameTransformsCheckpointService {
         Checkpoints checkpoints = new Checkpoints();
 
         // get the current checkpoint
-        dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), current,
-                new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.currentCheckpoint = checkpoint, e -> {
-                    logger.warn("Failed to retrieve checkpoint [" + current + "] for data frame []" + task.getTransformId(), e);
-                }), latch));
+        if (current != 0) {
+            dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), current,
+                    new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.currentCheckpoint = checkpoint, e -> {
+                        logger.warn("Failed to retrieve checkpoint [" + current + "] for data frame []" + task.getTransformId(), e);
+                    }), latch));
+        }
 
         // get the in-progress checkpoint
-        dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), task.getInProgressCheckpoint(),
-                new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.inProgressCheckpoint = checkpoint, e -> {
-                    logger.warn(
-                            "Failed to retrieve in progress checkpoint [" + current + "] for data frame [" + task.getTransformId() + "]",
-                            e);
-                }), latch));
+        if (inProgress != 0) {
+            dataFrameTransformsConfigManager.getTransformCheckpoint(task.getTransformId(), task.getInProgressCheckpoint(),
+                    new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.inProgressCheckpoint = checkpoint, e -> {
+                        logger.warn("Failed to retrieve in progress checkpoint [" + current + "] for data frame [" + task.getTransformId()
+                                + "]", e);
+                    }), latch));
+        }
 
         // get the current state
-        dataFrameTransformsConfigManager.getTransformConfiguration(task.getTransformId(),
-                new LatchedActionListener<>(ActionListener.wrap(transformConfig -> {
-                    getCheckpoint(transformConfig, ActionListener.wrap(checkpoint -> checkpoints.sourceCheckpoint = checkpoint, e2 -> {
+        dataFrameTransformsConfigManager.getTransformConfiguration(task.getTransformId(), ActionListener.wrap(transformConfig -> {
+            getCheckpoint(transformConfig,
+                    new LatchedActionListener<>(ActionListener.wrap(checkpoint -> checkpoints.sourceCheckpoint = checkpoint, e2 -> {
                         logger.warn("Failed to retrieve checkpoint for data frame [" + task.getTransformId() + "]", e2);
-                    }));
+                    }), latch));
 
-                }, e -> {
-                    logger.warn("Failed to retrieve configuration for data frame [" + task.getTransformId() + "]", e);
-                }), latch));
+        }, e -> {
+            logger.warn("Failed to retrieve configuration for data frame [" + task.getTransformId() + "]", e);
+        }));
 
         try {
             latch.await(CHECKPOINT_STATS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -166,7 +170,8 @@ public class DataFrameTransformsCheckpointService {
                 new DataFrameTransformCheckpointStats(
                         checkpoints.inProgressCheckpoint.getTimestamp(),
                         checkpoints.inProgressCheckpoint.getTimeUpperBound()),
-                checkpoints.currentCheckpoint.getBehind(
+                DataFrameTransformCheckpoint.getBehind(
+                        checkpoints.currentCheckpoint,
                         checkpoints.sourceCheckpoint));
     }
 

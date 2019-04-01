@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * The fields:
  *
  *  timestamp the timestamp when this document has been created
- *  checkpoint the checkpoint number, incremented for every checkpoint
+ *  checkpoint the checkpoint number, incremented for every checkpoint, if -1 this is a non persisted checkpoint
  *  indices a map of the indices from the source including all checkpoints of all indices matching the source pattern, shard level
  *  time_upper_bound for time-based indices this holds the upper time boundary of this checkpoint
  *
@@ -127,6 +127,15 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
 
     public boolean isEmpty() {
         return indicesCheckpoints.isEmpty();
+    }
+
+    /**
+     * Whether this checkpoint is a transient (non persisted) checkpoint
+     *
+     * @return true if this is a transient checkpoint, false otherwise
+     */
+    public boolean isTransient() {
+        return checkpoint == -1;
     }
 
     /**
@@ -227,37 +236,6 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
                         .allMatch(e -> Arrays.equals(e.getValue(), that.indicesCheckpoints.get(e.getKey())));
     }
 
-    /**
-     * Calculate the diff of 2 checkpoints
-     *
-     * This is to get an indicator for the difference between checkpoints
-     *
-     * @return count number of operations the checkpoint is behind or -1L if it could not calculate the difference
-     */
-    public long getBehind(DataFrameTransformCheckpoint that) {
-        if (that.indicesCheckpoints.keySet().containsAll(indicesCheckpoints.keySet()) == false) {
-            return -1L;
-        }
-
-        long thisCheckPointSum = 0;
-        long thatCheckPointSum = 0;
-
-        for (long[] v : indicesCheckpoints.values()) {
-            thisCheckPointSum += Arrays.stream(v).sum();
-        }
-
-        for (long[] v : that.indicesCheckpoints.values()) {
-            thatCheckPointSum += Arrays.stream(v).sum();
-        }
-
-        // this should not be possible
-        if (thatCheckPointSum < thisCheckPointSum) {
-            return -1L;
-        }
-
-        return thatCheckPointSum - thisCheckPointSum;
-    }
-
     @Override
     public int hashCode() {
         int hash = Objects.hash(transformId, timestampMillis, checkpoint, timeUpperBoundMillis);
@@ -278,6 +256,53 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;
+    }
+
+    /**
+     * Calculate the diff of 2 checkpoints
+     *
+     * This is to get an indicator for the difference between checkpoints.
+     *
+     * Note: order is important
+     *
+     * @param oldCheckpoint the older checkpoint, if transient, newer must be transient, too
+     * @param newCheckpoint the newer checkpoint, can be a transient checkpoint
+     *
+     * @return count number of operations the checkpoint is behind or -1L if it could not calculate the difference
+     */
+    public static long getBehind(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+        if (oldCheckpoint.isTransient()) {
+            if (newCheckpoint.isTransient() == false) {
+                throw new IllegalArgumentException("can not compare transient against a non transient checkpoint");
+            } // else: both are transient
+        } else if (newCheckpoint.isTransient() == false && oldCheckpoint.getCheckpoint() > newCheckpoint.getCheckpoint()) {
+            throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
+        }
+
+        // all old indices must be contained in the new ones but not vice versa
+        if (newCheckpoint.indicesCheckpoints.keySet().containsAll(oldCheckpoint.indicesCheckpoints.keySet()) == false) {
+            return -1L;
+        }
+
+        // get the sum of of shard checkpoints
+        // note: we require shard checkpoints to strictly increase and never decrease
+        long oldCheckPointSum = 0;
+        long newCheckPointSum = 0;
+
+        for (long[] v : oldCheckpoint.indicesCheckpoints.values()) {
+            oldCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        for (long[] v : newCheckpoint.indicesCheckpoints.values()) {
+            newCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        // this should not be possible
+        if (newCheckPointSum < oldCheckPointSum) {
+            return -1L;
+        }
+
+        return newCheckPointSum - oldCheckPointSum;
     }
 
     private static Map<String, long[]> readCheckpoints(Map<String, Object> readMap) {

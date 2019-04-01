@@ -136,6 +136,7 @@ public class DataFrameTransformsConfigManager {
 
             if (getResponse.isExists() == false) {
                 // do not fail if checkpoint does not exist but return an empty checkpoint
+                logger.trace("found no checkpoint for transform [" + transformId + "], returning empty checkpoint");
                 resultListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
                 return;
             }

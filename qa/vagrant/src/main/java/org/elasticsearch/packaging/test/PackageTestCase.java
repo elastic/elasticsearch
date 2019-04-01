@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -35,6 +36,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsExist;
@@ -290,7 +292,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         // The custom config directory is not under /tmp or /var/tmp because
         // systemd's private temp directory functionally means different
         // processes can have different views of what's in these directories
-        String temp = sh.runIgnoreExitCode("mktemp -p /etc -d").stdout.trim();
+        String randomName = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10);
+        String temp = sh.runIgnoreExitCode("mkdir /etc/"+randomName).stdout.trim();
         final Path tempConf = Paths.get(temp);
 
         try {

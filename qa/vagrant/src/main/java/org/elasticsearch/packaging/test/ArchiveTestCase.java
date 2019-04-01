@@ -224,26 +224,28 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
-            final String temp = sh.runIgnoreExitCode("mktemp -d --suffix=\"java home\"").stdout.trim();
-            final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            final String java = systemJavaHome + "/bin/java";
+            final String test_java_home = sh.runIgnoreExitCode("mkdir ~/\"java home\"").stdout.trim();
+            try {
+                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                final String java = systemJavaHome + "/bin/java";
 
-            sh.run("mkdir -p \"" + temp + "/bin\"");
-            sh.run("ln -s \"" + java + "\" \"" + temp + "/bin/java\"");
-            sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + temp + "\"");
+                sh.run("mkdir -p \"" + test_java_home + "/bin\"");
+                sh.run("ln -s \"" + java + "\" \"" + test_java_home + "/bin/java\"");
+                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + test_java_home + "\"");
 
-            sh.getEnv().put("JAVA_HOME", temp);
+                sh.getEnv().put("JAVA_HOME", test_java_home);
 
-            //verify ES can start, stop and run plugin list
-            Archives.runElasticsearch(installation, sh);
+                //verify ES can start, stop and run plugin list
+                Archives.runElasticsearch(installation, sh);
 
-            Archives.stopElasticsearch(installation);
+                Archives.stopElasticsearch(installation);
 
-            String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
-            Result result = sh.run(pluginListCommand);
-            assertThat(result.exitCode, equalTo(0));
-
-            FileUtils.rm(Paths.get(temp));
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode, equalTo(0));
+            } finally {
+                FileUtils.rm(Paths.get(test_java_home));
+            }
         });
     }
 

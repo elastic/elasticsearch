@@ -114,6 +114,7 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
         assertEquals(42, emptyScript.planeDistanceWithDefault(otherLat, otherLon, 42), 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40684")
     public void testMissingValues() throws IOException {
         GeoPoint[][] points = new GeoPoint[between(3, 10)][];
         for (int d = 0; d < points.length; d++) {

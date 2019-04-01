@@ -1204,6 +1204,48 @@ If this setting is used, then the Kerberos realm does not perform role mapping a
 instead loads the user from the listed realms.
 See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization to another realm]
 
+[[ref-oidc-settings]]
+[float]
+===== OpenID Connect realm settings
+
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
+can specify  the following settings:
+
+`op.name`:: The name of the OpenID Connect Provider, to be used as an identifier.
+
+`op.issuer`:: A verifiable Identifier for your OpenID Connect Provider. An Issuer
+Identifier is usually a case sensitive URL using the https scheme that contains
+scheme, host, and optionally, port number and path components and no query or
+fragment components. The value for this setting should be provided by your OpenID
+Connect Provider.
+
+`op.authorization_endpoint`:: The URL for the Authorization Endpoint at the
+OpenID Connect Provider. The value for this setting should be provided by your OpenID
+Connect Provider.
+
+`op.token_endpoint`:: The URL for the Token Endpoint at the  OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.userinfo_endpoint`:: The URL for the User Info Endpoint at the  OpenID Connect Provider.
+The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.endsession_endpoint`:: The URL for the End Session Endpoint at the OpenID Connect
+Provider. The value for this setting should be provided by your OpenID Connect Provider.
+
+`op.jwkset_path`::
+The path or URL to a JSON Web Key Set with the key material that the OpenID Connect
+Provider uses for signing tokens and claims responses.
+If a path is provided, then it is resolved relative to the {es} config
+directory.
+If a URL is provided, then it must be either a `file` URL or a `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the OpenID Connect Provider has
+rotated the signing keys.
+
+File based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to 5 seconds.
+
 [float]
 [[load-balancing]]
 ===== Load balancing and failover

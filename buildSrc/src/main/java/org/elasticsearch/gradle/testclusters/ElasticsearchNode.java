@@ -617,7 +617,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public boolean isProcessAlive() {
-        requireNonNull(esProcess, "Can't wait for `" + this + "` as it was stopped.");
+        requireNonNull(
+            esProcess,
+            "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?"
+        );
         return esProcess.isAlive();
     }
 

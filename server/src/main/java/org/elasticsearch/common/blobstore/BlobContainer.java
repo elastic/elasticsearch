@@ -99,7 +99,7 @@ public interface BlobContainer {
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
+     * Deletes the blob the given name, if the blob exists. If the blob does not exist,
      * this method throws a NoSuchFileException.
      *
      * @param   blobName

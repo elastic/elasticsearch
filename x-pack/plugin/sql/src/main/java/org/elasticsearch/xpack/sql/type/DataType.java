@@ -48,7 +48,7 @@ public enum DataType {
     // since ODBC and JDBC interpret precision for Date as display size
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 35, false, false, true),
+    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 29, false, false, true),
     //
     // specialized types
     //

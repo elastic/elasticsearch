@@ -67,11 +67,13 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     
     public void testDateTimes() throws IOException {
         assertQuery("SELECT CAST('2019-01-14T12:29:25.000Z' AS DATETIME)", "CAST('2019-01-14T12:29:25.000Z' AS DATETIME)",
-            "datetime", "2019-01-14T12:29:25.000Z", 35);
+            "datetime", "2019-01-14T12:29:25.000Z", 29);
+        assertQuery("SELECT CAST('2019-01-14T12:29:25.000+05:00' AS DATETIME)", "CAST('2019-01-14T12:29:25.000+05:00' AS DATETIME)",
+            "datetime", "2019-01-14T12:29:25.000+05:00", 29);
         assertQuery("SELECT CAST(-26853765751000 AS DATETIME)", "CAST(-26853765751000 AS DATETIME)",
-            "datetime", "1119-01-15T12:37:29.000Z", 35);
+            "datetime", "1119-01-15T12:37:29.000Z", 29);
         assertQuery("SELECT CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)", "CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
-            "datetime", "1119-01-15T12:37:29.000Z", 35);
+            "datetime", "1119-01-15T12:37:29.000Z", 29);
 
         assertQuery("SELECT CAST('2019-01-14' AS DATE)", "CAST('2019-01-14' AS DATE)",
             "date", "2019-01-14T00:00:00.000Z", 29);

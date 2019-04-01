@@ -130,6 +130,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -197,6 +198,8 @@ public final class TokenService {
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
+    // for testing only
+    private final AtomicReference<Version> versionCompatibilityOverride = new AtomicReference<>();
 
     /**
      * Creates a new token service
@@ -225,6 +228,14 @@ public final class TokenService {
         getTokenMetaData();
     }
 
+    private Version getVersionCompatibility() {
+        final Version versionOverride = versionCompatibilityOverride.get();
+        if (versionOverride != null) {
+            return versionOverride;
+        }
+        return clusterService.state().nodes().getMinNodeVersion();
+    }
+
     public static Boolean isTokenServiceEnabled(Settings settings) {
         return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
     }
@@ -237,10 +248,10 @@ public final class TokenService {
                                    Map<String, Object> metadata, boolean includeRefreshToken,
                                    ActionListener<Tuple<UserToken, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        final Version tokenVersion = getVersionCompatibility();
         // the id of the created tokens ought be unguessable
         final String userTokenId = UUIDs.randomBase64UUID();
-        createOAuth2Tokens(userTokenId, minNodeVersion, authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
+        createOAuth2Tokens(userTokenId, tokenVersion, authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
     }
 
     /**
@@ -865,7 +876,7 @@ public final class TokenService {
             });
         } else {
             final String newUserTokenId = UUIDs.randomBase64UUID();
-            final Version newTokenVersion = clusterService.state().nodes().getMinNodeVersion();
+            final Version newTokenVersion = getVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());

@@ -55,6 +55,9 @@ class ClusterFormationTasks {
      * Returns a list of NodeInfo objects for each node in the cluster.
      */
     static List<NodeInfo> setup(Project project, String prefix, Task runner, ClusterConfiguration config) {
+        if ("false".equals(System.getProperty("tests.allow.ClusterFormationTasks", "true"))) {
+            throw new IllegalStateException("Using cluster formation tasks but these are not allowed in this build");
+        }
         File sharedDir = new File(project.buildDir, "cluster/shared")
         Object startDependencies = config.dependencies
         /* First, if we want a clean environment, we remove everything in the

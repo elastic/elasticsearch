@@ -5,7 +5,6 @@ setup:
         wait_for_nodes: 3
         # wait for long enough that we give delayed unassigned shards to stop being delayed
         timeout: 70s
-
   - do:
       indices.create:
         index: airline-data
@@ -14,32 +13,69 @@ setup:
             properties:
               time:
                 type: date
-
 ---
-"Test old and mixed cluster datafeeds":
+"Test old and mixed cluster datafeeds without aggs":
   - do:
       ml.get_datafeeds:
-        datafeed_id: old-cluster-datafeed
-  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed"}
+        datafeed_id: old-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-without-aggs"}
   - length: { datafeeds.0.indices: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.script_fields.double_responsetime.script.lang: painless }
+  - is_false: datafeeds.0.aggregations
 
   - do:
       ml.get_datafeed_stats:
-        datafeed_id: old-cluster-datafeed
+        datafeed_id: old-cluster-datafeed-without-aggs
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 
   - do:
       ml.get_datafeeds:
-        datafeed_id: mixed-cluster-datafeed
-  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed"}
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-without-aggs"}
   - length: { datafeeds.0.indices: 1 }
   - gte: { datafeeds.0.scroll_size: 2000 }
+  - match: { datafeeds.0.script_fields.double_responsetime.script.lang: painless }
+  - is_false: datafeeds.0.aggregations
 
   - do:
       ml.get_datafeed_stats:
-        datafeed_id: mixed-cluster-datafeed
+        datafeed_id: mixed-cluster-datafeed-without-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+---
+"Test old and mixed cluster datafeeds with aggs":
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.datafeed_id: "old-cluster-datafeed-with-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - is_false: datafeeds.0.script_fields
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: old-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.state: "stopped"}
+  - is_false: datafeeds.0.node
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
+  - match: { datafeeds.0.datafeed_id: "mixed-cluster-datafeed-with-aggs"}
+  - length: { datafeeds.0.indices: 1 }
+  - gte: { datafeeds.0.scroll_size: 2000 }
+  - is_false: datafeeds.0.script_fields
+  - match: { datafeeds.0.aggregations.buckets.date_histogram.field: time }
+  - match: { datafeeds.0.aggregations.buckets.aggregations.time.max.field: time }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: mixed-cluster-datafeed-with-aggs
   - match: { datafeeds.0.state: "stopped"}
   - is_false: datafeeds.0.node
 

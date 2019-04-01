@@ -144,21 +144,21 @@ public abstract class TransportReplicationAction<
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
-        registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
+
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
+        transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor, true,
+            forcePrimaryActionExecution(), this::handlePrimaryRequest);
+        // we must never reject on because of thread pool capacity on replicas
+        transportService.registerRequestHandler(
+            transportReplicaAction, () -> new ConcreteReplicaRequest<>(replicaRequest), executor, true, true, this::handleReplicaRequest);
 
         this.transportOptions = transportOptions(settings);
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
     }
 
-    protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
-                                           Supplier<ReplicaRequest> replicaRequest, String executor) {
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
-        transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
-            this::handlePrimaryRequest);
-        // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(
-            transportReplicaAction, () -> new ConcreteReplicaRequest<>(replicaRequest), executor, true, true, this::handleReplicaRequest);
+    protected boolean forcePrimaryActionExecution() {
+        return false;
     }
 
     @Override

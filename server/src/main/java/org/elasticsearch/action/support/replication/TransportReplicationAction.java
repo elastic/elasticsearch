@@ -513,12 +513,7 @@ public abstract class TransportReplicationAction<
                 final TransportChannel channel,
                 final Task task)
             throws Exception {
-            new AsyncReplicaAction(
-                    replicaRequest.getRequest(),
-                    replicaRequest.getTargetAllocationID(),
-                    replicaRequest.getPrimaryTerm(),
-                    replicaRequest.getGlobalCheckpoint(),
-                    replicaRequest.getMaxSeqNoOfUpdatesOrDeletes(),
+            new AsyncReplicaAction(replicaRequest,
                     new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
                     (ReplicationTask) task).run();
         }
@@ -538,12 +533,6 @@ public abstract class TransportReplicationAction<
     }
 
     private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
-        private final ReplicaRequest request;
-        // allocation id of the replica this request is meant for
-        private final String targetAllocationID;
-        private final long primaryTerm;
-        private final long globalCheckpoint;
-        private final long maxSeqNoOfUpdatesOrDeletes;
         private final ActionListener<ReplicaResponse> listener;
         private final IndexShard replica;
         /**
@@ -553,23 +542,14 @@ public abstract class TransportReplicationAction<
         // important: we pass null as a timeout as failing a replica is
         // something we want to avoid at all costs
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+        private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
 
-        AsyncReplicaAction(
-                ReplicaRequest request,
-                String targetAllocationID,
-                long primaryTerm,
-                long globalCheckpoint,
-                long maxSeqNoOfUpdatesOrDeletes,
-                ActionListener<ReplicaResponse> listener,
-                ReplicationTask task) {
-            this.request = request;
+        AsyncReplicaAction(ConcreteReplicaRequest<ReplicaRequest> replicaRequest, ActionListener<ReplicaResponse> listener,
+                           ReplicationTask task) {
+            this.replicaRequest = replicaRequest;
             this.listener = listener;
             this.task = task;
-            this.targetAllocationID = targetAllocationID;
-            this.primaryTerm = primaryTerm;
-            this.globalCheckpoint = globalCheckpoint;
-            this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
-            final ShardId shardId = request.shardId();
+            final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
         }
@@ -577,7 +557,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
+                final ReplicaResult replicaResult = shardOperationOnReplica(replicaRequest.getRequest(), replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
                         new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint());
@@ -595,17 +575,16 @@ public abstract class TransportReplicationAction<
                         () -> new ParameterizedMessage(
                             "Retrying operation on replica, action [{}], request [{}]",
                             transportReplicaAction,
-                            request),
+                            replicaRequest.getRequest()),
                     e);
-                request.onRetry();
+                replicaRequest.getRequest().onRetry();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         // Forking a thread on local node via transport service so that custom transport service have an
                         // opportunity to execute custom logic before the replica operation begins
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new ConcreteReplicaRequest<>(request, targetAllocationID, primaryTerm,
-                                globalCheckpoint, maxSeqNoOfUpdatesOrDeletes),
+                            replicaRequest,
                             new ActionListenerResponseHandler<>(listener, in -> new ReplicaResponse()));
                     }
 
@@ -633,11 +612,12 @@ public abstract class TransportReplicationAction<
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             final String actualAllocationId = this.replica.routingEntry().allocationId().getId();
-            if (actualAllocationId.equals(targetAllocationID) == false) {
-                throw new ShardNotFoundException(this.replica.shardId(), "expected allocation id [{}] but found [{}]", targetAllocationID,
-                    actualAllocationId);
+            if (actualAllocationId.equals(replicaRequest.getTargetAllocationID()) == false) {
+                throw new ShardNotFoundException(this.replica.shardId(), "expected allocation id [{}] but found [{}]",
+                    replicaRequest.getTargetAllocationID(), actualAllocationId);
             }
-            acquireReplicaOperationPermit(replica, request, this, primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes);
+            acquireReplicaOperationPermit(replica, replicaRequest.getRequest(), this, replicaRequest.getPrimaryTerm(),
+                replicaRequest.getGlobalCheckpoint(), replicaRequest.getMaxSeqNoOfUpdatesOrDeletes());
         }
 
         /**
@@ -653,8 +633,9 @@ public abstract class TransportReplicationAction<
             @Override
             public void onResponse(Empty response) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction, request.shardId(),
-                            request);
+                    logger.trace("action [{}] completed on shard [{}] for request [{}]", transportReplicaAction,
+                        replicaRequest.getRequest().shardId(),
+                        replicaRequest.getRequest());
                 }
                 setPhase(task, "finished");
                 try {

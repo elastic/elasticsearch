@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
@@ -614,22 +615,41 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
     }
 
-    public void testTranslateStDistance() {
-        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) > 20");
+    public void testTranslateStDistanceToScript() {
+        String operator = randomFrom(">", ">=");
+        String operatorFunction = operator.equalsIgnoreCase(">") ? "gt" : "gte";
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
-                "InternalSqlScriptUtils.gt(" +
+                "InternalSqlScriptUtils." + operatorFunction + "(" +
                 "InternalSqlScriptUtils.stDistance(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
-            aggFilter.scriptTemplate().toString());
-        assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", aggFilter.scriptTemplate().params().toString());
+            sc.script().toString());
+        assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStDistanceToQuery() {
+        String operator = randomFrom("<", "<=");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof GeoDistanceQuery);
+        GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
+        assertEquals("shape", gq.field());
+        assertEquals(20.0, gq.lat(), 0.00001);
+        assertEquals(10.0, gq.lon(), 0.00001);
+        assertEquals(25.0, gq.distance(), 0.00001);
     }
 
     public void testTranslateCoalesce_GroupBy_Painless() {
@@ -733,7 +753,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(259200000L, ((GroupByDateHistogram) eqe.queryContainer().aggs().groups().get(0)).interval());
         }
     }
-    
+
     public void testCountAndCountDistinctFolding() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -878,57 +898,56 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
-
-    public void testGlobalCountInImplicitGroupByForcesTrackHits() throws Exception {
+    public void testGlobalCountInImplicitGroupByForcesTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() throws Exception {
+    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() throws Exception {
+    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testFieldAllCountDoesNotTrackHits() throws Exception {
+    public void testFieldAllCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testFieldCountDoesNotTrackHits() throws Exception {
+    public void testFieldCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testDistinctCountDoesNotTrackHits() throws Exception {
+    public void testDistinctCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testNoCountDoesNotTrackHits() throws Exception {
+    public void testNoCountDoesNotTrackHits() {
         PhysicalPlan p = optimizeAndPlan("SELECT int FROM test");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
-    public void testZonedDateTimeInScripts() throws Exception {
+    public void testZonedDateTimeInScripts() {
         PhysicalPlan p = optimizeAndPlan(
                 "SELECT date FROM test WHERE date + INTERVAL 1 YEAR > CAST('2019-03-11T12:34:56.000Z' AS DATETIME)");
         assertEquals(EsQueryExec.class, p.getClass());

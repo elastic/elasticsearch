@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -56,6 +57,10 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(shapeBuilder.toWKT());
+    }
+
+    public Geometry toGeometry() {
+        return shapeBuilder.buildGeometry();
     }
 
     public static double distance(GeoShape shape1, GeoShape shape2) {

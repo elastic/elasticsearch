@@ -57,11 +57,11 @@ public class SysParserTests extends ESTestCase {
         return new Tuple<>(cmd, session);
     }
 
-    public void testSysTypes() throws Exception {
+    public void testSysTypes() {
         Command cmd = sql("SYS TYPES").v1();
 
         List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT", "FLOAT", "DOUBLE", "SCALED_FLOAT",
-                "KEYWORD", "TEXT", "IP", "BOOLEAN", "DATE", "DATETIME",
+                "KEYWORD", "TEXT", "IP", "BOOLEAN", "DATE", "TIME", "DATETIME",
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
@@ -86,11 +86,11 @@ public class SysParserTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysColsNoArgs() throws Exception {
+    public void testSysColsNoArgs() {
         runSysColumns("SYS COLUMNS");
     }
 
-    public void testSysColumnEmptyCatalog() throws Exception {
+    public void testSysColumnEmptyCatalog() {
         Tuple<Command, SqlSession> sql = sql("SYS COLUMNS CATALOG '' TABLE LIKE '%' LIKE '%'");
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
@@ -99,7 +99,7 @@ public class SysParserTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysColsTableOnlyCatalog() throws Exception {
+    public void testSysColsTableOnlyCatalog() {
         Tuple<Command, SqlSession> sql = sql("SYS COLUMNS CATALOG 'catalog'");
 
         sql.v1().execute(sql.v2(), ActionListener.wrap(r -> {
@@ -108,20 +108,20 @@ public class SysParserTests extends ESTestCase {
         }, ex -> fail(ex.getMessage())));
     }
 
-    public void testSysColsTableOnlyPattern() throws Exception {
+    public void testSysColsTableOnlyPattern() {
         runSysColumns("SYS COLUMNS TABLE LIKE 'test'");
     }
 
-    public void testSysColsColOnlyPattern() throws Exception {
+    public void testSysColsColOnlyPattern() {
         runSysColumns("SYS COLUMNS LIKE '%'");
     }
 
-    public void testSysColsTableAndColsPattern() throws Exception {
+    public void testSysColsTableAndColsPattern() {
         runSysColumns("SYS COLUMNS TABLE LIKE 'test' LIKE '%'");
     }
 
 
-    private void runSysColumns(String commandVariation) throws Exception {
+    private void runSysColumns(String commandVariation) {
         Tuple<Command, SqlSession> sql = sql(commandVariation);
         List<String> names = asList("bool",
                 "int",

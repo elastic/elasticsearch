@@ -56,16 +56,17 @@ import static java.util.Objects.requireNonNull;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
+    private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int ES_DESTROY_TIMEOUT = 20;
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 60;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
-    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
+    private final String path;
     private final String name;
-    final GradleServicesAdapter services;
+    private final GradleServicesAdapter services;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
-    final Path artifactsExtractDir;
+    private final Path artifactsExtractDir;
     private final Path workingDir;
 
 
@@ -91,7 +92,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String version;
     private File javaHome;
     private volatile Process esProcess;
-    final String path;
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -216,7 +216,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
-        logger.info("Locking configuration of `{}`", this);
+        LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
 
@@ -245,7 +245,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void start() {
-        logger.info("Starting `{}`", this);
+        LOGGER.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
             .resolve(distribution.getGroup())
@@ -363,7 +363,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
-        logger.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
         } catch (IOException e) {
@@ -398,7 +398,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             // Another exception here would eat the orriginal.
             return;
         }
-        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
+        LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
@@ -412,7 +412,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
         if (processHandle.isAlive() == false) {
-            logger.info("Process was not running when we tried to terminate it.");
+            LOGGER.info("Process was not running when we tried to terminate it.");
             return;
         }
 
@@ -432,7 +432,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             if (processHandle.isAlive() == false) {
                 return;
             }
-            logger.info("process did not terminate after {} {}, stopping it forcefully",
+            LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
                 ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
             processHandle.destroyForcibly();
         }
@@ -444,7 +444,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {
-        logger.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
+        LOGGER.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"), info.command().orElse("-"),
             Arrays.stream(info.arguments().orElse(new String[]{}))
                 .map(each -> "'" + each + "'")
@@ -453,11 +453,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void logFileContents(String description, Path from) {
-        logger.error("{} `{}`", description, this);
+        LOGGER.error("{} `{}`", description, this);
         try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
                 .map(line -> "  " + line)
-                .forEach(logger::error);
+                .forEach(LOGGER::error);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to tail log " + this, e);
         }
@@ -467,12 +467,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         try {
             processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            logger.info("Interrupted while waiting for ES process", e);
+            LOGGER.info("Interrupted while waiting for ES process", e);
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
-            logger.info("Failure while waiting for process to exist", e);
+            LOGGER.info("Failure while waiting for process to exist", e);
         } catch (TimeoutException e) {
-            logger.info("Timed out waiting for process to exit", e);
+            LOGGER.info("Timed out waiting for process to exit", e);
         }
     }
 
@@ -583,7 +583,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write config file: " + configFile, e);
         }
-        logger.info("Written config file:{} for {}", configFile, this);
+        LOGGER.info("Written config file:{} for {}", configFile, this);
     }
 
     private void checkFrozen() {

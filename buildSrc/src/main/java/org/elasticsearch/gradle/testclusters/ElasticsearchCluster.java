@@ -48,44 +48,50 @@ import java.util.stream.Collectors;
 
 public class ElasticsearchCluster implements TestClusterConfiguration {
 
+    private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int CLUSTER_UP_TIMEOUT = 40;
     private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
-    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
+    private final File artifactsExtractDir;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
+    private final GradleServicesAdapter services;
 
     public ElasticsearchCluster(String path, String clusterName, Project project, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
-        nodes = project.container(ElasticsearchNode.class);
+        this.workingDirBase = workingDirBase;
+        this.artifactsExtractDir = artifactsExtractDir;
+        this.services = GradleServicesAdapter.getInstance(project);
+        this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-1",
-                GradleServicesAdapter.getInstance(project), artifactsExtractDir, workingDirBase
+                services, artifactsExtractDir, workingDirBase
             )
         );
-        this.workingDirBase = workingDirBase;
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
         checkFrozen();
+
         if (numberOfNodes < 1) {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
+
         if (numberOfNodes <= nodes.size()) {
             throw new IllegalArgumentException(
-                "Trying to configure " + this + " to have " + numberOfNodes + " nodes but it already has " + getNumberOfNodes()
+                "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
             );
         }
-        ElasticsearchNode first = getFirstNode();
+
         for (int i = nodes.size() + 1 ; i <= numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                first.path, clusterName + "-" + i, first.services, first.artifactsExtractDir.toFile(), workingDirBase
+                path, clusterName + "-" + i, services, artifactsExtractDir, workingDirBase
             ));
         }
     }
@@ -229,12 +235,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     public void waitForAllConditions() {
         long startedAt = System.currentTimeMillis();
-        logger.info("Waiting for nodes");
+        LOGGER.info("Waiting for nodes");
         nodes.forEach(ElasticsearchNode::waitForAllConditions);
 
         writeUnicastHostsFiles();
 
-        logger.info("Starting to wait for cluster to form");
+        LOGGER.info("Starting to wait for cluster to form");
         addWaitForUri(
             "cluster health yellow", "/_cluster/health?wait_for_nodes=>=" + nodes.size()  + "&wait_for_status=yellow"
         );
@@ -274,7 +280,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 con.setReadTimeout(500);
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
                     String response = reader.lines().collect(Collectors.joining("\n"));
-                    logger.info("{} -> {} ->\n{}", this, uri, response);
+                    LOGGER.info("{} -> {} ->\n{}", this, uri, response);
                 }
                 return true;
             } catch (IOException e) {

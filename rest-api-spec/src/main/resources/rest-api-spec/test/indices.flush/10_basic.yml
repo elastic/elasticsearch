@@ -24,9 +24,7 @@
 
 ---
 "Flush stats":
-  - skip:
-      version: " - 6.2.99"
-      reason: periodic flush stats is introduced in 6.3.0
+
   - do:
       indices.create:
         index: test

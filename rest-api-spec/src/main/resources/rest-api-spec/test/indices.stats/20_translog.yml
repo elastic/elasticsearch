@@ -66,9 +66,7 @@ setup:
 
 ---
 "Translog last modified age stats":
-  - skip:
-      version: " - 6.2.99"
-      reason: translog last modified age stats was added in 6.3.0
+
   - do:
       index:
         index: test

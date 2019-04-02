@@ -141,9 +141,7 @@ setup:
 
 ---
 "docvalue_fields":
-  - skip:
-      version: " - 6.9.99"
-      reason: Triggers a deprecation warning before 7.0
+
   - do:
       search:
         body:
@@ -152,9 +150,7 @@ setup:
 
 ---
 "multiple docvalue_fields":
-  - skip:
-      version: " - 6.9.99"
-      reason: Triggered a deprecation warning before 7.0
+
   - do:
       search:
         body:
@@ -163,9 +159,7 @@ setup:
 
 ---
 "docvalue_fields as url param":
-  - skip:
-      version: " - 6.99.99"
-      reason: Triggered a deprecation warning before 7.0
+
   - do:
       search:
         docvalue_fields: [ "count" ]
@@ -174,8 +168,6 @@ setup:
 ---
 "docvalue_fields with default format":
   - skip:
-      version: " - 6.99.99"
-      reason: Only triggers warnings on 7.0+
       features: warnings
   - do:
       warnings:
@@ -189,9 +181,7 @@ setup:
 
 ---
 "docvalue_fields with explicit format":
-  - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+
   - do:
       search:
         body:

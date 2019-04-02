@@ -162,6 +162,7 @@ public class BuildTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(new WriteableBuild(new Build(
                 randomFrom(Build.Flavor.values()), randomFrom(Build.Type.values()),
                 randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6))),
+            // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
             (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
             (WriteableBuild b) -> {
                 switch (randomIntBetween(1, 6)) {

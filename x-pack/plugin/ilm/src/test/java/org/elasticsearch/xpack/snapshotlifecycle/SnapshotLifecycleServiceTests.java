@@ -48,7 +48,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         assertThat(SnapshotLifecycleService.getJobId(meta), equalTo(id + "-" + version));
     }
 
-    public void testRepositoryExistence() {
+    public void testRepositoryExistenceForExistingRepo() {
         ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -56,23 +56,23 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("no such repository [repo]"));
 
-        boolean shouldExist = randomBoolean();
-        RepositoryMetaData repo = new RepositoryMetaData(shouldExist ? "repo" : "other", "fs", Settings.EMPTY);
+        RepositoryMetaData repo = new RepositoryMetaData("repo", "fs", Settings.EMPTY);
         RepositoriesMetaData repoMeta = new RepositoriesMetaData(Collections.singletonList(repo));
         ClusterState stateWithRepo = ClusterState.builder(state)
             .metaData(MetaData.builder()
             .putCustom(RepositoriesMetaData.TYPE, repoMeta))
             .build();
 
-        if (shouldExist) {
-            SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
-        } else {
-            // There is a repo, but not the one we're looking for
-            IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-                () -> SnapshotLifecycleService.validateRepositoryExists("repo", state));
+        SnapshotLifecycleService.validateRepositoryExists("repo", stateWithRepo);
+    }
 
-            assertThat(e2.getMessage(), containsString("no such repository [repo]"));
-        }
+    public void testRepositoryExistenceForMissingRepo() {
+        ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> SnapshotLifecycleService.validateRepositoryExists("repo", state));
+
+        assertThat(e.getMessage(), containsString("no such repository [repo]"));
     }
 
     /**

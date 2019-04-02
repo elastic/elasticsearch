@@ -55,6 +55,35 @@ task apiJavadocJar(type: Jar) {
 }
 assemble.dependsOn apiJavadocJar
 
+/**********************************************
+ *           Context API Generation           *
+ **********************************************/
+
+sourceSets {
+  doc {
+    java {
+      srcDirs = ['src/doc/java']
+    }
+  }
+}
+
+apply plugin: 'elasticsearch.testclusters'
+
+testClusters {
+  docsExtractor {
+    distribution = 'DEFAULT'
+    version = project.version
+    javaHome = project.file(project.ext.runtimeJavaHome)
+  }
+}
+
+task generateContextDoc(type: JavaExec) {
+  main = 'org.elasticsearch.painless.ContextDocGenerator'
+  classpath = sourceSets.doc.runtimeClasspath
+  useCluster testClusters.docsExtractor
+  args "${-> testClusters.docsExtractor.httpSocketURI}"
+}
+
 // Reference documentation for Painless's public API.
 task generatePainlessApi(type: JavaExec) {
   main = 'org.elasticsearch.painless.PainlessDocGenerator'

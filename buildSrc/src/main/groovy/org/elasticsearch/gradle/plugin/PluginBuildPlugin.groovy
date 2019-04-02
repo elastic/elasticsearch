@@ -58,7 +58,8 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             configurePublishing(project)
 
-            if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
+            if (project.plugins.hasPlugin(TestClustersPlugin.class) == false
+                    || project.testClusters.findByName('integTest') == null) {
                 project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
                 if (isModule) {
                     project.integTestCluster.module(project)

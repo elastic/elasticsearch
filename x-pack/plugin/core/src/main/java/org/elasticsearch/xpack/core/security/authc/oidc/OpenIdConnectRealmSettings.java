@@ -29,9 +29,9 @@ public class OpenIdConnectRealmSettings {
     private OpenIdConnectRealmSettings() {
     }
 
-    private static final List<String> signatureAlgorithms = Collections.unmodifiableList(
+    private static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS = Collections.unmodifiableList(
         Arrays.asList("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"));
-    private static final List<String> responseTypes = Arrays.asList("code", "id_token", "id_token token");
+    private static final List<String> RESPONSE_TYPES = Arrays.asList("code", "id_token", "id_token token");
     public static final String TYPE = "oidc";
 
     public static final Setting.AffixSetting<String> RP_CLIENT_ID
@@ -59,16 +59,17 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_RESPONSE_TYPE
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.response_type",
         key -> Setting.simpleString(key, v -> {
-            if (responseTypes.contains(v) == false) {
-                throw new IllegalArgumentException("Invalid value [" + v + "] for [" + key + "]. Allowed values are " + responseTypes + "");
+            if (RESPONSE_TYPES.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + RESPONSE_TYPES + "");
             }
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<String> RP_SIGNATURE_ALGORITHM
         = Setting.affixKeySetting(RealmSettings.realmSettingPrefix(TYPE), "rp.signature_algorithm",
         key -> new Setting<>(key, "RS256", Function.identity(), v -> {
-            if (signatureAlgorithms.contains(v) == false) {
+            if (SUPPORTED_SIGNATURE_ALGORITHMS.contains(v) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + signatureAlgorithms + "}]");
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]");
             }
         }, Setting.Property.NodeScope));
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(

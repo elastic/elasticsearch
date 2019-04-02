@@ -57,7 +57,8 @@ public final class InternalRealms {
      */
     private static final Set<String> XPACK_TYPES = Collections
         .unmodifiableSet(Sets.newHashSet(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE,
-            LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE));
+            LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE, SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE,
+            OpenIdConnectRealmSettings.TYPE));
 
     /**
      * The list of all standard realm types, which are those provided by x-pack and do not have extensive

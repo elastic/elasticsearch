@@ -64,7 +64,7 @@ dependencies {
     compile "net.jcip:jcip-annotations:1.0"
     compile "net.minidev:json-smart:2.3"
     compile "net.minidev:accessors-smart:1.2"
-
+    compile "org.ow2.asm:asm:7.1"
 
     testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -268,12 +268,8 @@ thirdPartyAudit {
         'net.sf.ehcache.Element',
         // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
         'org.slf4j.ext.EventData',
-        'org.cryptomator.siv.SivMode',
-        'org.objectweb.asm.ClassWriter',
-        'org.objectweb.asm.Label',
-        'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Type'
-
+        // Optional dependency of oauth2-oidc-sdk that we don't need since we do not support AES-SIV for JWE
+        'org.cryptomator.siv.SivMode'
     )
 
     ignoreViolations (

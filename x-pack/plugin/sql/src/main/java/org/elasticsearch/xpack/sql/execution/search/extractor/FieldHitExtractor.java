@@ -127,41 +127,8 @@ public class FieldHitExtractor implements HitExtractor {
         if (values == null) {
             return null;
         }
-        if (dataType == DataType.GEO_POINT) {
-            Object value;
-            if (values instanceof List) {
-                if (((List<?>) values).size() > 0) {
-                    value = ((List<?>) values).get(0);
-                } else {
-                    // Empty list indicates null
-                   return null;
-                }
-            } else {
-                value = values;
-            }
-            try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
-                return new GeoShape(geoPoint.lon(), geoPoint.lat());
-            } catch (ElasticsearchParseException ex) {
-                throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
-            }
-        }
-        if (dataType == DataType.GEO_SHAPE) {
-            Object value;
-            if (values instanceof List) {
-                if (((List<?>) values).size() > 1) {
-                    value = ((List<?>) values).get(0);
-                } else {
-                    return null;
-                }
-            } else {
-                value = values;
-            }
-            try {
-                return new GeoShape(value);
-            } catch (IOException ex) {
-                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
-            }
+        if (dataType == DataType.GEO_POINT || dataType == DataType.GEO_SHAPE) {
+            return extractGeoShape(values);
         }
         if (values instanceof List) {
             List<?> list = (List<?>) values;
@@ -187,6 +154,33 @@ public class FieldHitExtractor implements HitExtractor {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private Object extractGeoShape(Object values) {
+        Object value;
+        if (values instanceof List) {
+            if (((List<?>) values).size() > 0) {
+                value = ((List<?>) values).get(0);
+            } else {
+                return null;
+            }
+        } else {
+            value = values;
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(value);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
+            }
+        } else {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
+            }
+        }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

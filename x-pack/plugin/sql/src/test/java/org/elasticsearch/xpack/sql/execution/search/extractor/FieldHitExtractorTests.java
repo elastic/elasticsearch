@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -449,6 +450,28 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         hit.sourceRef(sourceRef);
         SqlException ex = expectThrows(SqlException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Objects (returned by [" + fieldName + "]) are not supported"));
+    }
+
+    public void testGeoShapeExtraction() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_SHAPE, UTC, false);
+        Map<String, Object> map = new HashMap<>();
+        map.put(fieldName, "POINT (1 2)");
+        assertEquals(new GeoShape(1, 2), fe.extractFromSource(map));
+
+        map = new HashMap<>();
+        assertNull(fe.extractFromSource(map));
+    }
+
+    public void testGeoPointExtraction() {
+        String fieldName = randomAlphaOfLength(5);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, DataType.GEO_POINT, UTC, true);
+        SearchHit hit = new SearchHit(1);
+        DocumentField field = new DocumentField(fieldName, singletonList("2, 1"));
+        hit.fields(singletonMap(fieldName, field));
+        assertEquals(new GeoShape(1, 2), fe.extract(hit));
+        hit = new SearchHit(1);
+        assertNull(fe.extract(hit));
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName, boolean useDocValue) {

@@ -1016,7 +1016,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs [{}] during finalization",
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
                         snapshotId, shardId, blobNames), e);
                     throw e;
                 }
@@ -1032,7 +1032,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs [{}] during finalization",
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
                         snapshotId, shardId, indexBlobs), e);
                     throw e;
                 }
@@ -1045,7 +1045,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs [{}] during finalization",
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs {} during finalization",
                         snapshotId, shardId, orphanedBlobs), e);
                 }
             } catch (IOException e) {

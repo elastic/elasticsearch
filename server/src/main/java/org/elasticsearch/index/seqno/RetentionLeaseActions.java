@@ -28,6 +28,8 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -42,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -84,10 +87,14 @@ public class RetentionLeaseActions {
 
         @Override
         protected ShardsIterator shards(final ClusterState state, final InternalRequest request) {
-            return state
+            final IndexShardRoutingTable shardRoutingTable = state
                     .routingTable()
-                    .shardRoutingTable(request.concreteIndex(), request.request().getShardId().id())
-                    .primaryShardIt();
+                    .shardRoutingTable(request.concreteIndex(), request.request().getShardId().id());
+            if (shardRoutingTable.primaryShard().active()) {
+                return shardRoutingTable.primaryShardIt();
+            } else {
+                return new PlainShardIterator(request.request().getShardId(), Collections.emptyList());
+            }
         }
 
         @Override

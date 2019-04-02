@@ -1690,12 +1690,90 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testCastDate() throws Exception {
+        assertAcked(prepareCreate("index_date")
+            .addMapping("_doc", "field", "type=date"));
+        assertAcked(prepareCreate("index_date_nanos")
+            .addMapping("_doc", "field", "type=date_nanos"));
+        ensureGreen("index_date", "index_date_nanos");
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("index_date", "_doc")
+            .setSource("field", "2024-04-11T23:47:17"));
+        builders.add(client().prepareIndex("index_date_nanos", "_doc")
+            .setSource("field", "2024-04-11T23:47:16.854775807Z"));
+        indexRandom(true, true, builders);
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date"))
+                .get();
+            SearchHits hits = response.getHits();
+
+            assertEquals(2, hits.getHits().length);
+            for (int i = 0; i < 2; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
+            }
+            assertEquals(1712879236854L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(1712879237000L, hits.getAt(1).getSortValues()[0]);
+        }
+
+        {
+            SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(builders.size())
+                .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                .get();
+            SearchHits hits = response.getHits();
+            assertEquals(2, hits.getHits().length);
+            for (int i = 0; i < 2; i++) {
+                assertThat(hits.getAt(i).getSortValues()[0].getClass(), equalTo(Long.class));
+            }
+            assertEquals(1712879236854775807L, hits.getAt(0).getSortValues()[0]);
+            assertEquals(1712879237000000000L, hits.getAt(1).getSortValues()[0]);
+        }
+
+        {
+            builders.clear();
+            builders.add(client().prepareIndex("index_date", "_doc")
+                .setSource("field", "1905-04-11T23:47:17"));
+            indexRandom(true, true, builders);
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .setSize(builders.size())
+                        .setAllowPartialSearchResults(false)
+                        .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                        .get()
+            );
+            assertThat(exc.toString(), containsString("are before the epoch in 1970"));
+        }
+
+        {
+            builders.clear();
+            builders.add(client().prepareIndex("index_date", "_doc")
+                .setSource("field", "2346-04-11T23:47:17"));
+            indexRandom(true, true, builders);
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                    .setQuery(QueryBuilders.rangeQuery("field").gt("1970-01-01"))
+                    .setSize(builders.size())
+                    .setAllowPartialSearchResults(false)
+                    .addSort(SortBuilders.fieldSort("field").setNumericType("date_nanos"))
+                    .get()
+            );
+            assertThat(exc.toString(), containsString("are after 2262"));
+        }
+    }
+
     public void testCastNumericTypeExceptions() throws Exception {
         assertAcked(prepareCreate("index")
             .addMapping("_doc", "keyword", "type=keyword", "ip", "type=ip"));
         ensureGreen("index");
         for (String invalidField : new String[] {"keyword", "ip"}) {
-            for (String numericType : new String[]{"long", "double"}) {
+            for (String numericType : new String[]{"long", "double", "date", "date_nanos"}) {
                 ElasticsearchException exc = expectThrows(ElasticsearchException.class, () -> client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort(invalidField).setNumericType(numericType))

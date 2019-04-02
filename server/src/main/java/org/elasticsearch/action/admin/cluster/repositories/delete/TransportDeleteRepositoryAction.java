@@ -68,8 +68,6 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         repositoriesService.unregisterRepository(
-                new RepositoriesService.UnregisterRepositoryRequest("delete_repository [" + request.name() + "]", request.name())
-                        .masterNodeTimeout(request.masterNodeTimeout()).ackTimeout(request.timeout()),
-            ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new AcknowledgedResponse(r.isAcknowledged()))));
+            request, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new AcknowledgedResponse(r.isAcknowledged()))));
     }
 }

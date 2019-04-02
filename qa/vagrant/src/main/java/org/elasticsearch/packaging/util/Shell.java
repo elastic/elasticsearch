@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -67,6 +68,10 @@ public class Shell {
         return runScriptIgnoreExitCode(getScriptCommand(script));
     }
 
+    public Result run( String command, Object... args) {
+        String formattedCommand = String.format(Locale.ROOT, command, args);
+        return run(formattedCommand);
+    }
     private String[] getScriptCommand(String script) {
         if (Platforms.WINDOWS) {
             return powershellCommand(script);

@@ -455,7 +455,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
     }
 

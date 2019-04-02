@@ -210,8 +210,6 @@ setup:
       version: " - 6.3.99"
       reason:  "deprecation added in 6.4.0"
   - do:
-      warnings:
-          - 'The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.'
       search:
         rest_total_hits_as_int: true
         typed_keys: true
@@ -226,8 +224,8 @@ setup:
                 test_sum:
                   sum:
                     field: num
-                test_moving_avg:
-                  moving_avg:
+                test_deriv:
+                  derivative:
                     buckets_path: "test_sum"
             test_max_bucket:
               max_bucket:
@@ -236,5 +234,5 @@ setup:
   - is_true: aggregations.date_histogram#test_created_histogram
   - is_true: aggregations.date_histogram#test_created_histogram.buckets.0.sum#test_sum
   - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.sum#test_sum
-  - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.simple_value#test_moving_avg
+  - is_true: aggregations.date_histogram#test_created_histogram.buckets.1.derivative#test_deriv
   - is_true: aggregations.bucket_metric_value#test_max_bucket

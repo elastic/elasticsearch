@@ -20,8 +20,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.Arrays;
 import java.util.Date;
 
 import static java.time.Instant.now;
@@ -80,5 +84,29 @@ public abstract class OpenIdConnectTestCase extends ESTestCase {
             .put(realmSettings).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         return new RealmConfig(new RealmConfig.RealmIdentifier("oidc", REALM_NAME), settings, env, threadContext);
+    }
+
+    public static void writeJwkSetToFile(Path file) throws IOException {
+        Files.write(file, Arrays.asList(
+            "{\n" +
+                "  \"keys\": [\n" +
+                "    {\n" +
+                "      \"kty\": \"RSA\",\n" +
+                "      \"d\": \"lT2V49RNsu0eTroQDqFCiHY-CkPWdKfKAf66sJrWPNpSX8URa6pTCruFQMsb9ZSqQ8eIvqys9I9rq6Wpaxn1aGRahVzxp7nsBPZYw" +
+                "SY09LRzhvAxJwWdwtF-ogrV5-p99W9mhEa0khot3myzzfWNnGzcf1IudqvkqE9zrlUJg-kvA3icbs6HgaZVAevb_mx-bgbtJdnUxyPGwXLyQ7g6hlntQ" +
+                "R_vpzTnK7XFU6fvkrojh7UPJkanKAH0gf3qPrB-Y2gQML7RSlKo-ZfJNHa83G4NRLHKuWTI6dSKJlqmS9zWGmyC3dx5kGjgqD6YgwtWlip8q-U839zxt" +
+                "z25yeslsQ\",\n" +
+                "      \"e\": \"AQAB\",\n" +
+                "      \"use\": \"sig\",\n" +
+                "      \"kid\": \"testkey\",\n" +
+                "      \"alg\": \"RS256\",\n" +
+                "      \"n\": \"lXBe4UngWJiUfbqbeOvwbH04kYLCpeH4k0o3ngScZDo6ydc_gBDEVwPLQpi8D930aIzr3XHP3RCj0hnpxUun7MNMhWxJZVOd1eg5u" +
+                "uO-nPIhkqr9iGKV5srJk0Dvw0wBaGZuXMBheY2ViNaKTR9EEtjNwU2d2-I5U3YlrnFR6nj-Pn_hWaiCbb_pSFM4w9QpoLDmuwMRanHY_YK7Td2WMICSG" +
+                "P3IRGmbecRZCqgkWVZk396EMoMLNxi8WcErYknyY9r-QeJMruRkr27kgx78L7KZ9uBmu9oKXRQl15ZDYe7Bnt9E5wSdOCV9R9h5VRVUur-_129XkDeAX" +
+                "-6re63_Mw\"\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}"
+        ));
     }
 }

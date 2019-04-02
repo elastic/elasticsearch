@@ -43,7 +43,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -101,6 +100,7 @@ public class TokenServiceTests extends ESTestCase {
     private SecurityIndexManager securityMainIndex;
     private SecurityIndexManager securityTokensIndex;
     private ClusterService clusterService;
+    private DiscoveryNode oldNode;
     private Settings tokenServiceEnabledSettings = Settings.builder()
         .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true).build();
 
@@ -131,8 +131,12 @@ public class TokenServiceTests extends ESTestCase {
         this.securityMainIndex = mockSecurityManager();
         this.securityTokensIndex = mockSecurityManager();
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        addAnotherDateNodeWithVersion(this.clusterService,
-                randomFrom(VersionUtils.getPreviousVersion(TokenService.VERSION_TOKENS_INDEX_INTRODUCED), Version.CURRENT));
+        // version 7.1 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
+        // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
+        // developments
+        if (randomBoolean()) {
+            oldNode = addAnotherDateNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+        }
     }
 
     @After
@@ -281,7 +285,7 @@ public class TokenServiceTests extends ESTestCase {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             otherTokenService.getAndValidateToken(requestContext, future);
             UserToken serialized = future.get();
-            assertAuthentication(authentication, serialized.getAuthentication());
+            assertEquals(authentication, serialized.getAuthentication());
         }
 
         rotateKeys(tokenService);
@@ -590,28 +594,34 @@ public class TokenServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
 
+        final SecurityIndexManager tokensIndex;
+        if (oldNode != null) {
+            tokensIndex = securityMainIndex;
+        } else {
+            tokensIndex = securityTokensIndex;
+        }
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
 
-            when(securityMainIndex.isAvailable()).thenReturn(false);
-            when(securityMainIndex.indexExists()).thenReturn(true);
+            when(tokensIndex.isAvailable()).thenReturn(false);
+            when(tokensIndex.indexExists()).thenReturn(true);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
 
-            when(securityMainIndex.indexExists()).thenReturn(false);
+            when(tokensIndex.indexExists()).thenReturn(false);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertNull(future.get());
 
-            when(securityMainIndex.isAvailable()).thenReturn(true);
-            when(securityMainIndex.indexExists()).thenReturn(true);
+            when(tokensIndex.isAvailable()).thenReturn(true);
+            when(tokensIndex.indexExists()).thenReturn(true);
             mockGetTokenFromId(token, false);
             future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
-            assertEquals(token.getAuthentication(), future.get().getAuthentication());
+            assertEquals(future.get().getAuthentication(), token.getAuthentication());
         }
     }
 
@@ -703,7 +713,7 @@ public class TokenServiceTests extends ESTestCase {
         return mockSecurityIndex;
     }
 
-    private void addAnotherDateNodeWithVersion(ClusterService clusterService, Version version) {
+    private DiscoveryNode addAnotherDateNodeWithVersion(ClusterService clusterService, Version version) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),
@@ -712,6 +722,7 @@ public class TokenServiceTests extends ESTestCase {
         final ClusterState.Builder newStateBuilder = ClusterState.builder(currentState);
         newStateBuilder.nodes(discoBuilder);
         setState(clusterService, newStateBuilder.build());
+        return anotherDataNode;
     }
 
 }

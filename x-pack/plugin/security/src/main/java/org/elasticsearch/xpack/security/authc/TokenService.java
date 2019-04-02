@@ -182,6 +182,8 @@ public final class TokenService {
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_8_0_0; // TODO change upon backport
+    static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
+    static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -391,24 +393,24 @@ public final class TokenService {
         }
     }
 
-    /*
-     * If needed, for tokens that were created in a pre 7.1.0 cluster, it asynchronously decodes the token to get the token document Id.
-     * The process for this is asynchronous as we may need to compute a key, which can be computationally expensive
-     * so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is that
-     * we can restrain the amount of resources consumed by the key computation to a single thread.
-     * For tokens created in an after 7.1.0 cluster, the token is just the token document Id so this is used directly without decryption
+    /**
+     * If needed, for tokens that were created in a pre {@code #VERSION_ACCESS_TOKENS_UUIDS} cluster, it asynchronously decodes the token to
+     * get the token document Id. The process for this is asynchronous as we may need to compute a key, which can be computationally
+     * expensive so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is
+     * that we can restrain the amount of resources consumed by the key computation to a single thread. For tokens created in an after
+     * {@code #VERSION_ACCESS_TOKENS_UUIDS} cluster, the token is just the token document Id so this is used directly without decryption
      */
     void decodeToken(String token, ActionListener<UserToken> listener) {
         final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
-            if (version.onOrAfter(Version.V_7_1_0)) {
-                // The token was created in a > 7.1.0 cluster so it contains the tokenId as a String
+            if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+                // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster so it contains the tokenId as a String
                 String usedTokenId = in.readString();
                 getUserTokenFromId(usedTokenId, version, listener);
             } else {
-                // The token was created in a < 7.1.0 cluster so we need to decrypt it to get the tokenId
+                // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < MINIMUM_BASE64_BYTES) {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
                     listener.onResponse(null);
@@ -1071,13 +1073,13 @@ public final class TokenService {
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
-    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshToken) {
-        if (refreshToken.isRefreshed()) {
-            if (refreshToken.getVersion().onOrAfter(Version.V_7_1_0)) {
-                if (now.isAfter(refreshToken.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
+    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshTokenStatus) {
+        if (refreshTokenStatus.isRefreshed()) {
+            if (refreshTokenStatus.getVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
+                if (now.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
-                if (now.isBefore(refreshToken.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
+                if (now.isBefore(refreshTokenStatus.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
                     return Optional
                             .of(invalidGrantException("token has been refreshed more than 30 seconds in the future, clock skew too great"));
                 }
@@ -1326,10 +1328,11 @@ public final class TokenService {
     }
 
     /**
-     * In version 7.1 tokens moved into a separate index away from the other entities due to their ephemeral nature. But they moved
-     * "seamlessly" - without manual intervention. In this way, new tokens are created in the new index, while the existing ones were left
-     * in place - to be accessed from the old index - and due to be removed automatically by the {@code ExpiredTokenRemover} periodic job.
-     * Therefore, in general, when searching for a token we need to consider both the new and the old indices.
+     * In version {@code #VERSION_TOKENS_INDEX_INTRODUCED} tokens moved into a separate index away from the other entities due to their
+     * ephemeral nature. But they moved "seamlessly" - without manual intervention. In this way, new tokens are created in the new index,
+     * while the existing ones were left in place - to be accessed from the old index - and due to be removed automatically by the {@code
+     * ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to consider both the new and the old
+     * indices.
      */
     private SecurityIndexManager getSecurityIndexManagerForVersion(Version version) {
         if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
@@ -1425,12 +1428,12 @@ public final class TokenService {
     }
 
     /**
-     * Serializes a token to a String containing the version of the node that created the token and
-     * either an encrypted representation of the token id for versions earlier to 7.1.0 or the token ie
-     * itself for versions after 7.1.0
+     * Serializes a token to a String containing the minimum compatible node version for decoding it back and either an encrypted
+     * representation of the token id for versions earlier to {@code #VERSION_ACCESS_TOKENS_UUIDS} the token ie itself for versions after
+     * {@code #VERSION_ACCESS_TOKENS_UUIDS}
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0)) {
+        if (userToken.getVersion().onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {

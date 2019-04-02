@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
@@ -171,7 +172,11 @@ public class JvmInfo implements Writeable, ToXContentFragment {
          */
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
-        return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+        if (Constants.MAC_OS_X) {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+        } else {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+        }
     }
 
     public static JvmInfo jvmInfo() {

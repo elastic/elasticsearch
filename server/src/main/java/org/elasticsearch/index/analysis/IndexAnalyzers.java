@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -54,9 +55,9 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         this.defaultIndexAnalyzer = defaultIndexAnalyzer;
         this.defaultSearchAnalyzer = defaultSearchAnalyzer;
         this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
-        this.analyzers = unmodifiableMap(analyzers);
-        this.normalizers = unmodifiableMap(normalizers);
-        this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
+        this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
+        this.normalizers = unmodifiableMap(new HashMap<>(normalizers));
+        this.whitespaceNormalizers = unmodifiableMap(new HashMap<>(whitespaceNormalizers));
     }
 
     /**
@@ -67,6 +68,13 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
+     * Returns an (unmodifiable) map of containing the index analyzers
+     */
+    Map<String, NamedAnalyzer> getAnalyzers() {
+        return analyzers;
+    }
+
+    /**
      * Returns a normalizer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getNormalizer(String name) {
@@ -74,10 +82,24 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
+     * Returns an (unmodifiable) map of containing the index normalizers
+     */
+    Map<String, NamedAnalyzer> getNormalizers() {
+        return normalizers;
+    }
+
+    /**
      * Returns a normalizer that splits on whitespace mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getWhitespaceNormalizer(String name) {
         return whitespaceNormalizers.get(name);
+    }
+
+    /**
+     * Returns an (unmodifiable) map of containing the index whitespace normalizers
+     */
+    Map<String, NamedAnalyzer> getWhitespaceNormalizers() {
+        return whitespaceNormalizers;
     }
 
     /**

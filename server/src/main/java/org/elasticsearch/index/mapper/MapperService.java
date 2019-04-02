@@ -46,6 +46,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.AnalysisMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -70,7 +72,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -122,7 +126,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
-    private final IndexAnalyzers indexAnalyzers;
+    private IndexAnalyzers indexAnalyzers;
 
     private volatile String defaultMappingSource;
 
@@ -136,8 +140,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentParser;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
-    private final MapperAnalyzerWrapper searchAnalyzer;
-    private final MapperAnalyzerWrapper searchQuoteAnalyzer;
+    private MapperAnalyzerWrapper searchAnalyzer;
+    private MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
@@ -842,5 +846,31 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             return defaultAnalyzer;
         }
+    }
+
+    public void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+        logger.info("reloading search analyzers");
+
+        // refresh indexAnalyzers and search analyzers
+        this.indexAnalyzers = registry.rebuildIndexAnalyzers(this.indexAnalyzers, indexSettings);
+        this.searchAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
+                p -> p.searchQuoteAnalyzer());
+
+        // also reload search time analyzers in MappedFieldTypes
+        // refresh search time analyzers in MappedFieldTypes
+        List<MappedFieldType> mftsToRefresh = StreamSupport.stream(fieldTypes.spliterator(), false)
+                .filter(mft -> (mft.searchAnalyzer() != null && mft.searchAnalyzer().getAnalysisMode() == AnalysisMode.SEARCH_TIME)
+                        || (mft.searchQuoteAnalyzer() != null && mft.searchQuoteAnalyzer().getAnalysisMode() == AnalysisMode.SEARCH_TIME))
+                .collect(Collectors.toList());
+        List<MappedFieldType> updated = mftsToRefresh.stream().map(mft -> {
+            MappedFieldType newMft = mft.clone();
+            newMft.setSearchAnalyzer(indexAnalyzers.get(mft.searchAnalyzer().name()));
+            newMft.setSearchQuoteAnalyzer(indexAnalyzers.get(mft.searchQuoteAnalyzer().name()));
+            newMft.freeze();
+            return newMft;
+        }).collect(Collectors.toList());
+        fieldTypes = fieldTypes.copyAndAddAll(updated);
+        // mapper.root().updateFieldType();
     }
 }

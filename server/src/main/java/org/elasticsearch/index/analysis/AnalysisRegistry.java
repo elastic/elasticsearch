@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -34,11 +33,14 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
@@ -151,13 +153,12 @@ public final class AnalysisRegistry implements Closeable {
      * Creates an index-level {@link IndexAnalyzers} from this registry using the given index settings
      */
     public IndexAnalyzers build(IndexSettings indexSettings) throws IOException {
-
         final Map<String, CharFilterFactory> charFilterFactories = buildCharFilterFactories(indexSettings);
         final Map<String, TokenizerFactory> tokenizerFactories = buildTokenizerFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = buildTokenFilterFactories(indexSettings);
-        final Map<String, AnalyzerProvider<?>> analyzierFactories = buildAnalyzerFactories(indexSettings);
+        final Map<String, AnalyzerProvider<?>> analyzerFactories = buildAnalyzerFactories(indexSettings);
         final Map<String, AnalyzerProvider<?>> normalizerFactories = buildNormalizerFactories(indexSettings);
-        return build(indexSettings, analyzierFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+        return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
     }
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {
@@ -197,32 +198,8 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link TokenizerFactory} provider or <code>null</code>
      */
     public AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
-        final Map<String, Settings> tokenizerSettings = indexSettings.getSettings().getGroups("index.analysis.tokenizer");
-        if (tokenizerSettings.containsKey(tokenizer)) {
-            Settings currentSettings = tokenizerSettings.get(tokenizer);
-            return getAnalysisProvider(Component.TOKENIZER, tokenizers, tokenizer, currentSettings.get("type"));
-        } else {
-            return getTokenizerProvider(tokenizer);
-        }
-    }
-
-    /**
-     * Returns a registered {@link TokenFilterFactory} provider by {@link IndexSettings}
-     *  or a registered {@link TokenFilterFactory} provider by predefined name
-     *  or <code>null</code> if the tokenFilter was not registered
-     * @param tokenFilter global or defined tokenFilter name
-     * @param indexSettings an index settings
-     * @return {@link TokenFilterFactory} provider or <code>null</code>
-     */
-    public AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
-        final Map<String, Settings> tokenFilterSettings = indexSettings.getSettings().getGroups("index.analysis.filter");
-        if (tokenFilterSettings.containsKey(tokenFilter)) {
-            Settings currentSettings = tokenFilterSettings.get(tokenFilter);
-            String typeName = currentSettings.get("type");
-            return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
-        } else {
-            return getTokenFilterProvider(tokenFilter);
-        }
+        return getProvider(Component.TOKENIZER, tokenizer, indexSettings, "index.analysis.tokenizer", tokenizers,
+                this::getTokenizerProvider);
     }
 
     /**
@@ -234,12 +211,31 @@ public final class AnalysisRegistry implements Closeable {
      * @return {@link CharFilterFactory} provider or <code>null</code>
      */
     public AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
-        final Map<String, Settings> tokenFilterSettings = indexSettings.getSettings().getGroups("index.analysis.char_filter");
-        if (tokenFilterSettings.containsKey(charFilter)) {
-            Settings currentSettings = tokenFilterSettings.get(charFilter);
-            return getAnalysisProvider(Component.CHAR_FILTER, charFilters, charFilter, currentSettings.get("type"));
+        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, "index.analysis.char_filter", charFilters,
+                this::getCharFilterProvider);
+    }
+
+    /**
+     * Returns a registered {@link TokenFilterFactory} provider by {@link IndexSettings}
+     *  or a registered {@link TokenFilterFactory} provider by predefined name
+     *  or <code>null</code> if the tokenFilter was not registered
+     * @param tokenFilter global or defined tokenFilter name
+     * @param indexSettings an index settings
+     * @return {@link TokenFilterFactory} provider or <code>null</code>
+     */
+    public AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
+        return getProvider(Component.FILTER, tokenFilter, indexSettings, "index.analysis.filter", tokenFilters,
+                this::getTokenFilterProvider);
+    }
+
+    private <T> AnalysisProvider<T> getProvider(Component componentType, String componentName, IndexSettings indexSettings,
+            String componentSettings, Map<String, AnalysisProvider<T>> providers, Function<String, AnalysisProvider<T>> providerFunction) {
+        final Map<String, Settings> subSettings = indexSettings.getSettings().getGroups(componentSettings);
+        if (subSettings.containsKey(componentName)) {
+            Settings currentSettings = subSettings.get(componentName);
+            return getAnalysisProvider(componentType, providers, componentName, currentSettings.get("type"));
         } else {
-            return getCharFilterProvider(charFilter);
+            return providerFunction.apply(componentName);
         }
     }
 
@@ -277,7 +273,7 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
+    <T> Map<String, T> buildMapping(Component component, IndexSettings settings, Map<String, Settings> settingsMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> providerMap,
                     Map<String, ? extends AnalysisModule.AnalysisProvider<T>> defaultInstance) throws IOException {
         Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, settings.getIndexVersionCreated()).build();
@@ -318,9 +314,9 @@ public final class AnalysisRegistry implements Closeable {
 
         }
         // go over the char filters in the bindings and register the ones that are not configured
-        for (Map.Entry<String, ? extends AnalysisModule.AnalysisProvider<T>> entry : providerMap.entrySet()) {
+        for (Map.Entry<String, ? extends AnalysisProvider<T>> entry : providerMap.entrySet()) {
             String name = entry.getKey();
-            AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
+            AnalysisProvider<T> provider = entry.getValue();
             // we don't want to re-register one that already exists
             if (settingsMap.containsKey(name)) {
                 continue;
@@ -342,17 +338,12 @@ public final class AnalysisRegistry implements Closeable {
         for (Map.Entry<String, ? extends AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
             final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
-            if (factories.containsKey(name) == false) {
-                final T instance = provider.get(settings, environment, name, defaultSettings);
-                if (factories.containsKey(name) == false) {
-                    factories.put(name, instance);
-                }
-            }
+            factories.putIfAbsent(name, provider.get(settings, environment, name, defaultSettings));
         }
         return factories;
     }
 
-    private <T> AnalysisProvider<T> getAnalysisProvider(Component component, Map<String, ? extends AnalysisProvider<T>> providerMap,
+    private static <T> AnalysisProvider<T> getAnalysisProvider(Component component, Map<String, ? extends AnalysisProvider<T>> providerMap,
             String name, String typeName) {
         if (typeName == null) {
             throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
@@ -364,9 +355,9 @@ public final class AnalysisRegistry implements Closeable {
         return type;
     }
 
-    private static class PrebuiltAnalysis implements Closeable {
+    static class PrebuiltAnalysis implements Closeable {
 
-        final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
+        final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;
         final Map<String, ? extends AnalysisProvider<TokenizerFactory>> preConfiguredTokenizers;
         final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
@@ -391,19 +382,19 @@ public final class AnalysisRegistry implements Closeable {
             this.preConfiguredTokenizers = preConfiguredTokenizers;
         }
 
-        public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {
+        public AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {
             return preConfiguredCharFilterFactories.get(name);
         }
 
-        public AnalysisModule.AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {
+        public AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {
             return preConfiguredTokenFilters.get(name);
         }
 
-        public AnalysisModule.AnalysisProvider<TokenizerFactory> getTokenizerFactory(String name) {
+        public AnalysisProvider<TokenizerFactory> getTokenizerFactory(String name) {
             return preConfiguredTokenizers.get(name);
         }
 
-        public AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> getAnalyzerProvider(String name) {
+        public AnalysisProvider<AnalyzerProvider<?>> getAnalyzerProvider(String name) {
             return analyzerProviderFactories.get(name);
         }
 
@@ -420,9 +411,6 @@ public final class AnalysisRegistry implements Closeable {
                                 Map<String, TokenizerFactory> tokenizerFactoryFactories,
                                 Map<String, CharFilterFactory> charFilterFactoryFactories,
                                 Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
-
-        Index index = indexSettings.getIndex();
-        analyzerProviders = new HashMap<>(analyzerProviders);
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
@@ -458,7 +446,7 @@ public final class AnalysisRegistry implements Closeable {
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
-                "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+                "[index.analysis.analyzer.default] instead for index [" + indexSettings.getIndex().getName() + "]");
         }
         NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
         NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);
@@ -472,9 +460,11 @@ public final class AnalysisRegistry implements Closeable {
                 whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
-            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
-            Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name,
+                                        AnalyzerProvider<?> analyzerFactory,
+                                        Map<String, TokenFilterFactory> tokenFilters,
+                                        Map<String, CharFilterFactory> charFilters,
+                                        Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -536,4 +526,80 @@ public final class AnalysisRegistry implements Closeable {
         }
         normalizers.put(name, normalizer);
     }
+
+    /**
+     * Create an new IndexAnalyzer instance based on the existing one. Analyzers that are in {@link AnalysisMode#SEARCH_TIME} are tried to
+     * be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
+     */
+    public IndexAnalyzers rebuildIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
+        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexSettings);
+        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexSettings);
+        Map<String, NamedAnalyzer> newAnalyzers = new HashMap<>();
+        for (NamedAnalyzer analyzer : indexAnalyzers.getAnalyzers().values()) {
+            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexSettings));
+        }
+        return new IndexAnalyzers(indexSettings, indexAnalyzers.getDefaultIndexAnalyzer(), newDefaultSearchAnalyzer,
+                newDefaultSearchQuoteAnalyzer, newAnalyzers, indexAnalyzers.getNormalizers(), indexAnalyzers.getWhitespaceNormalizers());
+    }
+
+    /**
+     * Check if the input analyzer needs to be rebuilt. If not, return analyzer unaltered, otherwise rebuild it. We currently only consider
+     * instances of {@link CustomAnalyzer} with {@link AnalysisMode#SEARCH_TIME} to be eligible for rebuilding.
+     */
+    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexSettings indexSettings)
+            throws IOException {
+        // only rebuild custom analyzers that are in SEARCH_TIME mode
+        if ((oldAnalyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) == false
+                || (oldAnalyzer.analyzer() instanceof CustomAnalyzer == false)) {
+            return oldAnalyzer;
+        } else {
+            String analyzerName = oldAnalyzer.name();
+
+            // get tokenizer necessary to re-build the analyzer
+            String tokenizer = indexSettings.getSettings().get("index.analysis.analyzer." + analyzerName + ".tokenizer");
+            Map<String, AnalysisProvider<TokenizerFactory>> tokenizerProvider = Collections.singletonMap(tokenizer,
+                    getTokenizerProvider(tokenizer, indexSettings));
+            final Map<String, Settings> tokenizerSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_TOKENIZER);
+            final Map<String, TokenizerFactory> tokenizers = buildMapping(Component.TOKENIZER, indexSettings, tokenizerSettings,
+                    tokenizerProvider, Collections.emptyMap());
+
+            // get char filters necessary to re-build the analyzer
+            List<String> charFilterNames = indexSettings.getSettings()
+                    .getAsList("index.analysis.analyzer." + analyzerName + ".char_filter");
+            Map<String, AnalysisProvider<CharFilterFactory>> charFilterProvider = charFilterNames.stream()
+                    .map(s -> new AbstractMap.SimpleEntry<>(s, getCharFilterProvider(s, indexSettings)))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
+            final Map<String, CharFilterFactory> charFilters = buildMapping(Component.CHAR_FILTER, indexSettings,
+                    charFiltersSettings, charFilterProvider, Collections.emptyMap());
+
+            // get token filters necessary to re-build the analyzer
+            List<String> tokenFilterNames = indexSettings.getSettings().getAsList("index.analysis.analyzer." + analyzerName + ".filter");
+            final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
+            Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilterProviders = new HashMap<>();
+            for (String filterName : tokenFilterNames) {
+                AnalysisProvider<TokenFilterFactory> tokenFilterProvider = getTokenFilterProvider(filterName, indexSettings);
+                Settings settings = tokenFiltersSettings.get(filterName);
+                if (settings != null) {
+                        String type = settings.get("type");
+                        if (type != null) {
+                            AnalysisProvider<TokenFilterFactory> provider = getTokenFilterProvider(type, indexSettings);
+                            tokenFilterProviders.put(type, provider);
+                        }
+                } else {
+                    tokenFilterProviders.put(filterName, tokenFilterProvider);
+                }
+            }
+
+            final Map<String, TokenFilterFactory> tokenFilters = buildMapping(Component.FILTER, indexSettings,
+                    tokenFiltersSettings, tokenFilterProviders, prebuiltAnalysis.preConfiguredTokenFilters);
+
+            Settings analyzerSettings = indexSettings.getSettings().getAsSettings("index.analysis.analyzer." + analyzerName);
+            AnalyzerProvider<CustomAnalyzer> analyzerProvider = new CustomAnalyzerProvider(indexSettings, analyzerName, analyzerSettings);
+
+            // produce the analyzer
+            return AnalysisRegistry.produceAnalyzer(analyzerName, analyzerProvider, tokenFilters, charFilters, tokenizers);
+        }
+    }
+
 }

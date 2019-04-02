@@ -86,6 +86,18 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         return new FieldTypeLookup(fullName, aliases);
     }
 
+    /**
+     * Return a new instance that contains the union of this instance and the mapped field types
+     */
+    public FieldTypeLookup copyAndAddAll(Collection<MappedFieldType> mappedFieldTypes) {
+        CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
+        CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
+
+        for (MappedFieldType mft : mappedFieldTypes) {
+            fullName = fullName.copyAndPut(mft.name(), mft);
+        }
+        return new FieldTypeLookup(fullName, aliases);
+    }
 
     /** Returns the field for the given field */
     public MappedFieldType get(String field) {

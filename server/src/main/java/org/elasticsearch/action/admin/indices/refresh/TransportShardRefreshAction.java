@@ -58,6 +58,12 @@ public class TransportShardRefreshAction
             ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener) {
         ActionListener.completeWith(listener, () -> {
             primary.refresh("api");
+            try {
+                primary.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+            } catch (Exception ex) {
+                logger.error(ex.getLocalizedMessage(), ex);
+                return new PrimaryResult(null, null, ex);
+            }
             logger.trace("{} refresh request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
@@ -66,6 +72,12 @@ public class TransportShardRefreshAction
     @Override
     protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
         replica.refresh("api");
+        try {
+            replica.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
+        } catch (Exception ex) {
+            logger.error(ex.getLocalizedMessage(), ex);
+            return new ReplicaResult(ex);
+        }
         logger.trace("{} refresh request executed on replica", replica.shardId());
         return new ReplicaResult();
     }

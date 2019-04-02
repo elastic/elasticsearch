@@ -1,0 +1,32 @@
+[[duration-processor]]
+=== Duration Processor
+Converts a human readable time value (e.g. 1.7s) to its value in milliseconds (e.g. 1700) or another kind of time unit.
+
+Supported human readable units are "nanos", "micros", "ms", "s", "m", "h", "d" case insensitive. An error will occur if
+the field is not a supported format or resultant value exceeds 2^63 nanoseconds.
+
+This processor accepts fractional durations, but may lose resolution when converting fractional durations into time
+units that are the same size or larger (e.g. A value of `1.2s` will return `1` when converted to `seconds` and will
+return `0` when converted to `minutes`).
+
+[[duration-options]]
+.Duration Options
+[options="header"]
+|======
+| Name             | Required  | Default        | Description
+| `field`          | yes       | -              | The field to convert
+| `target_unit`    | no        | `milliseconds` | The unit of time to convert the duration to. Supported values are `nanoseconds`, `microseconds`, `milliseconds`, `seconds`, `minuutes`, `hours`, `days`.
+| `target_field`   | no        | `field`        | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing` | no        | `false`        | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "duration": {
+    "field": "operation.runtime"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

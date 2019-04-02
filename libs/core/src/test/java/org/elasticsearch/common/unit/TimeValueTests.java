@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
@@ -114,6 +115,71 @@ public class TimeValueTests extends ESTestCase {
         assertTrue(TimeValue.parseTimeValue(zeros + "0", null, "test") == TimeValue.ZERO);
     }
 
+    public void testParseFractional() {
+        assertEquals(new TimeValue(36, TimeUnit.HOURS),
+                     TimeValue.parseTimeValue("1.5d", "test"));
+        assertEquals(new TimeValue(130464, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("1.51d", "test"));
+        assertEquals(new TimeValue(1584, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("1.1d", "test"));
+        assertEquals(new TimeValue(66, TimeUnit.MINUTES),
+                     TimeValue.parseTimeValue("1.1h", "test"));
+        assertEquals(new TimeValue(66, TimeUnit.SECONDS),
+                     TimeValue.parseTimeValue("1.1m", "test"));
+        assertEquals(new TimeValue(1100, TimeUnit.MILLISECONDS),
+                     TimeValue.parseTimeValue("1.1s", "test"));
+        assertEquals(new TimeValue(1200, TimeUnit.MICROSECONDS),
+                     TimeValue.parseTimeValue("1.2ms", "test"));
+        assertEquals(new TimeValue(1200, TimeUnit.NANOSECONDS),
+                     TimeValue.parseTimeValue("1.2micros", "test"));
+    }
+
+    public void testFractionalToString() {
+        assertEquals("1.5d", TimeValue.parseTimeValue("1.5d", "test").toString());
+        assertEquals("1.5d", TimeValue.parseTimeValue("1.51d", "test").toString());
+        assertEquals("1.1d", TimeValue.parseTimeValue("1.1d", "test").toString());
+        assertEquals("1.1h", TimeValue.parseTimeValue("1.1h", "test").toString());
+        assertEquals("1.1m", TimeValue.parseTimeValue("1.1m", "test").toString());
+        assertEquals("1.1s", TimeValue.parseTimeValue("1.1s", "test").toString());
+        assertEquals("1.2ms", TimeValue.parseTimeValue("1.2ms", "test").toString());
+        assertEquals("1.2micros", TimeValue.parseTimeValue("1.2micros", "test").toString());
+    }
+
+    private static final String OVERFLOW_VALUES_NOT_SUPPORTED = "Values greater than 9223372036854775807 nanoseconds are not supported";
+    private static final String UNDERFLOW_VALUES_NOT_SUPPORTED = "Values less than -9223372036854775808 nanoseconds are not supported";
+
+    public void testParseValueTooLarge() {
+        final String longValue = "106752d";
+        final IllegalArgumentException longOverflow =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(longValue, ""));
+        assertThat(longOverflow, hasToString(containsString(OVERFLOW_VALUES_NOT_SUPPORTED)));
+        assertThat(longOverflow, hasToString(endsWith(longValue)));
+    }
+
+    public void testParseValueTooSmall() {
+        final String longValue = "-106752d";
+        final IllegalArgumentException longOverflow =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(longValue, ""));
+        assertThat(longOverflow, hasToString(containsString(UNDERFLOW_VALUES_NOT_SUPPORTED)));
+        assertThat(longOverflow, hasToString(endsWith(longValue)));
+    }
+
+    public void testParseFractionalValueTooLarge() {
+        final String fractionalValue = "106751.991167302d";
+        final IllegalArgumentException fractionalOverflow =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(fractionalValue, ""));
+        assertThat(fractionalOverflow, hasToString(containsString(OVERFLOW_VALUES_NOT_SUPPORTED)));
+        assertThat(fractionalOverflow, hasToString(endsWith(fractionalValue)));
+    }
+
+    public void testParseFractionalValueTooSmall() {
+        final String fractionalValue = "-106751.991167302d";
+        final IllegalArgumentException fractionalOverflow =
+            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(fractionalValue, ""));
+        assertThat(fractionalOverflow, hasToString(containsString(UNDERFLOW_VALUES_NOT_SUPPORTED)));
+        assertThat(fractionalOverflow, hasToString(endsWith(fractionalValue)));
+    }
+
     public void testRoundTrip() {
         final String s = randomTimeValue();
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
@@ -121,28 +187,27 @@ public class TimeValueTests extends ESTestCase {
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
     }
 
-    private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";
+    private static final String FRACTIONAL_NANO_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional nanosecond values are not supported";
 
     public void testNonFractionalTimeValues() {
         final String s = randomAlphaOfLength(10) + randomTimeUnit();
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
-        assertThat(e, not(hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED))));
+        assertThat(e, not(hasToString(containsString(FRACTIONAL_NANO_TIME_VALUES_ARE_NOT_SUPPORTED))));
         assertThat(e.getCause(), instanceOf(NumberFormatException.class));
     }
 
-    public void testFractionalTimeValues() {
+    public void testFractionalNanoValues() {
         double value;
         do {
             value = randomDouble();
         } while (value == 0);
-        final String s = Double.toString(randomIntBetween(0, 128) + value) + randomTimeUnit();
+        final String s = (randomIntBetween(0, 128) + value) + "nanos";
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
-        assertThat(e, hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED)));
-        assertThat(e.getCause(), instanceOf(NumberFormatException.class));
+        assertThat(e, hasToString(containsString(FRACTIONAL_NANO_TIME_VALUES_ARE_NOT_SUPPORTED)));
     }
 
     private String randomTimeUnit() {

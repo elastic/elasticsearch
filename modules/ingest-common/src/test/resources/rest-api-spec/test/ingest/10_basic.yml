@@ -19,6 +19,7 @@
     - contains:  { nodes.$master.ingest.processors: { type: date_index_name } }
     - contains:  { nodes.$master.ingest.processors: { type: dissect } }
     - contains:  { nodes.$master.ingest.processors: { type: dot_expander } }
+    - contains:  { nodes.$master.ingest.processors: { type: duration } }
     - contains:  { nodes.$master.ingest.processors: { type: fail } }
     - contains:  { nodes.$master.ingest.processors: { type: foreach } }
     - contains:  { nodes.$master.ingest.processors: { type: grok } }

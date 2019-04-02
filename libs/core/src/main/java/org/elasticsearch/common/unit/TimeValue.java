@@ -74,6 +74,13 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public TimeValue(long duration, TimeUnit timeUnit) {
+        if (duration > Long.MAX_VALUE / timeUnit.toNanos(1)) {
+            throw new IllegalArgumentException(
+                "Values greater than " + Long.MAX_VALUE + " nanoseconds are not supported: " + duration + unitToSuffix(timeUnit));
+        } else if (duration < Long.MIN_VALUE / timeUnit.toNanos(1)) {
+            throw new IllegalArgumentException(
+                "Values less than " + Long.MIN_VALUE + " nanoseconds are not supported: " + duration + unitToSuffix(timeUnit));
+        }
         this.duration = duration;
         this.timeUnit = timeUnit;
     }
@@ -185,8 +192,9 @@ public class TimeValue implements Comparable<TimeValue> {
     /**
      * Returns a {@link String} representation of the current {@link TimeValue}.
      *
-     * Note that this method might produce fractional time values (ex 1.6m) which cannot be
-     * parsed by method like {@link TimeValue#parse(String, String, String)}.
+     * Note that this method might produce fractional time values (ex 1.6m) which may lose
+     * resolution when parsed by methods like
+     * {@link TimeValue#parse(String, String, String, TimeUnit)}.
      */
     @Override
     public String toString() {
@@ -245,23 +253,27 @@ public class TimeValue implements Comparable<TimeValue> {
         if (duration < 0) {
             return Long.toString(duration);
         }
-        switch (timeUnit) {
+        return duration + unitToSuffix(timeUnit);
+    }
+
+    private static String unitToSuffix(TimeUnit unit) {
+        switch (unit) {
             case NANOSECONDS:
-                return duration + "nanos";
+                return "nanos";
             case MICROSECONDS:
-                return duration + "micros";
+                return "micros";
             case MILLISECONDS:
-                return duration + "ms";
+                return "ms";
             case SECONDS:
-                return duration + "s";
+                return "s";
             case MINUTES:
-                return duration + "m";
+                return "m";
             case HOURS:
-                return duration + "h";
+                return "h";
             case DAYS:
-                return duration + "d";
+                return "d";
             default:
-                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
+                throw new IllegalArgumentException("unknown time unit: " + unit.name());
         }
     }
 
@@ -278,20 +290,20 @@ public class TimeValue implements Comparable<TimeValue> {
         }
         final String normalized = sValue.toLowerCase(Locale.ROOT).trim();
         if (normalized.endsWith("nanos")) {
-            return new TimeValue(parse(sValue, normalized, "nanos"), TimeUnit.NANOSECONDS);
+            return parse(sValue, normalized, "nanos", TimeUnit.NANOSECONDS);
         } else if (normalized.endsWith("micros")) {
-            return new TimeValue(parse(sValue, normalized, "micros"), TimeUnit.MICROSECONDS);
+            return parse(sValue, normalized, "micros", TimeUnit.MICROSECONDS);
         } else if (normalized.endsWith("ms")) {
-            return new TimeValue(parse(sValue, normalized, "ms"), TimeUnit.MILLISECONDS);
+            return parse(sValue, normalized, "ms", TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
-            return new TimeValue(parse(sValue, normalized, "s"), TimeUnit.SECONDS);
+            return parse(sValue, normalized, "s", TimeUnit.SECONDS);
         } else if (sValue.endsWith("m")) {
             // parsing minutes should be case-sensitive as 'M' means "months", not "minutes"; this is the only special case.
-            return new TimeValue(parse(sValue, normalized, "m"), TimeUnit.MINUTES);
+            return parse(sValue, normalized, "m", TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
-            return new TimeValue(parse(sValue, normalized, "h"), TimeUnit.HOURS);
+            return parse(sValue, normalized, "h", TimeUnit.HOURS);
         } else if (normalized.endsWith("d")) {
-            return new TimeValue(parse(sValue, normalized, "d"), TimeUnit.DAYS);
+            return parse(sValue, normalized, "d", TimeUnit.DAYS);
         } else if (normalized.matches("-0*1")) {
             return TimeValue.MINUS_ONE;
         } else if (normalized.matches("0+")) {
@@ -303,18 +315,57 @@ public class TimeValue implements Comparable<TimeValue> {
         }
     }
 
-    private static long parse(final String initialInput, final String normalized, final String suffix) {
+    private static TimeValue parse(final String initialInput, final String normalized, final String suffix, TimeUnit targetUnit) {
         final String s = normalized.substring(0, normalized.length() - suffix.length()).trim();
-        try {
-            return Long.parseLong(s);
-        } catch (final NumberFormatException e) {
+        if (s.contains(".")) {
             try {
-                @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
-                throw new IllegalArgumentException("failed to parse [" + initialInput + "], fractional time values are not supported", e);
-            } catch (final NumberFormatException ignored) {
+                final double fractional = Double.parseDouble(s);
+                return parseFractional(initialInput, fractional, targetUnit);
+            } catch (final NumberFormatException e) {
+                throw new IllegalArgumentException("failed to parse [" + initialInput + "]", e);
+            }
+        } else {
+            try {
+                return new TimeValue(Long.parseLong(s), targetUnit);
+            } catch (final NumberFormatException e) {
                 throw new IllegalArgumentException("failed to parse [" + initialInput + "]", e);
             }
         }
+    }
+
+    private static TimeValue parseFractional(final String initialInput, final double fractional, TimeUnit targetUnit) {
+        if (TimeUnit.NANOSECONDS.equals(targetUnit)) {
+            throw new IllegalArgumentException("failed to parse [" + initialInput + "], fractional nanosecond values are not supported");
+        }
+        long multiplier = TimeUnit.NANOSECONDS.convert(1, targetUnit);
+        // check for overflow/underflow
+        if (fractional > 0) {
+            if (fractional != 0 && (Long.MAX_VALUE / (double) multiplier) < fractional) {
+                throw new IllegalArgumentException("Values greater than " + Long.MAX_VALUE + " nanoseconds are not supported: " + initialInput);            }
+        } else {
+            if (fractional != 0 && (Long.MIN_VALUE / (double) multiplier) > fractional) {
+                throw new IllegalArgumentException("Values less than " + Long.MIN_VALUE + " nanoseconds are not supported: " + initialInput);
+            }
+        }
+        long nanoValue = (long)(multiplier * fractional);
+        // right-size it - Skip days resolution since a fractional value's final unit will always be hours or lower
+        if (nanoValue / C5 != 0 && nanoValue % C5 == 0) {
+            long duration = nanoValue / C5;
+            return new TimeValue(duration, TimeUnit.HOURS);
+        } else if (nanoValue / C4 != 0 && nanoValue % C4 == 0) {
+            long duration = nanoValue / C4;
+            return new TimeValue(duration, TimeUnit.MINUTES);
+        } else if (nanoValue / C3 != 0 && nanoValue % C3 == 0) {
+            long duration = nanoValue / C3;
+            return new TimeValue(duration, TimeUnit.SECONDS);
+        } else if (nanoValue / C2 != 0 && nanoValue % C2 == 0) {
+            long duration = nanoValue / C2;
+            return new TimeValue(duration, TimeUnit.MILLISECONDS);
+        } else if (nanoValue / C1 != 0 && nanoValue % C1 == 0) {
+            long duration = nanoValue / C1;
+            return new TimeValue(duration, TimeUnit.MICROSECONDS);
+        }
+        return new TimeValue(nanoValue, TimeUnit.NANOSECONDS);
     }
 
     private static final long C0 = 1L;

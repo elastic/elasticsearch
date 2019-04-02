@@ -1,0 +1,178 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "my_seconds_pipeline"
+        ignore: 404
+
+---
+"Test duration processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "duration": {
+                  "field": "duration_source_field",
+                  "target_field": "duration_target_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body:  {"duration_source_field": "1m"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.duration_source_field: "1m" }
+  - match: { _source.duration_target_field: 60000 }
+
+---
+"Test duration processor unit conversion":
+  - do:
+      ingest.put_pipeline:
+        id: "my_seconds_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "duration": {
+                  "field": "duration_source_field",
+                  "target_field": "duration_target_field",
+                  "target_unit": "seconds"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "my_seconds_pipeline"
+        body: {"duration_source_field": "1m"}
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.duration_source_field: "1m"}
+  - match: { _source.duration_target_field: 60}
+
+---
+"Test duration processor fractional seconds":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "duration": {
+                  "field": "duration_source_field",
+                  "target_field": "duration_target_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 3
+        pipeline: "my_pipeline"
+        body: {"duration_source_field": "1.7s"}
+
+  - do:
+      get:
+        index: test
+        id: 3
+  - match: { _source.duration_source_field: "1.7s"}
+  - match: { _source.duration_target_field: 1700}
+
+---
+"Test duration processor fractional conversion":
+  - do:
+      ingest.put_pipeline:
+        id: "my_seconds_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "duration": {
+                  "field": "duration_source_field",
+                  "target_field": "duration_target_field",
+                  "target_unit": "seconds"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 4
+        pipeline: "my_seconds_pipeline"
+        body: {"duration_source_field": "1.2m"}
+
+  - do:
+      get:
+        index: test
+        id: 4
+  - match: { _source.duration_source_field: "1.2m"}
+  - match: { _source.duration_target_field: 72}
+
+---
+"Test duration processor fractional resolution loss":
+  - do:
+      ingest.put_pipeline:
+        id: "my_seconds_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "duration": {
+                  "field": "duration_source_field",
+                  "target_field": "duration_target_field",
+                  "target_unit": "seconds"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 4
+        pipeline: "my_seconds_pipeline"
+        body: {"duration_source_field": "1.2s"}
+
+  - do:
+      get:
+        index: test
+        id: 4
+  - match: { _source.duration_source_field: "1.2s"}
+  - match: { _source.duration_target_field: 1}

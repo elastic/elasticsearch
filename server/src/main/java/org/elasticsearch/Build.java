@@ -241,7 +241,13 @@ public class Build {
             out.writeString(build.flavor().displayName());
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.type().displayName());
+            final Type buildType;
+            if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
+                buildType = Type.TAR;
+            } else {
+                buildType = build.type();
+            }
+            out.writeString(buildType.displayName());
         }
         out.writeString(build.shortHash());
         out.writeString(build.date());

@@ -63,7 +63,7 @@ public class FsRepository extends BlobStoreRepository {
         new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
     private final Environment environment;
 
-    private ByteSizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
     private final BlobPath basePath;
 

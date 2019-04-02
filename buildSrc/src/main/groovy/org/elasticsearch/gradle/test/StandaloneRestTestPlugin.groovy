@@ -58,7 +58,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
         BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
-        BuildPlugin.applyTestConfig(project)
+        BuildPlugin.configureTestTasks(project)
 
         // only setup tests to build
         def sourceSets = project.extensions.getByType(SourceSetContainer)

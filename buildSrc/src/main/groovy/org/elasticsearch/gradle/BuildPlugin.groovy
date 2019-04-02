@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle
 
-
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
@@ -41,6 +40,7 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.credentials.HttpHeaderCredentials
+import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
@@ -93,6 +93,9 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        // apply global test task failure listener
+        project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
+
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
         setupSeed(project)
@@ -104,8 +107,7 @@ class BuildPlugin implements Plugin<Project> {
         configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
-
-        applyTestConfig(project)
+        configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
@@ -904,7 +906,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void applyTestConfig(Project project) {
+    static void configureTestTasks(Project project) {
         // Default test task should run only unit tests
         project.tasks.withType(Test).matching { it.name == 'test' }.all {
             include '**/*Tests.class'
@@ -920,7 +922,12 @@ class BuildPlugin implements Plugin<Project> {
                     workingDir.mkdirs()
                 }
 
-                def listener = new ErrorReportingTestListener()
+                doLast {
+                    println "Task $test ended"
+                }
+
+                def listener = new ErrorReportingTestListener(test.testLogging)
+                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
                 addTestOutputListener(listener)
                 addTestListener(listener)
 
@@ -985,6 +992,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 testLogging {
                     showExceptions = true
+                    showCauses = true
                     exceptionFormat = 'full'
                 }
 
@@ -1085,5 +1093,34 @@ class BuildPlugin implements Plugin<Project> {
 
         project.rootProject.ext.testSeed = testSeed
         return testSeed
+    }
+
+    private static class TestFailureReportingPlugin implements Plugin<Project> {
+        @Override
+        void apply(Project project) {
+            if (project != project.rootProject) {
+                throw new IllegalStateException("${this.class.getName()} can only be applied to the root project.")
+            }
+
+            project.gradle.addListener(new TaskActionListener() {
+                @Override
+                void beforeActions(Task task) {
+
+                }
+
+                @Override
+                void afterActions(Task task) {
+                    if (task instanceof Test) {
+                        ErrorReportingTestListener listener = task.extensions.findByType(ErrorReportingTestListener)
+                        if (listener != null && listener.getFailedTests().size() > 0) {
+                            task.logger.lifecycle("\nTests with failures:")
+                            listener.getFailedTests().each {
+                                task.logger.lifecycle(" - ${it.getFullName()}")
+                            }
+                        }
+                    }
+                }
+            })
+        }
     }
 }

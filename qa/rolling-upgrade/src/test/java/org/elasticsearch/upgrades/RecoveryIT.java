@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -120,6 +121,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return future;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40731")
     public void testRecoveryWithConcurrentIndexing() throws Exception {
         final String index = "recovery_with_concurrent_indexing";
         Response response = client().performRequest(new Request("GET", "_nodes"));
@@ -170,13 +172,26 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
-        final Request request = new Request("GET", index + "/_count");
-        request.addParameter("preference", preference);
-        final Response response = client().performRequest(request);
-        final int actualCount = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
-        assertThat("preference [" + preference + "]", actualCount, equalTo(expectedCount));
+        final int actualDocs;
+        try {
+            final Request request = new Request("GET", index + "/_count");
+            if (preference != null) {
+                request.addParameter("preference", preference);
+            }
+            final Response response = client().performRequest(request);
+            actualDocs = Integer.parseInt(ObjectPath.createFromResponse(response).evaluate("count").toString());
+        } catch (ResponseException e) {
+            try {
+                final Response recoveryStateResponse = client().performRequest(new Request("GET", index + "/_recovery"));
+                fail("failed to get doc count for index [" + index + "] with preference [" + preference + "]" + " response [" + e + "]"
+                    + " recovery [" + EntityUtils.toString(recoveryStateResponse.getEntity()) + "]");
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
+        assertThat("preference [" + preference + "]", actualDocs, equalTo(expectedCount));
     }
-
 
     private String getNodeId(Predicate<Version> versionPredicate) throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));

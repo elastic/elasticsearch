@@ -8,13 +8,17 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
@@ -47,6 +51,11 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("data_frame_transforms_admin"));
     }
 
+    @After
+    public void clearOutTransforms() throws Exception {
+        wipeDataFrameTransforms();
+    }
+
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -65,6 +74,12 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "*/_stats", authHeader);
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1,pivot_2/_stats", authHeader);
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
 
@@ -88,5 +103,36 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1", authHeader);
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetPersistedStatsWithoutTask() throws Exception {
+        createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
+        startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");
+        stopDataFrameTransform("pivot_stats_1", false);
+
+        // Get rid of the first transform task, but keep the configuration
+        client().performRequest(new Request("POST", "_tasks/_cancel?actions="+DataFrameField.TASK_NAME+"*"));
+
+        // Verify that the task is gone
+        Map<String, Object> tasks =
+            entityAsMap(client().performRequest(new Request("GET", "_tasks?actions="+DataFrameField.TASK_NAME+"*")));
+        assertTrue(((Map<?, ?>)XContentMapValues.extractValue("nodes", tasks)).isEmpty());
+
+        createPivotReviewsTransform("pivot_stats_2", "pivot_reviews_stats_2", null);
+        startAndWaitForTransform("pivot_stats_2", "pivot_reviews_stats_2");
+
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "_stats", BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
+        Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        // Verify that both transforms, the one with the task and the one without have statistics
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
+            assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat(((Integer)stat.get("search_time_in_ms")), greaterThan(0));
+            assertThat(((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+        }
     }
 }

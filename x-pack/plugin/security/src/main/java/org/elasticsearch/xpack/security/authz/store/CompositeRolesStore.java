@@ -402,8 +402,8 @@ public class CompositeRolesStore {
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
             privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
-                applicationPrivilegesMap.forEach((key, names) ->
-                        builder.addApplicationPrivilege(ApplicationPrivilege.get(key.v1(), names, appPrivileges), key.v2()));
+                applicationPrivilegesMap.forEach((key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                    .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2())));
                 listener.onResponse(builder.build());
             }, listener::onFailure));
         }

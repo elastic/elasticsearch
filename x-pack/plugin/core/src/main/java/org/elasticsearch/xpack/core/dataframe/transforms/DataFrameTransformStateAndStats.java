@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,6 +39,16 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
                 DataFrameField.STATS_FIELD);
     }
 
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
+        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
+        return new DataFrameTransformStateAndStats(id,
+            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
+            indexerTransformStats);
+    }
+
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
         this.id = Objects.requireNonNull(id);
         this.transformState = Objects.requireNonNull(state);
@@ -55,7 +66,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState);
-        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.endObject();
         return builder;
     }

@@ -1,11 +1,13 @@
 ---
 "Discovery stats":
+  - skip:
+      features: [arbitrary_key]
 
   - do:
-      cluster.state: {}
-
-  # Get master node id
-  - set: { master_node: master }
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
 
   - do:
       nodes.stats:

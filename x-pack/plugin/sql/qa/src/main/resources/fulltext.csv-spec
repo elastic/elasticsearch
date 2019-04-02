@@ -30,6 +30,60 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', '
 10096          |Jayson         |M              |Mandell
 ;
 
+matchWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=6');
+
+  first_name:s  |   SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+matchWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=AUTO:1,7;fuzzy_rewrite=scoring_boolean');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
+multiMatchWithFuzzinessAuto
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=AUTO:1,5;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Shir            |McClurg          |8.210788
+;
+
+multiMatchWithFuzziness
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=5;operator=or') ORDER BY first_name;
+
+  first_name:s  |   last_name:s   |    SCORE():f
+----------------+-----------------+---------------
+Gao             |Dolinsky         |8.210788
+Gino            |Leonhardt        |4.105394
+Shir            |McClurg          |8.210788
+Uri             |Lenart           |4.105394
+;
+
+queryWithFuzziness
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=5;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gino            |1.3684646
+Gao             |2.7369292
+;
+
+queryWithFuzzinessAuto
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=AUTO:1,5;default_field=first_name');
+
+  first_name:s  |    SCORE():f
+----------------+---------------
+Gao             |2.7369292
+;
+
 matchQuery
 SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE MATCH(first_name, 'Erez');
 

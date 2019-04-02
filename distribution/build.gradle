@@ -52,10 +52,16 @@ task buildServerNotice(type: NoticeTask) {
 // other distributions include notices from modules as well, which are added below later
 task buildDefaultNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
-
-// other distributions include notices from modules as well, which are added below later
 task buildOssNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
+}
+task buildDefaultNoJdkNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+task buildOssNoJdkNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
@@ -218,14 +224,14 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
  *****************************************************************************/
 // extract the bundled jdk version, broken into elements as: [feature, interim, update, build]
 // Note the "patch" version is not yet handled here, as it has not yet been used by java.
-Pattern JDK_VERSION = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)\\+(\\d+)")
+Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)")
 Matcher jdkVersionMatcher = JDK_VERSION.matcher(VersionProperties.bundledJdk)
 if (jdkVersionMatcher.matches() == false) {
   throw new IllegalArgumentException("Malformed jdk version [" + VersionProperties.bundledJdk + "]")
 }
-String jdkVersion = jdkVersionMatcher.group(1) + '.' + jdkVersionMatcher.group(2) + '.' + jdkVersionMatcher.group(3)
+String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "")
 String jdkMajor = jdkVersionMatcher.group(1)
-String jdkBuild = jdkVersionMatcher.group(4)
+String jdkBuild = jdkVersionMatcher.group(3)
 
 repositories {
   ivy {
@@ -248,8 +254,12 @@ for (String platform : ['linux', 'darwin', 'windows']) {
     }
     it.includeEmptyDirs false
   }
+  String extractDir = "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
   project.task("extract${platform.capitalize()}Jdk", type: Copy) {
-    into "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
+    doFirst {
+      project.delete(extractDir)
+    }
+    into extractDir
     if (extension.equals('zip')) {
       from({ zipTree(jdkConfig.singleFile) }, removeRootDir)
     } else {
@@ -317,13 +327,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from project(':distribution').buildTransportModules
     }
 
-    configFiles = { distributionType, oss ->
+    configFiles = { distributionType, oss, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         if (oss) {
           from project(':distribution').buildOssLog4jConfig
@@ -335,7 +345,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    binFiles = { distributionType, oss ->
+    binFiles = { distributionType, oss, jdk ->
       copySpec {
         // non-windows files, for all distributions 
         with copySpec {
@@ -343,7 +353,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -351,7 +361,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
           }
           with copySpec {
             from '../src/bin'
@@ -373,11 +383,21 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = copySpec {
-      if (project.name == 'integ-test-zip') {
-        from buildServerNotice
-      } else {
-        from buildDefaultNotice
+    noticeFile = { oss, jdk ->
+      copySpec {
+        if (project.name == 'integ-test-zip') {
+          from buildServerNotice
+        } else {
+          if (oss && jdk) {
+            from buildOssNotice
+          } else if (oss) {
+            from buildOssNoJdkNotice
+          } else if (jdk) {
+            from buildDefaultNotice
+          } else {
+            from buildDefaultNoJdkNotice
+          }
+      }  
       }
     }
 
@@ -448,7 +468,7 @@ task run(type: RunTask) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss ->
+  ext.expansionsForDistribution = { distributionType, oss, jdk ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
@@ -539,6 +559,10 @@ subprojects {
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
+      ],
+
+      'es.bundled_jdk': [
+        'def': jdk ? 'true' : 'false'
       ],
 
       'license.name': [

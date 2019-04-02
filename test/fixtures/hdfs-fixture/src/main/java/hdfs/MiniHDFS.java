@@ -98,7 +98,6 @@ public class MiniHDFS {
 
         UserGroupInformation.setConfiguration(cfg);
 
-        // TODO: remove hardcoded port!
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
         if (secure) {
             builder.nameNodePort(9998);

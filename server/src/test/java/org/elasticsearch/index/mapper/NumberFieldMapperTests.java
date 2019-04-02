@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -367,17 +368,20 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+    @Timeout(millis = 30000)
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
             OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.LONG, "1e999999999", "out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.LONG, "-1e999999999", "out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
@@ -419,6 +423,10 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                     e.getCause().getMessage(), containsString(item.message));
             }
         }
+
+        // the following two strings are in-range for a long after coercion
+        parseRequest(NumberType.LONG, createIndexRequest("9223372036854775807.9"));
+        parseRequest(NumberType.LONG, createIndexRequest("-9223372036854775808.9"));
     }
 
     private void parseRequest(NumberType type, BytesReference content) throws IOException {

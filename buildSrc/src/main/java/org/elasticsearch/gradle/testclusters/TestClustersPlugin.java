@@ -207,7 +207,6 @@ public class TestClustersPlugin implements Plugin<Project> {
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
                     usedClusters.getOrDefault(task, Collections.emptyList()).forEach(each -> {
-                        project.getLogger().warn("hello, ryan. task name " + task.getName());
                         synchronized (claimsInventory) {
                             claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) + 1);
                         }
@@ -224,18 +223,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     final List<ElasticsearchNode> clustersToStart;
-                    if ("generateContextDoc".equals(task.getName())) {
-                        project.getLogger().warn("hello, ryan. this task (" + task.getPath() + ") is failing");
-                    }
                     synchronized (runningClusters) {
                         clustersToStart = usedClusters.getOrDefault(task,Collections.emptyList()).stream()
                             .filter(each -> runningClusters.contains(each) == false)
                             .collect(Collectors.toList());
-                        if ("generateContextDoc".equals(task.getName())) {
-                            project.getLogger().warn("hello, ryan. clusters to start " + clustersToStart);
-                            project.getLogger().warn("hello, ryan. used clusters " + usedClusters);
-                            project.getLogger().warn("hello, ryan. running clusters " + runningClusters);
-                        }
                         runningClusters.addAll(clustersToStart);
                     }
                     clustersToStart.forEach(ElasticsearchNode::start);

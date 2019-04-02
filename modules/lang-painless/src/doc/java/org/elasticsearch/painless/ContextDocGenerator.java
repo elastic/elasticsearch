@@ -19,8 +19,13 @@
 
 package org.elasticsearch.painless;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 public class ContextDocGenerator {
-    public static void main(String[] args) {
-        System.out.println("hello, Ryan");
+    public static void main(String[] args) throws Exception {
+        URL clusterUrl = new URL("http://" + System.getProperty("cluster.uri"));
+        HttpURLConnection conn = (HttpURLConnection) clusterUrl.openConnection();
+        System.out.println(conn.getResponseCode());
     }
 }

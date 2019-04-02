@@ -17,6 +17,9 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
@@ -67,22 +70,18 @@ sourceSets {
   }
 }
 
-apply plugin: 'elasticsearch.testclusters'
-
-testClusters {
-  docsExtractor {
-    distribution = 'DEFAULT'
-    version = project.version
-    javaHome = project.file(project.ext.runtimeJavaHome)
-  }
-}
-
 task generateContextDoc(type: JavaExec) {
   main = 'org.elasticsearch.painless.ContextDocGenerator'
   classpath = sourceSets.doc.runtimeClasspath
-  useCluster testClusters.docsExtractor
-  args "${-> testClusters.docsExtractor.httpSocketURI}"
+  systemProperty "cluster.uri", "${-> project.ext.generateContextNodes.collect { it.httpUri() }.join(',') }"
 }
+
+ClusterConfiguration clusterConfig = project.extensions.create("generateContextCluster", ClusterConfiguration.class, project)
+gradle.projectsEvaluated {
+  project.ext.generateContextNodes = ClusterFormationTasks.setup(project, "generateContextCluster", generateContextDoc, clusterConfig)
+}
+
+clusterConfig.distribution = 'default'
 
 // Reference documentation for Painless's public API.
 task generatePainlessApi(type: JavaExec) {

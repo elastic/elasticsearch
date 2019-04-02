@@ -1,3 +1,59 @@
+[[release-notes-6.7.1]]
+== {es} version 6.7.1
+
+coming[6.7.1]
+
+Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
+
+[[enhancement-6.7.1]]
+[float]
+=== Enhancements
+
+Infra/Core::
+* Enhancements to IndicesQueryCache. {pull}39099[#39099] (issue: {issue}37117[#37117])
+
+SQL::
+* SQL: add "fuzziness" option to QUERY and MATCH function predicates {pull}40529[#40529] (issue: {issue}40495[#40495])
+
+[[bug-6.7.1]]
+[float]
+=== Bug fixes
+
+Authentication::
+* Allow non super users to create API keys {pull}40028[#40028] (issue: {issue}40029[#40029])
+
+CCR::
+* Only run retention lease actions on active primary {pull}40386[#40386] (issues: {issue}40089[#40089], {issue}40373[#40373])
+
+CRUD::
+* Store Pending Deletions Fix {pull}40345[#40345] (issue: {issue}40249[#40249])
+
+Features/ILM::
+* Correct ILM metadata minimum compatibility version {pull}40569[#40569] (issue: {issue}40565[#40565])
+* Handle null retention leases in WaitForNoFollowersStep {pull}40477[#40477]
+
+Geo::
+* Geo Point parse error fix {pull}40447[#40447] (issue: {issue}17617[#17617])
+
+Infra/Core::
+* Parse composite patterns using ClassicFormat.parseObject {pull}40100[#40100] (issue: {issue}39916[#39916])
+
+Machine Learning::
+* [ML] Addressing bug streaming DatafeedConfig aggs from (<= 6.5.4) -> 6.7.0 {pull}40610[#40610]
+
+SQL::
+* SQL: Fix getTime() methods in JDBC {pull}40484[#40484]
+* SQL: Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
+* SQL: Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
+* SQL: CAST supports both SQL and ES types {pull}40365[#40365] (issue: {issue}40282[#40282])
+* SQL: Fix RLIKE bug and improve testing for RLIKE statement {pull}40354[#40354] (issues: {issue}34609[#34609], {issue}39931[#39931])
+* SQL: SYS TABLES: enumerate tables of requested types [ISSUE] {pull}40348[#40348]
+* SQL: JLine upgrade and polishing {pull}40321[#40321] (issue: {issue}40239[#40239])
+* SQL: unwrap the first value in an array in case of array leniency {pull}40318[#40318] (issue: {issue}40296[#40296])
+* SQL: fix LIKE function equality by considering its pattern as well {pull}40260[#40260] (issue: {issue}39931[#39931])
+* SQL: rewrite ROUND and TRUNCATE functions with a different optional parameter handling method {pull}40242[#40242] (issue: {issue}40001[#40001])
+* SQL: passing an input to the CLI "freezes" the CLI after displaying an error message [ISSUE] {pull}40164[#40164]
+
 [[release-notes-6.7.0]]
 == {es} version 6.7.0
 
@@ -647,6 +703,3 @@ Security::
 
 Snapshot/Restore::
 * plugins/repository-gcs: Update google-cloud-storage/core to 1.59.0 {pull}39748[#39748] (issue: {issue}39366[#39366])
-
-
-

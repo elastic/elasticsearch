@@ -68,7 +68,9 @@ public class PluginBuildPlugin extends BuildPlugin {
             } else {
                 project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
                 if (isModule) {
-                    throw new RuntimeException("Testclusters does not support modules yet");
+                    project.testClusters.integTest.module(
+                            project.file(project.tasks.bundlePlugin.archiveFile)
+                    )
                 } else {
                     project.testClusters.integTest.plugin(
                             project.file(project.tasks.bundlePlugin.archiveFile)
@@ -88,6 +90,17 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project)
+            }
+
+            if (project.plugins.hasPlugin(TestClustersPlugin.class)) {
+                project.tasks.pluginProperties.extension.extendedPlugins.each { pluginName ->
+                    // Auto add dependent modules to the test cluster
+                    if (project.findProject(":modules:${pluginName}") != null) {
+                        project.testClusters.integTest.module(
+                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                        )
+                    }
+                }
             }
         }
         project.testingConventions {

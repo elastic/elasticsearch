@@ -39,8 +39,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     private Pivot pivot;
 
-    public DataFrameIndexer(Executor executor, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
-        super(executor, initialState, initialPosition, new DataFrameIndexerTransformStats());
+    public DataFrameIndexer(Executor executor,
+                            AtomicReference<IndexerState> initialState,
+                            Map<String, Object> initialPosition,
+                            DataFrameIndexerTransformStats jobStats) {
+        super(executor, initialState, initialPosition, jobStats);
     }
 
     protected abstract DataFrameTransformConfig getConfig();

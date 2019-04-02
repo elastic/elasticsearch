@@ -20,6 +20,9 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -29,6 +32,7 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +43,8 @@ import java.util.regex.Pattern;
 import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
@@ -77,7 +83,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
     }
 
     @Before
-    public void onlyCompatibleDistributions() {
+    public void onlyCompatibleDistributions() throws Exception {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
@@ -98,14 +104,14 @@ public abstract class PackageTestCase extends PackagingTestCase {
         }
     }
 
-    public void test10InstallPackage() {
+    public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution());
     }
 
-    public void test20PluginsCommandWhenNoPlugins() {
+    public void test20PluginsCommandWhenNoPlugins() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Shell sh = new Shell();
@@ -127,7 +133,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         verifyPackageInstallation(installation, distribution()); // check startup script didn't change permissions
     }
 
-    public void test50Remove() {
+    public void test50Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -185,7 +191,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
         Platforms.onRPM(() -> assertFalse(Files.exists(SYSTEMD_SERVICE)));
     }
 
-    public void test60Reinstall() {
+    public void test60Reinstall() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         installation = install(distribution());

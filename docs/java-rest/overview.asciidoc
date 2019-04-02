@@ -1,3 +1,4 @@
+[[java-rest]]
 == Overview
 
 Official low-level client for Elasticsearch. Allows to communicate with an

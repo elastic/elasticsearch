@@ -456,7 +456,7 @@ public class DateFormatters {
             .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
             .appendZoneOrOffsetId()
             .toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder()
@@ -465,7 +465,7 @@ public class DateFormatters {
             .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(MINUTE_OF_HOUR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
+            .appendFraction(NANO_OF_SECOND, 1, 9, true)
             .append(TIME_ZONE_FORMATTER_NO_COLON)
             .toFormatter(Locale.ROOT)
     );
@@ -517,12 +517,20 @@ public class DateFormatters {
     private static final DateFormatter STRICT_HOUR_MINUTE_SECOND =
         new JavaDateFormatter("strict_hour_minute_second", STRICT_HOUR_MINUTE_SECOND_FORMATTER);
 
+    private static final DateTimeFormatter STRICT_DATE_PRINTER = new DateTimeFormatterBuilder()
+        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .appendLiteral('T')
+        .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffset("+HH:MM", "Z")
+        .toFormatter(Locale.ROOT);
+
     private static final DateTimeFormatter STRICT_DATE_FORMATTER = new DateTimeFormatterBuilder()
         .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
@@ -530,8 +538,7 @@ public class DateFormatters {
      * Returns a formatter that combines a full date and time, separated by a 'T'
      * (yyyy-MM-dd'T'HH:mm:ss.SSSZZ).
      */
-    private static final DateFormatter STRICT_DATE_TIME = new JavaDateFormatter("strict_date_time",
-        new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER).appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
+    private static final DateFormatter STRICT_DATE_TIME = new JavaDateFormatter("strict_date_time", STRICT_DATE_PRINTER,
         new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER).appendZoneOrOffsetId().toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(STRICT_DATE_FORMATTER).append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(Locale.ROOT)
     );
@@ -653,7 +660,7 @@ public class DateFormatters {
     private static final DateFormatter STRICT_HOUR_MINUTE =
         new JavaDateFormatter("strict_hour_minute", DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT));
 
-    private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE = new DateTimeFormatterBuilder()
+    private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_PRINTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
         .appendLiteral('-')
         .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
@@ -666,12 +673,25 @@ public class DateFormatters {
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
+    private static final DateTimeFormatter STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendLiteral('-')
+        .appendValue(DAY_OF_YEAR, 3, 3, SignStyle.NOT_NEGATIVE)
+        .appendLiteral('T')
+        .appendPattern("HH:mm")
+        .optionalStart()
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
     /*
      * Returns a formatter for a full ordinal date and time, using a four
      * digit year and three digit dayOfYear (yyyy-DDD'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter STRICT_ORDINAL_DATE_TIME = new JavaDateFormatter("strict_ordinal_date_time",
-        new DateTimeFormatterBuilder().append(STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE)
+        new DateTimeFormatterBuilder().append(STRICT_ORDINAL_DATE_TIME_PRINTER)
             .appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),
@@ -1198,7 +1218,7 @@ public class DateFormatters {
      * digit year and three digit dayOfYear (yyyy-DDD'T'HH:mm:ss.SSSZZ).
      */
     private static final DateFormatter ORDINAL_DATE_TIME = new JavaDateFormatter("ordinal_date_time",
-        new DateTimeFormatterBuilder().append(STRICT_ORDINAL_DATE_TIME_FORMATTER_BASE)
+        new DateTimeFormatterBuilder().append(STRICT_ORDINAL_DATE_TIME_PRINTER)
             .appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT),
         new DateTimeFormatterBuilder().append(ORDINAL_DATE_TIME_FORMATTER_BASE)
             .appendZoneOrOffsetId().toFormatter(Locale.ROOT),

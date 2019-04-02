@@ -318,7 +318,7 @@ public class JsonFieldParserTests extends ESTestCase {
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(xContentParser));
-        assertEquals("Keys in [json] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
+        assertEquals("Keys in [embedded_json] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
             e.getMessage());
     }
 

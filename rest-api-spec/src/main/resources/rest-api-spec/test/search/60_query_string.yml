@@ -75,7 +75,7 @@
           mappings:
             properties:
               headers:
-                type: json
+                type: embedded_json
 
   - do:
       index:

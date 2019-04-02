@@ -98,7 +98,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  */
 public final class JsonFieldMapper extends FieldMapper {
 
-    public static final String CONTENT_TYPE = "json";
+    public static final String CONTENT_TYPE = "embedded_json";
     public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
         "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
     private static final String KEYED_FIELD_SUFFIX = "._keyed";

@@ -1808,7 +1808,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .startObject("_doc")
                     .startObject("properties")
                         .startObject("json_field")
-                            .field("type", "json")
+                            .field("type", "embedded_json")
                         .endObject()
                     .endObject()
                 .endObject()

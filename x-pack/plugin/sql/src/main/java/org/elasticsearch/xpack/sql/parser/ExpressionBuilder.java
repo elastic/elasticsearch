@@ -114,7 +114,6 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
@@ -124,11 +123,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -768,14 +767,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
 
         // parse HH:mm:ss
-        LocalTime lt = null;
         try {
-            lt = LocalTime.parse(string, ISO_LOCAL_TIME);
+            return new Literal(source, asTimeOnly(string), DataType.TIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
-
-        throw new SqlIllegalArgumentException("Time (only) literals are not supported; a date component is required as well");
     }
 
     @Override

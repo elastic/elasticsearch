@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.Point;
@@ -222,6 +221,9 @@ public class JdbcAssert {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";
+                                    break;
+                                case "Time":
+                                    columnClassName = "java.sql.Time";
                                     break;
                                 case "Timestamp":
                                     columnClassName = "java.sql.Timestamp";

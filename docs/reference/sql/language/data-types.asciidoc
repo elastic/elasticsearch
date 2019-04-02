@@ -44,9 +44,10 @@ s|SQL precision
 Most of {es} <<mapping-types, data types>> are available in {es-sql}, as indicated above.
 As one can see, all of {es} <<mapping-types, data types>> are mapped to the data type with the same
 name in {es-sql}, with the exception of **date** data type which is mapped to **datetime** in {es-sql}.
-This is to avoid confusion with the ANSI SQL **DATE** (date only) type, which is also supported by {es-sql}
-in queries (with the use of <<sql-functions-type-conversion-cast>>/<<sql-functions-type-conversion-convert>>),
-but doesn't correspond to an actual mapping in {es} (see the <<es-sql-only-types, `table`>> below).
+This is to avoid confusion with the ANSI SQL types **DATE** (date only) and **TIME** (time only), which are also
+supported by {es-sql} in queries (with the use of
+<<sql-functions-type-conversion-cast>>/<<sql-functions-type-conversion-convert>>), but don't correspond to an
+actual mapping in {es} (see the <<es-sql-only-types, `table`>> below).
 
 Obviously, not all types in {es} have an equivalent in SQL and vice-versa hence why, {es-sql}
 uses the data type _particularities_ of the former over the latter as ultimately {es} is the backing store.
@@ -66,6 +67,7 @@ s|SQL precision
 
 
 | date                      | 24
+| time                      | 18
 | interval_year             | 7
 | interval_month            | 7
 | interval_day              | 23

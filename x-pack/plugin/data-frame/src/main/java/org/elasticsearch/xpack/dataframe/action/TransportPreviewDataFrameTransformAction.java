@@ -81,7 +81,7 @@ public class TransportPreviewDataFrameTransformAction extends
                     ActionListener.wrap(
                         r -> {
                             final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                            DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+                            DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
                             // remove all internal fields
                             List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
                                     .map(record -> {

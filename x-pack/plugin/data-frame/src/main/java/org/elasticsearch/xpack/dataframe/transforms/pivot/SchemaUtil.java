@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
@@ -75,6 +76,8 @@ public final class SchemaUtil {
                 ValuesSourceAggregationBuilder<?, ?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?, ?>) agg;
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
                 aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
+            } else if(agg instanceof ScriptedMetricAggregationBuilder) {
+                // do nothing
             } else {
                 // execution should not reach this point
                 listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
@@ -134,8 +137,7 @@ public final class SchemaUtil {
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
-                logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to double.");
-                targetMapping.put(targetFieldName, "double");
+                logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to dynamic mapping.");
             }
         });
 

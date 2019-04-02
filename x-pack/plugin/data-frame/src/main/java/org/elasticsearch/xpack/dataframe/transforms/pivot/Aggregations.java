@@ -29,7 +29,8 @@ public final class Aggregations {
         VALUE_COUNT("value_count", "long"),
         MAX("max", null),
         MIN("min", null),
-        SUM("sum", null);
+        SUM("sum", null),
+        SCRIPTED_METRIC("scripted_metric", null);
 
         private final String aggregationType;
         private final String targetMapping;

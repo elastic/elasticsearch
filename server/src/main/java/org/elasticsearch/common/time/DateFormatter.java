@@ -27,7 +27,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +37,7 @@ public interface DateFormatter {
     /**
      * Try to parse input to a java time TemporalAccessor
      * @param input                   An arbitrary string resembling the string representation of a date or time
-     * @throws DateTimeParseException If parsing fails, this exception will be thrown.
+     * @throws IllegalArgumentException If parsing fails, this exception will be thrown.
      *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
      * @return                        The java time object containing the parsed input
      */

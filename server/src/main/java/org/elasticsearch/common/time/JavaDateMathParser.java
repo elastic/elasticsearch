@@ -228,8 +228,7 @@ public class JavaDateMathParser implements DateMathParser {
 
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant().toEpochMilli();
             }
-        } catch (IllegalArgumentException | DateTimeException e) {;
-
+        } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
                 e, value, format, e.getMessage());
         }

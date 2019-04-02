@@ -162,8 +162,8 @@ public class BuildTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(new WriteableBuild(new Build(
                 randomFrom(Build.Flavor.values()), randomFrom(Build.Type.values()),
                 randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6))),
-            b -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
-            b -> {
+            (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
+            (WriteableBuild b) -> {
                 switch (randomIntBetween(1, 6)) {
                     case 1:
                         return new WriteableBuild(new Build(

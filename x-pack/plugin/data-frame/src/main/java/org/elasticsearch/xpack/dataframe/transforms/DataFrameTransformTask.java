@@ -64,6 +64,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final ThreadPool threadPool;
     private final DataFrameIndexer indexer;
     private final Auditor<DataFrameAuditMessage> auditor;
+    private final DataFrameIndexerTransformStats previousStats;
 
     private final AtomicReference<DataFrameTransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
@@ -110,6 +111,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
             new AtomicReference<>(initialState), initialPosition, client, auditor);
         this.generation = new AtomicReference<>(initialGeneration);
+        this.previousStats = new DataFrameIndexerTransformStats(transform.getId());
         this.taskState = new AtomicReference<>(initialTaskState);
         this.stateReason = new AtomicReference<>(initialReason);
         this.failureCount = new AtomicInteger(0);
@@ -131,8 +133,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return new DataFrameTransformState(taskState.get(), indexer.getState(), indexer.getPosition(), generation.get(), stateReason.get());
     }
 
+    void initializePreviousStats(DataFrameIndexerTransformStats stats) {
+        previousStats.merge(stats);
+    }
+
     public DataFrameIndexerTransformStats getStats() {
-        return indexer.getStats();
+        return new DataFrameIndexerTransformStats(previousStats).merge(indexer.getStats());
     }
 
     public long getGeneration() {
@@ -297,6 +303,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
         private final Auditor<DataFrameAuditMessage> auditor;
+        private volatile DataFrameIndexerTransformStats previouslyPersistedStats = null;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
         private Map<String, String> fieldMappings = null;
@@ -307,7 +314,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                       DataFrameTransformsCheckpointService transformsCheckpointService,
                                       AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client,
                                       Auditor<DataFrameAuditMessage> auditor) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition);
+            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition,
+                new DataFrameIndexerTransformStats(transformId));
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
             this.transformsCheckpointService = transformsCheckpointService;
@@ -422,7 +430,39 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 generation.get(),
                 stateReason.get());
             logger.info("Updating persistent state of transform [" + transform.getId() + "] to [" + state.toString() + "]");
-            persistStateToClusterState(state, ActionListener.wrap(t -> next.run(), e -> next.run()));
+
+            // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
+            // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
+                task -> {
+                    // Make a copy of the previousStats so that they are not constantly updated when `merge` is called
+                    DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats).merge(getStats());
+
+                    // Only persist the stats if something has actually changed
+                    if (previouslyPersistedStats == null || previouslyPersistedStats.equals(tempStats) == false) {
+                        transformsConfigManager.putOrUpdateTransformStats(tempStats,
+                            ActionListener.wrap(
+                                r -> {
+                                    previouslyPersistedStats = tempStats;
+                                    next.run();
+                                },
+                                statsExc -> {
+                                    logger.error("Updating stats of transform [" + transform.getId() + "] failed", statsExc);
+                                    next.run();
+                                }
+                            ));
+                    // The stats that we have previously written to the doc is the same as as it is now, no need to update it
+                    } else {
+                        next.run();
+                    }
+                },
+                exc -> {
+                    logger.error("Updating persistent state of transform [" + transform.getId() + "] failed", exc);
+                    next.run();
+                }
+            );
+
+            persistStateToClusterState(state, updateClusterStateListener);
         }
 
         @Override

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.packaging.util;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,15 +36,14 @@ import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
 import static org.elasticsearch.packaging.util.FileUtils.getDefaultArchiveInstallPath;
 import static org.elasticsearch.packaging.util.FileUtils.getDistributionFile;
 import static org.elasticsearch.packaging.util.FileUtils.lsGlob;
-
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
+import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertTrue;
 
@@ -59,11 +57,11 @@ public class Archives {
         ? "vagrant"
         : "elasticsearch";
 
-    public static Installation installArchive(Distribution distribution) {
+    public static Installation installArchive(Distribution distribution) throws Exception {
         return installArchive(distribution, getDefaultArchiveInstallPath(), getCurrentVersion());
     }
 
-    public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) {
+    public static Installation installArchive(Distribution distribution, Path fullInstallPath, String version) throws Exception {
         final Shell sh = new Shell();
 
         final Path distributionFile = getDistributionFile(distribution);
@@ -255,7 +253,7 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static void runElasticsearch(Installation installation, Shell sh) throws IOException {
+    public static void runElasticsearch(Installation installation, Shell sh) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         final Installation.Executables bin = installation.executables();
@@ -305,7 +303,7 @@ public class Archives {
         Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid));
     }
 
-    public static void stopElasticsearch(Installation installation) {
+    public static void stopElasticsearch(Installation installation) throws Exception {
         Path pidFile = installation.home.resolve("elasticsearch.pid");
         assertTrue(Files.exists(pidFile));
         String pid = slurp(pidFile).trim();

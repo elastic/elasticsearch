@@ -65,25 +65,25 @@ public class Platforms {
         return new Shell().runIgnoreExitCode("which service").isSuccess();
     }
 
-    public static void onWindows(PlatformAction action) {
+    public static void onWindows(PlatformAction action) throws Exception {
         if (WINDOWS) {
             action.run();
         }
     }
 
-    public static void onLinux(PlatformAction action) {
+    public static void onLinux(PlatformAction action) throws Exception {
         if (LINUX) {
             action.run();
         }
     }
 
-    public static void onRPM(PlatformAction action) {
+    public static void onRPM(PlatformAction action) throws Exception {
         if (isRPM()) {
             action.run();
         }
     }
 
-    public static void onDPKG(PlatformAction action) {
+    public static void onDPKG(PlatformAction action) throws Exception {
         if (isDPKG()) {
             action.run();
         }
@@ -94,6 +94,6 @@ public class Platforms {
      */
     @FunctionalInterface
     public interface PlatformAction {
-        void run();
+        void run() throws Exception;
     }
 }

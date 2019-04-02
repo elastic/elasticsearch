@@ -46,12 +46,6 @@ Vagrant.configure(2) do |config|
   PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
   config.vm.synced_folder PROJECT_DIR, '/project'
 
-  'ubuntu-1404'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-14.04-x86_64'
-      deb_common config, box
-    end
-  end
   'ubuntu-1604'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/ubuntu-16.04-x86_64'

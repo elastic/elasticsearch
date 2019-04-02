@@ -31,7 +31,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-7',
             'opensuse-42',
             'sles-12',
-            'ubuntu-1404',
             'ubuntu-1604',
             'ubuntu-1804'
     ])
@@ -48,7 +47,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** Boxes used when sampling the tests **/
     static final List<String> SAMPLE = unmodifiableList([
             'centos-7',
-            'ubuntu-1404'
+            'ubuntu-1604'
     ])
 
     /** All distributions to bring into test VM, whether or not they are used **/

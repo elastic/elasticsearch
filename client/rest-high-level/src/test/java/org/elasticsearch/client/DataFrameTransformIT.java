@@ -358,6 +358,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             DataFrameTransformStateAndStats stateAndStats = response.getTransformsStateAndStats().get(0);
             assertEquals(IndexerState.STARTED, stateAndStats.getTransformState().getIndexerState());
             assertEquals(DataFrameTransformTaskState.STARTED, stateAndStats.getTransformState().getTaskState());
+            assertEquals(null, stateAndStats.getTransformState().getReason());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
         });
     }

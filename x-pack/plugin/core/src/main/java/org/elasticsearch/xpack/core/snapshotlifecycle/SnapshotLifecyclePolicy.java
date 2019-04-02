@@ -129,7 +129,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         int byteCount = id.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             err.addValidationError("invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " +
-                MAX_INDEX_NAME_BYTES + ")");
+                MAX_INDEX_NAME_BYTES + " bytes)");
         }
 
         // Snapshot name validation

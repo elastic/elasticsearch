@@ -61,7 +61,6 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(Version indexCreated) {
         MappedFieldType defaultFieldType = Defaults.SIZE_FIELD_TYPE.clone();
-        defaultFieldType.setDocValuesType(DocValuesType.NUMERIC);
         return defaultFieldType;
     }
 

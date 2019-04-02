@@ -259,6 +259,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return fieldType;
     }
 
+    /**
+     * subclass maybe use this fielType for plain field and separated XXXDocValueField
+     */
     public MappedFieldType noDocValueFieldType() {
         MappedFieldType fieldType = fieldType().clone();
         fieldType.setDocValuesType(DocValuesType.NONE);

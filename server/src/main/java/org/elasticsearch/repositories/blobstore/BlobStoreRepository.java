@@ -135,10 +135,10 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
  *      |  |- meta-20131010.dat - JSON Serialized IndexMetaData for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1                      \
+ *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
  *      |  |  |- __2                      |
  *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
- *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |  (files with numeric names were created by older ES versions)
+ *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
  *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
  *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"

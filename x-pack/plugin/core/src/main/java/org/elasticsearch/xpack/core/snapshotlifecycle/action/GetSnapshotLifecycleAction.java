@@ -10,6 +10,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 
@@ -124,6 +126,11 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeList(lifecycles);
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(lifecycles);
         }
@@ -146,22 +153,30 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
      * {@link SnapshotLifecyclePolicyMetadata}, however, it elides the headers to ensure that they
      * are not leaked to the user since they may contain sensitive information.
      */
-    public static class SnapshotLifecyclePolicyItem implements ToXContentFragment {
+    public static class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeable {
 
         private final SnapshotLifecyclePolicy policy;
         private final long version;
         private final long modifiedDate;
+        @Nullable
+        private final SnapshotInvocationRecord lastSuccess;
+        @Nullable
+        private final SnapshotInvocationRecord lastFailure;
 
-        public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicy policy, long version, long modifiedDate) {
-            this.policy = policy;
-            this.version = version;
-            this.modifiedDate = modifiedDate;
+        public SnapshotLifecyclePolicyItem(SnapshotLifecyclePolicyMetadata policyMetadata) {
+            this.policy = policyMetadata.getPolicy();
+            this.version = policyMetadata.getVersion();
+            this.modifiedDate = policyMetadata.getModifiedDate();
+            this.lastSuccess = policyMetadata.getLastSuccess();
+            this.lastFailure = policyMetadata.getLastFailure();
         }
 
         public SnapshotLifecyclePolicyItem(StreamInput in) throws IOException {
             this.policy = new SnapshotLifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readVLong();
+            this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
+            this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         }
 
         public SnapshotLifecyclePolicy getPolicy() {
@@ -174,6 +189,15 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
 
         public long getModifiedDate() {
             return modifiedDate;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            policy.writeTo(out);
+            out.writeVLong(version);
+            out.writeVLong(modifiedDate);
+            out.writeOptionalWriteable(lastSuccess);
+            out.writeOptionalWriteable(lastFailure);
         }
 
         @Override
@@ -201,6 +225,12 @@ public class GetSnapshotLifecycleAction extends Action<GetSnapshotLifecycleActio
             builder.field("version", version);
             builder.field("modified_date", modifiedDate);
             builder.field("policy", policy);
+            if (lastSuccess != null) {
+                builder.field("last_success", lastSuccess);
+            }
+            if (lastFailure != null) {
+                builder.field("last_failure", lastFailure);
+            }
             builder.endObject();
             return builder;
         }

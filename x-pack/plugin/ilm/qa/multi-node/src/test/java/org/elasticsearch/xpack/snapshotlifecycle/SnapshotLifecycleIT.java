@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
@@ -36,15 +37,119 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFullPolicySnapshot() throws Exception {
-        final String IDX = "test";
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        final String repoId = "my-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
-            index(client(), IDX, "" + i, "foo", "bar");
+            index(client(), indexName, "" + i, "foo", "bar");
         }
 
         // Create a snapshot repo
-        Request request = new Request("PUT", "/_snapshot/my-repo");
+        inializeRepo(repoId);
+
+        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
+
+        // Check that the snapshot was actually taken
+        assertBusy(() -> {
+            Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/_all"));
+            Map<String, Object> snapshotResponseMap;
+            try (InputStream is = response.getEntity().getContent()) {
+                snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+            assertThat(snapshotResponseMap.size(), greaterThan(0));
+            assertThat(((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).size(), greaterThan(0));
+            Map<String, Object> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).get(0);
+            assertThat(snapResponse.get("snapshot").toString(), startsWith("snap-"));
+            assertThat((List<String>)snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
+
+            // Check that the last success date was written to the cluster state
+            Request getReq = new Request("GET", "/_ilm/snapshot/" + policyName);
+            Response policyMetadata = client().performRequest(getReq);
+            Map<String, Object> policyResponseMap;
+            try (InputStream is = policyMetadata.getEntity().getContent()) {
+                policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+            Map<String, Object> policyMetadataMap = (Map<String, Object>) policyResponseMap.get(policyName);
+            Map<String, Object> lastSuccessObject = (Map<String, Object>) policyMetadataMap.get("last_success");
+            assertNotNull(lastSuccessObject);
+            Long lastSuccess = (Long) lastSuccessObject.get("time");
+            Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
+            assertNotNull(lastSuccess);
+            assertNotNull(modifiedDate);
+            assertThat(lastSuccess, greaterThan(modifiedDate));
+
+            String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
+            assertThat(lastSnapshotName, startsWith("snap-"));
+        });
+
+        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        assertOK(client().performRequest(delReq));
+
+        // It's possible there could have been a snapshot in progress when the
+        // policy is deleted, so wait for it to be finished
+        assertBusy(() -> {
+            assertThat(wipeSnapshots().size(), equalTo(0));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPolicyFailure() throws Exception {
+        final String policyName = "test-policy";
+        final String repoName = "test-repo";
+        final String indexPattern = "index-doesnt-exist";
+        inializeRepo(repoName);
+
+        // Create a policy with ignore_unvailable: false and an index that doesn't exist
+        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
+
+        assertBusy(() -> {
+            // Check that the failure is written to the cluster state
+            Request getReq = new Request("GET", "/_ilm/snapshot/" + policyName);
+            Response policyMetadata = client().performRequest(getReq);
+            try (InputStream is = policyMetadata.getEntity().getContent()) {
+                Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                Map<String, Object> policyMetadataMap = (Map<String, Object>) responseMap.get(policyName);
+                Map<String, Object> lastFailureObject = (Map<String, Object>) policyMetadataMap.get("last_failure");
+                assertNotNull(lastFailureObject);
+
+                Long lastFailure = (Long) lastFailureObject.get("time");
+                Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
+                assertNotNull(lastFailure);
+                assertNotNull(modifiedDate);
+                assertThat(lastFailure, greaterThan(modifiedDate));
+
+                String lastFailureInfo = (String) lastFailureObject.get("details");
+                assertNotNull(lastFailureInfo);
+                assertThat(lastFailureInfo, containsString("no such index [index-doesnt-exist]"));
+
+                String snapshotName = (String) lastFailureObject.get("snapshot_name");
+                assertNotNull(snapshotName);
+                assertThat(snapshotName, startsWith("snap-"));
+            }
+        });
+
+        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        assertOK(client().performRequest(delReq));
+    }
+
+    private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,
+                                      String indexPattern, boolean ignoreUnavailable) throws IOException {
+        Map<String, Object> snapConfig = new HashMap<>();
+        snapConfig.put("indices", Collections.singletonList(indexPattern));
+        snapConfig.put("ignore_unavailable", ignoreUnavailable);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);
+
+        Request putLifecycle = new Request("PUT", "/_ilm/snapshot/" + policyName);
+        XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
+        policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
+        putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
+        assertOK(client().performRequest(putLifecycle));
+    }
+
+    private void inializeRepo(String repoName) throws IOException {
+        Request request = new Request("PUT", "/_snapshot/" + repoName);
         request.setJsonEntity(Strings
             .toString(JsonXContent.contentBuilder()
                 .startObject()
@@ -56,39 +161,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 .endObject()
                 .endObject()));
         assertOK(client().performRequest(request));
-
-        Map<String, Object> snapConfig = new HashMap<>();
-        snapConfig.put("indices", Collections.singletonList(IDX));
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap", "*/1 * * * * ?", "my-repo", snapConfig);
-
-        Request putLifecycle = new Request("PUT", "/_ilm/snapshot/test-policy");
-        XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
-        policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
-        putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
-        assertOK(client().performRequest(putLifecycle));
-
-        // Check that the snapshot was actually taken
-        assertBusy(() -> {
-            Response response = client().performRequest(new Request("GET", "/_snapshot/my-repo/_all"));
-            Map<String, Object> responseMap;
-            try (InputStream is = response.getEntity().getContent()) {
-                responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-            }
-            assertThat(responseMap.size(), greaterThan(0));
-            assertThat(((List<Map<String, Object>>) responseMap.get("snapshots")).size(), greaterThan(0));
-            Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
-            assertThat(snapResponse.get("snapshot").toString(), startsWith("snap-"));
-            assertThat((List<String>)snapResponse.get("indices"), equalTo(Collections.singletonList(IDX)));
-        });
-
-        Request delReq = new Request("DELETE", "/_ilm/snapshot/test-policy");
-        assertOK(client().performRequest(delReq));
-
-        // It's possible there could have been a snapshot in progress when the
-        // policy is deleted, so wait for it to be finished
-        assertBusy(() -> {
-            assertThat(wipeSnapshots().size(), equalTo(0));
-        });
     }
 
     private static void index(RestClient client, String index, String id, Object... fields) throws IOException {

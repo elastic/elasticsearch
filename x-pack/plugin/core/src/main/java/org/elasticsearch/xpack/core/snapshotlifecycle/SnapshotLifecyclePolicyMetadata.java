@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.snapshotlifecycle;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,8 +22,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * {@code SnapshotLifecyclePolicyMetadata} encapsulates a {@link SnapshotLifecyclePolicy} as well as
@@ -37,18 +40,34 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
     static final ParseField VERSION = new ParseField("version");
     static final ParseField MODIFIED_DATE = new ParseField("modified_date");
     static final ParseField MODIFIED_DATE_STRING = new ParseField("modified_date_string");
+    static final ParseField LAST_SUCCESS = new ParseField("last_success");
+    static final ParseField LAST_FAILURE = new ParseField("last_failure");
 
     private final SnapshotLifecyclePolicy policy;
     private final Map<String, String> headers;
     private final long version;
     private final long modifiedDate;
+    @Nullable
+    private final SnapshotInvocationRecord lastSuccess;
+    @Nullable
+    private final SnapshotInvocationRecord lastFailure;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER =
         new ConstructingObjectParser<>("snapshot_policy_metadata",
             a -> {
                 SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
-                return new SnapshotLifecyclePolicyMetadata(policy, (Map<String, String>) a[1], (long) a[2], (long) a[3]);
+                SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[5];
+                SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[6];
+
+                return builder()
+                    .setPolicy(policy)
+                    .setHeaders((Map<String, String>) a[1])
+                    .setVersion((long) a[2])
+                    .setModifiedDate((long) a[3])
+                    .setLastSuccess(lastSuccess)
+                    .setLastFailure(lastFailure)
+                    .build();
             });
 
     static {
@@ -57,17 +76,22 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_STRING);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_SUCCESS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_FAILURE);
     }
 
     public static SnapshotLifecyclePolicyMetadata parse(XContentParser parser, String name) {
         return PARSER.apply(parser, name);
     }
 
-    public SnapshotLifecyclePolicyMetadata(SnapshotLifecyclePolicy policy, Map<String, String> headers, long version, long modifiedDate) {
+    SnapshotLifecyclePolicyMetadata(SnapshotLifecyclePolicy policy, Map<String, String> headers, long version, long modifiedDate,
+                                    SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure) {
         this.policy = policy;
         this.headers = headers;
         this.version = version;
         this.modifiedDate = modifiedDate;
+        this.lastSuccess = lastSuccess;
+        this.lastFailure = lastFailure;
     }
 
     @SuppressWarnings("unchecked")
@@ -76,6 +100,8 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         this.headers = (Map<String, String>) in.readGenericValue();
         this.version = in.readVLong();
         this.modifiedDate = in.readVLong();
+        this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
+        this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
     }
 
     @Override
@@ -84,6 +110,25 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         out.writeGenericValue(this.headers);
         out.writeVLong(this.version);
         out.writeVLong(this.modifiedDate);
+        out.writeOptionalWriteable(this.lastSuccess);
+        out.writeOptionalWriteable(this.lastFailure);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(SnapshotLifecyclePolicyMetadata metadata) {
+        if (metadata == null) {
+            return builder();
+        }
+        return new Builder()
+            .setHeaders(metadata.getHeaders())
+            .setPolicy(metadata.getPolicy())
+            .setVersion(metadata.getVersion())
+            .setModifiedDate(metadata.getModifiedDate())
+            .setLastSuccess(metadata.getLastSuccess())
+            .setLastFailure(metadata.getLastFailure());
     }
 
     public Map<String, String> getHeaders() {
@@ -106,9 +151,24 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         return modifiedDate;
     }
 
+    private String dateToDateString(Long date) {
+        if (Objects.isNull(date)) {
+            return null;
+        }
+        ZonedDateTime dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(date), ZoneOffset.UTC);
+        return dateTime.toString();
+    }
+
     public String getModifiedDateString() {
-        ZonedDateTime modifiedDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(modifiedDate), ZoneOffset.UTC);
-        return modifiedDateTime.toString();
+        return dateToDateString(modifiedDate);
+    }
+
+    public SnapshotInvocationRecord getLastSuccess() {
+        return lastSuccess;
+    }
+
+    public SnapshotInvocationRecord getLastFailure() {
+        return lastFailure;
     }
 
     @Override
@@ -119,13 +179,19 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         builder.field(VERSION.getPreferredName(), version);
         builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
         builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());
+        if (Objects.nonNull(lastSuccess)) {
+            builder.field(LAST_SUCCESS.getPreferredName(), lastSuccess);
+        }
+        if (Objects.nonNull(lastFailure)) {
+            builder.field(LAST_FAILURE.getPreferredName(), lastFailure);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(policy, headers, version, modifiedDate);
+        return Objects.hash(policy, headers, version, modifiedDate, lastSuccess, lastFailure);
     }
 
     @Override
@@ -140,7 +206,9 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         return Objects.equals(policy, other.policy) &&
             Objects.equals(headers, other.headers) &&
             Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+            Objects.equals(modifiedDate, other.modifiedDate) &&
+            Objects.equals(lastSuccess, other.lastSuccess) &&
+            Objects.equals(lastFailure, other.lastFailure);
     }
 
     @Override
@@ -150,4 +218,58 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         // should not emit them in case it accidentally gets logged.
         return super.toString();
     }
+
+    public static class Builder {
+
+        private Builder() {
+        }
+
+        private SnapshotLifecyclePolicy policy;
+        private Map<String, String> headers;
+        private long version = 1L;
+        private Long modifiedDate;
+        private SnapshotInvocationRecord lastSuccessDate;
+        private SnapshotInvocationRecord lastFailureDate;
+
+        public Builder setPolicy(SnapshotLifecyclePolicy policy) {
+            this.policy = policy;
+            return this;
+        }
+
+        public Builder setHeaders(Map<String, String> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public Builder setVersion(long version) {
+            this.version = version;
+            return this;
+        }
+
+        public Builder setModifiedDate(long modifiedDate) {
+            this.modifiedDate = modifiedDate;
+            return this;
+        }
+
+        public Builder setLastSuccess(SnapshotInvocationRecord lastSuccessDate) {
+            this.lastSuccessDate = lastSuccessDate;
+            return this;
+        }
+
+        public Builder setLastFailure(SnapshotInvocationRecord lastFailureDate) {
+            this.lastFailureDate = lastFailureDate;
+            return this;
+        }
+
+        public SnapshotLifecyclePolicyMetadata build() {
+            return new SnapshotLifecyclePolicyMetadata(
+                Objects.requireNonNull(policy),
+                Optional.ofNullable(headers).orElse(new HashMap<>()),
+                version,
+                Objects.requireNonNull(modifiedDate, "modifiedDate must be set"),
+                lastSuccessDate,
+                lastFailureDate);
+        }
+    }
+
 }

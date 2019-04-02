@@ -466,12 +466,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
             final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
                 try {
-                    indicesBlobContainer.deleteBlobs(indicesToCleanUp.stream().map(IndexId::getId).collect(Collectors.toList()));
+                    indicesBlobContainer.deleteBlobsIgnoringIfNotExists(
+                        indicesToCleanUp.stream().map(IndexId::getId).collect(Collectors.toList()));
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
                     logger.warn(() ->
                         new ParameterizedMessage(
-                            "[{}] indices [{}] are no longer part of any snapshots in the repository, " +
+                            "[{}] indices {} are no longer part of any snapshots in the repository, " +
                         "but failed to clean up their index folders.", metadata.name(), indicesToCleanUp), ioe);
                 }
         } catch (IOException | ResourceNotFoundException ex) {
@@ -1013,7 +1014,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final List<String> blobNames =
                     blobs.keySet().stream().filter(FsBlobContainer::isTempBlobName).collect(Collectors.toList());
                 try {
-                    blobContainer.deleteBlobs(blobNames);
+                    blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs [{}] during finalization",
                         snapshotId, shardId, blobNames), e);
@@ -1029,7 +1030,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final List<String> indexBlobs =
                     blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
                 try {
-                    blobContainer.deleteBlobs(indexBlobs);
+                    blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs [{}] during finalization",
                         snapshotId, shardId, indexBlobs), e);
@@ -1037,15 +1038,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 // Delete all blobs that don't exist in a snapshot
-                final List<String> staleBlobs = blobs.keySet().stream()
+                final List<String> orphanedBlobs = blobs.keySet().stream()
                     .filter(blobName ->
                         blobName.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blobName)) == null)
                     .collect(Collectors.toList());
                 try {
-                    blobContainer.deleteBlobs(staleBlobs);
+                    blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs [{}] during finalization",
-                        snapshotId, shardId, staleBlobs), e);
+                        snapshotId, shardId, orphanedBlobs), e);
                 }
             } catch (IOException e) {
                 String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";

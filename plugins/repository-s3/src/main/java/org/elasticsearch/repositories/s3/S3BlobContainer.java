@@ -59,6 +59,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     private static final int MAX_BULK_DELETES = 1000;
 
@@ -125,7 +126,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobs(List<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }

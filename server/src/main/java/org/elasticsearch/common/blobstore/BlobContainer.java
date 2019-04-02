@@ -116,7 +116,7 @@ public interface BlobContainer {
      * @param   blobNames  The names of the blob to delete.
      * @throws  IOException if a subset of blob exists but could not be deleted.
      */
-    default void deleteBlobs(List<String> blobNames) throws IOException {
+    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         IOException ioe = null;
         for (String blobName : blobNames) {
             try {

@@ -58,6 +58,14 @@ public class Build {
         }
 
         public static Flavor fromDisplayName(final String displayName) {
+            try {
+                return strictFromDisplayName(displayName);
+            } catch (final IllegalStateException e) {
+                return Flavor.UNKNOWN;
+            }
+        }
+
+        public static Flavor strictFromDisplayName(final String displayName) {
             switch (displayName) {
                 case "default":
                     return Flavor.DEFAULT;
@@ -92,6 +100,14 @@ public class Build {
         }
 
         public static Type fromDisplayName(final String displayName) {
+            try {
+                return strictFromDisplayName(displayName);
+            } catch (final IllegalStateException e) {
+                return Type.UNKNOWN;
+            }
+        }
+
+        public static Type strictFromDisplayName(final String displayName) {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
@@ -109,6 +125,7 @@ public class Build {
                     throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
             }
         }
+
     }
 
     static {
@@ -119,8 +136,9 @@ public class Build {
         final boolean isSnapshot;
         final String version;
 
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
-        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"));
+        // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
+        flavor = Flavor.strictFromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
+        type = Type.strictFromDisplayName(System.getProperty("es.distribution.type", "unknown"));
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();

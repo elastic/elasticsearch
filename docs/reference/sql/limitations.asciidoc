@@ -113,3 +113,28 @@ FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.
 Using `FIRST` and `LAST` in the `HAVING` clause is not supported. The same applies to
 <<sql-functions-aggs-min,`MIN`>> and <<sql-functions-aggs-max,`MAX`>> when their target column
 is of type <<keyword, `keyword`>> as they are internally translated to `FIRST` and `LAST`.
+
+[float]
+=== Using TIME data type in GROUP BY or <<sql-functions-grouping-histogram>>
+
+Using `TIME` data type as a grouping key is currently not supported. For example:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT count(*) FROM test GROUP BY CAST(date_created AS TIME);
+-------------------------------------------------------------
+
+On the other hand, it can still be used if it's wrapped with a scalar function that returns another data type,
+for example:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT count(*) FROM test GROUP BY MINUTE((CAST(date_created AS TIME));
+-------------------------------------------------------------
+
+`TIME` data type is also currently not supported in histogram grouping function. For example:
+
+[source, sql]
+-------------------------------------------------------------
+SELECT HISTOGRAM(CAST(birth_date AS TIME), INTERVAL '10' MINUTES) as h, COUNT(*) FROM t GROUP BY h
+-------------------------------------------------------------

@@ -34,7 +34,7 @@ public class Sub extends DateTimeArithmeticOperation {
 
     @Override
     protected TypeResolution resolveWithIntervals() {
-        if (right().dataType().isDateBased() && DataTypes.isInterval(left().dataType())) {
+        if ((right().dataType().isDateOrTimeBased()) && DataTypes.isInterval(left().dataType())) {
             return new TypeResolution(format(null, "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
                 right().dataType().typeName, right().source().text(), left().source().text()));
         }

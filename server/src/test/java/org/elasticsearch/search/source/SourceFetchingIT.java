@@ -101,7 +101,7 @@ public class SourceFetchingIT extends ESIntegTestCase {
     }
 
     public void testSourceFilteringWithJsonField() {
-        prepareCreate("test").addMapping("_doc", "headers", "type=json").get();
+        prepareCreate("test").addMapping("_doc", "headers", "type=embedded_json").get();
         ensureGreen();
 
         Map<String, Object> headers = new HashMap<>();

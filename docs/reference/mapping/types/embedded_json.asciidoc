@@ -1,38 +1,38 @@
-[[json]]
-=== JSON datatype
+[[embedded-json]]
+=== Embedded JSON datatype
 
-experimental[The `json` field type is experimental and may be changed in a breaking way in future releases.]
+experimental[The `embedded_json` field type is experimental and may be changed in a breaking way in future releases.]
 
 By default, each subfield in an object is mapped and indexed separately. If
 the names or types of the subfields are not known in advance, then they are
 <<dynamic-mapping, mapped dynamically>>.
 
-The `json` type provides an alternative approach, where the entire object is
-mapped as a single field. Given an object, the `json` mapping will parse out
+The `embedded_json` type provides an alternative approach, where the entire object is
+mapped as a single field. Given an object, the `embedded_json` mapping will parse out
 its leaf values and index them into one field. The object's contents can then
 be searched through simple keyword-style queries.
 
 This data type can be useful for indexing objects with a very large number of
-distinct keys. Compared to mapping each field separately, `json` fields have
+distinct keys. Compared to mapping each field separately, embedded JSON fields have
 the following advantages:
 
 - Only one field mapping is created for the whole object, which can help
   prevent a <<mapping-limit-settings, mappings explosion>> due to a large
   number of field mappings.
-- A `json` field may take up less space in the index, as only one underlying
+- An embedded JSON field may take up less space in the index, as only one underlying
   field is created.
 
-However, `json` fields present a trade-off in terms of search functionality.
+However, embedded JSON fields present a trade-off in terms of search functionality.
 Only basic queries are allowed, with no support for numeric range queries or
 highlighting. Further information on the limitations can be found in the
 <<supported-operations, Supported operations>> section.
 
-NOTE: The `json` mapping type should **not** be used for indexing all JSON
+NOTE: The `embedded_json` mapping type should **not** be used for indexing all JSON
 content, as it provides only limited search functionality. The default
 approach, where each subfield has its own entry in the mappings, works well in
 the majority of cases.
 
-A `json` field can be created as follows:
+An embedded JSON field can be created as follows:
 [source,js]
 --------------------------------
 PUT bug_reports
@@ -43,7 +43,7 @@ PUT bug_reports
         "type": "text"
       },
       "labels": {
-        "type": "json"
+        "type": "embedded_json"
       }
     }
   }
@@ -69,7 +69,7 @@ During indexing, tokens are created for each leaf value in the JSON object. The
 values are indexed as string keywords, without analysis or special handling for
 numbers or dates.
 
-Querying the top-level `json` field searches all leaf values in the object:
+Querying the top-level `embedded_json` field searches all leaf values in the object:
 [source,js]
 --------------------------------
 POST bug_reports/_search
@@ -96,7 +96,7 @@ POST bug_reports/_search
 [[supported-operations]]
 ==== Supported operations
 
-Currently, `json` fields can be used with the following query types:
+Currently, embedded JSON fields can be used with the following query types:
 
 - `term`, `terms`, and `terms_set`
 - `prefix`
@@ -110,7 +110,7 @@ When querying, it is not possible to refer to field keys using wildcards, as in
 `range`, treat the values as string keywords. Highlighting is not supported on
 `json` fields.
 
-It is possible to sort on a `json` field, as well as perform simple
+It is possible to sort on an embedded JSON field, as well as perform simple
 keyword-style aggregations such as `terms`. As with queries, there is no
 special support for numerics -- all values in the JSON object are treated as
 keywords. When sorting, this implies that values are compared lexicographically.
@@ -123,7 +123,7 @@ character `\0` is not allowed to appear in the keys of the JSON object.
 
 If the <<mapping-store,`store`>> option is enabled, the entire JSON object will
 be stored in pretty-printed format. It can be retrieved through the top-level
-`json` field:
+`embedded_json` field:
 
 [source,js]
 --------------------------------
@@ -141,7 +141,7 @@ Field keys cannot be used to load stored content. For example, specifying
 [[json-params]]
 ==== Parameters for JSON fields
 
-Because of the similarities in the way values are indexed, the `json` type
+Because of the similarities in the way values are indexed, the `embedded_json` type
 shares many mapping options with <<keyword, `keyword`>>. The following
 parameters are accepted:
 

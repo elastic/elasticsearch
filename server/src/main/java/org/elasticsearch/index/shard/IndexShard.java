@@ -947,9 +947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        DocsStats docsStats = getEngine().docStats();
-        markSearcherAccessed();
-        return docsStats;
+        return getEngine().docStats();
     }
 
     /**
@@ -1028,11 +1026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         try {
-            CompletionStats stats = getEngine().completionStats(fields);
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            return stats;
+            return getEngine().completionStats(fields);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

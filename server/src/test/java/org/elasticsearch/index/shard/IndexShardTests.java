@@ -2767,7 +2767,7 @@ public class IndexShardTests extends IndexShardTestCase {
             });
             long prevAccessTime = shard.getLastSearcherAccess();
             indexShard.completionStats();
-            assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
+            assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
         } finally {
             closeShards(indexShard);
         }
@@ -2797,7 +2797,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
                 long prevAccessTime = shard.getLastSearcherAccess();
                 final DocsStats docsStats = indexShard.docStats();
-                assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
+                assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                     assertTrue(searcher.reader().numDocs() <= docsStats.getCount());

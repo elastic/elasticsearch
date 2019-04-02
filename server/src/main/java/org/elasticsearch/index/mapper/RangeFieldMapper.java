@@ -213,6 +213,9 @@ public class RangeFieldMapper extends FieldMapper {
             this.rangeType = Objects.requireNonNull(type);
             setTokenized(false);
             setDocValuesType(DocValuesType.BINARY);
+            // need to invoke setHasDocValues(true) because of cloning this object will resulting `docValues` inconsistency,
+            // delete docValues flag can resolve this clone problem
+            setHasDocValues(true);
             setOmitNorms(true);
             if (rangeType == RangeType.DATE) {
                 setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
@@ -225,7 +228,6 @@ public class RangeFieldMapper extends FieldMapper {
             if (other.rangeType == RangeType.DATE && other.dateTimeFormatter() != null) {
                 setDateTimeFormatter(other.dateTimeFormatter());
             }
-            setDocValuesType(DocValuesType.BINARY);
         }
 
         @Override

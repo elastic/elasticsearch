@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
@@ -255,6 +256,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     public MappedFieldType fieldType() {
+        return fieldType;
+    }
+
+    public MappedFieldType noDocValueFieldType() {
+        MappedFieldType fieldType = fieldType().clone();
+        fieldType.setDocValuesType(DocValuesType.NONE);
         return fieldType;
     }
 

@@ -889,14 +889,16 @@ public class NumberFieldMapper extends FieldMapper {
             super();
             this.type = Objects.requireNonNull(type);
             setTokenized(false);
+            // need to invoke setHasDocValues(true) because of cloning this object will resulting `docValues` inconsistency,
+            // delete docValues flag can resolve this clone problem
             setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            setHasDocValues(true);
             setOmitNorms(true);
         }
 
         private NumberFieldType(NumberFieldType other) {
             super(other);
             this.type = other.type;
-            setDocValuesType(DocValuesType.SORTED_NUMERIC);
         }
 
         @Override

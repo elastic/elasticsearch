@@ -728,7 +728,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(key.bytes, 0, key.size);
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType());
+            Field field = new Field(fieldType().name(), binaryValue, noDocValueFieldType());
             fields.add(field);
         }
 

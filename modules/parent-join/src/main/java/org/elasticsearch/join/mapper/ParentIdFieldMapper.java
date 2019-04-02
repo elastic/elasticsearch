@@ -188,7 +188,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType());
+        Field field = new Field(fieldType().name(), binaryValue, noDocValueFieldType());
         fields.add(field);
         fields.add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }

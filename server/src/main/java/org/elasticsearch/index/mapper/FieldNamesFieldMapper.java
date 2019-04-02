@@ -89,8 +89,10 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
+            // setupFieldType will set the `docValues = true` if the docValueSet is false
             setupFieldType(context);
             fieldType.setDocValuesType(DocValuesType.NONE);
+            fieldType.setHasDocValues(false);
             FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldType)fieldType;
             fieldNamesFieldType.setEnabled(enabled);
             return new FieldNamesFieldMapper(fieldType, context.indexSettings());

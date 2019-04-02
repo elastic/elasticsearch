@@ -372,7 +372,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored())  {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType());
+            Field field = new Field(fieldType().name(), binaryValue, noDocValueFieldType());
             fields.add(field);
 
             if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {

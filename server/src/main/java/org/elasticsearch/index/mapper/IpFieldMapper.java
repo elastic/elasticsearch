@@ -131,6 +131,7 @@ public class IpFieldMapper extends FieldMapper {
             super();
             setTokenized(false);
             setDocValuesType(DocValuesType.SORTED_SET);
+            setHasDocValues(true);
         }
 
         IpFieldType(IpFieldType other) {

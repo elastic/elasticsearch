@@ -257,6 +257,7 @@ public final class DateFieldMapper extends FieldMapper {
             super();
             setTokenized(false);
             setDocValuesType(DocValuesType.SORTED_NUMERIC);
+            setHasDocValues(true);
             setOmitNorms(true);
             setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
             setResolution(Resolution.MILLISECONDS);
@@ -264,7 +265,6 @@ public final class DateFieldMapper extends FieldMapper {
 
         DateFieldType(DateFieldType other) {
             super(other);
-            setDocValuesType(DocValuesType.SORTED_NUMERIC);
             setDateTimeFormatter(other.dateTimeFormatter);
             setResolution(other.resolution);
         }

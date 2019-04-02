@@ -59,7 +59,6 @@ public class BinaryFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setDocValuesType(DocValuesType.BINARY);
             FIELD_TYPE.freeze();
         }
     }
@@ -175,7 +174,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType().stored()) {
-            fields.add(new Field(fieldType().name(), value, fieldType()));
+            fields.add(new Field(fieldType().name(), value, noDocValueFieldType()));
         }
 
         if (fieldType().hasDocValues()) {

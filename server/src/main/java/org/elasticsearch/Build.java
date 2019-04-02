@@ -67,7 +67,8 @@ public class Build {
                     return Flavor.UNKNOWN;
                 default:
                     if (strict) {
-                        throw new IllegalStateException("unexpected distribution flavor [" + displayName + "]; your distribution is broken");
+                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
+                        throw new IllegalStateException(message);
                     } else {
                         return Flavor.UNKNOWN;
                     }

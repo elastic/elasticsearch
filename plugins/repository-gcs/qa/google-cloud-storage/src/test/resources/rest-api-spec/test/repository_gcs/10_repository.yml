@@ -11,7 +11,20 @@ setup:
           settings:
             bucket: ${bucket}
             client: "integration_test"
-            base_path: ${base_path}
+            base_path: "${base_path}"
+
+  # Remove the snapshots, if a previous test failed to delete them. This is
+  # useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository
+        snapshot: snapshot-one
+        ignore: 404
+  - do:
+      snapshot.delete:
+        repository: repository
+        snapshot: snapshot-two
+        ignore: 404
 
 ---
 "Snapshot/Restore with repository-gcs":
@@ -23,7 +36,7 @@ setup:
 
   - match: { repository.settings.bucket : ${bucket} }
   - match: { repository.settings.client : "integration_test" }
-  - match: { repository.settings.base_path : ${base_path} }
+  - match: { repository.settings.base_path : "${base_path}" }
 
   # Index documents
   - do:

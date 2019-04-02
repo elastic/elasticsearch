@@ -42,7 +42,6 @@ public class MonitorService extends AbstractLifecycleComponent {
 
     public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool,
                           ClusterInfoService clusterInfoService) throws IOException {
-        super(settings);
         this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);

@@ -67,7 +67,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         final String node1 = getLocalNodeId(server_1);
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings)).actionGet();
+        CreateIndexResponse createIndexResponse = client().admin().indices().create(
+            createIndexRequest("test").settings(settings)).actionGet();
         assertAcked(createIndexResponse);
 
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
@@ -90,7 +91,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)).actionGet();
+        clusterHealth = client().admin().cluster().health(
+            clusterHealthRequest().waitForGreenStatus().waitForNodes("2").waitForNoRelocatingShards(true)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(2));
@@ -127,7 +129,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForNoRelocatingShards(true)).actionGet();
+        clusterHealth = client().admin().cluster().health(
+            clusterHealthRequest().waitForGreenStatus().waitForNodes("3").waitForNoRelocatingShards(true)).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getNumberOfDataNodes(), equalTo(3));
@@ -145,7 +148,9 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
         routingNodeEntry2 = clusterState.getRoutingNodes().node(node2);
         RoutingNode routingNodeEntry3 = clusterState.getRoutingNodes().node(node3);
 
-        assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED) + routingNodeEntry2.numberOfShardsWithState(STARTED) + routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
+        assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED) +
+            routingNodeEntry2.numberOfShardsWithState(STARTED) +
+            routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(22));
 
         assertThat(routingNodeEntry1.numberOfShardsWithState(RELOCATING), equalTo(0));
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), anyOf(equalTo(7), equalTo(8)));
@@ -168,7 +173,8 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
 
         client().admin().cluster().prepareReroute().get();
 
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
+        clusterHealth = client().admin().cluster().health(
+            clusterHealthRequest().waitForGreenStatus().waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getRelocatingShards(), equalTo(0));
@@ -211,7 +217,9 @@ public class IndexLifecycleActionIT extends ESIntegTestCase {
     }
 
     private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
-        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false).map((p) -> (p.nodeId())).collect(Collectors.toSet());
+        final Set<String> keySet = StreamSupport.stream(routingNodes.spliterator(), false)
+            .map(RoutingNode::nodeId)
+            .collect(Collectors.toSet());
         assertThat(keySet, containsInAnyOrder(nodes));
     }
 }

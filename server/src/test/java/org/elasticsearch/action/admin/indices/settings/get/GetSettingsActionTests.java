@@ -58,9 +58,9 @@ public class GetSettingsActionTests extends ESTestCase {
 
     class TestTransportGetSettingsAction extends TransportGetSettingsAction {
         TestTransportGetSettingsAction() {
-            super(Settings.EMPTY, GetSettingsActionTests.this.transportService, GetSettingsActionTests.this.clusterService,
+            super(GetSettingsActionTests.this.transportService, GetSettingsActionTests.this.clusterService,
                 GetSettingsActionTests.this.threadPool, settingsFilter, new ActionFilters(Collections.emptySet()),
-                new Resolver(Settings.EMPTY), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
+                new Resolver(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }
         @Override
         protected void masterOperation(GetSettingsRequest request, ClusterState state, ActionListener<GetSettingsResponse> listener) {
@@ -77,7 +77,7 @@ public class GetSettingsActionTests extends ESTestCase {
         threadPool = new TestThreadPool("GetSettingsActionTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
@@ -129,10 +129,6 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        Resolver(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +28,6 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
@@ -112,42 +110,6 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         assertThat(Strings.toString(builder), containsString("/"));
         if (inline) {
             assertThat(Strings.toString(builder), containsString("inline"));
-        }
-    }
-
-    public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-                XContent.isStrictDuplicateDetectionEnabled());
-        Map<String, EmailAttachmentParser> parsers = new HashMap<>();
-        parsers.put("test", new TestEmailAttachmentParser());
-        EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);
-
-        List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
-        attachments.add(new TestEmailAttachment("my-name.json", "value"));
-        attachments.add(new TestEmailAttachment("my-name.json", "value"));
-
-        EmailAttachments emailAttachments = new EmailAttachments(attachments);
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        logger.info("JSON is: " + Strings.toString(builder));
-
-        XContentParser xContentParser = createParser(builder);
-        try {
-            XContentParser.Token token = xContentParser.currentToken();
-            assertNull(token);
-
-            token = xContentParser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-
-            token = xContentParser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-
-            parser.parse(xContentParser);
-            fail("Expected parser to fail but did not happen");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), is("Attachment with id [my-name.json] has already been created, must be renamed"));
         }
     }
 

@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: delete-forecast-job
         body:  >
           {
@@ -20,7 +22,7 @@ setup:
 "Test delete forecast on missing forecast":
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.delete_forecast:
+      ml.delete_forecast:
         job_id: delete-forecast-job
         forecast_id: this-is-a-bad-forecast
 
@@ -32,7 +34,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0"
         body:
           {
@@ -54,7 +55,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0"
         body:
           {
@@ -76,7 +76,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-shared
-        type:   doc
         id:     "delete-forecast-job_model_forecast_request_stats_someforecastid"
         body:
           {
@@ -101,7 +100,7 @@ setup:
       indices.refresh:
         index: .ml-anomalies-delete-forecast-job
   - do:
-      xpack.ml.delete_forecast:
+      ml.delete_forecast:
         job_id: delete-forecast-job
         forecast_id: someforecastid
   - match: { acknowledged: true }
@@ -110,25 +109,22 @@ setup:
       get:
         id: delete-forecast-job_model_forecast_request_stats_someforecastid
         index: .ml-anomalies-shared
-        type: doc
   - do:
       catch: missing
       get:
         id: delete-forecast-job_model_forecast_someforecastid_1486591300000_1800_0_961_0
         index: .ml-anomalies-shared
-        type: doc
   - do:
       catch: missing
       get:
         id: delete-forecast-job_model_forecast_someforecastid_1486591200000_1800_0_961_0
         index: .ml-anomalies-shared
-        type: doc
 
 ---
 "Test delete on _all forecasts not allow no forecasts":
   - do:
       catch: /resource_not_found_exception/
-      xpack.ml.delete_forecast:
+      ml.delete_forecast:
         job_id: delete-forecast-job
         forecast_id: _all
         allow_no_forecasts: false
@@ -136,8 +132,16 @@ setup:
 ---
 "Test delete on _all forecasts":
   - do:
-      xpack.ml.delete_forecast:
+      ml.delete_forecast:
         job_id: delete-forecast-job
         forecast_id: _all
+        allow_no_forecasts: true
+  - match: { acknowledged: true }
+
+---
+"Test delete all where no forecast_id is set":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
         allow_no_forecasts: true
   - match: { acknowledged: true }

@@ -18,6 +18,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,8 +50,6 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsMonitori
 import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.shards.ShardMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.test.MockIngestPlugin;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
 import java.lang.Thread.State;
@@ -58,11 +57,14 @@ import java.lang.management.LockInfo;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -103,36 +105,30 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{\"_type\":\"test\"}}\n" +
-               "{\"foo\":{\"bar\":2}}\n" +
-               "\n";
+        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":0}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":1}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":2}}\n" +
+                "\n";
     }
 
     /**
-     * Monitoring Bulk API test:
+     * Monitoring Bulk test:
      *
-     * This test uses the Monitoring Bulk API to index document as an external application like Kibana would do. It
-     * then ensure that the documents were correctly indexed and have the expected information.
+     * This test uses the Monitoring Bulk Request to index documents. It then ensure that the documents were correctly
+     * indexed and have the expected information. REST API tests (like how this is really called) are handled as part of the
+     * XPackRest tests.
      */
     public void testMonitoringBulk() throws Exception {
         whenExportersAreReady(() -> {
             final MonitoredSystem system = randomSystem();
             final TimeValue interval = TimeValue.timeValueSeconds(randomIntBetween(1, 20));
 
-            // REST is the realistic way that these operations happen, so it's the most realistic way to integration test it too
-            // Use Monitoring Bulk API to index 3 documents
-            //final Request bulkRequest = new Request("POST", "/_xpack/monitoring/_bulk");
-            //<<add all parameters>
-            //bulkRequest.setJsonEntity(createBulkEntity());
-            //final Response bulkResponse = getRestClient().performRequest(request);
-
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, null, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -152,7 +148,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                 .get();
 
                 // exactly 3 results are expected
-                assertThat("No monitoring documents yet", response.getHits().getTotalHits(), equalTo(3L));
+                assertThat("No monitoring documents yet", response.getHits().getTotalHits().value, equalTo(3L));
 
                 final List<Map<String, Object>> sources =
                         Arrays.stream(response.getHits().getHits())
@@ -168,7 +164,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             final SearchResponse response = client().prepareSearch(monitoringIndex).get();
             final SearchHits hits = response.getHits();
 
-            assertThat(response.getHits().getTotalHits(), equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
             assertThat("Monitoring documents must have the same timestamp",
                        Arrays.stream(hits.getHits())
                              .map(hit -> extractValue("timestamp", hit.getSourceAsMap()))
@@ -183,7 +179,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "test", interval);
+                assertMonitoringDoc(toMap(hit), system, "monitoring_data_type", interval);
             }
         });
     }
@@ -205,6 +201,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                            .get()
                            .status(),
                    is(RestStatus.CREATED));
+
+        final Settings settings = Settings.builder()
+            .put("cluster.metadata.display_name", "my cluster")
+            .build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
 
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -263,7 +264,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
-        assertThat(document.get("_type"), equalTo("doc"));
         assertThat((String) document.get("_id"), not(isEmptyOrNullString()));
 
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
@@ -276,9 +276,10 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
         assertThat(((Number) source.get("interval_ms")).longValue(), equalTo(interval.getMillis()));
 
-        assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC(),
-                                                                    expectedSystem,
-                                                                    ISODateTimeFormat.dateTime().parseMillis(timestamp))));
+        DateFormatter formatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long isoTimestamp = Instant.from(DateFormatter.forPattern("strict_date_time").parse(timestamp)).toEpochMilli();
+        String isoDateTime = MonitoringTemplateUtils.indexName(formatter.withZone(ZoneOffset.UTC), expectedSystem, isoTimestamp);
+        assertThat(index, equalTo(isoDateTime));
 
         final Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
         if (sourceNode != null) {
@@ -375,6 +376,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
         assertThat(clusterState.keySet(), empty());
+
+        final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
+        assertThat(clusterSettings, notNullValue());
+        assertThat(clusterSettings.remove("cluster"), notNullValue());
+        assertThat(clusterSettings.keySet(), empty());
     }
 
     /**
@@ -536,16 +542,16 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         if (ti.getLockName() != null) {
           b.append(" on ").append(ti.getLockName());
         }
-        
+
         if (ti.getLockOwnerName() != null) {
           b.append(" owned by \"").append(ti.getLockOwnerName())
            .append("\" ID=").append(ti.getLockOwnerId());
         }
-        
+
         b.append(ti.isSuspended() ? " (suspended)" : "");
         b.append(ti.isInNative() ? " (in native code)" : "");
         b.append("\n");
-        
+
         final StackTraceElement[] stack = ti.getStackTrace();
         final LockInfo lockInfo = ti.getLockInfo();
         final MonitorInfo [] monitorInfos = ti.getLockedMonitors();
@@ -557,7 +563,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
              .append(lockInfo)
              .append("\n");
           }
-          
+
           for (MonitorInfo mi : monitorInfos) {
             if (mi.getLockedStackDepth() == i) {
               b.append("\t- locked ").append(mi).append("\n");
@@ -602,9 +608,9 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             assertThat("No monitoring documents yet",
                        client().prepareSearch(".monitoring-es-" + TEMPLATE_VERSION + "-*")
                                .setSize(0)
-                               .get().getHits().getTotalHits(),
+                               .get().getHits().getTotalHits().value,
                        greaterThan(0L));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -614,6 +620,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Settings settings = Settings.builder()
                 .putNull("xpack.monitoring.collection.enabled")
                 .putNull("xpack.monitoring.exporters._local.enabled")
+                .putNull("cluster.metadata.display_name")
                 .build();
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
@@ -640,7 +647,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

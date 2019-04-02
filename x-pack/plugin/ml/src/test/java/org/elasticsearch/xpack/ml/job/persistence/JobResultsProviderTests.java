@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -39,7 +39,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -770,39 +770,38 @@ public class JobResultsProviderTests extends ESTestCase {
 
     public void testViolatedFieldCountLimit() throws Exception {
         Map<String, Object> mapping = new HashMap<>();
-        for (int i = 0; i < 10; i++) {
+
+        int i = 0;
+        for (; i < 10; i++) {
             mapping.put("field" + i, Collections.singletonMap("type", "string"));
         }
 
-        IndexMetaData.Builder indexMetaData1 = new IndexMetaData.Builder("index1")
-                .settings(Settings.builder()
-                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)));
-        MetaData metaData = MetaData.builder()
-                .put(indexMetaData1)
-                .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertFalse(result);
-
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
-        assertTrue(result);
-
-        IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
+        IndexMetaData indexMetaData1 = new IndexMetaData.Builder("index1")
                 .settings(Settings.builder()
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
                 .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
-                .putMapping(new MappingMetaData("type2", Collections.singletonMap("properties", mapping)));
-        metaData = MetaData.builder()
-                .put(indexMetaData2)
                 .build();
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, indexMetaData1.mapping());
+        assertFalse(result);
+
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, indexMetaData1.mapping());
+        assertTrue(result);
+
+        for (; i < 20; i++) {
+            mapping.put("field" + i, Collections.singletonMap("type", "string"));
+        }
+
+        IndexMetaData indexMetaData2 = new IndexMetaData.Builder("index1")
+                .settings(Settings.builder()
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                .putMapping(new MappingMetaData("type1", Collections.singletonMap("properties", mapping)))
+                .build();
+
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, indexMetaData2.mapping());
         assertTrue(result);
     }
 
@@ -833,13 +832,6 @@ public class JobResultsProviderTests extends ESTestCase {
         return new JobResultsProvider(client, Settings.EMPTY);
     }
 
-    private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {
-        GetResponse getResponse = mock(GetResponse.class);
-        when(getResponse.isExists()).thenReturn(exists);
-        when(getResponse.getSourceAsBytesRef()).thenReturn(BytesReference.bytes(XContentFactory.jsonBuilder().map(source)));
-        return getResponse;
-    }
-
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {
         SearchResponse response = mock(SearchResponse.class);
         List<SearchHit> list = new ArrayList<>();
@@ -856,7 +848,7 @@ public class JobResultsProviderTests extends ESTestCase {
 
             list.add(hit);
         }
-        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), source.size(), 1);
+        SearchHits hits = new SearchHits(list.toArray(new SearchHit[0]), new TotalHits(source.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(response.getHits()).thenReturn(hits);
 
         return response;

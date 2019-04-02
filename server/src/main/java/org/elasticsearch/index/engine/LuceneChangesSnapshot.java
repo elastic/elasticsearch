@@ -95,14 +95,15 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             }
         };
         this.mapperService = mapperService;
-        this.searchBatchSize = searchBatchSize;
+        final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
+        this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
-        this.parallelArray = new ParallelArray(searchBatchSize);
+        this.parallelArray = new ParallelArray(this.searchBatchSize);
         final TopDocs topDocs = searchOperations(null);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;
@@ -145,13 +146,13 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private void rangeCheck(Translog.Operation op) {
         if (op == null) {
             if (lastSeenSeqNo < toSeqNo) {
-                throw new IllegalStateException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                throw new MissingHistoryOperationsException("Not all operations between from_seqno [" + fromSeqNo + "] " +
                     "and to_seqno [" + toSeqNo + "] found; prematurely terminated last_seen_seqno [" + lastSeenSeqNo + "]");
             }
         } else {
             final long expectedSeqNo = lastSeenSeqNo + 1;
             if (op.seqNo() != expectedSeqNo) {
-                throw new IllegalStateException("Not all operations between from_seqno [" + fromSeqNo + "] " +
+                throw new MissingHistoryOperationsException("Not all operations between from_seqno [" + fromSeqNo + "] " +
                     "and to_seqno [" + toSeqNo + "] found; expected seqno [" + expectedSeqNo + "]; found [" + op + "]");
             }
         }

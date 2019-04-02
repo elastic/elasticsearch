@@ -223,11 +223,6 @@ public enum GeoShapeType {
             // verify coordinate bounds, correct if necessary
             Coordinate uL = coordinates.children.get(0).coordinate;
             Coordinate lR = coordinates.children.get(1).coordinate;
-            if (((lR.x < uL.x) || (uL.y < lR.y))) {
-                Coordinate uLtmp = uL;
-                uL = new Coordinate(Math.min(uL.x, lR.x), Math.max(uL.y, lR.y));
-                lR = new Coordinate(Math.max(uLtmp.x, lR.x), Math.min(uLtmp.y, lR.y));
-            }
             return new EnvelopeBuilder(uL, lR);
         }
 
@@ -263,7 +258,7 @@ public enum GeoShapeType {
     },
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
-        public ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             // noop, handled in parser
             return null;
@@ -303,7 +298,7 @@ public enum GeoShapeType {
         throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
     }
 
-    public abstract ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+    public abstract ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                             ShapeBuilder.Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 

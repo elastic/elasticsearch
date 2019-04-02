@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,11 +17,10 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
-import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -39,9 +37,9 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     private final AuthenticationService authenticationService;
 
     @Inject
-    public TransportCreateTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                      ActionFilters actionFilters, TokenService tokenService, AuthenticationService authenticationService) {
-        super(settings, CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+    public TransportCreateTokenAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                      TokenService tokenService, AuthenticationService authenticationService) {
+        super(CreateTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.threadPool = threadPool;
         this.tokenService = tokenService;
         this.authenticationService = authenticationService;
@@ -73,7 +71,11 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
                 ActionListener.wrap(authentication -> {
                     request.getPassword().close();
-                    createToken(request, authentication, originatingAuthentication, true, listener);
+                    if (authentication != null) {
+                        createToken(request, authentication, originatingAuthentication, true, listener);
+                    } else {
+                        listener.onFailure(new UnsupportedOperationException("cannot create token if authentication is not allowed"));
+                    }
                 }, e -> {
                     // clear the request password
                     request.getPassword().close();
@@ -83,19 +85,15 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
     }
 
     private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
-                             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
-        try {
-            tokenService.createUserToken(authentication, originatingAuth, ActionListener.wrap(tuple -> {
-                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
-                final String scope = getResponseScopeValue(request.getScope());
-
-                final CreateTokenResponse response =
-                    new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
-                listener.onResponse(response);
-            }, listener::onFailure), Collections.emptyMap(), includeRefreshToken);
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+            boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
+        tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
+                ActionListener.wrap(tuple -> {
+                    final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
+                    final String scope = getResponseScopeValue(request.getScope());
+                    final CreateTokenResponse response = new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope,
+                            tuple.v2());
+                    listener.onResponse(response);
+                }, listener::onFailure));
     }
 
     static String getResponseScopeValue(String requestScope) {

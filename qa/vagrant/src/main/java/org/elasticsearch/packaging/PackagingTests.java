@@ -19,31 +19,38 @@
 
 package org.elasticsearch.packaging;
 
-import org.elasticsearch.packaging.test.DefaultDebPreservationTests;
 import org.elasticsearch.packaging.test.DefaultDebBasicTests;
-import org.elasticsearch.packaging.test.DefaultRpmPreservationTests;
+import org.elasticsearch.packaging.test.DefaultDebPreservationTests;
+import org.elasticsearch.packaging.test.DefaultLinuxTarTests;
+import org.elasticsearch.packaging.test.DefaultNoJdkDebBasicTests;
+import org.elasticsearch.packaging.test.DefaultNoJdkLinuxTarTests;
+import org.elasticsearch.packaging.test.DefaultNoJdkRpmBasicTests;
+import org.elasticsearch.packaging.test.DefaultNoJdkWindowsZipTests;
 import org.elasticsearch.packaging.test.DefaultRpmBasicTests;
-import org.elasticsearch.packaging.test.OssDebPreservationTests;
+import org.elasticsearch.packaging.test.DefaultRpmPreservationTests;
+import org.elasticsearch.packaging.test.DefaultWindowsServiceTests;
+import org.elasticsearch.packaging.test.DefaultWindowsZipTests;
 import org.elasticsearch.packaging.test.OssDebBasicTests;
-import org.elasticsearch.packaging.test.OssRpmPreservationTests;
+import org.elasticsearch.packaging.test.OssDebPreservationTests;
+import org.elasticsearch.packaging.test.OssLinuxTarTests;
+import org.elasticsearch.packaging.test.OssNoJdkDebBasicTests;
+import org.elasticsearch.packaging.test.OssNoJdkLinuxTarTests;
+import org.elasticsearch.packaging.test.OssNoJdkRpmBasicTests;
+import org.elasticsearch.packaging.test.OssNoJdkWindowsZipTests;
 import org.elasticsearch.packaging.test.OssRpmBasicTests;
-import org.elasticsearch.packaging.test.OssTarTests;
-import org.elasticsearch.packaging.test.OssZipTests;
-import org.elasticsearch.packaging.test.DefaultTarTests;
-import org.elasticsearch.packaging.test.DefaultZipTests;
-import org.elasticsearch.packaging.test.PackageDependenciesTests;
-
+import org.elasticsearch.packaging.test.OssRpmPreservationTests;
+import org.elasticsearch.packaging.test.OssWindowsServiceTests;
+import org.elasticsearch.packaging.test.OssWindowsZipTests;
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
 import org.junit.runners.Suite.SuiteClasses;
 
 @RunWith(Suite.class)
 @SuiteClasses({
-    DefaultTarTests.class,
-    OssTarTests.class,
-    DefaultZipTests.class,
-    OssZipTests.class,
-    PackageDependenciesTests.class,
+    DefaultLinuxTarTests.class,
+    OssLinuxTarTests.class,
+    DefaultWindowsZipTests.class,
+    OssWindowsZipTests.class,
     DefaultRpmBasicTests.class,
     OssRpmBasicTests.class,
     DefaultDebBasicTests.class,
@@ -51,6 +58,16 @@ import org.junit.runners.Suite.SuiteClasses;
     DefaultDebPreservationTests.class,
     OssDebPreservationTests.class,
     DefaultRpmPreservationTests.class,
-    OssRpmPreservationTests.class
+    OssRpmPreservationTests.class,
+    DefaultWindowsServiceTests.class,
+    OssWindowsServiceTests.class,
+    DefaultNoJdkLinuxTarTests.class,
+    OssNoJdkLinuxTarTests.class,
+    DefaultNoJdkWindowsZipTests.class,
+    OssNoJdkWindowsZipTests.class,
+    DefaultNoJdkRpmBasicTests.class,
+    OssNoJdkRpmBasicTests.class,
+    DefaultNoJdkDebBasicTests.class,
+    OssNoJdkDebBasicTests.class
 })
 public class PackagingTests {}

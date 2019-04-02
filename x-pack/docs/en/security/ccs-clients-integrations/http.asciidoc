@@ -1,7 +1,8 @@
 [[http-clients]]
-=== HTTP/REST Clients and Security
+=== HTTP/REST clients and security
 
-{security} works with standard HTTP {wikipedia}/Basic_access_authentication[basic authentication]
+The {es} {security-features} work with standard HTTP 
+{wikipedia}/Basic_access_authentication[basic authentication]
 headers to authenticate users. Since Elasticsearch is stateless, this header must
 be sent with every request:
 
@@ -48,14 +49,14 @@ curl --user rdeniro:taxidriver -XPUT 'localhost:9200/idx'
 [float]
 ==== Client Libraries over HTTP
 
-For more information about how to use {security} with the language specific clients
-please refer to
+For more information about using {security-features} with the language 
+specific clients, refer to
 https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport#authentication[Ruby],
 http://elasticsearch-py.readthedocs.org/en/master/#ssl-and-authentication[Python],
 https://metacpan.org/pod/Search::Elasticsearch::Cxn::HTTPTiny#CONFIGURATION[Perl],
 http://www.elastic.co/guide/en/elasticsearch/client/php-api/current/_security.html[PHP],
 http://nest.azurewebsites.net/elasticsearch-net/security.html[.NET],
-http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[Javascript]
+http://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/auth-reference.html[JavaScript]
 
 ////
 Groovy - TODO link

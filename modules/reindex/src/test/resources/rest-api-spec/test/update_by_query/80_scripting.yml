@@ -3,7 +3,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -22,6 +21,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -34,7 +34,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -50,6 +49,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -62,13 +62,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -87,6 +85,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -96,6 +95,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -108,13 +108,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -137,7 +135,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -157,7 +154,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -177,25 +173,21 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -215,6 +207,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -224,6 +217,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -241,25 +235,21 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -287,6 +277,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -296,6 +287,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -305,6 +297,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -317,13 +310,11 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -346,25 +337,21 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -397,6 +384,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -406,6 +394,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -415,6 +404,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: twitter
         body:
           query:
@@ -427,7 +417,6 @@
   - do:
       index:
         index:  twitter
-        type:   tweet
         id:     1
         body:   { "user": "kimchy" }
   - do:

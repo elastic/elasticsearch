@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,15 +20,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
 
 public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static final String NAME = "cluster:admin/xpack/ccr/auto_follow_pattern/put";
     public static final PutAutoFollowPatternAction INSTANCE = new PutAutoFollowPatternAction();
+    private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
         super(NAME);
@@ -42,90 +44,83 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
-
-        private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
+        // Note that Request should be the Value class here for this parser with a 'parameters' field that maps to
+        // PutAutoFollowPatternParameters class. But since two minor version are already released with duplicate
+        // follow parameters in several APIs, PutAutoFollowPatternParameters is now the Value class here.
+        private static final ObjectParser<PutAutoFollowPatternParameters, Void> PARSER =
+            new ObjectParser<>("put_auto_follow_pattern_request", PutAutoFollowPatternParameters::new);
 
         static {
-            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
-            PARSER.declareStringArray(Request::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
-            PARSER.declareString(Request::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
-            PARSER.declareInt(Request::setMaxBatchOperationCount, AutoFollowPattern.MAX_BATCH_OPERATION_COUNT);
-            PARSER.declareInt(Request::setMaxConcurrentReadBatches, AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES);
-            PARSER.declareField(
-                    Request::setMaxBatchSize,
-                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_BATCH_SIZE.getPreferredName()),
-                    AutoFollowPattern.MAX_BATCH_SIZE,
-                    ObjectParser.ValueType.STRING);
-            PARSER.declareInt(Request::setMaxConcurrentWriteBatches, AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(Request::setMaxWriteBufferSize, AutoFollowPattern.MAX_WRITE_BUFFER_SIZE);
-            PARSER.declareField(Request::setMaxRetryDelay,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
-                AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(Request::setPollTimeout,
-                (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.POLL_TIMEOUT.getPreferredName()),
-                AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            PARSER.declareString((params, value) -> params.remoteCluster = value, REMOTE_CLUSTER_FIELD);
+            PARSER.declareStringArray((params, value) -> params.leaderIndexPatterns = value, AutoFollowPattern.LEADER_PATTERNS_FIELD);
+            PARSER.declareString((params, value) -> params.followIndexNamePattern = value, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
+            FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
-            Request request = PARSER.parse(parser, null);
-            if (remoteClusterAlias != null) {
-                if (request.leaderClusterAlias == null) {
-                    request.leaderClusterAlias = remoteClusterAlias;
-                } else {
-                    if (request.leaderClusterAlias.equals(remoteClusterAlias) == false) {
-                        throw new IllegalArgumentException("provided leaderClusterAlias is not equal");
-                    }
-                }
-            }
+        public static Request fromXContent(XContentParser parser, String name) throws IOException {
+            PutAutoFollowPatternParameters parameters = PARSER.parse(parser, null);
+            Request request = new Request();
+            request.setName(name);
+            request.setRemoteCluster(parameters.remoteCluster);
+            request.setLeaderIndexPatterns(parameters.leaderIndexPatterns);
+            request.setFollowIndexNamePattern(parameters.followIndexNamePattern);
+            request.setParameters(parameters);
             return request;
         }
 
-        private String leaderClusterAlias;
+        private String name;
+        private String remoteCluster;
         private List<String> leaderIndexPatterns;
         private String followIndexNamePattern;
+        private FollowParameters parameters = new FollowParameters();
 
-        private Integer maxBatchOperationCount;
-        private Integer maxConcurrentReadBatches;
-        private ByteSizeValue maxBatchSize;
-        private Integer maxConcurrentWriteBatches;
-        private Integer maxWriteBufferSize;
-        private TimeValue maxRetryDelay;
-        private TimeValue pollTimeout;
+        public Request() {
+        }
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
-            if (leaderClusterAlias == null) {
-                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+            ActionRequestValidationException validationException = parameters.validate();
+            if (name == null) {
+                validationException = addValidationError("[name] is missing", validationException);
+            }
+            if (name != null) {
+                if (name.contains(",")) {
+                    validationException = addValidationError("[name] name must not contain a ','", validationException);
+                }
+                if (name.startsWith("_")) {
+                    validationException = addValidationError("[name] name must not start with '_'", validationException);
+                }
+                int byteCount = name.getBytes(StandardCharsets.UTF_8).length;
+                if (byteCount > MAX_NAME_BYTES) {
+                    validationException = addValidationError("[name] name is too long (" + byteCount + " > " + MAX_NAME_BYTES + ")",
+                        validationException);
+                }
+            }
+            if (remoteCluster == null) {
+                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
                 validationException = addValidationError("[" + AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
-            if (maxRetryDelay != null) {
-                if (maxRetryDelay.millis() <= 0) {
-                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be positive but was [" +
-                        maxRetryDelay.getStringRep() + "]";
-                    validationException = addValidationError(message, validationException);
-                }
-                if (maxRetryDelay.millis() > ResumeFollowAction.MAX_RETRY_DELAY.millis()) {
-                    String message = "[" + AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName() + "] must be less than [" +
-                        ResumeFollowAction.MAX_RETRY_DELAY +
-                        "] but was [" + maxRetryDelay.getStringRep() + "]";
-                    validationException = addValidationError(message, validationException);
-                }
-            }
             return validationException;
         }
 
-        public String getLeaderClusterAlias() {
-            return leaderClusterAlias;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderClusterAlias(String leaderClusterAlias) {
-            this.leaderClusterAlias = leaderClusterAlias;
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getRemoteCluster() {
+            return remoteCluster;
+        }
+
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
         }
 
         public List<String> getLeaderIndexPatterns() {
@@ -144,122 +139,70 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.followIndexNamePattern = followIndexNamePattern;
         }
 
-        public Integer getMaxBatchOperationCount() {
-            return maxBatchOperationCount;
+        public FollowParameters getParameters() {
+            return parameters;
         }
 
-        public void setMaxBatchOperationCount(Integer maxBatchOperationCount) {
-            this.maxBatchOperationCount = maxBatchOperationCount;
+        public void setParameters(FollowParameters parameters) {
+            this.parameters = parameters;
         }
 
-        public Integer getMaxConcurrentReadBatches() {
-            return maxConcurrentReadBatches;
-        }
-
-        public void setMaxConcurrentReadBatches(Integer maxConcurrentReadBatches) {
-            this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-        }
-
-        public ByteSizeValue getMaxBatchSize() {
-            return maxBatchSize;
-        }
-
-        public void setMaxBatchSize(ByteSizeValue maxBatchSize) {
-            this.maxBatchSize = maxBatchSize;
-        }
-
-        public Integer getMaxConcurrentWriteBatches() {
-            return maxConcurrentWriteBatches;
-        }
-
-        public void setMaxConcurrentWriteBatches(Integer maxConcurrentWriteBatches) {
-            this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
-        }
-
-        public Integer getMaxWriteBufferSize() {
-            return maxWriteBufferSize;
-        }
-
-        public void setMaxWriteBufferSize(Integer maxWriteBufferSize) {
-            this.maxWriteBufferSize = maxWriteBufferSize;
-        }
-
-        public TimeValue getMaxRetryDelay() {
-            return maxRetryDelay;
-        }
-
-        public void setMaxRetryDelay(TimeValue maxRetryDelay) {
-            this.maxRetryDelay = maxRetryDelay;
-        }
-
-        public TimeValue getPollTimeout() {
-            return pollTimeout;
-        }
-
-        public void setPollTimeout(TimeValue pollTimeout) {
-            this.pollTimeout = pollTimeout;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            leaderClusterAlias = in.readString();
-            leaderIndexPatterns = in.readList(StreamInput::readString);
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
+            remoteCluster = in.readString();
+            leaderIndexPatterns = in.readStringList();
             followIndexNamePattern = in.readOptionalString();
-            maxBatchOperationCount = in.readOptionalVInt();
-            maxConcurrentReadBatches = in.readOptionalVInt();
-            maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
-            maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
-            maxRetryDelay = in.readOptionalTimeValue();
-            pollTimeout = in.readOptionalTimeValue();
+            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+                parameters = new FollowParameters(in);
+            } else {
+                parameters = new FollowParameters();
+                parameters.maxReadRequestOperationCount = in.readOptionalVInt();
+                parameters.maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxOutstandingReadRequests = in.readOptionalVInt();
+                parameters.maxWriteRequestOperationCount = in.readOptionalVInt();
+                parameters.maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxOutstandingWriteRequests = in.readOptionalVInt();
+                parameters.maxWriteBufferCount = in.readOptionalVInt();
+                parameters.maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
+                parameters.maxRetryDelay = in.readOptionalTimeValue();
+                parameters.readPollTimeout = in.readOptionalTimeValue();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderClusterAlias);
-            out.writeStringList(leaderIndexPatterns);
+            out.writeString(name);
+            out.writeString(remoteCluster);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            out.writeOptionalVInt(maxBatchOperationCount);
-            out.writeOptionalVInt(maxConcurrentReadBatches);
-            out.writeOptionalWriteable(maxBatchSize);
-            out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(pollTimeout);
+            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+                parameters.writeTo(out);
+            } else {
+                out.writeOptionalVInt(parameters.maxReadRequestOperationCount);
+                out.writeOptionalWriteable(parameters.maxReadRequestSize);
+                out.writeOptionalVInt(parameters.maxOutstandingReadRequests);
+                out.writeOptionalVInt(parameters.maxWriteRequestOperationCount);
+                out.writeOptionalWriteable(parameters.maxWriteRequestSize);
+                out.writeOptionalVInt(parameters.maxOutstandingWriteRequests);
+                out.writeOptionalVInt(parameters.maxWriteBufferCount);
+                out.writeOptionalWriteable(parameters.maxWriteBufferSize);
+                out.writeOptionalTimeValue(parameters.maxRetryDelay);
+                out.writeOptionalTimeValue(parameters.readPollTimeout);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
                 }
-                if (maxBatchOperationCount != null) {
-                    builder.field(AutoFollowPattern.MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
-                }
-                if (maxBatchSize != null) {
-                    builder.field(AutoFollowPattern.MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
-                }
-                if (maxWriteBufferSize != null) {
-                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
-                }
-                if (maxConcurrentReadBatches != null) {
-                    builder.field(AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
-                }
-                if (maxConcurrentWriteBatches != null) {
-                    builder.field(AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                }
-                if (maxRetryDelay != null) {
-                    builder.field(AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay.getStringRep());
-                }
-                if (pollTimeout != null) {
-                    builder.field(AutoFollowPattern.POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
-                }
+                parameters.toXContentFragment(builder);
             }
             builder.endObject();
             return builder;
@@ -270,32 +213,26 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderClusterAlias, request.leaderClusterAlias) &&
-                    Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
-                    Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
-                    Objects.equals(maxBatchOperationCount, request.maxBatchOperationCount) &&
-                    Objects.equals(maxConcurrentReadBatches, request.maxConcurrentReadBatches) &&
-                    Objects.equals(maxBatchSize, request.maxBatchSize) &&
-                    Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
-                    Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
-                    Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
-                    Objects.equals(pollTimeout, request.pollTimeout);
+            return Objects.equals(name, request.name) &&
+                Objects.equals(remoteCluster, request.remoteCluster) &&
+                Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
+                Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
+                Objects.equals(parameters, request.parameters);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                    leaderClusterAlias,
-                    leaderIndexPatterns,
-                    followIndexNamePattern,
-                    maxBatchOperationCount,
-                    maxConcurrentReadBatches,
-                    maxBatchSize,
-                    maxConcurrentWriteBatches,
-                    maxWriteBufferSize,
-                    maxRetryDelay,
-                    pollTimeout);
+            return Objects.hash(name, remoteCluster, leaderIndexPatterns, followIndexNamePattern, parameters);
         }
+
+        // This class only exists for reuse of the FollowParameters class, see comment above the parser field.
+        private static class PutAutoFollowPatternParameters extends FollowParameters {
+
+            private String remoteCluster;
+            private List<String> leaderIndexPatterns;
+            private String followIndexNamePattern;
+        }
+
     }
 
 }

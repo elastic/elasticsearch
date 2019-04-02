@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.Version;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +39,8 @@ import java.util.Objects;
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RandomScoreFunctionBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(RandomScoreFunctionBuilder.class));
 
     public static final String NAME = "random_score";
     private String field;
@@ -57,9 +57,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         if (in.readBoolean()) {
             seed = in.readInt();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            field = in.readOptionalString();
-        }
+        field = in.readOptionalString();
     }
 
     @Override
@@ -70,9 +68,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeOptionalString(field);
-        }
+        out.writeOptionalString(field);
     }
 
     @Override
@@ -167,7 +163,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             if (field != null) {
                 fieldType = context.getMapperService().fullName(field);
             } else {
-                DEPRECATION_LOGGER.deprecated(
+                deprecationLogger.deprecated(
                         "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
                 fieldType = context.getMapperService().fullName(IdFieldMapper.NAME);
             }

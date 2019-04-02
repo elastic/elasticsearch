@@ -161,8 +161,7 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
-            new ArrayList<PipelineAggregationBuilder>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0], new ArrayList<>());
 
     private AggregatorFactory<?>[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
@@ -176,7 +175,7 @@ public class AggregatorFactories {
         this.pipelineAggregatorFactories = pipelineAggregators;
     }
 
-    public List<PipelineAggregator> createPipelineAggregators() throws IOException {
+    public List<PipelineAggregator> createPipelineAggregators() {
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>(this.pipelineAggregatorFactories.size());
         for (PipelineAggregationBuilder factory : this.pipelineAggregatorFactories) {
             pipelineAggregators.add(factory.create());
@@ -394,7 +393,8 @@ public class AggregatorFactories {
                                 }
                                 // Check the pipeline sub-aggregator factories
                                 if (!foundSubBuilder && (i == bucketsPathElements.size() - 1)) {
-                                    Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder.pipelineAggregatorBuilders;
+                                    Collection<PipelineAggregationBuilder> subPipelineBuilders = aggBuilder.factoriesBuilder
+                                            .pipelineAggregatorBuilders;
                                     for (PipelineAggregationBuilder subFactory : subPipelineBuilders) {
                                         if (aggName.equals(subFactory.getName())) {
                                             foundSubBuilder = true;

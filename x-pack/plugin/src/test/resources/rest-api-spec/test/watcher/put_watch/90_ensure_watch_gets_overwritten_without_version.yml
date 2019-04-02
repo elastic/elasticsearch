@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  > 
           {
@@ -32,14 +32,14 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { watch.input.simple.foo: "bar" } 
 
   # change the simple input fields, then ensure the old
   # field does not exist on get
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  > 
           {
@@ -66,7 +66,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { watch.input.simple.spam: "eggs" } 
   - is_false: watch.input.simple.foo

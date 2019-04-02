@@ -31,7 +31,10 @@ And here is a sample response:
         "failed" : 0
     },
     "hits":{
-        "total" : 1,
+        "total" : {
+            "value": 1,
+            "relation": "eq"
+        },
         "max_score": 1.3862944,
         "hits" : [
             {
@@ -110,6 +113,11 @@ And here is a sample response:
     reduce the memory overhead per search request if the potential  number of
     shards in the request can be large.
 
+`ccs_minimize_roundtrips`::
+
+    Defaults to `true`. Set to `false` to disable minimizing network round-trips
+    between the coordinating node and the remote clusters when executing
+    {ccs} requests. See <<ccs-reduction>> for more.
 
 
 Out of the above, the `search_type`, `request_cache` and the `allow_partial_search_results` 
@@ -162,7 +170,10 @@ be set to `true` in the response.
     "failed": 0
   },
   "hits": {
-    "total": 1,
+    "total" : {
+        "value": 1,
+        "relation": "eq"
+    },
     "max_score": null,
     "hits": []
   }
@@ -182,6 +193,8 @@ include::request/query.asciidoc[]
 include::request/from-size.asciidoc[]
 
 include::request/sort.asciidoc[]
+
+include::request/track-total-hits.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 
@@ -205,7 +218,7 @@ include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
 
-include::request/version.asciidoc[]
+include::request/version-and-seq-no.asciidoc[]
 
 include::request/index-boost.asciidoc[]
 

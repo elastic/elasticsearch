@@ -29,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'default'
 
     @Input
     int numNodes = 1
@@ -64,11 +64,20 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
-     * In case of more than one node, this defaults to the number of nodes
+     * Whether the initial_master_nodes setting should be automatically derived from the nodes
+     * in the cluster. Only takes effect if all nodes in the cluster understand this setting
+     * and the discovery type is not explicitly set.
      */
     @Input
-    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
+    boolean autoSetInitialMasterNodes = true
+
+    /**
+     * Whether the file-based discovery provider should be automatically setup based on
+     * the nodes in the cluster. Only takes effect if no other hosts provider is already
+     * configured.
+     */
+    @Input
+    boolean autoSetHostsProvider = true
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -96,12 +105,25 @@ class ClusterConfiguration {
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond',
+                timeoutproperty: "failed.${seedNode.transportPortsFile.path}") {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }
         }
+        if (ant.properties.containsKey("failed.${seedNode.transportPortsFile.path}".toString())) {
+            throw new GradleException("Failed to locate seed node transport file [${seedNode.transportPortsFile}]: " +
+                    "timed out waiting for it to be created after 40 seconds")
+        }
         return seedNode.transportUri()
+    }
+
+    /**
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
+     */
+    @Input
+    Closure<List<String>> otherUnicastHostAddresses = {
+        Collections.emptyList()
     }
 
     /**

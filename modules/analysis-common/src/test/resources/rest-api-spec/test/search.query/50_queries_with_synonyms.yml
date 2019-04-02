@@ -15,19 +15,17 @@
                     tokenizer: standard
                     filter: [ "syns" ]
             mappings:
-              test:
-                properties:
-                  field1:
-                    type: text
-                    analyzer: syns
-                  field2:
-                    type: text
-                    analyzer: syns
+              properties:
+                field1:
+                  type: text
+                  analyzer: syns
+                field2:
+                  type: text
+                  analyzer: syns
 
   - do:
       index:
           index: test
-          type: test
           id: 3
           body:
             field1: quick lazy huge brown pidgin
@@ -36,7 +34,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             field1: the quick brown fox
@@ -44,7 +41,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             field1: the quick lazy huge brown fox jumps over the tree
@@ -52,6 +48,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -66,6 +63,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -79,6 +77,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -92,6 +91,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -104,6 +104,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -118,6 +119,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -131,6 +133,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -142,6 +145,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             common:
@@ -155,6 +159,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -168,6 +173,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -182,6 +188,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -195,6 +202,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             multi_match:
@@ -225,21 +233,20 @@
                     tokenizer: standard
                     filter: lowercase
                   search:
+                    rest_total_hits_as_int: true
                     type: custom
                     tokenizer: standard
                     filter: [ lowercase, synonym ]
             mappings:
-              test:
-                properties:
-                  text:
-                    type: text
-                    analyzer: index
-                    search_analyzer: search
+              properties:
+                text:
+                  type: text
+                  analyzer: index
+                  search_analyzer: search
 
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             text: quick brown fox
@@ -247,6 +254,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -257,6 +265,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -267,6 +276,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -278,7 +288,6 @@
   - do:
       index:
           index: test
-          type: test
           id: 2
           body:
             text: fast brown fox
@@ -286,6 +295,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -296,6 +306,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -303,5 +314,3 @@
                 query: quick brown
                 operator: and
   - match: { hits.total: 2 }
-
-

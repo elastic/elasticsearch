@@ -36,16 +36,19 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ -x "$JAVA_HOME/bin/java" ]; then
+if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
 else
-  set +e
-  JAVA=`which java`
-  set -e
+  if [ "$(uname -s)" = "Darwin" ]; then
+    # OSX has a different structure
+    JAVA="$ES_HOME/jdk/Contents/Home/bin/java"
+  else
+    JAVA="$ES_HOME/jdk/bin/java"
+  fi
 fi
 
 if [ ! -x "$JAVA" ]; then
-  echo "could not find java; set JAVA_HOME or ensure java is in PATH"
+  echo "could not find java in JAVA_HOME or bundled at $JAVA" >&2
   exit 1
 fi
 
@@ -79,15 +82,10 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
+ES_BUNDLED_JDK=${es.bundled_jdk}
 
 if [ -z "$ES_TMPDIR" ]; then
-  set +e
-  mktemp --version 2>&1 | grep coreutils > /dev/null
-  mktemp_coreutils=$?
-  set -e
-  if [ $mktemp_coreutils -eq 0 ]; then
-    ES_TMPDIR=`mktemp -d --tmpdir "elasticsearch.XXXXXXXX"`
-  else
-    ES_TMPDIR=`mktemp -d -t elasticsearch`
-  fi
+  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
 fi
+
+cd "$ES_HOME"

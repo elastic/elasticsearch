@@ -20,9 +20,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -55,9 +54,9 @@ public class XPackRequestConvertersTests extends ESTestCase {
         }
 
         Request request = XPackRequestConverters.info(infoRequest);
-        Assert.assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        Assert.assertEquals("/_xpack", request.getEndpoint());
-        Assert.assertNull(request.getEntity());
-        Assert.assertEquals(expectedParams, request.getParameters());
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack", request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
     }
 }

@@ -36,7 +36,7 @@
       indices.refresh: {}
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         body:  >
           {
             "watch" : {
@@ -49,6 +49,7 @@
                 "search": {
                   "request": {
                     "indices": [ "test_1" ],
+                    "rest_total_hits_as_int": true,
                     "body": {
                       "aggs": {
                         "top_levels": {

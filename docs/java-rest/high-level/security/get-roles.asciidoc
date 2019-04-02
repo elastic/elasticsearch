@@ -1,0 +1,48 @@
+
+--
+:api: get-roles
+:request: GetRolesRequest
+:response: GetRolesResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Roles API
+
+[id="{upid}-{api}-request"]
+==== Get Roles Request
+
+Retrieving a role can be performed using the `security().getRoles()`
+method and by setting the role name on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+Retrieving multiple roles can be performed using the `security().getRoles()`
+method and by setting multiple role names on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-list-request]
+--------------------------------------------------
+
+Retrieving all roles can be performed using the `security().getRoles()`
+method without specifying any role names on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-all-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Roles Response
+
+The returned +{response}+ allows getting information about the retrieved roles as follows.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

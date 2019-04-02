@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.rollup;
 
+import org.elasticsearch.client.core.IndexerJobStats;
+import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -26,15 +28,14 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response from rollup's get jobs api.
@@ -44,12 +45,9 @@ public class GetRollupJobResponse {
     static final ParseField CONFIG = new ParseField("config");
     static final ParseField STATS = new ParseField("stats");
     static final ParseField STATUS = new ParseField("status");
-    static final ParseField NUM_PAGES = new ParseField("pages_processed");
-    static final ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
-    static final ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("rollups_indexed");
-    static final ParseField NUM_INVOCATIONS = new ParseField("trigger_count");
     static final ParseField STATE = new ParseField("job_state");
     static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    static final ParseField ROLLUPS_INDEXED = new ParseField("rollups_indexed");
     static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
 
     private List<JobWrapper> jobs;
@@ -176,80 +174,30 @@ public class GetRollupJobResponse {
      * The Rollup specialization of stats for the AsyncTwoPhaseIndexer.
      * Note: instead of `documents_indexed`, this XContent show `rollups_indexed`
      */
-    public static class RollupIndexerJobStats {
-        private final long numPages;
-        private final long numInputDocuments;
-        private final long numOuputDocuments;
-        private final long numInvocations;
+    public static class RollupIndexerJobStats extends IndexerJobStats {
 
-        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations) {
-            this.numPages = numPages;
-            this.numInputDocuments = numInputDocuments;
-            this.numOuputDocuments = numOuputDocuments;
-            this.numInvocations = numInvocations;
-        }
-
-        /**
-         * The number of pages read from the input indices.
-         */
-        public long getNumPages() {
-            return numPages;
-        }
-
-        /**
-         * The number of documents read from the input indices.
-         */
-        public long getNumDocuments() {
-            return numInputDocuments;
-        }
-
-        /**
-         * Number of times that the job woke up to write documents.
-         */
-        public long getNumInvocations() {
-            return numInvocations;
-        }
-
-        /**
-         * Number of documents written to the result indices.
-         */
-        public long getOutputDocuments() {
-            return numOuputDocuments;
+        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
+                              long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
+            super(numPages, numInputDocuments, numOuputDocuments, numInvocations,
+                    indexTime, searchTime, indexTotal, searchTotal, indexFailures, searchFailures);
         }
 
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
                 STATS.getPreferredName(),
                 true,
-                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3]));
+                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
+                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
-            PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
+            PARSER.declareLong(constructorArg(), ROLLUPS_INDEXED);
             PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other == null || getClass() != other.getClass()) return false;
-            RollupIndexerJobStats that = (RollupIndexerJobStats) other;
-            return Objects.equals(this.numPages, that.numPages)
-                    && Objects.equals(this.numInputDocuments, that.numInputDocuments)
-                    && Objects.equals(this.numOuputDocuments, that.numOuputDocuments)
-                    && Objects.equals(this.numInvocations, that.numInvocations);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations);
-        }
-
-        @Override
-        public final String toString() {
-            return "{pages=" + numPages
-                    + ", input_docs=" + numInputDocuments
-                    + ", output_docs=" + numOuputDocuments
-                    + ", invocations=" + numInvocations + "}";
+            PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+            PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+            PARSER.declareLong(constructorArg(), INDEX_FAILURES);
+            PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         }
     }
 
@@ -333,42 +281,6 @@ public class GetRollupJobResponse {
             return "{stats=" + state
                     + ", currentPosition=" + currentPosition
                     + ", upgradedDocumentId=" + upgradedDocumentId + "}";
-        }
-    }
-
-    /**
-     * IndexerState represents the internal state of the indexer.  It
-     * is also persistent when changing from started/stopped in case the allocated
-     * task is restarted elsewhere.
-     */
-    public enum IndexerState {
-        /** Indexer is running, but not actively indexing data (e.g. it's idle). */
-        STARTED,
-
-        /** Indexer is actively indexing data. */
-        INDEXING,
-
-        /**
-         * Transition state to where an indexer has acknowledged the stop
-         * but is still in process of halting.
-         */
-        STOPPING,
-
-        /** Indexer is "paused" and ignoring scheduled triggers. */
-        STOPPED,
-
-        /**
-         * Something (internal or external) has requested the indexer abort
-         * and shutdown.
-         */
-        ABORTING;
-
-        static IndexerState fromString(String name) {
-            return valueOf(name.trim().toUpperCase(Locale.ROOT));
-        }
-
-        String value() {
-            return name().toLowerCase(Locale.ROOT);
         }
     }
 }

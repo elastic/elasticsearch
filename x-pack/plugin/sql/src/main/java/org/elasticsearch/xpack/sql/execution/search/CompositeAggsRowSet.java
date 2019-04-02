@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
-import org.elasticsearch.xpack.sql.session.AbstractRowSet;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 
+import java.util.BitSet;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -19,8 +19,7 @@ import static java.util.Collections.emptyList;
 /**
  * {@link RowSet} specific to (GROUP BY) aggregation.
  */
-class CompositeAggsRowSet extends AbstractRowSet {
-    private final List<BucketExtractor> exts;
+class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
 
     private final List<? extends CompositeAggregation.Bucket> buckets;
 
@@ -29,8 +28,8 @@ class CompositeAggsRowSet extends AbstractRowSet {
     private final int size;
     private int row = 0;
 
-    CompositeAggsRowSet(List<BucketExtractor> exts, SearchResponse response, int limit, byte[] next, String... indices) {
-        this.exts = exts;
+    CompositeAggsRowSet(List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit, byte[] next, String... indices) {
+        super(exts, mask);
 
         CompositeAggregation composite = CompositeAggregationCursor.getComposite(response);
         if (composite != null) {
@@ -54,19 +53,14 @@ class CompositeAggsRowSet extends AbstractRowSet {
             if (next == null || size == 0 || remainingLimit == 0) {
                 cursor = Cursor.EMPTY;
             } else {
-                cursor = new CompositeAggregationCursor(next, exts, remainingLimit, indices);
+                cursor = new CompositeAggregationCursor(next, exts, mask, remainingLimit, indices);
             }
         }
     }
 
     @Override
-    protected Object getColumn(int column) {
-        return exts.get(column).extract(buckets.get(row));
-    }
-
-    @Override
-    public int columnCount() {
-        return exts.size();
+    protected Object extractValue(BucketExtractor e) {
+        return e.extract(buckets.get(row));
     }
 
     @Override

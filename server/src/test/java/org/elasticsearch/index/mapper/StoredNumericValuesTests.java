@@ -64,7 +64,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                             .field("field1", 1)

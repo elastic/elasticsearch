@@ -34,6 +34,7 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.CharArrayBuffer;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SuppressForbidden;
@@ -125,11 +126,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     public static void shutdownHttpServer() {
         final Executor executor = httpServer.getExecutor();
         if (executor instanceof ExecutorService) {
-            try {
-                terminate((ExecutorService) executor);
-            } catch (InterruptedException e) {
-                // oh well
-            }
+            terminate((ExecutorService) executor);
         }
         httpServer.stop(0);
         httpServer = null;
@@ -182,7 +179,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setKibanaPassword() throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/user/kibana/_password");
+        Request request = new Request("PUT", "/_security/user/kibana/_password");
         request.setJsonEntity("{ \"password\" : \"" + KIBANA_PASSWORD + "\" }");
         adminClient().performRequest(request);
     }
@@ -194,7 +191,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     @Before
     public void setupRoleMapping() throws IOException {
-        Request request = new Request("PUT", "/_xpack/security/role_mapping/thor-kibana");
+        Request request = new Request("PUT", "/_security/role_mapping/thor-kibana");
         request.setJsonEntity(Strings.toString(XContentBuilder.builder(XContentType.JSON.xContent())
                 .startObject()
                     .array("roles", new String[] { "kibana_user"} )
@@ -220,7 +217,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             .put("password", randomAlphaOfLengthBetween(8, 16))
             .put("metadata", Collections.singletonMap("is_native", true))
             .map();
-        final Response response = adminClient().performRequest(buildRequest("PUT", "/_xpack/security/user/thor", body));
+        final Response response = adminClient().performRequest(buildRequest("PUT", "/_security/user/thor", body));
         assertOK(response);
     }
 
@@ -316,7 +313,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private Map<String, Object> callAuthenticateApiUsingAccessToken(String accessToken) throws IOException {
-        Request request = new Request("GET", "/_xpack/security/_authenticate");
+        Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Authorization", "Bearer " + accessToken);
         request.setOptions(options);
@@ -328,7 +325,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             .put("grant_type", "refresh_token")
             .put("refresh_token", refreshToken)
             .map();
-        final Response response = client().performRequest(buildRequest("POST", "/_xpack/security/oauth2/token", body, kibanaAuth()));
+        final Response response = client().performRequest(buildRequest("POST", "/_security/oauth2/token", body, kibanaAuth()));
         assertOK(response);
 
         final Map<String, Object> result = entityAsMap(response);
@@ -371,16 +368,16 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     private URI submitLoginForm(CloseableHttpClient client, BasicHttpContext context, URI formUri) throws IOException {
         final HttpPost form = new HttpPost(formUri);
         List<NameValuePair> params = new ArrayList<>();
-        params.add(new BasicNameValuePair("j_username", "Thor"));
+        params.add(new BasicNameValuePair("j_username", "thor"));
         params.add(new BasicNameValuePair("j_password", "NickFuryHeartsES"));
         params.add(new BasicNameValuePair("_eventId_proceed", ""));
         form.setEntity(new UrlEncodedFormEntity(params));
 
         final String redirect = execute(client, form, context, response -> {
+            logger.info(EntityUtils.toString(response.getEntity()));
             assertThat(response.getStatusLine().getStatusCode(), equalTo(302));
             return response.getFirstHeader("Location").getValue();
         });
-        assertThat(redirect, startsWith("/"));
 
         String target = execute(client, new HttpGet(formUri.resolve(redirect)), context, response -> {
             assertHttpOk(response.getStatusLine());
@@ -518,7 +515,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
      */
     private void httpLogin(HttpExchange http) throws IOException {
         final Map<String, String> body = Collections.singletonMap("acs", this.acs.toString());
-        Request request = buildRequest("POST", "/_xpack/security/saml/prepare", body, kibanaAuth());
+        Request request = buildRequest("POST", "/_security/saml/prepare", body, kibanaAuth());
         final Response prepare = client().performRequest(request);
         assertOK(prepare);
         final Map<String, Object> responseBody = parseResponseAsMap(prepare.getEntity());
@@ -563,7 +560,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             .put("content", saml)
             .put("ids", Collections.singletonList(id))
             .map();
-        return client().performRequest(buildRequest("POST", "/_xpack/security/saml/authenticate", body, kibanaAuth()));
+        return client().performRequest(buildRequest("POST", "/_security/saml/authenticate", body, kibanaAuth()));
     }
 
     private List<NameValuePair> parseRequestForm(HttpExchange http) throws IOException {
@@ -624,7 +621,7 @@ public class SamlAuthenticationIT extends ESRestTestCase {
     }
 
     private SSLContext getClientSslContext() throws Exception {
-        final Path pem = getDataPath("/ca.crt");
+        final Path pem = getDataPath("/idp-browser.pem");
         final Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(pem));
         final X509ExtendedTrustManager trustManager = CertParsingUtils.trustManager(certificates);
         SSLContext context = SSLContext.getInstance("TLS");
@@ -642,5 +639,4 @@ public class SamlAuthenticationIT extends ESRestTestCase {
             throw new ElasticsearchException("Cannot construct URI for httpServer @ {}:{}", e, host, port);
         }
     }
-
 }

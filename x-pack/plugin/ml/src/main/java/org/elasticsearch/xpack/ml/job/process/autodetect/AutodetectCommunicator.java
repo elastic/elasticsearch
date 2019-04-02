@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -54,11 +54,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 public class AutodetectCommunicator implements Closeable {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutodetectCommunicator.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutodetectCommunicator.class);
     private static final Duration FLUSH_PROCESS_CHECK_FREQUENCY = Duration.ofSeconds(1);
 
     private final Job job;
@@ -67,7 +66,7 @@ public class AutodetectCommunicator implements Closeable {
     private final StateStreamer stateStreamer;
     private final DataCountsReporter dataCountsReporter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
-    private final Consumer<Exception> onFinishHandler;
+    private final BiConsumer<Exception, Boolean> onFinishHandler;
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean includeTokensField;
@@ -76,7 +75,7 @@ public class AutodetectCommunicator implements Closeable {
 
     AutodetectCommunicator(Job job, Environment environment, AutodetectProcess process, StateStreamer stateStreamer,
                            DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
-                           Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
+                           BiConsumer<Exception, Boolean> onFinishHandler, NamedXContentRegistry xContentRegistry,
                            ExecutorService autodetectWorkerExecutor) {
         this.job = job;
         this.environment = environment;
@@ -160,7 +159,7 @@ public class AutodetectCommunicator implements Closeable {
                 }
                 autoDetectResultProcessor.awaitCompletion();
             } finally {
-                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null);
+                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null, true);
             }
             LOGGER.info("[{}] job closed", job.getId());
             return null;
@@ -183,6 +182,10 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     public void killProcess(boolean awaitCompletion, boolean finish) throws IOException {
+        killProcess(awaitCompletion, finish, true);
+    }
+
+    public void killProcess(boolean awaitCompletion, boolean finish, boolean finalizeJob) throws IOException {
         try {
             processKilled = true;
             autoDetectResultProcessor.setProcessKilled();
@@ -198,7 +201,7 @@ public class AutodetectCommunicator implements Closeable {
             }
         } finally {
             if (finish) {
-                onFinishHandler.accept(null);
+                onFinishHandler.accept(null, finalizeJob);
             }
             destroyCategorizationAnalyzer();
         }
@@ -264,7 +267,7 @@ public class AutodetectCommunicator implements Closeable {
 
     public void persistJob(BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
-            autodetectProcess.persistJob();
+            autodetectProcess.persistState();
             return null;
         }, handler);
     }

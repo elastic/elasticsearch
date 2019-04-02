@@ -44,12 +44,10 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -125,14 +123,6 @@ public class SearchModuleTests extends ESTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSignificanceHeuristic));
-
-        SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
-            @Override
-            public List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
-                return singletonList(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
-            }
-        };
-        expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeMovAvgModel));
 
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
@@ -328,8 +318,10 @@ public class SearchModuleTests extends ESTestCase {
             "geo_polygon",
             "geo_shape",
             "ids",
+            "intervals",
             "match",
             "match_all",
+            "match_bool_prefix",
             "match_none",
             "match_phrase",
             "match_phrase_prefix",
@@ -341,6 +333,7 @@ public class SearchModuleTests extends ESTestCase {
             "range",
             "regexp",
             "script",
+            "script_score",
             "simple_query_string",
             "span_containing",
             "span_first",
@@ -356,7 +349,8 @@ public class SearchModuleTests extends ESTestCase {
             "terms_set",
             "type",
             "wildcard",
-            "wrapper"
+            "wrapper",
+            "distance_feature"
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
@@ -438,7 +432,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+        protected PipelineAggregator createInternal(Map<String, Object> metaData) {
             return null;
         }
 
@@ -575,11 +569,6 @@ public class SearchModuleTests extends ESTestCase {
     private static class TestSuggestion extends Suggestion {
         TestSuggestion(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Entry newEntry() {
-            return null;
         }
 
         @Override

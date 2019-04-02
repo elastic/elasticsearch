@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCase {
+public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testPBKDF2AlgorithmIsAllowed() {
         {
@@ -25,7 +24,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
-                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(createTestContext(settings, null));
             assertFalse(result.isFailure());
         }
 
@@ -35,7 +34,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
-                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(createTestContext(settings, null));
             assertFalse(result.isFailure());
         }
     }
@@ -55,7 +54,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
         }
         final Settings settings = builder.build();
         final BootstrapCheck.BootstrapCheckResult result =
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(createTestContext(settings, null));
         assertThat(result.isFailure(), equalTo(fipsModeEnabled));
     }
 

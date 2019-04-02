@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar-event]]
-=== Delete Events from Calendar API
+=== Delete events from calendar API
 ++++
-<titleabbrev>Delete Events from Calendar</titleabbrev>
+<titleabbrev>Delete events from calendar</titleabbrev>
 ++++
 
 Deletes scheduled events from a calendar.
@@ -11,7 +11,7 @@ Deletes scheduled events from a calendar.
 
 ==== Request
 
-`DELETE _xpack/ml/calendars/<calendar_id>/events/<event_id>`
+`DELETE _ml/calendars/<calendar_id>/events/<event_id>`
 
 
 ==== Description
@@ -42,7 +42,7 @@ calendar:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st
+DELETE _ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:catch:missing]

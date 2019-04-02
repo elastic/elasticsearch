@@ -18,18 +18,22 @@
  */
 package org.elasticsearch;
 
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.process.ExecResult;
+import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
+import java.nio.file.Path;
 
 /**
- * Facilitate access to Gradle services without a direct dependency on Project.
+ * Bridge a gap until Gradle offers service injection for plugins.
  *
  * In a future release Gradle will offer service injection, this adapter plays that role until that time.
  * It exposes the service methods that are part of the public API as the classes implementing them are not.
@@ -40,7 +44,7 @@ import java.io.File;
  */
 public class GradleServicesAdapter {
 
-    public final Project project;
+    private final Project project;
 
     public GradleServicesAdapter(Project project) {
         this.project = project;
@@ -64,5 +68,17 @@ public class GradleServicesAdapter {
 
     public FileTree zipTree(File zipPath) {
         return project.zipTree(zipPath);
+    }
+
+    public FileCollection fileTree(File dir) {
+        return project.fileTree(dir);
+    }
+
+    public void loggedExec(Action<ExecSpec> action) {
+        LoggedExec.exec(project, action);
+    }
+
+    public void delete(Path path) {
+        project.delete(path.toFile());
     }
 }

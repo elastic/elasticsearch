@@ -93,16 +93,6 @@ elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
     echo " OK"
 fi
 
-chown -R elasticsearch:elasticsearch /var/lib/elasticsearch
-chown -R elasticsearch:elasticsearch /var/log/elasticsearch
-chown -R root:elasticsearch /etc/elasticsearch
-chmod g+s /etc/elasticsearch
-chmod 0750 /etc/elasticsearch
-
-if [ -f ${path.env} ]; then
-    chown root:elasticsearch ${path.env}
-fi
-
 # the equivalent code for rpm is in posttrans
 if [ "$PACKAGE" = "deb" -a ! -f /etc/elasticsearch/elasticsearch.keystore ]; then
     /usr/share/elasticsearch/bin/elasticsearch-keystore create

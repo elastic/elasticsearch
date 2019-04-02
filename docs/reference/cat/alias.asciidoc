@@ -56,4 +56,4 @@ configurations in `alias3` and `alias4`.
 
 If you only want to get information about specific aliases, you can specify 
 the aliases in comma-delimited format as a URL parameter, e.g., 
-/_cat/aliases/aliases/alias1,alias2.
+/_cat/aliases/alias1,alias2.

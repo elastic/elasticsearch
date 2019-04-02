@@ -1,5 +1,5 @@
 [[modules-cluster]]
-== Cluster
+== Shard allocation and cluster-level routing
 
 One of the main roles of the master is to decide which shards to allocate to
 which nodes, and when to move shards between nodes in order to rebalance the

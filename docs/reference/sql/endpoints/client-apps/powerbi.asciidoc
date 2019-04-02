@@ -1,0 +1,55 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-powerbi]]
+=== Microsoft Power BI Desktop
+
+[quote, https://powerbi.microsoft.com/en-us/what-is-power-bi/]
+____
+https://powerbi.microsoft.com/en-us/desktop/[Power BI] is a business analytics solution that lets you visualize your data and share
+insights across your organization, or embed them in your app or website.
+____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
+==== Prerequisites
+
+* Microsoft Power BI Desktop 2.63 or higher
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
+
+==== Data loading
+
+First, you'll need to choose ODBC as the source to load data from. Once launched, click on the _Get Data_ button (under _Home_ tab), then
+on the _More..._ button at the bottom of the list:
+
+[[apps_pbi_fromodbc1]]
+.Get Data / More...
+image:images/sql/odbc/apps_pbi_fromodbc1.png[]
+
+In the new opened window scroll at the bottom of the _All_ list and select the _ODBC_ entry, then click on the _Connect_ button:
+
+[[apps_pbi_fromodbc2]]
+.ODBC / Connect
+image:images/sql/odbc/apps_pbi_fromodbc2.png[]
+
+This will replace current window with a new _From ODBC_ one, where you'll have to select a previously configured DSN:
+
+[[apps_pbi_dsn]]
+.Choose a DSN
+image:images/sql/odbc/apps_pbi_dsn.png[]
+
+Once connected Power BI will read {es}'s catalog and offer the user a choice of tables (indices) to load data from. Clicking on one of the
+tables will load a preview of the data within:
+
+[[apps_pbi_picktable]]
+.Pick table to load
+image:images/sql/odbc/apps_pbi_picktable.png[]
+
+Now tick the chosen table and click on the _Load_ button. Power BI will now load and analyze the data, populating a list with the available
+columns. These can now be used to build the desired visualisation:
+
+[[apps_pbi_loaded]]
+.Visualize the data
+image:images/sql/odbc/apps_pbi_loaded.png[]
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140

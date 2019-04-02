@@ -25,11 +25,11 @@ import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -109,7 +109,7 @@ public class ActionWrapper implements ToXContentObject {
             try {
                 conditionResult = condition.execute(ctx);
                 if (conditionResult.met() == false) {
-                    ctx.watch().status().actionStatus(id).resetAckStatus(DateTime.now(DateTimeZone.UTC));
+                    ctx.watch().status().actionStatus(id).resetAckStatus(ZonedDateTime.now(ZoneOffset.UTC));
                     return new ActionWrapperResult(id, conditionResult, null,
                                                     new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
                 }

@@ -1,0 +1,3 @@
+
+// this is just shell gradle file for eclipse to have separate projects for geo src and tests
+apply from: '../../build.gradle'

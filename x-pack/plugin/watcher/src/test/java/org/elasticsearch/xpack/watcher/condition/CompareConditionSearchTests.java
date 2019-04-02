@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -45,7 +48,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
 
         CompareCondition condition = new CompareCondition("ctx.payload.aggregations.rate.buckets.0.doc_count", CompareCondition.Op.GTE, 5,
                 Clock.systemUTC());
-        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();
@@ -61,7 +64,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                         .field("@timestamp").dateHistogramInterval(DateHistogramInterval.HOUR).order(BucketOrder.count(false)))
                 .get();
 
-        ctx = mockExecutionContext("_name", new Payload.XContent(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
         assertThat(result.met(), is(true));
         resolvedValues = result.getResolvedValues();
@@ -75,17 +78,18 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
                 Clock.systemUTC());
         SearchHit hit = new SearchHit(0, "1", new Text("type"), null);
         hit.score(1f);
-        hit.shard(new SearchShardTarget("a", new Index("a", "indexUUID"), 0, null));
+        hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null, OriginalIndices.NONE));
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(
-                new SearchHits(new SearchHit[]{hit}, 1L, 1f), null, null, null, false, false, 1);
-        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+                new SearchHits(new SearchHit[]{hit}, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
+            null, null, null, false, false, 1);
+        SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 0,
+            500L, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
 
-        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response));
+        WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
-        when(ctx.payload()).thenReturn(new Payload.XContent(response));
+        when(ctx.payload()).thenReturn(new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         CompareCondition.Result result = condition.execute(ctx);
         assertThat(result.met(), is(false));
         Map<String, Object> resolvedValues = result.getResolvedValues();

@@ -1,0 +1,25 @@
+[[rename-processor]]
+=== Rename Processor
+Renames an existing field. If the field doesn't exist or the new name is already used, an exception will be thrown.
+
+[[rename-options]]
+.Rename Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be renamed. Supports <<accessing-template-fields,template snippets>>.
+| `target_field`    | yes       | -        | The new name of the field. Supports <<accessing-template-fields,template snippets>>.
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+include::common-options.asciidoc[]
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "rename": {
+    "field": "provider",
+    "target_field": "cloud.provider"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -38,7 +39,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final TranslogHeader header;
 
     public BaseTranslogReader(long generation, FileChannel channel, Path path, TranslogHeader header) {
-        assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
+        assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " +
+            Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
         this.generation = generation;
         this.path = path;
@@ -70,7 +72,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     /** read the size of the op (i.e., number of bytes, including the op size) written at the given position */
     protected final int readSize(ByteBuffer reusableBuffer, long position) throws IOException {
         // read op size from disk
-        assert reusableBuffer.capacity() >= 4 : "reusable buffer must have capacity >=4 when reading opSize. got [" + reusableBuffer.capacity() + "]";
+        assert reusableBuffer.capacity() >= 4 : "reusable buffer must have capacity >=4 when reading opSize. got [" +
+            reusableBuffer.capacity() + "]";
         reusableBuffer.clear();
         reusableBuffer.limit(4);
         readBytes(reusableBuffer, position);
@@ -94,7 +97,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
      * reads an operation at the given position and returns it. The buffer length is equal to the number
      * of bytes reads.
      */
-    protected final BufferedChecksumStreamInput checksummedStream(ByteBuffer reusableBuffer, long position, int opSize, BufferedChecksumStreamInput reuse) throws IOException {
+    protected final BufferedChecksumStreamInput checksummedStream(ByteBuffer reusableBuffer, long position, int opSize,
+                                                                        BufferedChecksumStreamInput reuse) throws IOException {
         final ByteBuffer buffer;
         if (reusableBuffer.capacity() >= opSize) {
             buffer = reusableBuffer;
@@ -110,7 +114,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Operation op = Translog.readOperation(inStream);
-        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != TranslogHeader.UNKNOWN_PRIMARY_TERM) {
+        if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             throw new TranslogCorruptedException(
                     path.toString(),
                     "operation's term is newer than translog header term; " +

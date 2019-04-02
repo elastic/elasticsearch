@@ -2,7 +2,7 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
-import org.gradle.api.internal.tasks.options.Option
+import org.gradle.api.tasks.options.Option
 import org.gradle.util.ConfigureUtil
 
 public class RunTask extends DefaultTask {
@@ -16,7 +16,7 @@ public class RunTask extends DefaultTask {
         clusterConfig.httpPort = 9200
         clusterConfig.transportPort = 9300
         clusterConfig.daemonize = false
-        clusterConfig.distribution = 'zip'
+        clusterConfig.distribution = 'default'
         project.afterEvaluate {
             ClusterFormationTasks.setup(project, name, this, clusterConfig)
         }

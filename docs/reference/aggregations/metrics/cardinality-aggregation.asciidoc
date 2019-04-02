@@ -49,7 +49,7 @@ POST /sales/_search?size=0
     "aggs" : {
         "type_count" : {
             "cardinality" : {
-                "field" : "_doc",
+                "field" : "type",
                 "precision_threshold": 100 <1>
             }
         }
@@ -150,10 +150,18 @@ public static void main(String[] args) {
 
 image:images/cardinality_error.png[]
 
-For all 3 thresholds, counts have been accurate up to the configured threshold
-(although not guaranteed, this is likely to be the case). Please also note that
-even with a threshold as low as 100, the error remains very low, even when
-counting millions of items.
+For all 3 thresholds, counts have been accurate up to the configured threshold.
+Although not guaranteed, this is likely to be the case.  Accuracy in practice depends
+on the dataset in question.  In general, most datasets show consistently good
+accuracy. Also note that even with a threshold as low as 100, the error
+remains very low (1-6% as seen in the above graph) even when counting millions of items.
+
+The HyperLogLog++ algorithm depends on the leading zeros of hashed
+values, the exact distributions of hashes in a dataset can affect the 
+accuracy of the cardinality.  
+
+Please also note that even with a threshold as low as 100, the error remains
+very low, even when counting millions of items.
 
 ==== Pre-computed hashes
 
@@ -206,7 +214,7 @@ POST /sales/_search?size=0
                 "script" : {
                     "id": "my_script",
                     "params": {
-                        "type_field": "_doc",
+                        "type_field": "type",
                         "promoted_field": "promoted"
                     }
                 }

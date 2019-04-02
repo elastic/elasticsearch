@@ -12,16 +12,14 @@ For example, consider the following mapping:
 PUT publications
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "id": { "type": "text" },
-                "title":  { "type": "text"},
-                "abstract": { "type": "text"},
-                "author": {
-                    "properties": {
-                        "id": { "type": "text" },
-                        "name": { "type": "text" }
-                    }
+        "properties": {
+            "id": { "type": "text" },
+            "title":  { "type": "text"},
+            "abstract": { "type": "text"},
+            "author": {
+                "properties": {
+                    "id": { "type": "text" },
+                    "name": { "type": "text" }
                 }
             }
         }
@@ -35,7 +33,7 @@ The following returns the mapping of the field `title` only:
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/_doc/field/title
+GET publications/_mapping/field/title
 --------------------------------------------------
 // CONSOLE
 
@@ -46,29 +44,27 @@ For which the response is:
 {
    "publications": {
       "mappings": {
-         "_doc": {
-            "title": {
-               "full_name": "title",
-               "mapping": {
-                  "title": {
-                     "type": "text"
-                  }
-               }
-            }
-         }
-      }
+          "title": {
+             "full_name": "title",
+             "mapping": {
+                "title": {
+                   "type": "text"
+                }
+             }
+          }
+       }
    }
 }
 --------------------------------------------------
 // TESTRESPONSE
 
 [float]
-=== Multiple Indices, Types and Fields
+=== Multiple Indices and Fields
 
-The get field mapping API can be used to get the mapping of multiple fields from more than one index or type
+The get field mapping API can be used to get the mapping of multiple fields from more than one index
 with a single call. General usage of the API follows the
-following syntax: `host:port/{index}/{type}/_mapping/field/{field}` where
-`{index}`, `{type}` and `{field}` can stand for comma-separated list of names or wild cards. To
+following syntax: `host:port/{index}/_mapping/field/{field}` where
+`{index}` and `{field}` can stand for comma-separated list of names or wild cards. To
 get mappings for all indices you can use `_all` for `{index}`. The
 following are some examples:
 
@@ -76,9 +72,9 @@ following are some examples:
 --------------------------------------------------
 GET /twitter,kimchy/_mapping/field/message
 
-GET /_all/_mapping/_doc,tweet,book/field/message,user.id
+GET /_all/_mapping/field/message,user.id
 
-GET /_all/_mapping/_do*/field/*.id
+GET /_all/_mapping/field/*.id
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -93,7 +89,7 @@ For instance to select the `id` of the `author` field, you must use its full nam
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/_doc/field/author.id,abstract,name
+GET publications/_mapping/field/author.id,abstract,name
 --------------------------------------------------
 // CONSOLE
 
@@ -104,25 +100,23 @@ returns:
 {
    "publications": {
       "mappings": {
-         "_doc": {
-            "author.id": {
-               "full_name": "author.id",
-               "mapping": {
-                  "id": {
-                     "type": "text"
-                  }
-               }
-            },
-            "abstract": {
-               "full_name": "abstract",
-               "mapping": {
-                  "abstract": {
-                     "type": "text"
-                  }
-               }
-            }
-         }
-      }
+        "author.id": {
+           "full_name": "author.id",
+           "mapping": {
+              "id": {
+                 "type": "text"
+              }
+           }
+        },
+        "abstract": {
+           "full_name": "abstract",
+           "mapping": {
+              "abstract": {
+                 "type": "text"
+              }
+           }
+        }
+     }
    }
 }
 --------------------------------------------------
@@ -132,7 +126,7 @@ The get field mapping API also supports wildcard notation.
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/_doc/field/a*
+GET publications/_mapping/field/a*
 --------------------------------------------------
 // CONSOLE
 
@@ -143,29 +137,27 @@ returns:
 {
    "publications": {
       "mappings": {
-         "_doc": {
-            "author.name": {
-               "full_name": "author.name",
-               "mapping": {
-                  "name": {
-                     "type": "text"
-                  }
+         "author.name": {
+            "full_name": "author.name",
+            "mapping": {
+               "name": {
+                 "type": "text"
                }
-            },
-            "abstract": {
-               "full_name": "abstract",
-               "mapping": {
-                  "abstract": {
-                     "type": "text"
-                  }
+            }
+         },
+         "abstract": {
+            "full_name": "abstract",
+            "mapping": {
+               "abstract": {
+                  "type": "text"
                }
-            },
-            "author.id": {
-               "full_name": "author.id",
-               "mapping": {
-                  "id": {
-                     "type": "text"
-                  }
+            }
+         },
+         "author.id": {
+            "full_name": "author.id",
+            "mapping": {
+               "id": {
+                  "type": "text"
                }
             }
          }

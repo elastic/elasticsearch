@@ -33,7 +33,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
     public void createComponents() {
         Settings settings = nodeSettings(0);
         jobResultsProvider = new JobResultsProvider(client(), settings);
-        jobResultsPersister = new JobResultsPersister(settings, client());
+        jobResultsPersister = new JobResultsPersister(client());
     }
 
     public void testEstablishedMem_givenNoResults() throws Exception {

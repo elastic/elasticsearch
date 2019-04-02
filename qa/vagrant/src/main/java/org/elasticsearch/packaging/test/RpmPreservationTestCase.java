@@ -26,6 +26,7 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -43,10 +44,7 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -69,11 +67,11 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws IOException {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
     public void test20Remove() {
@@ -91,19 +89,31 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    public void test30PreserveConfig() {
+    public void test30PreserveConfig() throws IOException {
         final Shell sh = new Shell();
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(
-            installation.config("elasticsearch.yml"),
-            installation.config("jvm.options"),
-            installation.config("log4j2.properties")
-        ).forEach(path -> append(path, "# foo"));
+            "elasticsearch.yml",
+            "jvm.options",
+            "log4j2.properties"
+        )
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            )
+                .map(each -> installation.config(each))
+                .forEach(path -> append(path, "# foo"));
+        }
 
         remove(distribution());
         assertRemoved(distribution());
@@ -131,11 +141,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
             "elasticsearch.yml",
             "jvm.options",
             "log4j2.properties"
-        ).forEach(configFile -> {
-            final Path original = installation.config(configFile);
-            final Path saved = installation.config(configFile + ".rpmsave");
-            assertFalse(original + " should not exist", Files.exists(original));
-            assertTrue(saved + " should exist", Files.exists(saved));
-        });
+        ).forEach(this::assertConfFilePreserved);
+
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            ).forEach(this::assertConfFilePreserved);
+        }
+    }
+
+    private void assertConfFilePreserved(String configFile) {
+        final Path original = installation.config(configFile);
+        final Path saved = installation.config(configFile + ".rpmsave");
+        assertFalse(original + " should not exist", Files.exists(original));
+        assertTrue(saved + " should exist", Files.exists(saved));
     }
 }

@@ -32,11 +32,11 @@ public class FileStructure implements ToXContentObject, Writeable {
 
     public enum Format {
 
-        JSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
+        NDJSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
 
         public boolean supportsNesting() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                     return true;
                 case DELIMITED:
@@ -49,7 +49,7 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public boolean isStructured() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                 case DELIMITED:
                     return true;
@@ -62,7 +62,7 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public boolean isSemiStructured() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                 case DELIMITED:
                     return false;
@@ -206,20 +206,20 @@ public class FileStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
-        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
+        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
         ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
-        explanation = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        explanation = Collections.unmodifiableList(in.readStringList());
     }
 
     @Override
@@ -645,7 +645,7 @@ public class FileStructure implements ToXContentObject, Writeable {
             }
 
             switch (format) {
-                case JSON:
+                case NDJSON:
                     if (shouldTrimFields != null) {
                         throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
                     }

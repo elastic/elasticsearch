@@ -12,16 +12,15 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ccr.action.ImmutableFollowParameters;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -90,7 +89,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
         this(
-            in.readMap(StreamInput::readString, AutoFollowPattern::new),
+            in.readMap(StreamInput::readString, AutoFollowPattern::readFrom),
             in.readMapOfLists(StreamInput::readString, StreamInput::readString),
             in.readMap(StreamInput::readString, valIn -> valIn.readMap(StreamInput::readString, StreamInput::readString))
         );
@@ -165,92 +164,70 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AutoFollowMetadata that = (AutoFollowMetadata) o;
-        return Objects.equals(patterns, that.patterns);
+        return Objects.equals(patterns, that.patterns) &&
+               Objects.equals(followedLeaderIndexUUIDs, that.followedLeaderIndexUUIDs) &&
+               Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(patterns);
+        return Objects.hash(patterns, followedLeaderIndexUUIDs, headers);
     }
 
-    public static class AutoFollowPattern implements Writeable, ToXContentObject {
+    public static class AutoFollowPattern extends ImmutableFollowParameters implements ToXContentObject {
 
+        public static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
         public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
-        public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
-        public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-        public static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
-        public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
-        public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
-        public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
-                args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
-                    (ByteSizeValue) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
+                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (Integer) args[3],
+                    (Integer) args[4], (Integer) args[5], (Integer) args[6], (ByteSizeValue) args[7], (ByteSizeValue) args[8],
+                    (Integer) args[9], (ByteSizeValue) args[10], (TimeValue) args[11], (TimeValue) args[12]));
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_OPERATION_COUNT);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_READ_BATCHES);
-            PARSER.declareField(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BATCH_SIZE.getPreferredName()),
-                    MAX_BATCH_SIZE,
-                    ObjectParser.ValueType.STRING);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
-            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
-                MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
-                POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            ImmutableFollowParameters.initParser(PARSER);
         }
 
+        private final String remoteCluster;
         private final List<String> leaderIndexPatterns;
         private final String followIndexPattern;
-        private final Integer maxBatchOperationCount;
-        private final Integer maxConcurrentReadBatches;
-        private final ByteSizeValue maxBatchSize;
-        private final Integer maxConcurrentWriteBatches;
-        private final Integer maxWriteBufferSize;
-        private final TimeValue maxRetryDelay;
-        private final TimeValue pollTimeout;
 
-        public AutoFollowPattern(List<String> leaderIndexPatterns,
+        public AutoFollowPattern(String remoteCluster,
+                                 List<String> leaderIndexPatterns,
                                  String followIndexPattern,
-                                 Integer maxBatchOperationCount,
-                                 Integer maxConcurrentReadBatches,
-                                 ByteSizeValue maxBatchSize,
-                                 Integer maxConcurrentWriteBatches,
-                                 Integer maxWriteBufferSize,
+                                 Integer maxReadRequestOperationCount,
+                                 Integer maxWriteRequestOperationCount,
+                                 Integer maxOutstandingReadRequests,
+                                 Integer maxOutstandingWriteRequests,
+                                 ByteSizeValue maxReadRequestSize,
+                                 ByteSizeValue maxWriteRequestSize,
+                                 Integer maxWriteBufferCount,
+                                 ByteSizeValue maxWriteBufferSize,
                                  TimeValue maxRetryDelay,
                                  TimeValue pollTimeout) {
+            super(maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests, maxOutstandingWriteRequests,
+                maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, pollTimeout);
+            this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
-            this.maxBatchOperationCount = maxBatchOperationCount;
-            this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-            this.maxBatchSize = maxBatchSize;
-            this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
-            this.maxWriteBufferSize = maxWriteBufferSize;
-            this.maxRetryDelay = maxRetryDelay;
-            this.pollTimeout = pollTimeout;
         }
 
-        public AutoFollowPattern(StreamInput in) throws IOException {
-            leaderIndexPatterns = in.readList(StreamInput::readString);
-            followIndexPattern = in.readOptionalString();
-            maxBatchOperationCount = in.readOptionalVInt();
-            maxConcurrentReadBatches = in.readOptionalVInt();
-            maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
-            maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
-            maxRetryDelay = in.readOptionalTimeValue();
-            pollTimeout = in.readOptionalTimeValue();
+        public static AutoFollowPattern readFrom(StreamInput in) throws IOException {
+            return new AutoFollowPattern(in.readString(), in.readStringList(), in.readOptionalString(), in);
+        }
+
+        private AutoFollowPattern(String remoteCluster, List<String> leaderIndexPatterns,
+                                  String followIndexPattern, StreamInput in) throws IOException {
+            super(in);
+            this.remoteCluster = remoteCluster;
+            this.leaderIndexPatterns = leaderIndexPatterns;
+            this.followIndexPattern = followIndexPattern;
         }
 
         public boolean match(String indexName) {
@@ -261,6 +238,10 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return Regex.simpleMatch(leaderIndexPatterns, indexName);
         }
 
+        public String getRemoteCluster() {
+            return remoteCluster;
+        }
+
         public List<String> getLeaderIndexPatterns() {
             return leaderIndexPatterns;
         }
@@ -269,74 +250,22 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return followIndexPattern;
         }
 
-        public Integer getMaxBatchOperationCount() {
-            return maxBatchOperationCount;
-        }
-
-        public Integer getMaxConcurrentReadBatches() {
-            return maxConcurrentReadBatches;
-        }
-
-        public ByteSizeValue getMaxBatchSize() {
-            return maxBatchSize;
-        }
-
-        public Integer getMaxConcurrentWriteBatches() {
-            return maxConcurrentWriteBatches;
-        }
-
-        public Integer getMaxWriteBufferSize() {
-            return maxWriteBufferSize;
-        }
-
-        public TimeValue getMaxRetryDelay() {
-            return maxRetryDelay;
-        }
-
-        public TimeValue getPollTimeout() {
-            return pollTimeout;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringList(leaderIndexPatterns);
+            out.writeString(remoteCluster);
+            out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
-            out.writeOptionalVInt(maxBatchOperationCount);
-            out.writeOptionalVInt(maxConcurrentReadBatches);
-            out.writeOptionalWriteable(maxBatchSize);
-            out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
-            out.writeOptionalTimeValue(maxRetryDelay);
-            out.writeOptionalTimeValue(pollTimeout);
+            super.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
             builder.array(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns.toArray(new String[0]));
             if (followIndexPattern != null) {
                 builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexPattern);
             }
-            if (maxBatchOperationCount != null) {
-                builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
-            }
-            if (maxConcurrentReadBatches != null) {
-                builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
-            }
-            if (maxBatchSize != null) {
-                builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
-            }
-            if (maxConcurrentWriteBatches != null) {
-                builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-            }
-            if (maxWriteBufferSize != null){
-                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
-            }
-            if (maxRetryDelay != null) {
-                builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
-            }
-            if (pollTimeout != null) {
-                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout);
-            }
+            toXContentFragment(builder);
             return builder;
         }
 
@@ -349,30 +278,16 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            AutoFollowPattern that = (AutoFollowPattern) o;
-            return Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-                    Objects.equals(followIndexPattern, that.followIndexPattern) &&
-                    Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
-                    Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
-                    Objects.equals(maxBatchSize, that.maxBatchSize) &&
-                    Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
-                    Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                    Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                    Objects.equals(pollTimeout, that.pollTimeout);
+            if (!super.equals(o)) return false;
+            AutoFollowPattern pattern = (AutoFollowPattern) o;
+            return remoteCluster.equals(pattern.remoteCluster) &&
+                leaderIndexPatterns.equals(pattern.leaderIndexPatterns) &&
+                followIndexPattern.equals(pattern.followIndexPattern);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                    leaderIndexPatterns,
-                    followIndexPattern,
-                    maxBatchOperationCount,
-                    maxConcurrentReadBatches,
-                    maxBatchSize,
-                    maxConcurrentWriteBatches,
-                    maxWriteBufferSize,
-                    maxRetryDelay,
-                    pollTimeout);
+            return Objects.hash(super.hashCode(), remoteCluster, leaderIndexPatterns, followIndexPattern);
         }
     }
 

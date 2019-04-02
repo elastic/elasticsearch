@@ -15,9 +15,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosAuthenticationToken;
-import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.ietf.jgss.GSSException;
 
@@ -53,15 +50,15 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
-        try (SpnegoClient spnegoClient =
-                new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()), principalName(serviceUserName));) {
+        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
+                principalName(serviceUserName), randomFrom(KerberosTicketValidator.SUPPORTED_OIDS));) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
             final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));
 
             // Service Login
             final Environment env = TestEnvironment.newEnvironment(globalSettings);
-            final Path keytabPath = env.configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings));
+            final Path keytabPath = getKeytabPath(env);
             // Handle Authz header which contains base64 token
             final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
             new KerberosTicketValidator().validateTicket((byte[]) kerbAuthnToken.credentials(), keytabPath, true, future);

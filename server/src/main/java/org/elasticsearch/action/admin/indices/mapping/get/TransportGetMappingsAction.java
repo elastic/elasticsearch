@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,10 +41,10 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetMappingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetMappingsAction(TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
-        super(settings, GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
+        super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
                 indexNameExpressionResolver);
         this.indicesService = indicesService;
     }

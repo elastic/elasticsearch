@@ -39,15 +39,13 @@ as follows:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "default_field": { <1>
-          "type": "text"
-        },
-        "boolean_sim_field": {
-          "type": "text",
-          "similarity": "boolean" <2>
-        }
+    "properties": {
+      "default_field": { <1>
+        "type": "text"
+      },
+      "boolean_sim_field": {
+        "type": "text",
+        "similarity": "boolean" <2>
       }
     }
   }

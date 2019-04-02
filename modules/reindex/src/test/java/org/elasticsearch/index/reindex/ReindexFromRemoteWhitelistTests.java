@@ -102,6 +102,12 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
         assertMatchesTooMuch(random);
     }
 
+    public void testIPv6Address() {
+        List<String> whitelist = randomWhitelist();
+        whitelist.add("[::1]:*");
+        checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("[::1]", 9200));
+    }
+
     private void assertMatchesTooMuch(List<String> whitelist) {
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildRemoteWhitelist(whitelist));
         assertEquals("Refusing to start because whitelist " + whitelist + " accepts all addresses. "

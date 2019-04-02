@@ -10,7 +10,7 @@ To illustrate how Painless works, let's load some hockey stats into an Elasticse
 
 [source,js]
 ----------------------------------------------------------------
-PUT hockey/player/_bulk?refresh
+PUT hockey/_bulk?refresh
 {"index":{"_id":1}}
 {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1],"born":"1993/08/13"}
 {"index":{"_id":2}}
@@ -158,7 +158,7 @@ To change player 1's last name to `hockey`, simply set `ctx._source.last` to the
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/1/_update
+POST hockey/_update/1
 {
   "script": {
     "lang": "painless",
@@ -176,7 +176,7 @@ the player's nickname,  _hockey_.
 
 [source,js]
 ----------------------------------------------------------------
-POST hockey/player/1/_update
+POST hockey/_update/1
 {
   "script": {
     "lang": "painless",

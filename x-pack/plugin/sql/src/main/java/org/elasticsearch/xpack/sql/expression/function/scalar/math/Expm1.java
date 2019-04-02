@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * function.
  */
 public class Expm1 extends MathFunction {
-    public Expm1(Location location, Expression field) {
-        super(location, field);
+    public Expm1(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Expm1 extends MathFunction {
 
     @Override
     protected Expm1 replaceChild(Expression newChild) {
-        return new Expm1(location(), newChild);
+        return new Expm1(source(), newChild);
     }
 
     @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -53,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
 final class CompositeAggregator extends BucketsAggregator {
     private final int size;
@@ -78,9 +81,15 @@ final class CompositeAggregator extends BucketsAggregator {
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
+        // check that the provided size is not greater than the search.max_buckets setting
+        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        if (size > bucketLimit) {
+            throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
+                " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
+                "] cluster level setting.", bucketLimit);
+        }
         for (int i = 0; i < sourceConfigs.length; i++) {
-            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(),
-                context.query(), sourceConfigs[i], size, i);
+            this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
         }
         this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
         this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
@@ -88,8 +97,11 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doClose() {
-        Releasables.close(queue);
-        Releasables.close(sources);
+        try {
+            Releasables.close(queue);
+        } finally {
+            Releasables.close(sources);
+        }
     }
 
     @Override
@@ -116,12 +128,12 @@ final class CompositeAggregator extends BucketsAggregator {
 
         int num = Math.min(size, queue.size());
         final InternalComposite.InternalBucket[] buckets = new InternalComposite.InternalBucket[num];
-        int pos = 0;
-        for (int slot : queue.getSortedSlot()) {
+        while (queue.size() > 0) {
+            int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = bucketAggregations(slot);
             int docCount = queue.getDocCount(slot);
-            buckets[pos++] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
+            buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
         return new InternalComposite(name, size, sourceNames, formats, Arrays.asList(buckets), lastBucket, reverseMuls,
@@ -259,13 +271,13 @@ final class CompositeAggregator extends BucketsAggregator {
         };
     }
 
-    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader, Query query,
-                                                              CompositeValuesSourceConfig config, int sortRank, int size) {
+    private SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
+                                                              CompositeValuesSourceConfig config, int size) {
 
         final int reverseMul = config.reverseMul();
         if (config.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
             ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) config.valuesSource();
-            SingleDimensionValuesSource<?> source = new GlobalOrdinalValuesSource(
+            return new GlobalOrdinalValuesSource(
                 bigArrays,
                 config.fieldType(),
                 vs::globalOrdinalsValues,
@@ -274,25 +286,6 @@ final class CompositeAggregator extends BucketsAggregator {
                 size,
                 reverseMul
             );
-
-            if (sortRank == 0 && source.createSortedDocsProducerOrNull(reader, query) != null) {
-                // this the leading source and we can optimize it with the sorted docs producer but
-                // we don't want to use global ordinals because the number of visited documents
-                // should be low and global ordinals need one lookup per visited term.
-                Releasables.close(source);
-                return new BinaryValuesSource(
-                    bigArrays,
-                    this::addRequestCircuitBreakerBytes,
-                    config.fieldType(),
-                    vs::bytesValues,
-                    config.format(),
-                    config.missingBucket(),
-                    size,
-                    reverseMul
-                );
-            } else {
-                return source;
-            }
         } else if (config.valuesSource() instanceof ValuesSource.Bytes) {
             ValuesSource.Bytes vs = (ValuesSource.Bytes) config.valuesSource();
             return new BinaryValuesSource(

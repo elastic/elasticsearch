@@ -10,6 +10,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -74,6 +84,10 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -171,6 +185,14 @@ public class SecurityClient {
 
     public void hasPrivileges(HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         client.execute(HasPrivilegesAction.INSTANCE, request, listener);
+    }
+
+    public GetUserPrivilegesRequestBuilder prepareGetUserPrivileges(String username) {
+        return new GetUserPrivilegesRequestBuilder(client).username(username);
+    }
+
+    public void listUserPrivileges(GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
+        client.execute(GetUserPrivilegesAction.INSTANCE, request, listener);
     }
 
     /**
@@ -314,8 +336,33 @@ public class SecurityClient {
         return new InvalidateTokenRequestBuilder(client).setTokenString(token);
     }
 
+    public InvalidateTokenRequestBuilder prepareInvalidateToken() {
+        return new InvalidateTokenRequestBuilder(client);
+    }
+
     public void invalidateToken(InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         client.execute(InvalidateTokenAction.INSTANCE, request, listener);
+    }
+
+    /* -- Api Keys -- */
+    public CreateApiKeyRequestBuilder prepareCreateApiKey() {
+        return new CreateApiKeyRequestBuilder(client);
+    }
+
+    public CreateApiKeyRequestBuilder prepareCreateApiKey(BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new CreateApiKeyRequestBuilder(client).source(bytesReference, xContentType);
+    }
+
+    public void createApiKey(CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
+        client.execute(CreateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void invalidateApiKey(InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        client.execute(InvalidateApiKeyAction.INSTANCE, request, listener);
+    }
+
+    public void getApiKey(GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        client.execute(GetApiKeyAction.INSTANCE, request, listener);
     }
 
     public SamlAuthenticateRequestBuilder prepareSamlAuthenticate(byte[] xmlContent, List<String> validIds) {

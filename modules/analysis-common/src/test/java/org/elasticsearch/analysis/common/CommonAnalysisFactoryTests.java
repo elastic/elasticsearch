@@ -48,7 +48,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("edgengram", EdgeNGramTokenizerFactory.class);
         tokenizers.put("classic", ClassicTokenizerFactory.class);
         tokenizers.put("letter", LetterTokenizerFactory.class);
-        tokenizers.put("lowercase", LowerCaseTokenizerFactory.class);
+        // tokenizers.put("lowercase", XLowerCaseTokenizerFactory.class);
         tokenizers.put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         tokenizers.put("pattern", PatternTokenizerFactory.class);
         tokenizers.put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
@@ -185,7 +185,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("delimited_payload", org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class);
         filters.put("dutch_stem", SnowballPorterFilterFactory.class);
         filters.put("edge_ngram", null);
-        filters.put("edgeNGram", null);
         filters.put("elision", null);
         filters.put("french_stem", SnowballPorterFilterFactory.class);
         filters.put("german_stem", null);
@@ -197,7 +196,6 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("length", null);
         filters.put("limit", LimitTokenCountFilterFactory.class);
         filters.put("ngram", null);
-        filters.put("nGram", null);
         filters.put("persian_normalization", null);
         filters.put("porter_stem", null);
         filters.put("reverse", ReverseStringFilterFactory.class);
@@ -223,7 +221,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getPreConfiguredTokenizers());
         tokenizers.put("keyword", null);
-        tokenizers.put("lowercase", null);
+        tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
         tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);

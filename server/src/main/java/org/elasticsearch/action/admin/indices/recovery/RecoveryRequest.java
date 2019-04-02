@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.recovery;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -47,7 +48,7 @@ public class RecoveryRequest extends BroadcastRequest<RecoveryRequest> {
      * @param indices   Comma-separated list of indices about which to gather recovery information
      */
     public RecoveryRequest(String... indices) {
-        super(indices);
+        super(indices, IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
     }
 
     /**

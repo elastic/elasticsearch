@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContentTestCase<PutAutoFollowPatternAction.Request> {
+public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -34,39 +34,35 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     }
 
     @Override
-    protected PutAutoFollowPatternAction.Request createBlankInstance() {
-        return new PutAutoFollowPatternAction.Request();
+    protected Writeable.Reader<PutAutoFollowPatternAction.Request> instanceReader() {
+        return PutAutoFollowPatternAction.Request::new;
     }
 
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias(randomAlphaOfLength(4));
+        request.setName(randomAlphaOfLength(4));
+
+        request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
+        return request;
+    }
+
+    @Override
+    protected PutAutoFollowPatternAction.Request createXContextTestInstance(XContentType xContentType) {
+        // follower index parameter is not part of the request body and is provided in the url path.
+        // So this field cannot be used for creating a test instance for xcontent testing.
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster(randomAlphaOfLength(4));
+        request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
-        if (randomBoolean()) {
-            request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
-        }
-        if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
-        }
-        if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
-        }
+        ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
 
@@ -74,9 +70,14 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("[leader_cluster_alias] is missing"));
+        assertThat(validationException.getMessage(), containsString("[name] is missing"));
 
-        request.setLeaderClusterAlias("_alias");
+        request.setName("name");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[remote_cluster] is missing"));
+
+        request.setRemoteCluster("_alias");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));
@@ -90,17 +91,78 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         validationException = request.validate();
         assertThat(validationException, nullValue());
 
-        request.setMaxRetryDelay(TimeValue.ZERO);
+        request.getParameters().setMaxRetryDelay(TimeValue.ZERO);
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be positive but was [0ms]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(10));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(10));
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[max_retry_delay] must be less than [5m] but was [10m]"));
 
-        request.setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        request.getParameters().setMaxRetryDelay(TimeValue.timeValueMinutes(1));
+        validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateName() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("name");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateNameComma() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("name1,name2");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not contain a ','"));
+    }
+
+    public void testValidateNameLeadingUnderscore() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("_name");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not start with '_'"));
+    }
+
+    public void testValidateNameUnderscores() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("n_a_m_e_");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
+
+    public void testValidateNameTooLong() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < 256; i++) {
+            stringBuilder.append('x');
+        }
+        request.setName(stringBuilder.toString());
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name is too long (256 > 255)"));
+
+        request.setName("name");
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }

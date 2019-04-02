@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.core.ccr.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
-import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Objects;
@@ -53,26 +55,26 @@ public class CcrClient {
         return listener;
     }
 
-    public void stats(
+    public void followStats(
             final FollowStatsAction.StatsRequest request,
             final ActionListener<FollowStatsAction.StatsResponses> listener) {
         client.execute(FollowStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<FollowStatsAction.StatsResponses> stats(final FollowStatsAction.StatsRequest request) {
+    public ActionFuture<FollowStatsAction.StatsResponses> followStats(final FollowStatsAction.StatsRequest request) {
         final PlainActionFuture<FollowStatsAction.StatsResponses> listener = PlainActionFuture.newFuture();
         client.execute(FollowStatsAction.INSTANCE, request, listener);
         return listener;
     }
 
-    public void autoFollowStats(final AutoFollowStatsAction.Request request,
-                                final ActionListener<AutoFollowStatsAction.Response> listener) {
-        client.execute(AutoFollowStatsAction.INSTANCE, request, listener);
+    public void stats(final CcrStatsAction.Request request,
+                      final ActionListener<CcrStatsAction.Response> listener) {
+        client.execute(CcrStatsAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<AutoFollowStatsAction.Response> autoFollowStats(final AutoFollowStatsAction.Request request) {
-        final PlainActionFuture<AutoFollowStatsAction.Response> listener = PlainActionFuture.newFuture();
-        autoFollowStats(request, listener);
+    public ActionFuture<CcrStatsAction.Response> stats(final CcrStatsAction.Request request) {
+        final PlainActionFuture<CcrStatsAction.Response> listener = PlainActionFuture.newFuture();
+        stats(request, listener);
         return listener;
     }
 
@@ -93,6 +95,16 @@ public class CcrClient {
     public ActionFuture<AcknowledgedResponse> unfollow(final UnfollowAction.Request request) {
         final PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(UnfollowAction.INSTANCE, request, listener);
+        return listener;
+    }
+
+    public void forgetFollower(final ForgetFollowerAction.Request request, final ActionListener<BroadcastResponse> listener) {
+        client.execute(ForgetFollowerAction.INSTANCE, request, listener);
+    }
+
+    public ActionFuture<BroadcastResponse> forgetFollower(final ForgetFollowerAction.Request request) {
+        final PlainActionFuture<BroadcastResponse> listener = PlainActionFuture.newFuture();
+        client.execute(ForgetFollowerAction.INSTANCE, request, listener);
         return listener;
     }
 

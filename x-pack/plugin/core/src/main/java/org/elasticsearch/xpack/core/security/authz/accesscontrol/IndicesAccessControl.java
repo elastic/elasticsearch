@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,7 +24,8 @@ public class IndicesAccessControl {
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
             Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), null)));
+                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;
@@ -55,12 +58,12 @@ public class IndicesAccessControl {
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;
-        private final Set<BytesReference> queries;
+        private final DocumentPermissions documentPermissions;
 
-        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, Set<BytesReference> queries) {
+        public IndexAccessControl(boolean granted, FieldPermissions fieldPermissions, DocumentPermissions documentPermissions) {
             this.granted = granted;
-            this.fieldPermissions = fieldPermissions;
-            this.queries = queries;
+            this.fieldPermissions = (fieldPermissions == null) ? FieldPermissions.DEFAULT : fieldPermissions;
+            this.documentPermissions = (documentPermissions == null) ? DocumentPermissions.allowAll() : documentPermissions;
         }
 
         /**
@@ -82,8 +85,33 @@ public class IndicesAccessControl {
          *         then this means that there are no document level restrictions
          */
         @Nullable
-        public Set<BytesReference> getQueries() {
-            return queries;
+        public DocumentPermissions getDocumentPermissions() {
+            return documentPermissions;
+        }
+
+        /**
+         * Returns a instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
+         * contained in the provided parameter.<br>
+         * Allowed fields for this index permission would be an intersection of allowed fields.<br>
+         * Allowed documents for this index permission would be an intersection of allowed documents.<br>
+         *
+         * @param limitedByIndexAccessControl {@link IndexAccessControl}
+         * @return {@link IndexAccessControl}
+         * @see FieldPermissions#limitFieldPermissions(FieldPermissions)
+         * @see DocumentPermissions#limitDocumentPermissions(DocumentPermissions)
+         */
+        public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
+            final boolean granted;
+            if (this.granted == limitedByIndexAccessControl.granted) {
+                granted = this.granted;
+            } else {
+                granted = false;
+            }
+            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(
+                    limitedByIndexAccessControl.fieldPermissions);
+            DocumentPermissions documentPermissions = getDocumentPermissions()
+                    .limitDocumentPermissions(limitedByIndexAccessControl.getDocumentPermissions());
+            return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
         }
 
         @Override
@@ -91,9 +119,36 @@ public class IndicesAccessControl {
             return "IndexAccessControl{" +
                     "granted=" + granted +
                     ", fieldPermissions=" + fieldPermissions +
-                    ", queries=" + queries +
+                    ", documentPermissions=" + documentPermissions +
                     '}';
         }
+    }
+
+    /**
+     * Returns a instance of {@link IndicesAccessControl}, where the privileges for {@code this}
+     * object are constrained by the privileges contained in the provided parameter.<br>
+     *
+     * @param limitedByIndicesAccessControl {@link IndicesAccessControl}
+     * @return {@link IndicesAccessControl}
+     */
+    public IndicesAccessControl limitIndicesAccessControl(IndicesAccessControl limitedByIndicesAccessControl) {
+        final boolean granted;
+        if (this.granted == limitedByIndicesAccessControl.granted) {
+            granted = this.granted;
+        } else {
+            granted = false;
+        }
+        Set<String> indexes = indexPermissions.keySet();
+        Set<String> otherIndexes = limitedByIndicesAccessControl.indexPermissions.keySet();
+        Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
+
+        Map<String, IndexAccessControl> indexPermissions = new HashMap<>(commonIndexes.size());
+        for (String index : commonIndexes) {
+            IndexAccessControl indexAccessControl = getIndexPermissions(index);
+            IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
+            indexPermissions.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
+        }
+        return new IndicesAccessControl(granted, indexPermissions);
     }
 
     @Override

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-job-resource]]
-=== Job Resources
+=== Job resources
 
 A job resource has the following properties:
 
@@ -41,11 +41,6 @@ so do not set the `background_persist_interval` value too low.
 
 `description`::
   (string) An optional description of the job.
-
-`established_model_memory`::
-  (long) The approximate amount of memory resources that have been used for
-  analytical processing. This field is present only when the analytics have used
-  a stable amount of memory for several consecutive buckets.
 
 `finished_time`::
   (string) If the job closed or failed, this is the time the job finished,
@@ -364,7 +359,7 @@ If you omit the `categorization_analyzer`, the following default values are used
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/_validate
+POST _ml/anomaly_detectors/_validate
 {
   "analysis_config" : {
     "categorization_analyzer" : {

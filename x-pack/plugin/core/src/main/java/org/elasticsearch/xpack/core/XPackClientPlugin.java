@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -36,16 +36,44 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
+import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
+import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
+import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
+import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
-import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
@@ -85,6 +113,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -112,6 +141,9 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -136,9 +168,10 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
@@ -267,6 +300,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PostCalendarEventsAction.INSTANCE,
                 PersistJobAction.INSTANCE,
                 FindFileStructureAction.INSTANCE,
+                SetUpgradeModeAction.INSTANCE,
                 // security
                 ClearRealmCacheAction.INSTANCE,
                 ClearRolesCacheAction.INSTANCE,
@@ -287,6 +321,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 InvalidateTokenAction.INSTANCE,
                 GetCertificateInfoAction.INSTANCE,
                 RefreshTokenAction.INSTANCE,
+                CreateApiKeyAction.INSTANCE,
+                InvalidateApiKeyAction.INSTANCE,
+                GetApiKeyAction.INSTANCE,
                 // upgrade
                 IndexUpgradeInfoAction.INSTANCE,
                 IndexUpgradeAction.INSTANCE,
@@ -317,7 +354,16 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StopRollupJobAction.INSTANCE,
                 DeleteRollupJobAction.INSTANCE,
                 GetRollupJobsAction.INSTANCE,
-                GetRollupCapsAction.INSTANCE
+                GetRollupCapsAction.INSTANCE,
+                // ILM
+                DeleteLifecycleAction.INSTANCE,
+                GetLifecycleAction.INSTANCE,
+                PutLifecycleAction.INSTANCE,
+                ExplainLifecycleAction.INSTANCE,
+                RemoveIndexLifecyclePolicyAction.INSTANCE,
+                MoveToStepAction.INSTANCE,
+                RetryAction.INSTANCE,
+                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
         );
     }
 
@@ -334,9 +380,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, "ml", MlMetadata::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new),
                 // ML - Persistent action requests
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, StartDatafeedAction.TASK_NAME,
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
                         StartDatafeedAction.DatafeedParams::new),
-                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, OpenJobAction.TASK_NAME,
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
                         OpenJobAction.JobParams::new),
                 // ML - Task states
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new),
@@ -358,6 +404,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+                // sql
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SQL, SqlFeatureSetUsage::new),
                 // watcher
                 new NamedWriteableRegistry.Entry(MetaData.Custom.class, WatcherMetaData.TYPE, WatcherMetaData::new),
                 new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetaData.TYPE, WatcherMetaData::readDiffFrom),
@@ -371,7 +419,36 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
                 // ccr
-                new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new)
+                new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
+                    in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.CCR, CCRFeatureSet.Usage::new),
+                // ILM
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
+                    IndexLifecycleFeatureSetUsage::new),
+                // ILM - Custom Metadata
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, IndexLifecycleMetadata.TYPE,
+                    IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new),
+                // ILM - LifecycleTypes
+                new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE),
+                // ILM - Lifecycle Actions
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, FreezeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
+                // Data Frame
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_FRAME, DataFrameFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DataFrameField.TASK_NAME, DataFrameTransform::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, DataFrameField.TASK_NAME, DataFrameTransformState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameField.TASK_NAME, DataFrameTransformState::new)
         );
     }
 
@@ -382,9 +459,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
                         parser -> MlMetadata.LENIENT_PARSER.parse(parser, null).build()),
                 // ML - Persistent action requests
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(StartDatafeedAction.TASK_NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.DATAFEED_TASK_NAME),
                         StartDatafeedAction.DatafeedParams::fromXContent),
-                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(OpenJobAction.TASK_NAME),
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(MlTasks.JOB_TASK_NAME),
                         OpenJobAction.JobParams::fromXContent),
                 // ML - Task states
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),
@@ -401,15 +478,21 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
-                        RollupJobStatus::fromXContent)
-        );
+                        RollupJobStatus::fromXContent),
+                // Data Frame
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransform::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransformState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransformState::fromXContent)
+            );
     }
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(
             final Settings settings,
             final ThreadPool threadPool,
-            final BigArrays bigArrays,
             final PageCacheRecycler pageCacheRecycler,
             final CircuitBreakerService circuitBreakerService,
             final NamedWriteableRegistry namedWriteableRegistry,
@@ -424,8 +507,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, threadPool,
-                networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService));
+        return Collections.singletonMap(SecurityField.NAME4, () -> new SecurityNetty4Transport(settings, Version.CURRENT, threadPool,
+                networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService));
     }
 
 }

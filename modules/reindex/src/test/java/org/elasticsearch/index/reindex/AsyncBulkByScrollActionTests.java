@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -35,8 +36,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -49,7 +48,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -65,11 +66,14 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -89,7 +93,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -273,7 +276,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     versionConflicts++;
                     responses[i] = new BulkItemResponse(i, randomFrom(DocWriteRequest.OpType.values()),
                         new Failure(shardId.getIndexName(), "type", "id" + i,
-                            new VersionConflictEngineException(shardId, "type", "id", "test")));
+                            new VersionConflictEngineException(shardId, "id", "test")));
                     continue;
                 }
                 boolean createdResponse;
@@ -319,12 +322,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
-                ((AbstractRunnable) command).onRejection(new EsRejectedExecutionException("test"));
-                return null;
+                final EsRejectedExecutionException exception = new EsRejectedExecutionException("test");
+                if (command instanceof AbstractRunnable) {
+                    ((AbstractRunnable) command).onRejection(exception);
+                    return null;
+                } else {
+                    throw exception;
+                }
             }
         });
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
@@ -433,7 +441,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 capturedDelay.set(delay);
                 capturedCommand.set(command);
                 return null;
@@ -458,7 +466,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         // Now we can simulate a response and check the delay that we used for the task
         SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap());
-        SearchHits hits = new SearchHits(new SearchHit[] { hit }, 0, 0);
+        SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
         InternalSearchResponse internalResponse = new InternalSearchResponse(hits, null, null, null, false, false, 1);
         SearchResponse searchResponse = new SearchResponse(internalResponse, scrollId(), 5, 4, 0, randomLong(), null,
                 SearchResponse.Clusters.EMPTY);
@@ -609,7 +617,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledFuture<?> schedule(TimeValue delay, String name, Runnable command) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
                 /*
                  * This is called twice:
                  * 1. To schedule the throttling. When that happens we immediately cancel the task.
@@ -620,7 +628,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (delay.nanos() > 0) {
                     generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
-                return super.schedule(delay, name, command);
+                return super.schedule(command, delay, name);
             }
         });
 
@@ -669,15 +677,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         action.onScrollResponse(lastBatchTime, lastBatchSize, response);
     }
 
-    private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest> {
+    private class DummyAsyncBulkByScrollAction
+        extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, DummyTransportAsyncBulkByScrollAction> {
         DummyAsyncBulkByScrollAction() {
-            super(testTask, AsyncBulkByScrollActionTests.this.logger, new ParentTaskAssigningClient(client, localNode, testTask),
-                    client.threadPool(), testRequest, null, null, listener);
-        }
-
-        @Override
-        protected boolean needsSourceDocumentVersions() {
-            return randomBoolean();
+            super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
+                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), null, testRequest, listener);
         }
 
         @Override
@@ -694,6 +698,20 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         BackoffPolicy buildBackoffPolicy() {
             // Force a backoff time of 0 to prevent sleeping
             return constantBackoff(timeValueMillis(0), testRequest.getMaxRetries());
+        }
+    }
+
+    private static class DummyTransportAsyncBulkByScrollAction
+        extends TransportAction<DummyAbstractBulkByScrollRequest, BulkByScrollResponse> {
+
+
+        protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+            super(actionName, actionFilters, taskManager);
+        }
+
+        @Override
+        protected void doExecute(Task task, DummyAbstractBulkByScrollRequest request, ActionListener<BulkByScrollResponse> listener) {
+            // no-op
         }
     }
 

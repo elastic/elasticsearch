@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -25,8 +25,7 @@
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }
@@ -35,7 +34,7 @@
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
 
   - match: { found : true}
@@ -43,40 +42,42 @@
   - match: { status.state.active: true }
 
   - do:
-      xpack.watcher.deactivate_watch:
+      watcher.deactivate_watch:
         watch_id: "my_watch"
 
   - match: { status.state.active : false }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .watches
         body: { "query": { "term": { "_id": "my_watch" } } }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.status.state.active: false }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
   - match: { _id: "my_watch" }
   - match: { status.state.active: false }
 
   - do:
-      xpack.watcher.activate_watch:
+      watcher.activate_watch:
         watch_id: "my_watch"
 
   - match: { status.state.active : true }
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: .watches
         body: { "query": { "term": { "_id": "my_watch" } } }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._source.status.state.active: true }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
 
   - match: { found : true}
@@ -84,7 +85,7 @@
   - match: { status.state.active: true }
 
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
 
   - match: { found: true }
@@ -96,11 +97,11 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.activate_watch:
+      watcher.activate_watch:
         watch_id: "non-existent-watch"
       catch: missing
 
   - do:
-      xpack.watcher.deactivate_watch:
+      watcher.deactivate_watch:
         watch_id: "non-existent-watch"
       catch: missing

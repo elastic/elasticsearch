@@ -1,8 +1,10 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-1
         body:  >
           {
@@ -22,7 +24,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: jobs-get-2
         body:  >
           {
@@ -44,20 +46,20 @@ setup:
 
   - do:
       catch: missing
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: missing-job
 
 ---
 "Test get single job":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: jobs-get-1
   - match: { jobs.0.job_id: "jobs-get-1"}
   - match: { jobs.0.description: "Job 1"}
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: jobs-get-2
   - match: { jobs.0.job_id: "jobs-get-2"}
   - match: { jobs.0.description: "Job 2"}
@@ -66,7 +68,7 @@ setup:
 "Test explicit get all jobs":
 
   - do:
-      xpack.ml.get_jobs:
+      ml.get_jobs:
         job_id: _all
   - match: { count: 2 }
   - match: { jobs.0.job_id: "jobs-get-1"}
@@ -78,7 +80,7 @@ setup:
 "Test implicit get all jobs":
 
   - do:
-      xpack.ml.get_jobs: {}
+      ml.get_jobs: {}
   - match: { count: 2 }
   - match: { jobs.0.job_id: "jobs-get-1"}
   - match: { jobs.0.description: "Job 1"}

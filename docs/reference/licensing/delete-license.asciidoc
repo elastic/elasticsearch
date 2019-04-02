@@ -1,14 +1,17 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-license]]
-=== Delete License API
+=== Delete license API
+++++
+<titleabbrev>Delete license</titleabbrev>
+++++
 
 This API enables you to delete licensing information.
 
 [float]
 ==== Request
 
-`DELETE /_xpack/license`
+`DELETE /_license`
 
 [float]
 ==== Description
@@ -30,7 +33,7 @@ The following example queries the info API:
 
 [source,js]
 ------------------------------------------------------------
-DELETE _xpack/license
+DELETE /_license
 ------------------------------------------------------------
 // CONSOLE
 // TEST[skip:license testing issues]

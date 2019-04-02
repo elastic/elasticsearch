@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -42,6 +44,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
@@ -50,12 +53,13 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(FieldSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldSortBuilder.class));
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
     public static final ParseField SORT_MODE = new ParseField("mode");
     public static final ParseField UNMAPPED_TYPE = new ParseField("unmapped_type");
+    public static final ParseField NUMERIC_TYPE = new ParseField("numeric_type");
 
     /**
      * special field name to sort by index order
@@ -71,6 +75,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private Object missing;
 
     private String unmappedType;
+
+    private String numericType;
 
     private SortMode sortMode;
 
@@ -93,7 +99,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         this.setNestedPath(template.getNestedPath());
         if (template.getNestedSort() != null) {
             this.setNestedSort(template.getNestedSort());
-        };
+        }
+        this.numericType = template.numericType;
     }
 
     /**
@@ -120,8 +127,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         order = in.readOptionalWriteable(SortOrder::readFromStream);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            numericType = in.readOptionalString();
         }
     }
 
@@ -134,8 +142,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(order);
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalWriteable(nestedSort);
+        out.writeOptionalWriteable(nestedSort);
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            out.writeOptionalString(numericType);
         }
     }
 
@@ -274,6 +283,39 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return this;
     }
 
+    /**
+     * Returns the numeric type that values should translated to or null
+     * if the original numeric type should be preserved.
+     */
+    public String getNumericType() {
+        return numericType;
+    }
+
+    /**
+     * Forces the numeric type to use for the field. The query will fail if this option
+     * is set on a field that is not mapped as a numeric in some indices.
+     * Specifying a numeric type tells Elasticsearch what type the sort values should
+     * have, which is important for cross-index search, if a field does not have
+     * the same type on all indices.
+     * Allowed values are <code>long</code> and <code>double</code>.
+     */
+    public FieldSortBuilder setNumericType(String numericType) {
+        String lowerCase = numericType.toLowerCase(Locale.ENGLISH);
+        switch (lowerCase) {
+            case "long":
+            case "double":
+            case "date":
+            case "date_nanos":
+                break;
+
+            default:
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + lowerCase);
+        }
+        this.numericType = lowerCase;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -297,9 +339,29 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
         }
+        if (numericType != null) {
+            builder.field(NUMERIC_TYPE.getPreferredName(), numericType);
+        }
         builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    private static NumericType resolveNumericType(String value) {
+        switch (value) {
+            case "long":
+                return NumericType.LONG;
+            case "double":
+                return NumericType.DOUBLE;
+            case "date":
+                return NumericType.DATE;
+            case "date_nanos":
+                return NumericType.DATE_NANOSECONDS;
+
+            default:
+                throw new IllegalArgumentException("invalid value for [numeric_type], " +
+                    "must be [long, double, date, date_nanos], got " + value);
+        }
     }
 
     @Override
@@ -351,7 +413,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
                 throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
-            SortField field = fieldData.sortField(missing, localSortMode, nested, reverse);
+            final SortField field;
+            if (numericType != null) {
+                if (fieldData instanceof IndexNumericFieldData == false) {
+                    throw new QueryShardException(context,
+                        "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName());
+                }
+                SortedNumericDVIndexFieldData numericFieldData = (SortedNumericDVIndexFieldData) fieldData;
+                NumericType resolvedType = resolveNumericType(numericType);
+                field = numericFieldData.sortField(resolvedType, missing, localSortMode, nested, reverse);
+            } else {
+                field = fieldData.sortField(missing, localSortMode, nested, reverse);
+            }
             return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }
@@ -370,13 +443,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return (Objects.equals(this.fieldName, builder.fieldName) && Objects.equals(this.nestedFilter, builder.nestedFilter)
                 && Objects.equals(this.nestedPath, builder.nestedPath) && Objects.equals(this.missing, builder.missing)
                 && Objects.equals(this.order, builder.order) && Objects.equals(this.sortMode, builder.sortMode)
-                && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort));
+                && Objects.equals(this.unmappedType, builder.unmappedType) && Objects.equals(this.nestedSort, builder.nestedSort))
+                && Objects.equals(this.numericType, builder.numericType);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(this.fieldName, this.nestedFilter, this.nestedPath, this.nestedSort, this.missing, this.order, this.sortMode,
-            this.unmappedType);
+            this.unmappedType, this.numericType);
     }
 
     @Override
@@ -402,17 +476,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static {
         PARSER.declareField(FieldSortBuilder::missing, p -> p.objectText(),  MISSING, ValueType.VALUE);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
+            deprecationLogger.deprecated("[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareString(FieldSortBuilder::unmappedType , UNMAPPED_TYPE);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
-            DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
+            deprecationLogger.deprecated("[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
+        PARSER.declareString((b, v) -> b.setNumericType(v), NUMERIC_TYPE);
     }
 
     @Override

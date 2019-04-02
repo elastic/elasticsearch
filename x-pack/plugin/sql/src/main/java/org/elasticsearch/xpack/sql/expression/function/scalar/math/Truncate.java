@@ -6,17 +6,11 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.tree.Source;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import java.util.List;
 
 /**
  * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
@@ -24,35 +18,24 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  * parameter count digits after the decimal point. If negative, it will truncate the number till that parameter
  * count digits before the decimal point, starting at the decimal point.
  */
-public class Truncate extends BinaryNumericFunction {
+public class Truncate extends BinaryOptionalNumericFunction {
     
-    public Truncate(Location location, Expression left, Expression right) {
-        super(location, left, right == null ? Literal.of(left.location(), 0) : right, BinaryMathOperation.TRUNCATE);
+    public Truncate(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
-    protected NodeInfo<Truncate> info() {
+    protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Truncate::new, left(), right());
     }
 
     @Override
-    protected Truncate replaceChildren(Expression newLeft, Expression newRight) {
-        return new Truncate(location(), newLeft, newRight);
+    protected BinaryOptionalMathOperation operation() {
+        return BinaryOptionalMathOperation.TRUNCATE;
     }
-
+    
     @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                mathFunction(),
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
-    }
-
-    @Override
-    public DataType dataType() {
-        return left().dataType();
+    protected final Expression replacedChildrenInstance(List<Expression> newChildren) {
+        return new Truncate(source(), newChildren.get(0), right() == null ? null : newChildren.get(1));
     }
 }

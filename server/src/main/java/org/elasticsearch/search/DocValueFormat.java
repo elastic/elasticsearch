@@ -25,13 +25,11 @@ import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.time.DateUtils;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -39,6 +37,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -51,29 +50,41 @@ public interface DocValueFormat extends NamedWriteable {
     /** Format a long value. This is used by terms and histogram aggregations
      *  to format keys for fields that use longs as a doc value representation
      *  such as the {@code long} and {@code date} fields. */
-    Object format(long value);
+    default Object format(long value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Format a double value. This is used by terms and stats aggregations
      *  to format keys for fields that use numbers as a doc value representation
      *  such as the {@code long}, {@code double} or {@code date} fields. */
-    Object format(double value);
+    default Object format(double value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
-    Object format(BytesRef value);
+    default Object format(BytesRef value) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(long)} back to the
      *  original long value. */
-    long parseLong(String value, boolean roundUp, LongSupplier now);
+    default long parseLong(String value, boolean roundUp, LongSupplier now) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(double)} back to
      *  the original double value. */
-    double parseDouble(String value, boolean roundUp, LongSupplier now);
+    default double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        throw new UnsupportedOperationException();
+    }
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    BytesRef parseBytesRef(String value);
+    default BytesRef parseBytesRef(String value) {
+        throw new UnsupportedOperationException();
+    }
 
     DocValueFormat RAW = new DocValueFormat() {
 
@@ -83,7 +94,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -131,17 +142,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
-
-        @Override
-        public Object format(long value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object format(double value) {
-            throw new UnsupportedOperationException();
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -152,38 +153,42 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(Base64.getDecoder().decode(value));
         }
     };
 
+    static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
+        if (format instanceof DateTime) {
+            DateTime dateTime = (DateTime) format;
+            return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS);
+        } else {
+            throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
+        }
+    }
+
     final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
 
-        final FormatDateTimeFormatter formatter;
-        // TODO: change this to ZoneId, but will require careful change to serialization
-        final DateTimeZone timeZone;
+        final DateFormatter formatter;
+        final ZoneId timeZone;
         private final DateMathParser parser;
+        final DateFieldMapper.Resolution resolution;
 
-        public DateTime(FormatDateTimeFormatter formatter, DateTimeZone timeZone) {
-            this.formatter = Objects.requireNonNull(formatter);
+        public DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution) {
+            this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();
+            this.resolution = resolution;
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this(Joda.forPattern(in.readString()), DateTimeZone.forID(in.readString()));
+            this.formatter = DateFormatter.forPattern(in.readString());
+            this.parser = formatter.toDateMathParser();
+            String zoneId = in.readString();
+            this.timeZone = ZoneId.of(zoneId);
+            this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
         }
 
         @Override
@@ -193,13 +198,14 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(formatter.format());
-            out.writeString(timeZone.getID());
+            out.writeString(formatter.pattern());
+            out.writeString(timeZone.getId());
+            out.writeVInt(resolution.ordinal());
         }
 
         @Override
         public String format(long value) {
-            return formatter.printer().withZone(timeZone).print(value);
+            return formatter.format(resolution.toInstant(value).atZone(timeZone));
         }
 
         @Override
@@ -208,23 +214,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, DateUtils.dateTimeZoneToZoneId(timeZone));
+            return resolution.convert(parser.parse(value, now, roundUp, timeZone));
         }
 
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -236,7 +232,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -248,26 +244,6 @@ public interface DocValueFormat extends NamedWriteable {
         public String format(double value) {
             return format((long) value);
         }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
-        }
     };
 
     DocValueFormat BOOLEAN = new DocValueFormat() {
@@ -278,22 +254,17 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
         public Boolean format(long value) {
-            return java.lang.Boolean.valueOf(value != 0);
+            return value != 0;
         }
 
         @Override
         public Boolean format(double value) {
-            return java.lang.Boolean.valueOf(value != 0);
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
+            return value != 0;
         }
 
         @Override
@@ -311,11 +282,6 @@ public interface DocValueFormat extends NamedWriteable {
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
-        }
     };
 
     DocValueFormat IP = new DocValueFormat() {
@@ -326,17 +292,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
-
-        @Override
-        public String format(long value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String format(double value) {
-            throw new UnsupportedOperationException();
+        public void writeTo(StreamOutput out) {
         }
 
         @Override
@@ -344,16 +300,6 @@ public interface DocValueFormat extends NamedWriteable {
             byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
             InetAddress inet = InetAddressPoint.decode(bytes);
             return NetworkAddress.format(inet);
-        }
-
-        @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -396,7 +342,7 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(double value) {
-            /**
+            /*
              * Explicitly check for NaN, since it formats to "�" or "NaN" depending on JDK version.
              *
              * Decimal formatter uses the JRE's default symbol list (via Locale.ROOT above).  In JDK8,
@@ -413,11 +359,6 @@ public interface DocValueFormat extends NamedWriteable {
                 return String.valueOf(Double.NaN);
             }
             return format.format(value);
-        }
-
-        @Override
-        public String format(BytesRef value) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -450,11 +391,6 @@ public interface DocValueFormat extends NamedWriteable {
                 throw new RuntimeException(e);
             }
             return n.doubleValue();
-        }
-
-        @Override
-        public BytesRef parseBytesRef(String value) {
-            throw new UnsupportedOperationException();
         }
 
         @Override

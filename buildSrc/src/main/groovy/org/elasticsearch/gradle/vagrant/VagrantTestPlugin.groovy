@@ -4,6 +4,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.BwcVersions
 import org.gradle.api.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
@@ -24,8 +25,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -52,14 +53,22 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
-            'archives:tar',
-            'archives:oss-tar',
-            'archives:zip',
-            'archives:oss-zip',
+            'archives:linux-tar',
+            'archives:oss-linux-tar',
+            'archives:windows-zip',
+            'archives:oss-windows-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
-            'packages:oss-deb'
+            'packages:oss-deb',
+            'archives:no-jdk-linux-tar',
+            'archives:oss-no-jdk-linux-tar',
+            'archives:no-jdk-windows-zip',
+            'archives:oss-no-jdk-windows-zip',
+            'packages:no-jdk-rpm',
+            'packages:oss-no-jdk-rpm',
+            'packages:no-jdk-deb',
+            'packages:oss-no-jdk-deb'
     ])
 
     /** Packages onboarded for upgrade tests **/
@@ -69,7 +78,6 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static final PACKAGING_TEST_CONFIGURATION = 'packagingTest'
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     /** Boxes that have been supplied and are available for testing **/
     List<String> availableBoxes = []
@@ -159,8 +167,7 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static void configurePackagingArchiveRepositories(Project project) {
         RepositoryHandler repos = project.repositories
 
-        // Try maven central first, it'll have releases before 5.0.0
-        repos.mavenCentral()
+        repos.jcenter() // will have releases before 5.0.0
 
         /* Setup a repository that tries to download from
           https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]
@@ -185,20 +192,42 @@ class VagrantTestPlugin implements Plugin<Project> {
             upgradeFromVersion = Version.fromString(upgradeFromVersionRaw)
         }
 
+        List<Object> dependencies = new ArrayList<>()
         DISTRIBUTIONS.each {
             // Adds a dependency for the current version
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
+            dependencies.add(project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
-        UPGRADE_FROM_ARCHIVES.each {
+        if (project.ext.bwc_tests_enabled) {
             // The version of elasticsearch that we upgrade *from*
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-            if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                project.dependencies.add(PACKAGING_CONFIGURATION,
-                        "org.elasticsearch.distribution.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+            // we only add them as dependencies if the bwc tests are enabled, so we don't trigger builds otherwise
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
+            if (unreleasedInfo != null) {
+                // handle snapshots pointing to bwc build
+                UPGRADE_FROM_ARCHIVES.each {
+                    dependencies.add(project.dependencies.project(
+                            path: "${unreleasedInfo.gradleProjectPath}", configuration: it))
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add(project.dependencies.project(
+                                path: "${unreleasedInfo.gradleProjectPath}", configuration: "oss-${it}"))
+                    }
+                }
+            } else {
+                UPGRADE_FROM_ARCHIVES.each {
+                    // The version of elasticsearch that we upgrade *from*
+                    dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                    }
+                }
             }
+        } else {
+            // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests.
+            upgradeFromVersion = Version.fromString(project.version)
+        }
+
+        for (Object dependency : dependencies) {
+            project.dependencies.add(PACKAGING_CONFIGURATION, dependency)
         }
 
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
@@ -278,9 +307,13 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
+            String version = project.extensions.esvagrant.upgradeFromVersion
+            if (project.bwcVersions.unreleased.contains(project.extensions.esvagrant.upgradeFromVersion)) {
+                version += "-SNAPSHOT"
+            }
             dependsOn copyPackagingArchives
             file "${archivesDir}/upgrade_from_version"
-            contents project.extensions.esvagrant.upgradeFromVersion.toString()
+            contents version
         }
 
         Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {
@@ -354,15 +387,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createPlatformTestTask(Project project) {
-        project.tasks.create('platformTest') {
-            group 'Verification'
-            description "Test unit and integ tests on different platforms using vagrant. See TESTING.asciidoc for details. This test " +
-                    "is unmaintained."
-            dependsOn 'vagrantCheckVersion'
-        }
-    }
-
     private void createBoxListTasks(Project project) {
         project.tasks.create('listAllBoxes') {
             group 'Verification'
@@ -395,7 +419,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createSmokeTestTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
-        createPlatformTestTask(project)
         createBoxListTasks(project)
     }
 
@@ -419,9 +442,6 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
-
-        assert project.tasks.platformTest != null
-        Task platformTest = project.tasks.platformTest
 
         /*
          * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
@@ -461,9 +481,9 @@ class VagrantTestPlugin implements Plugin<Project> {
              * execution.
              */
             final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
-            final boolean vagrantDestroy
+            boolean vagrantDestroy
             if ("true".equals(vagrantDestroyProperty)) {
-                vagrantDestroy = true;
+                vagrantDestroy = true
             } else if ("false".equals(vagrantDestroyProperty)) {
                 vagrantDestroy = false
             } else {
@@ -576,31 +596,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                     packagingTest.dependsOn(javaPackagingTest)
                 }
             }
-
-            /*
-             * This test is unmaintained and was created to run on Linux. We won't allow it to run on Windows
-             * until it's been brought back into maintenance
-             */
-            if (LINUX_BOXES.contains(box)) {
-                Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
-                    command 'ssh'
-                    boxName box
-                    environmentVars vagrantEnvVars
-                    dependsOn up
-                    finalizedBy halt
-                    args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
-                }
-                TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
-                platform.doFirst {
-                    project.gradle.addListener(platformReproListener)
-                }
-                platform.doLast {
-                    project.gradle.removeListener(platformReproListener)
-                }
-                if (project.extensions.esvagrant.boxes.contains(box)) {
-                    platformTest.dependsOn(platform)
-                }
-            }
         }
     }
 
@@ -610,7 +605,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }

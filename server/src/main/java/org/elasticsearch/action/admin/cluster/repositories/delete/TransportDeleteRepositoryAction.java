@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -43,10 +42,11 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportDeleteRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteRepositoryAction(TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteRepositoryRequest::new);
+        super(DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, DeleteRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
     }
 
@@ -66,20 +66,20 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     }
 
     @Override
-    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state, final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) {
         repositoriesService.unregisterRepository(
-                new RepositoriesService.UnregisterRepositoryRequest("delete_repository [" + request.name() + "]", request.name())
-                        .masterNodeTimeout(request.masterNodeTimeout()).ackTimeout(request.timeout()),
-                new ActionListener<ClusterStateUpdateResponse>() {
-                    @Override
-                    public void onResponse(ClusterStateUpdateResponse unregisterRepositoryResponse) {
-                        listener.onResponse(new AcknowledgedResponse(unregisterRepositoryResponse.isAcknowledged()));
-                    }
+            request,
+            new ActionListener<ClusterStateUpdateResponse>() {
+                @Override
+                public void onResponse(ClusterStateUpdateResponse unregisterRepositoryResponse) {
+                    listener.onResponse(new AcknowledgedResponse(unregisterRepositoryResponse.isAcknowledged()));
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 }

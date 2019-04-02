@@ -18,11 +18,9 @@ There are four ways that a geo-point may be specified, as demonstrated below:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "location": {
-          "type": "geo_point"
-        }
+    "properties": {
+      "location": {
+        "type": "geo_point"
       }
     }
   }

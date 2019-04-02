@@ -5,25 +5,28 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -35,18 +38,18 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
 import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.job.persistence.CalendarQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.junit.Before;
@@ -55,11 +58,11 @@ import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,21 +79,6 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
     private JobResultsProvider jobProvider;
 
-    @Override
-    protected Settings nodeSettings()  {
-        Settings.Builder newSettings = Settings.builder();
-        newSettings.put(super.nodeSettings());
-        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        return newSettings.build();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateMachineLearning.class);
-    }
-
     @Before
     public void createComponents() throws Exception {
         Settings.Builder builder = Settings.builder()
@@ -99,13 +87,53 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         waitForMlTemplates();
     }
 
-    private void waitForMlTemplates() throws Exception {
-        // block until the templates are installed
-        assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
-        });
+    @AwaitsFix(bugUrl ="https://github.com/elastic/elasticsearch/issues/40134")
+    public void testMultipleSimultaneousJobCreations() {
+
+        int numJobs = randomIntBetween(4, 7);
+
+        // Each job should result in one extra field being added to the results index mappings: field1, field2, field3, etc.
+        // Due to all being created simultaneously this test may reveal race conditions in the code that updates the mappings.
+        List<PutJobAction.Request> requests = new ArrayList<>(numJobs);
+        for (int i = 1; i <= numJobs; ++i) {
+            Job.Builder builder = new Job.Builder("job" + i);
+            AnalysisConfig.Builder ac = createAnalysisConfig("field" + i, Collections.emptyList());
+            DataDescription.Builder dc = new DataDescription.Builder();
+            builder.setAnalysisConfig(ac);
+            builder.setDataDescription(dc);
+
+            requests.add(new PutJobAction.Request(builder));
+        }
+
+        // Start the requests as close together as possible, without waiting for each to complete before starting the next one.
+        List<ActionFuture<PutJobAction.Response>> futures = new ArrayList<>(numJobs);
+        for (PutJobAction.Request request : requests) {
+            futures.add(client().execute(PutJobAction.INSTANCE, request));
+        }
+
+        // Only after all requests are in-flight, wait for all the requests to complete.
+        for (ActionFuture<PutJobAction.Response> future : futures) {
+            future.actionGet();
+        }
+
+        // Assert that the mappings contain all the additional fields: field1, field2, field3, etc.
+        String sharedResultsIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+        GetMappingsRequest request = new GetMappingsRequest().indices(sharedResultsIndex);
+        GetMappingsResponse response = client().execute(GetMappingsAction.INSTANCE, request).actionGet();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings = response.getMappings();
+        assertNotNull(indexMappings);
+        ImmutableOpenMap<String, MappingMetaData> typeMappings = indexMappings.get(sharedResultsIndex);
+        assertNotNull("expected " + sharedResultsIndex + " in " + indexMappings, typeMappings);
+        assertEquals("expected 1 type in " + typeMappings, 1, typeMappings.size());
+        Map<String, Object> mappings = typeMappings.iterator().next().value.getSourceAsMap();
+        assertNotNull(mappings);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        assertNotNull("expected 'properties' field in " + mappings, properties);
+        for (int i = 1; i <= numJobs; ++i) {
+            String fieldName = "field" + i;
+            assertNotNull("expected '" + fieldName + "' field in " + properties, properties.get(fieldName));
+        }
     }
 
     public void testGetCalandarByJobId() throws Exception {
@@ -364,7 +392,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private ScheduledEvent buildScheduledEvent(String description, ZonedDateTime start, ZonedDateTime end, String calendarId) {
-        return new ScheduledEvent.Builder().description(description).startTime(start).endTime(end).calendarId(calendarId).build();
+        return new ScheduledEvent.Builder()
+            .description(description)
+            .startTime(start.toInstant())
+            .endTime(end.toInstant())
+            .calendarId(calendarId)
+            .build();
     }
 
     public void testGetAutodetectParams() throws Exception {
@@ -408,7 +441,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Quantiles quantiles = new Quantiles(jobId, new Date(), "quantile-state");
         indexQuantiles(quantiles);
 
-        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexName(),
+        client().admin().indices().prepareRefresh(MlMetaIndex.INDEX_NAME, AnomalyDetectorsIndex.jobStateIndexPattern(),
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
 
 
@@ -497,7 +530,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private Job.Builder createJob(String jobId, List<String> filterIds, List<String> jobGroups) {
         Job.Builder builder = new Job.Builder(jobId);
         builder.setGroups(jobGroups);
-        AnalysisConfig.Builder ac = createAnalysisConfig(filterIds);
+        AnalysisConfig.Builder ac = createAnalysisConfig("by_field", filterIds);
         DataDescription.Builder dc = new DataDescription.Builder();
         builder.setAnalysisConfig(ac);
         builder.setDataDescription(dc);
@@ -507,14 +540,14 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         return builder;
     }
 
-    private AnalysisConfig.Builder createAnalysisConfig(List<String> filterIds) {
+    private AnalysisConfig.Builder createAnalysisConfig(String byFieldName, List<String> filterIds) {
         Detector.Builder detector = new Detector.Builder("mean", "field");
-        detector.setByFieldName("by_field");
+        detector.setByFieldName(byFieldName);
         List<DetectionRule> rules = new ArrayList<>();
 
         for (String filterId : filterIds) {
             RuleScope.Builder ruleScope = RuleScope.builder();
-            ruleScope.include("by_field", filterId);
+            ruleScope.include(byFieldName, filterId);
 
             rules.add(new DetectionRule.Builder(ruleScope).setActions(RuleAction.SKIP_RESULT).build());
         }
@@ -528,9 +561,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (ScheduledEvent event : events) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE);
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(event.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -542,7 +575,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexDataCounts(DataCounts counts, String jobId) throws Exception {
-        JobDataCountsPersister persister = new JobDataCountsPersister(nodeSettings(), client());
+        JobDataCountsPersister persister = new JobDataCountsPersister(client());
 
         AtomicReference<Exception> errorHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -571,9 +604,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (MlFilter filter : filters) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, filter.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(filter.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }
@@ -582,17 +615,17 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     }
 
     private void indexModelSizeStats(ModelSizeStats modelSizeStats) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistModelSizeStats(modelSizeStats);
     }
 
     private void indexModelSnapshot(ModelSnapshot snapshot) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistModelSnapshot(snapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
     }
 
     private void indexQuantiles(Quantiles quantiles) {
-        JobResultsPersister persister = new JobResultsPersister(nodeSettings(), client());
+        JobResultsPersister persister = new JobResultsPersister(client());
         persister.persistQuantiles(quantiles);
     }
 
@@ -601,9 +634,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         for (Calendar calendar: calendars) {
-            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());
+            IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(calendar.documentId());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(MlMetaIndex.INCLUDE_TYPE_KEY, "true"));
+                ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_TYPE, "true"));
                 indexRequest.source(calendar.toXContent(builder, params));
                 bulkRequest.add(indexRequest);
             }

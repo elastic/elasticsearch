@@ -154,19 +154,9 @@ class BulkByScrollParallelizationHelper {
                 }
                 slicedSource = request.source().copyWithNewSlice(sliceBuilder);
             }
-            slices[slice] = new SearchRequest()
-                    .source(slicedSource)
-                    .searchType(request.searchType())
-                    .indices(request.indices())
-                    .types(request.types())
-                    .routing(request.routing())
-                    .preference(request.preference())
-                    .requestCache(request.requestCache())
-                    .scroll(request.scroll())
-                    .indicesOptions(request.indicesOptions());
-            if (request.allowPartialSearchResults() != null) {
-                slices[slice].allowPartialSearchResults(request.allowPartialSearchResults());
-            }
+            SearchRequest searchRequest = new SearchRequest(request);
+            searchRequest.source(slicedSource);
+            slices[slice] = searchRequest;
         }
         return slices;
     }

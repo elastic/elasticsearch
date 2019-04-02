@@ -7,6 +7,7 @@ package org.elasticsearch.smoketest;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -40,15 +42,15 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(new Request("DELETE", "/.watcher-history-*")));
 
         assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+            Response response = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
             String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
 
             switch (state) {
                 case "stopped":
-                    Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
+                    Response startResponse = adminClient().performRequest(new Request("POST", "/_watcher/_start"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until stopped state reached started state");
                 case "stopping":
                     throw new AssertionError("waiting until stopping state reached stopped state to start again");
                 case "starting":
@@ -72,7 +74,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     @After
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
-            Response response = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+            Response response = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
             String state = ObjectPath.createFromResponse(response).evaluate("stats.0.watcher_state");
 
             switch (state) {
@@ -84,10 +86,10 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
-                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
+                    Response stopResponse = adminClient().performRequest(new Request("POST", "/_watcher/_stop"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
@@ -162,15 +164,16 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     }
 
     private void indexWatch(String watchId, XContentBuilder builder) throws Exception {
-        Request request = new Request("PUT", "/_xpack/watcher/watch/" + watchId);
+        Request request = new Request("PUT", "/_watcher/watch/" + watchId);
         request.setJsonEntity(Strings.toString(builder));
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = entityAsMap(response);
         assertThat(responseMap, hasEntry("_id", watchId));
+        logger.info("Successfully indexed watch with id [{}]", watchId);
     }
 
     private void deleteWatch(String watchId) throws IOException {
-        Response response = client().performRequest(new Request("DELETE", "/_xpack/watcher/watch/" + watchId));
+        Response response = client().performRequest(new Request("DELETE", "/_watcher/watch/" + watchId));
         assertOK(response);
         ObjectPath path = ObjectPath.createFromResponse(response);
         boolean found = path.evaluate("found");
@@ -180,7 +183,14 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
     private ObjectPath getWatchHistoryEntry(String watchId) throws Exception {
         final AtomicReference<ObjectPath> objectPathReference = new AtomicReference<>();
         assertBusy(() -> {
-            client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+            logger.info("Refreshing watcher history");
+            try {
+                client().performRequest(new Request("POST", "/.watcher-history-*/_refresh"));
+            } catch (ResponseException e) {
+                final String err = "Failed to perform refresh of watcher history - " + e;
+                logger.info(err);
+                fail(err);
+            }
 
             try (XContentBuilder builder = jsonBuilder()) {
                 builder.startObject();
@@ -192,24 +202,33 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     .endObject().endArray();
                 builder.endObject();
 
+                logger.info("Searching watcher history");
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
+                searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);
                 int totalHits = objectPath.evaluate("hits.total");
+                logger.info("Found [{}] hits in watcher history", totalHits);
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));
-                String watchid = objectPath.evaluate("hits.hits.0._source.watch_id");
-                assertThat(watchid, is(watchId));
+                String foundWatchId = objectPath.evaluate("hits.hits.0._source.watch_id");
+                logger.info("Watch hit 0 has id [{}] (expecting [{}])", foundWatchId,  watchId);
+                assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
+            } catch (ResponseException e) {
+                final String err = "Failed to perform search of watcher history - " + e;
+                logger.info(err);
+                fail(err);
             }
         });
         return objectPathReference.get();
     }
 
     private void assertWatchCount(int expectedWatches) throws IOException {
-        Response watcherStatsResponse = adminClient().performRequest(new Request("GET", "/_xpack/watcher/stats"));
+        Response watcherStatsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
         ObjectPath objectPath = ObjectPath.createFromResponse(watcherStatsResponse);
         int watchCount = objectPath.evaluate("stats.0.watch_count");
-        assertThat(watchCount, is(expectedWatches));
+        assertThat("Watch count (from _watcher/stats)", watchCount, is(expectedWatches));
+        logger.info("Watch count is [{}]", watchCount);
     }
 }

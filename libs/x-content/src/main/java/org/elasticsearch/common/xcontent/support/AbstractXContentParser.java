@@ -98,34 +98,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         return doBooleanValue();
     }
 
-    @Override
-    @Deprecated
-    public boolean isBooleanValueLenient() throws IOException {
-        switch (currentToken()) {
-            case VALUE_BOOLEAN:
-                return true;
-            case VALUE_NUMBER:
-                NumberType numberType = numberType();
-                return numberType == NumberType.LONG || numberType == NumberType.INT;
-            case VALUE_STRING:
-                return Booleans.isBooleanLenient(textCharacters(), textOffset(), textLength());
-            default:
-                return false;
-        }
-    }
-
-    @Override
-    @Deprecated
-    public boolean booleanValueLenient() throws IOException {
-        Token token = currentToken();
-        if (token == Token.VALUE_NUMBER) {
-            return intValue() != 0;
-        } else if (token == Token.VALUE_STRING) {
-            return Booleans.parseBooleanLenient(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
-        }
-        return doBooleanValue();
-    }
-
     protected abstract boolean doBooleanValue() throws IOException;
 
     @Override
@@ -179,6 +151,12 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract int doIntValue() throws IOException;
 
+    private static BigInteger LONG_MAX_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MAX_VALUE);
+    private static BigInteger LONG_MIN_VALUE_AS_BIGINTEGER = BigInteger.valueOf(Long.MIN_VALUE);
+    // weak bounds on the BigDecimal representation to allow for coercion
+    private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
+    private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
+
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
      *  value and {@code coerce} is false. */
@@ -191,7 +169,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
         final BigInteger bigIntegerValue;
         try {
-            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
+                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+                throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
+            }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
@@ -199,11 +181,11 @@ public abstract class AbstractXContentParser implements XContentParser {
             throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
         }
 
-        if (bigIntegerValue.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0 ||
-                bigIntegerValue.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+        if (bigIntegerValue.compareTo(LONG_MAX_VALUE_AS_BIGINTEGER) > 0 || bigIntegerValue.compareTo(LONG_MIN_VALUE_AS_BIGINTEGER) < 0) {
             throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
         }
 
+        assert bigIntegerValue.longValueExact() <= Long.MAX_VALUE; // asserting that no ArithmeticException is thrown
         return bigIntegerValue.longValue();
     }
 

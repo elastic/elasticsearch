@@ -32,9 +32,9 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -50,10 +50,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesStatsAction(Settings settings, ClusterService clusterService,
-                                       TransportService transportService, IndicesService indicesService,
+    public TransportIndicesStatsAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(IndicesStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -82,8 +81,11 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards, List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards, shardFailures);
+    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, int totalShards, int successfulShards, int failedShards,
+                                               List<ShardStats> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                               ClusterState clusterState) {
+        return new IndicesStatsResponse(responses.toArray(new ShardStats[responses.size()]), totalShards, successfulShards, failedShards,
+            shardFailures);
     }
 
     @Override
@@ -105,15 +107,23 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         CommonStats commonStats = new CommonStats(indicesService.getIndicesQueryCache(), indexShard, request.flags());
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
-        } catch (AlreadyClosedException e) {
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
+        } catch (final AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
-        return new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), commonStats,
-            commitStats, seqNoStats);
+        return new ShardStats(
+                indexShard.routingEntry(),
+                indexShard.shardPath(),
+                commonStats,
+                commitStats,
+                seqNoStats,
+                retentionLeaseStats);
     }
 }

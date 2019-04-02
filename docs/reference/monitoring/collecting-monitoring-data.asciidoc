@@ -1,0 +1,220 @@
+[role="xpack"]
+[testenv="gold"]
+[[collecting-monitoring-data]]
+=== Collecting monitoring data
+++++
+<titleabbrev>Collecting monitoring data</titleabbrev>
+++++
+
+If you enable the Elastic {monitor-features} in your cluster, you can 
+optionally collect metrics about {es}. By default, monitoring is enabled but 
+data collection is disabled. 
+
+This method involves sending the metrics to the monitoring cluster by using 
+exporters. For an alternative method, see <<configuring-metricbeat>>.
+
+NOTE: If you want to collect monitoring data from sources such as Beats and {ls}
+and route it to a monitoring cluster, you must follow this method. You cannot
+use {metricbeat} to ship the monitoring data for those products yet.
+
+Advanced monitoring settings enable you to control how frequently data is 
+collected, configure timeouts, and set the retention period for locally-stored 
+monitoring indices. You can also adjust how monitoring data is displayed. 
+
+To learn about monitoring in general, see 
+{stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
+
+. Configure your cluster to collect monitoring data:
+
+.. Verify that the `xpack.monitoring.enabled` setting is `true`, which is its 
+default value, on each node in the cluster. For more information, see 
+<<monitoring-settings>>. 
+
+.. Verify that the `xpack.monitoring.elasticsearch.collection.enabled` setting 
+is `true`, which is its default value, on each node in the cluster. 
++
+--
+NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
+--
+
+.. Set the `xpack.monitoring.collection.enabled` setting to `true` on each
+node in the cluster. By default, it is is disabled (`false`). 
++ 
+--
+NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+For example, use the following APIs to review and change this setting:
+
+[source,js]
+----------------------------------
+GET _cluster/settings
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----------------------------------
+// CONSOLE
+
+Alternatively, you can enable this setting in {kib}. In the side navigation, 
+click *Monitoring*. If data collection is disabled, you are prompted to turn it 
+on. 
+
+For more 
+information, see <<monitoring-settings>> and <<cluster-update-settings>>.
+--
+
+.. Optional: Specify which indices you want to monitor. 
++
+--
+By default, the monitoring agent collects data from all {es} indices.
+To collect data from particular indices, configure the
+`xpack.monitoring.collection.indices` setting. You can specify multiple indices 
+as a comma-separated list or use an index pattern to match multiple indices. For 
+example:
+
+[source,yaml]
+----------------------------------
+xpack.monitoring.collection.indices: logstash-*, index1, test2
+----------------------------------
+
+You can prepend `-` to explicitly exclude index names or
+patterns. For example, to include all indices that start with `test` except 
+`test3`, you could specify `test*,-test3`. To include system indices such as
+.security and .kibana, add `.*` to the list of included names.
+For example `.*,test*,-test3`
+--
+
+.. Optional: Specify how often to collect monitoring data. The default value for 
+the `xpack.monitoring.collection.interval` setting 10 seconds. See 
+<<monitoring-settings>>.
+
+. Identify where to store monitoring data. 
++
+--
+By default, the data is stored on the same cluster by using a 
+<<local-exporter,`local` exporter>>. Alternatively, you can use an <<http-exporter,`http` exporter>> to send data to 
+a separate _monitoring cluster_. 
+
+IMPORTANT: The {es} {monitor-features} use ingest pipelines, therefore the
+cluster that stores the monitoring data must have at least one 
+<<ingest,ingest node>>. 
+
+For more information about typical monitoring architectures, 
+see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
+--
+
+. If you choose to use an `http` exporter: 
+
+.. On the cluster that you want to monitor (often called the _production cluster_), 
+configure each node to send metrics to your monitoring cluster. Configure an 
+HTTP exporter in the `xpack.monitoring.exporters` settings in the 
+`elasticsearch.yml` file. For example:
++
+--
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
+--------------------------------------------------
+--
+
+.. If the Elastic {security-features} are enabled on the monitoring cluster, you 
+must provide appropriate credentials when data is shipped to the monitoring cluster:
+
+... Create a user on the monitoring cluster that has the 
+{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+Alternatively, use the 
+{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
+
+... Add the user ID and password settings to the HTTP exporter settings in the 
+`elasticsearch.yml` file on each node. +
++
+--
+For example:
+
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
+    auth.username: remote_monitoring_user 
+    auth.password: YOUR_PASSWORD
+--------------------------------------------------
+--
+
+.. If you configured the monitoring cluster to use 
+<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in 
+the `host` setting. You must also specify the trusted CA certificates that will 
+be used to verify the identity of the nodes in the monitoring cluster. 
+
+*** To add a CA certificate to an {es} node's trusted certificates, you can 
+specify the location of the PEM encoded certificate with the 
+`certificate_authorities` setting. For example:
++
+--
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["https://es-mon1:9200", "https://es-mon2:9200"] 
+    auth:
+      username: remote_monitoring_user
+      password: YOUR_PASSWORD
+    ssl:
+      certificate_authorities: [ "/path/to/ca.crt" ]
+--------------------------------------------------
+--
+
+*** Alternatively, you can configure trusted certificates using a truststore
+(a Java Keystore file that contains the certificates). For example:
++
+--
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
+    auth:
+      username: remote_monitoring_user
+      password: YOUR_PASSWORD
+    ssl:
+      truststore.path: /path/to/file
+      truststore.password: password
+--------------------------------------------------
+--
+
+. Configure your cluster to route monitoring data from sources such as {kib}, 
+Beats, and {ls} to the monitoring cluster. For information about configuring
+each product to collect and send monitoring data, see
+{stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
+
+. If you updated settings in the `elasticsearch.yml` files on your production 
+cluster, restart {es}. See <<stopping-elasticsearch>> and <<starting-elasticsearch>>. 
++
+--
+TIP: You may want to temporarily {ref}/modules-cluster.html[disable shard
+allocation] before you restart your nodes to avoid unnecessary shard
+reallocation during the install process.
+
+--
+
+. Optional: 
+<<config-monitoring-indices,Configure the indices that store the monitoring data>>. 
+
+. {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 

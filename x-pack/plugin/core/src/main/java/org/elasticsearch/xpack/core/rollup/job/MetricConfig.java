@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,7 +86,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     MetricConfig(final StreamInput in) throws IOException {
         field = in.readString();
-        metrics = in.readList(StreamInput::readString);
+        metrics = in.readStringList();
     }
 
     /**
@@ -108,18 +109,24 @@ public class MetricConfig implements Writeable, ToXContentObject {
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
+                if (value.isAggregatable() == false) {
+                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                        "but is not.");
+                }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
-                    if (value.isAggregatable() == false) {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                "but is not.");
+                    // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
+                } else if (RollupField.DATE_FIELD_MAPPER_TYPE.equals(key)) {
+                    if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
+                        validationException.addValidationError(
+                            buildSupportedMetricError("date", RollupField.SUPPORTED_DATE_METRICS));
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] type, but found " +
-                            fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [date] type, " +
+                        "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] field with name [" + field + "] in any of the " +
+            validationException.addValidationError("Could not find a [numeric] or [date] field with name [" + field + "] in any of the " +
                     "indices matching the index pattern.");
         }
     }
@@ -137,7 +144,7 @@ public class MetricConfig implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeStringList(metrics);
+        out.writeStringCollection(metrics);
     }
 
     @Override
@@ -165,5 +172,12 @@ public class MetricConfig implements Writeable, ToXContentObject {
 
     public static MetricConfig fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    private String buildSupportedMetricError(String type, List<String> supportedMetrics) {
+        List<String> unsupportedMetrics = new ArrayList<>(metrics);
+        unsupportedMetrics.removeAll(supportedMetrics);
+        return "Only the metrics " + supportedMetrics + " are supported for [" + type + "] types," +
+            " but unsupported metrics " + unsupportedMetrics + " supplied for field [" + field + "]";
     }
 }

@@ -16,20 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import static java.util.Collections.emptyList;
-
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -38,14 +36,14 @@ import java.util.Objects;
  * {@code _remote/info} requests.
  */
 public final class RemoteConnectionInfo implements ToXContentFragment, Writeable {
-    final List<TransportAddress> seedNodes;
+    final List<String> seedNodes;
     final int connectionsPerCluster;
     final TimeValue initialConnectionTimeout;
     final int numNodesConnected;
     final String clusterAlias;
     final boolean skipUnavailable;
 
-    RemoteConnectionInfo(String clusterAlias, List<TransportAddress> seedNodes,
+    RemoteConnectionInfo(String clusterAlias, List<String> seedNodes,
                          int connectionsPerCluster, int numNodesConnected,
                          TimeValue initialConnectionTimeout, boolean skipUnavailable) {
         this.clusterAlias = clusterAlias;
@@ -57,18 +55,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     }
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
-        seedNodes = input.readList(TransportAddress::new);
-        if (input.getVersion().before(Version.V_7_0_0_alpha1)) {
-            /*
-             * Versions before 7.0 sent the HTTP addresses of all nodes in the
-             * remote cluster here but it was expensive to fetch and we
-             * ultimately figured out how to do without it. So we removed it.
-             *
-             * We just throw any HTTP addresses received here on the floor
-             * because we don't need to do anything with them.
-             */
-            input.readList(TransportAddress::new);
-        }
+        seedNodes = Arrays.asList(input.readStringArray());
         connectionsPerCluster = input.readVInt();
         initialConnectionTimeout = input.readTimeValue();
         numNodesConnected = input.readVInt();
@@ -76,22 +63,33 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         skipUnavailable = input.readBoolean();
     }
 
+    public List<String> getSeedNodes() {
+        return seedNodes;
+    }
+
+    public int getConnectionsPerCluster() {
+        return connectionsPerCluster;
+    }
+
+    public TimeValue getInitialConnectionTimeout() {
+        return initialConnectionTimeout;
+    }
+
+    public int getNumNodesConnected() {
+        return numNodesConnected;
+    }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
+    public boolean isSkipUnavailable() {
+        return skipUnavailable;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(seedNodes);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
-            /*
-             * Versions before 7.0 sent the HTTP addresses of all nodes in the
-             * remote cluster here but it was expensive to fetch and we
-             * ultimately figured out how to do without it. So we removed it.
-             *
-             * When sending this request to a node that expects HTTP addresses
-             * here we pretend that we didn't find any. This *should* be fine
-             * because, after all, we haven't been using this information for
-             * a while.
-             */
-            out.writeList(emptyList());
-        }
+        out.writeStringArray(seedNodes.toArray(new String[0]));
         out.writeVInt(connectionsPerCluster);
         out.writeTimeValue(initialConnectionTimeout);
         out.writeVInt(numNodesConnected);
@@ -104,8 +102,8 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         builder.startObject(clusterAlias);
         {
             builder.startArray("seeds");
-            for (TransportAddress addr : seedNodes) {
-                builder.value(addr.toString());
+            for (String addr : seedNodes) {
+                builder.value(addr);
             }
             builder.endArray();
             builder.field("connected", numNodesConnected > 0);
@@ -136,4 +134,5 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
         return Objects.hash(seedNodes, connectionsPerCluster, initialConnectionTimeout,
                 numNodesConnected, clusterAlias, skipUnavailable);
     }
+
 }

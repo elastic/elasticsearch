@@ -48,9 +48,9 @@ if (isEclipse) {
     }
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
         // joni has AsmCompilerSupport, but that isn't being used:
         'org.objectweb.asm.ClassWriter',
         'org.objectweb.asm.MethodVisitor',
-        'org.objectweb.asm.Opcodes',
-]
+        'org.objectweb.asm.Opcodes'
+)

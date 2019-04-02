@@ -8,7 +8,7 @@ You can either create an `UpdateRequest` and send it to the client:
 --------------------------------------------------
 UpdateRequest updateRequest = new UpdateRequest();
 updateRequest.index("index");
-updateRequest.type("type");
+updateRequest.type("_doc");
 updateRequest.id("1");
 updateRequest.doc(jsonBuilder()
         .startObject()
@@ -22,7 +22,9 @@ Or you can use `prepareUpdate()` method:
 [source,java]
 --------------------------------------------------
 client.prepareUpdate("ttl", "doc", "1")
-        .setScript(new Script("ctx._source.gender = \"male\"" <1> , ScriptService.ScriptType.INLINE, null, null))
+        .setScript(new Script(
+            "ctx._source.gender = \"male\"", <1>
+            ScriptService.ScriptType.INLINE, null, null))
         .get();
 
 client.prepareUpdate("ttl", "doc", "1")
@@ -92,7 +94,7 @@ client.update(updateRequest).get();
 --------------------------------------------------
 <1> If the document does not exist, the one in `indexRequest` will be added
 
-If the document `index/type/1` already exists, we will have after this operation a document like:
+If the document `index/_doc/1` already exists, we will have after this operation a document like:
 
 [source,js]
 --------------------------------------------------

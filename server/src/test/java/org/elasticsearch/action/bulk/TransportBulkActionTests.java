@@ -23,8 +23,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,9 +59,9 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
-            super(Settings.EMPTY, TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
-                    null, new ActionFilters(Collections.emptySet()), new Resolver(Settings.EMPTY),
-                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver(Settings.EMPTY)));
+            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
+                    null, new ActionFilters(Collections.emptySet()), new Resolver(),
+                    new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()));
         }
 
         @Override
@@ -80,7 +82,7 @@ public class TransportBulkActionTests extends ESTestCase {
         threadPool = new TestThreadPool("TransportBulkActionTookTests");
         clusterService = createClusterService(threadPool);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
+        transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
@@ -131,5 +133,24 @@ public class TransportBulkActionTests extends ESTestCase {
         }, exception -> {
             throw new AssertionError(exception);
         }));
+    }
+
+    public void testGetIndexWriteRequest() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("index", "type", "id1").source(Collections.emptyMap());
+        UpdateRequest upsertRequest = new UpdateRequest("index", "type", "id1").upsert(indexRequest).script(mockScript("1"));
+        UpdateRequest docAsUpsertRequest = new UpdateRequest("index", "type", "id2").doc(indexRequest).docAsUpsert(true);
+        UpdateRequest scriptedUpsert = new UpdateRequest("index", "type", "id2").upsert(indexRequest).script(mockScript("1"))
+            .scriptedUpsert(true);
+
+        assertEquals(TransportBulkAction.getIndexWriteRequest(indexRequest), indexRequest);
+        assertEquals(TransportBulkAction.getIndexWriteRequest(upsertRequest), indexRequest);
+        assertEquals(TransportBulkAction.getIndexWriteRequest(docAsUpsertRequest), indexRequest);
+        assertEquals(TransportBulkAction.getIndexWriteRequest(scriptedUpsert), indexRequest);
+
+        DeleteRequest deleteRequest = new DeleteRequest("index", "id");
+        assertNull(TransportBulkAction.getIndexWriteRequest(deleteRequest));
+
+        UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
+        assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
     }
 }

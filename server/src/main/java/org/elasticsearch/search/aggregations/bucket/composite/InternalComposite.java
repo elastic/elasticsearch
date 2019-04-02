@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,40 +68,28 @@ public class InternalComposite
     public InternalComposite(StreamInput in) throws IOException {
         super(in);
         this.size = in.readVInt();
-        this.sourceNames = in.readList(StreamInput::readString);
+        this.sourceNames = in.readStringList();
         this.formats = new ArrayList<>(sourceNames.size());
         for (int i = 0; i < sourceNames.size(); i++) {
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                formats.add(in.readNamedWriteable(DocValueFormat.class));
-            } else {
-                formats.add(DocValueFormat.RAW);
-            }
+            formats.add(in.readNamedWriteable(DocValueFormat.class));
         }
         this.reverseMuls = in.readIntArray();
         this.buckets = in.readList((input) -> new InternalBucket(input, sourceNames, formats, reverseMuls));
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
-        } else {
-            this.afterKey = buckets.size() > 0 ? buckets.get(buckets.size()-1).key : null;
-        }
+        this.afterKey = in.readBoolean() ? new CompositeKey(in) : null;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(size);
-        out.writeStringList(sourceNames);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            for (DocValueFormat format : formats) {
-                out.writeNamedWriteable(format);
-            }
+        out.writeStringCollection(sourceNames);
+        for (DocValueFormat format : formats) {
+            out.writeNamedWriteable(format);
         }
         out.writeIntArray(reverseMuls);
         out.writeList(buckets);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeBoolean(afterKey != null);
-            if (afterKey != null) {
-                afterKey.writeTo(out);
-            }
+        out.writeBoolean(afterKey != null);
+        if (afterKey != null) {
+            afterKey.writeTo(out);
         }
     }
 
@@ -226,8 +213,8 @@ public class InternalComposite
         }
     }
 
-    static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
-            implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
+    public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
+        implements CompositeAggregation.Bucket, KeyComparable<InternalBucket> {
 
         private final CompositeKey key;
         private final long docCount;
@@ -341,7 +328,7 @@ public class InternalComposite
                 }
                 assert key.get(i).getClass() == other.key.get(i).getClass();
                 @SuppressWarnings("unchecked")
-                int cmp = ((Comparable) key.get(i)).compareTo(other.key.get(i)) * reverseMuls[i];
+                int cmp = key.get(i).compareTo(other.key.get(i)) * reverseMuls[i];
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -392,12 +379,12 @@ public class InternalComposite
         return obj;
     }
 
-    private static class ArrayMap extends AbstractMap<String, Object> {
+    static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
+        final Comparable[] values;
         final List<DocValueFormat> formats;
-        final Object[] values;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Object[] values) {
+        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;
@@ -447,5 +434,45 @@ public class InternalComposite
                 }
             };
         }
+
+        @Override
+        public int compareTo(ArrayMap that) {
+            if (that == this) {
+                return 0;
+            }
+
+            int idx = 0;
+            int max = Math.min(this.keys.size(), that.keys.size());
+            while (idx < max) {
+                int compare = compareNullables(keys.get(idx), that.keys.get(idx));
+                if (compare == 0) {
+                    compare = compareNullables(values[idx], that.values[idx]);
+                }
+                if (compare != 0) {
+                    return compare;
+                }
+                idx++;
+            }
+            if (idx < keys.size()) {
+                return 1;
+            }
+            if (idx < that.keys.size()) {
+                return -1;
+            }
+            return 0;
+        }
+    }
+
+    private static int compareNullables(Comparable a, Comparable b) {
+        if (a == b) {
+            return 0;
+        }
+        if (a == null) {
+            return -1;
+        }
+        if (b == null) {
+            return 1;
+        }
+        return a.compareTo(b);
     }
 }

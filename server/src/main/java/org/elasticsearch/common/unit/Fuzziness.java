@@ -19,7 +19,6 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,7 +80,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      */
     public Fuzziness(StreamInput in) throws IOException {
         fuzziness = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             lowDistance = in.readVInt();
             highDistance = in.readVInt();
         }
@@ -90,17 +89,15 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fuzziness);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            // we cannot serialize the low/high bounds since the other node does not know about them.
-            // This is a best-effort to not fail queries in case the cluster is being upgraded and users
-            // start using features that are not available on all nodes.
-            if (isAutoWithCustomValues()) {
-                out.writeBoolean(true);
-                out.writeVInt(lowDistance);
-                out.writeVInt(highDistance);
-            } else {
-                out.writeBoolean(false);
-            }
+        // we cannot serialize the low/high bounds since the other node does not know about them.
+        // This is a best-effort to not fail queries in case the cluster is being upgraded and users
+        // start using features that are not available on all nodes.
+        if (isAutoWithCustomValues()) {
+            out.writeBoolean(true);
+            out.writeVInt(lowDistance);
+            out.writeVInt(highDistance);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -177,7 +174,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(X_FIELD_NAME, fuzziness);
+        builder.field(X_FIELD_NAME, asString());
         return builder;
     }
 
@@ -186,7 +183,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.equals(AUTO)) { //AUTO
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
@@ -231,11 +228,13 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return false;
         }
         Fuzziness other = (Fuzziness) obj;
-        return Objects.equals(fuzziness, other.fuzziness);
+        return Objects.equals(fuzziness, other.fuzziness) &&
+                lowDistance == other.lowDistance &&
+                highDistance == other.highDistance;
     }
 
     @Override
     public int hashCode() {
-        return fuzziness.hashCode();
+        return Objects.hash(fuzziness, lowDistance, highDistance);
     }
 }

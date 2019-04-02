@@ -25,6 +25,8 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetBucketsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
+import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetInfluencersRequest;
 import org.elasticsearch.client.ml.GetInfluencersResponse;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
@@ -36,6 +38,7 @@ import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.process.ModelSizeStats;
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
 import org.elasticsearch.client.ml.job.results.Bucket;
 import org.elasticsearch.client.ml.job.results.Influencer;
@@ -48,6 +51,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -61,7 +65,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
 
     private static final String RESULTS_INDEX = ".ml-anomalies-shared";
-    private static final String DOC = "doc";
 
     private static final String JOB_ID = "get-results-it-job";
 
@@ -96,7 +99,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addBucketIndexRequest(long timestamp, boolean isInterim, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         double bucketScore = randomDoubleBetween(0.0, 100.0, true);
         bucketStats.report(bucketScore);
         indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"bucket\", \"timestamp\": " + timestamp + "," +
@@ -118,7 +121,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addRecordIndexRequest(long timestamp, boolean isInterim, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         double recordScore = randomDoubleBetween(0.0, 100.0, true);
         recordStats.report(recordScore);
         double p = randomDoubleBetween(0.0, 0.05, false);
@@ -129,7 +132,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addCategoryIndexRequest(long categoryId, String categoryName, BulkRequest bulkRequest) {
-        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+        IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"category_id\": " + categoryId + ", \"terms\": \"" +
             categoryName + "\",  \"regex\": \".*?" + categoryName + ".*\", \"max_matching_length\": 3, \"examples\": [\"" +
             categoryName + "\"]}", XContentType.JSON);
@@ -145,9 +148,382 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    private void addModelSnapshotIndexRequests(BulkRequest bulkRequest) {
+        {
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
+            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541587919000, " +
+                "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", \"snapshot_id\":\"1541587919\"," +
+                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
+                "\"model_bytes\":51722, \"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000," +
+                " \"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000, \"latest_result_time_stamp\":1519930800000," +
+                " \"retain\":false }", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
+            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541588919000, " +
+                "\"description\":\"State persisted due to job close at 2018-11-07T11:08:39+0000\", \"snapshot_id\":\"1541588919\"," +
+                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
+                "\"model_bytes\":51722, \"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541588919000," +
+                "\"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000, \"latest_result_time_stamp\":1519930800000, " +
+                "\"retain\":false }", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+        {
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
+            indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"timestamp\":1541589919000, " +
+                "\"description\":\"State persisted due to job close at 2018-11-07T11:25:19+0000\", \"snapshot_id\":\"1541589919\"," +
+                "\"snapshot_doc_count\":1, \"model_size_stats\":{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"model_size_stats\"," +
+                "\"model_bytes\":51722, \"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+                "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541589919000," +
+                "\"timestamp\":1519930800000},\"latest_record_time_stamp\":1519931700000, \"latest_result_time_stamp\":1519930800000," +
+                "\"retain\":false }", XContentType.JSON);
+            bulkRequest.add(indexRequest);
+        }
+    }
+
     @After
     public void deleteJob() throws IOException {
         new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
+    }
+
+    public void testGetModelSnapshots() throws IOException {
+
+        // index some model_snapshot results
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        addModelSnapshotIndexRequests(bulkRequest);
+
+        highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(false);
+            request.setPageParams(new PageParams(0, 10000));
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.snapshots().size(), equalTo(3));
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541587919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T10:51:59+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541587919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+            assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541588919"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:08:39+0000"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getTimestamp(), equalTo(new Date(1541588919000L)));
+            assertThat(response.snapshots().get(1).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+            assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541589919"));
+            assertThat(response.snapshots().get(2).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(2).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:25:19+0000"));
+            assertThat(response.snapshots().get(2).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(2).getTimestamp(), equalTo(new Date(1541589919000L)));
+            assertThat(response.snapshots().get(2).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(2).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(true);
+            request.setPageParams(new PageParams(0, 10000));
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.snapshots().size(), equalTo(3));
+            assertThat(response.snapshots().get(2).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(2).getSnapshotId(), equalTo("1541587919"));
+            assertThat(response.snapshots().get(2).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(2).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T10:51:59+0000"));
+            assertThat(response.snapshots().get(2).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(2).getTimestamp(), equalTo(new Date(1541587919000L)));
+            assertThat(response.snapshots().get(2).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(2).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+            assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541588919"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:08:39+0000"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getTimestamp(), equalTo(new Date(1541588919000L)));
+            assertThat(response.snapshots().get(1).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541589919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:25:19+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541589919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(false);
+            request.setPageParams(new PageParams(0, 1));
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.snapshots().size(), equalTo(1));
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541587919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T10:51:59+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541587919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(false);
+            request.setPageParams(new PageParams(1, 2));
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(3L));
+            assertThat(response.snapshots().size(), equalTo(2));
+
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541588919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:08:39+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541588919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+
+            assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541589919"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:25:19+0000"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getTimestamp(), equalTo(new Date(1541589919000L)));
+            assertThat(response.snapshots().get(1).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSnapshotId("1541588919");
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.snapshots().size(), equalTo(1));
+
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541588919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:08:39+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541588919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSnapshotId("1541586919"); // request a non-existent snapshotId
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(0L));
+            assertThat(response.snapshots().size(), equalTo(0));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(false);
+            request.setStart("1541586919000");
+            request.setEnd("1541589019000");
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(2L));
+            assertThat(response.snapshots().size(), equalTo(2));
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541587919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T10:51:59+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541587919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+
+            assertThat(response.snapshots().get(1).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getSnapshotId(), equalTo("1541588919"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:08:39+0000"));
+            assertThat(response.snapshots().get(1).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(1).getTimestamp(), equalTo(new Date(1541588919000L)));
+            assertThat(response.snapshots().get(1).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
+        {
+            GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(JOB_ID);
+            request.setSort("timestamp");
+            request.setDesc(false);
+            request.setStart("1541589019000");
+
+            GetModelSnapshotsResponse response = execute(request, machineLearningClient::getModelSnapshots,
+                machineLearningClient::getModelSnapshotsAsync);
+
+            assertThat(response.count(), equalTo(1L));
+            assertThat(response.snapshots().size(), equalTo(1));
+            assertThat(response.snapshots().get(0).getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getSnapshotId(), equalTo("1541589919"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getDescription(), equalTo("State persisted due to job close at" +
+                " 2018-11-07T11:25:19+0000"));
+            assertThat(response.snapshots().get(0).getSnapshotDocCount(), equalTo(1));
+            assertThat(response.snapshots().get(0).getTimestamp(), equalTo(new Date(1541589919000L)));
+            assertThat(response.snapshots().get(0).getLatestRecordTimeStamp(), equalTo(new Date(1519931700000L)));
+            assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getBucketAllocationFailuresCount(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getMemoryStatus(),
+                equalTo(ModelSizeStats.MemoryStatus.fromString("ok")));
+        }
     }
 
     public void testGetCategories() throws IOException {
@@ -375,7 +751,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (Bucket bucket : firstBuckets) {
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + anotherJobId + "\", \"result_type\":\"bucket\", \"timestamp\": " +
                     bucket.getTimestamp().getTime() + "," + "\"bucket_span\": 3600,\"is_interim\": " + bucket.isInterim()
                     + ", \"anomaly_score\": " + String.valueOf(bucket.getAnomalyScore() + 10.0) + "}", XContentType.JSON);
@@ -546,7 +922,7 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             // Last one score is higher
             double score = isLast ? 90.0 : 42.0;
 
-            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX, DOC);
+            IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
             indexRequest.source("{\"job_id\":\"" + JOB_ID + "\", \"result_type\":\"influencer\", \"timestamp\": " +
                     timestamp + "," + "\"bucket_span\": 3600,\"is_interim\": " + isInterim + ", \"influencer_score\": " + score + ", " +
                     "\"influencer_field_name\":\"my_influencer\", \"influencer_field_value\": \"inf_1\", \"probability\":"

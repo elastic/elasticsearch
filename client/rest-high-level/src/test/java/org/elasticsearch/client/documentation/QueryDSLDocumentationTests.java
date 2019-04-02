@@ -207,11 +207,10 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // Using pre-indexed shapes
             GeoShapeQueryBuilder qb = geoShapeQuery(
                         "pin.location",                                  // <1>
-                        "DEU",                                           // <2>
-                        "countries");                                    // <3>
-            qb.relation(ShapeRelation.WITHIN)                            // <4>
-                .indexedShapeIndex("shapes")                             // <5>
-                .indexedShapePath("location");                           // <6>
+                        "DEU");                                  // <2>
+            qb.relation(ShapeRelation.WITHIN)                            // <3>
+                .indexedShapeIndex("shapes")                             // <4>
+                .indexedShapePath("location");                           // <5>
             // end::indexed_geo_shape
         }
     }
@@ -236,9 +235,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testIds() {
         // tag::ids
-        idsQuery("my_type", "type2")
-                .addIds("1", "4", "100");
-
         idsQuery()                                                   // <1>
                 .addIds("1", "4", "100");
         // end::ids

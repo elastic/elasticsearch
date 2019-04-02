@@ -55,6 +55,8 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZoneId;
+import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -322,6 +324,18 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes an optional {@link Integer}.
+     */
+    public void writeOptionalInt(@Nullable Integer integer) throws IOException {
+        if (integer == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInt(integer);
+        }
+    }
+
     public void writeOptionalVInt(@Nullable Integer integer) throws IOException {
         if (integer == null) {
             writeBoolean(false);
@@ -560,6 +574,26 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes an {@link Instant} to the stream with nanosecond resolution
+     */
+    public final void writeInstant(Instant instant) throws IOException {
+        writeLong(instant.getEpochSecond());
+        writeInt(instant.getNano());
+    }
+
+    /**
+     * Writes an {@link Instant} to the stream, which could possibly be null
+     */
+    public final void writeOptionalInstant(@Nullable Instant instant) throws IOException {
+        if (instant == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeInstant(instant);
+        }
+    }
+
     private static final Map<Class<?>, Writer> WRITERS;
 
     static {
@@ -677,7 +711,6 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-            zonedDateTime.getZone().getId();
             o.writeString(zonedDateTime.getZone().getId());
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
@@ -785,20 +818,34 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public <T extends Writeable> void writeArray(T[] array) throws IOException {
-        writeVInt(array.length);
-        for (T value: array) {
-            value.writeTo(this);
-        }
-    }
-
-    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+    /**
+     * Same as {@link #writeArray(Writer, Object[])} but the provided array may be null. An additional boolean value is
+     * serialized to indicate whether the array was null or not.
+     */
+    public <T> void writeOptionalArray(final Writer<T> writer, final @Nullable T[] array) throws IOException {
         if (array == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
-            writeArray(array);
+            writeArray(writer, array);
         }
+    }
+
+    /**
+     * Writes the specified array of {@link Writeable}s. This method can be seen as
+     * writer version of {@link StreamInput#readArray(Writeable.Reader, IntFunction)}. The length of array encoded as a variable-length
+     * integer is first written to the stream, and then the elements of the array are written to the stream.
+     */
+    public <T extends Writeable> void writeArray(T[] array) throws IOException {
+        writeArray((out, value) -> value.writeTo(out), array);
+    }
+
+    /**
+     * Same as {@link #writeArray(Writeable[])} but the provided array may be null. An additional boolean value is
+     * serialized to indicate whether the array was null or not.
+     */
+    public <T extends Writeable> void writeOptionalArray(@Nullable T[] array) throws IOException {
+        writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
     /**
@@ -975,6 +1022,13 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Write a {@linkplain ZoneId} to the stream.
+     */
+    public void writeZoneId(ZoneId timeZone) throws IOException {
+        writeString(timeZone.getId());
+    }
+
+    /**
      * Write an optional {@linkplain DateTimeZone} to the stream.
      */
     public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
@@ -983,6 +1037,18 @@ public abstract class StreamOutput extends OutputStream {
         } else {
             writeBoolean(true);
             writeTimeZone(timeZone);
+        }
+    }
+
+    /**
+     * Write an optional {@linkplain ZoneId} to the stream.
+     */
+    public void writeOptionalZoneId(@Nullable ZoneId timeZone) throws IOException {
+        if (timeZone == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeZoneId(timeZone);
         }
     }
 
@@ -997,33 +1063,45 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a list of {@link Writeable} objects
+     * Writes a collection to this stream. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection to write to this stream
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeList(List<? extends Writeable> list) throws IOException {
-        writeVInt(list.size());
-        for (Writeable obj: list) {
-            obj.writeTo(this);
-        }
+    public void writeCollection(final Collection<? extends Writeable> collection) throws IOException {
+        writeCollection(collection, (o, v) -> v.writeTo(o));
     }
 
     /**
-     * Writes a collection of generic objects via a {@link Writer}
+     * Writes a list of {@link Writeable} objects
      */
-    public <T> void writeCollection(Collection<T> collection, Writer<T> writer) throws IOException {
+    public void writeList(List<? extends Writeable> list) throws IOException {
+        writeCollection(list);
+    }
+
+    /**
+     * Writes a collection of objects via a {@link Writer}.
+     *
+     * @param collection the collection of objects
+     * @throws IOException if an I/O exception occurs writing the collection
+     */
+    public <T> void writeCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
         writeVInt(collection.size());
-        for (T val: collection) {
+        for (final T val: collection) {
             writer.write(this, val);
         }
     }
 
     /**
-     * Writes a list of strings
+     * Writes a collection of a strings. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readList(Writeable.Reader)}.
+     *
+     * @param collection the collection of strings
+     * @throws IOException if an I/O exception occurs writing the collection
      */
-    public void writeStringList(List<String> list) throws IOException {
-        writeVInt(list.size());
-        for (String string: list) {
-            this.writeString(string);
-        }
+    public void writeStringCollection(final Collection<String> collection) throws IOException {
+        writeCollection(collection, StreamOutput::writeString);
     }
 
     /**
@@ -1037,7 +1115,7 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an enum with type E that by serialized it based on it's ordinal value
+     * Writes an enum with type E based on its ordinal value
      */
     public <E extends Enum<E>> void writeEnum(E enumValue) throws IOException {
         writeVInt(enumValue.ordinal());

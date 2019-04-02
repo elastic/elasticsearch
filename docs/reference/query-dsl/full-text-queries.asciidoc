@@ -1,10 +1,9 @@
 [[full-text-queries]]
 == Full text queries
 
-The high-level full text queries are usually used for running full text
-queries on full text fields like the body of an email. They understand how the
-field being queried is <<analysis,analyzed>> and will apply each field's
-`analyzer` (or `search_analyzer`) to the query string before executing.
+The full text queries enable you to search <<analysis,analyzed text fields>> such as the 
+body of an email. The query string is processed using the same analyzer that was applied to 
+the field during indexing. 
 
 The queries in this group are:
 
@@ -19,7 +18,12 @@ The queries in this group are:
     
 <<query-dsl-match-query-phrase-prefix,`match_phrase_prefix` query>>::
 
-    The poor man's _search-as-you-type_.  Like the `match_phrase` query, but does a wildcard search on the final word.
+    Like the `match_phrase` query, but does a wildcard search on the final word.
+
+<<query-dsl-match-bool-prefix-query,`match_bool_prefix` query>>::
+
+    Creates a `bool` query that matches each term as a `term` query, except for
+    the last term, which is matched as a `prefix` query
     
 <<query-dsl-multi-match-query,`multi_match` query>>::
 
@@ -40,11 +44,18 @@ The queries in this group are:
     A simpler, more robust version of the `query_string` syntax suitable
     for exposing directly to users.
 
+<<query-dsl-intervals-query,`intervals` query>>::
+
+    A full text query that allows fine-grained control of the ordering and
+    proximity of matching terms
+
 include::match-query.asciidoc[]
 
 include::match-phrase-query.asciidoc[]
 
 include::match-phrase-prefix-query.asciidoc[]
+
+include::match-bool-prefix-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]
 
@@ -53,3 +64,5 @@ include::common-terms-query.asciidoc[]
 include::query-string-query.asciidoc[]
 
 include::simple-query-string-query.asciidoc[]
+
+include::intervals-query.asciidoc[]

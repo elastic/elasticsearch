@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -43,6 +42,8 @@ import java.net.URLEncoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -156,7 +157,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
 
     /**
      * The type of the document changed.
+     *
+     * @deprecated Types are in the process of being removed.
      */
+    @Deprecated
     public String getType() {
         return this.type;
     }
@@ -259,13 +263,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            seqNo = in.readZLong();
-            primaryTerm = in.readVLong();
-        } else {
-            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            primaryTerm = 0;
-        }
+        seqNo = in.readZLong();
+        primaryTerm = in.readVLong();
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
     }
@@ -277,10 +276,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeZLong(seqNo);
-            out.writeVLong(primaryTerm);
-        }
+        out.writeZLong(seqNo);
+        out.writeVLong(primaryTerm);
         out.writeBoolean(forcedRefresh);
         result.writeTo(out);
     }
@@ -296,9 +293,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        if (params.paramAsBoolean("include_type_name", true)) {
-            builder.field(_TYPE, type);
-        }
+        builder.field(_TYPE, type);
         builder.field(_ID, id)
                 .field(_VERSION, version)
                 .field(RESULT, getResult().getLowercase());
@@ -377,8 +372,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = 0L;
+        protected Long seqNo = UNASSIGNED_SEQ_NO;
+        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;

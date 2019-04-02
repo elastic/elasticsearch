@@ -66,6 +66,12 @@ public class RestRequest implements ToXContent.Params {
     private final HttpRequest httpRequest;
     private final HttpChannel httpChannel;
 
+    private boolean contentConsumed = false;
+
+    public boolean isContentConsumed() {
+        return contentConsumed;
+    }
+
     protected RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                           Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel) {
         final XContentType xContentType;
@@ -173,10 +179,15 @@ public class RestRequest implements ToXContent.Params {
     }
 
     public boolean hasContent() {
-        return content().length() > 0;
+        return content(false).length() > 0;
     }
 
     public BytesReference content() {
+        return content(true);
+    }
+
+    protected BytesReference content(final boolean contentConsumed) {
+        this.contentConsumed = this.contentConsumed | contentConsumed;
         return httpRequest.content();
     }
 

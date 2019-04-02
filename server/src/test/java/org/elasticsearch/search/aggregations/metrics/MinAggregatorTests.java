@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -116,6 +117,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(-1.0, result.getValue(), 0);
+        assertTrue(AggregationInspectionHelper.hasValue(result));
 
         indexReader.close();
         directory.close();
@@ -157,6 +159,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(-1.0, result.getValue(), 0);
+        assertTrue(AggregationInspectionHelper.hasValue(result));
 
         indexReader.close();
         directory.close();
@@ -189,6 +192,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+        assertFalse(AggregationInspectionHelper.hasValue(result));
 
         indexReader.close();
         directory.close();
@@ -212,6 +216,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         aggregator.postCollection();
         InternalMin result = (InternalMin) aggregator.buildAggregation(0L);
         assertEquals(Double.POSITIVE_INFINITY, result.getValue(), 0);
+        assertFalse(AggregationInspectionHelper.hasValue(result));
 
         indexReader.close();
         directory.close();

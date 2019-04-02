@@ -28,21 +28,30 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexSearcherWrapperTests extends ESTestCase {
 
@@ -73,20 +82,20 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final int sourceRefCount = open.getRefCount();
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
-            final Engine.Searcher wrap =  wrapper.wrap(engineSearcher);
-            assertEquals(1, wrap.reader().getRefCount());
-            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
-                if (key == open.getReaderCacheHelper().getKey()) {
-                    count.incrementAndGet();
-                }
-                outerCount.incrementAndGet();
-            });
-            assertEquals(0, wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
-            wrap.close();
-            assertFalse("wrapped reader is closed", wrap.reader().tryIncRef());
-            assertEquals(sourceRefCount, open.getRefCount());
-        }
+        final AtomicBoolean closeCalled = new AtomicBoolean(false);
+        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)));
+        assertEquals(1, wrap.reader().getRefCount());
+        ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
+            if (key == open.getReaderCacheHelper().getKey()) {
+                count.incrementAndGet();
+            }
+            outerCount.incrementAndGet();
+        });
+        assertEquals(0, wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        wrap.close();
+        assertFalse("wrapped reader is closed", wrap.reader().tryIncRef());
+        assertEquals(sourceRefCount, open.getRefCount());
+        assertTrue(closeCalled.get());
         assertEquals(1, closeCalls.get());
 
         IOUtils.close(open, writer, dir);
@@ -121,15 +130,15 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, s -> {}, logger)) {
-            try (Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
-                ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
-                    cache.remove(key);
-                });
-                TopDocs search = wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1);
-                cache.put(wrap.reader().getReaderCacheHelper().getKey(), search);
-            }
+        AtomicBoolean closeCalled = new AtomicBoolean(false);
+        try (Engine.Searcher wrap = wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)))) {
+            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
+                cache.remove(key);
+            });
+            TopDocs search = wrap.searcher().search(new TermQuery(new Term("field", "doc")), 1);
+            cache.put(wrap.reader().getReaderCacheHelper().getKey(), search);
         }
+        assertTrue(closeCalled.get());
         assertEquals(1, closeCalls.get());
 
         assertEquals(1, cache.size());
@@ -151,11 +160,55 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
         searcher.setSimilarity(iwc.getSimilarity());
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper();
-        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, logger)) {
+        try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher, open::close)) {
             final Engine.Searcher wrap = wrapper.wrap(engineSearcher);
             assertSame(wrap, engineSearcher);
         }
+        IOUtils.close(writer, dir);
+    }
+
+    public void testWrapVisibility() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
+        IndexSearcher searcher = new IndexSearcher(open);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        IndexSearcherWrapper wrapper = new IndexSearcherWrapper() {
+            @Override
+            public DirectoryReader wrap(DirectoryReader reader) throws IOException {
+                return reader;
+            }
+
+            @Override
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
+                return new IndexSearcher(searcher.getIndexReader()) {
+                    @Override
+                    protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                        throw new IllegalStateException("boum");
+                    }
+                };
+            }
+
+        };
+        final AtomicBoolean closeCalled = new AtomicBoolean(false);
+        final Engine.Searcher wrap =  wrapper.wrap(new Engine.Searcher("foo", searcher, () -> closeCalled.set(true)));
+        assertEquals(1, wrap.reader().getRefCount());
+        ContextIndexSearcher contextSearcher = new ContextIndexSearcher(wrap, wrap.searcher().getQueryCache(),
+            wrap.searcher().getQueryCachingPolicy());
+        IllegalStateException exc = expectThrows(IllegalStateException.class,
+            () -> contextSearcher.search(new TermQuery(new Term("field", "doc")), new TotalHitCountCollector()));
+        assertThat(exc.getMessage(), equalTo("boum"));
+        wrap.close();
+        assertFalse("wrapped reader is closed", wrap.reader().tryIncRef());
+        assertTrue(closeCalled.get());
+
         IOUtils.close(open, writer, dir);
+        assertEquals(0, open.getRefCount());
     }
 
     private static class FieldMaskingReader extends FilterDirectoryReader {

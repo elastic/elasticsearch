@@ -9,21 +9,18 @@
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
   - do:
       index:
           index:  test_1
-          type:   test
           id:     2
           body:   { foo: baz }
 
   - do:
       index:
           index:  test_1
-          type:   test
           id:     3
           body:   { foo: foo }
 
@@ -36,6 +33,7 @@
 
   - do:
       search:
+          rest_total_hits_as_int: true
           index:   test_1
           body:
             query:
@@ -43,12 +41,12 @@
                 like:
                   -
                     _index: test_1
-                    _type: test
+                    _type: _doc
                     doc:
                       foo: bar
                   -
                     _index: test_1
-                    _type: test
+                    _type: _doc
                     _id: 2
                   -
                     _id: 3

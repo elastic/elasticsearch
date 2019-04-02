@@ -8,17 +8,15 @@ A multi-bucket aggregation that works on `geo_point` fields and conceptually wor
 PUT /museums
 {
     "mappings": {
-        "doc": {
-            "properties": {
-                "location": {
-                    "type": "geo_point"
-                }
+        "properties": {
+            "location": {
+                "type": "geo_point"
             }
         }
     }
 }
 
-POST /museums/doc/_bulk?refresh
+POST /museums/_bulk?refresh
 {"index":{"_id":1}}
 {"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}

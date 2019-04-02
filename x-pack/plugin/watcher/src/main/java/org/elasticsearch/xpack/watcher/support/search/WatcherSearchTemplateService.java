@@ -7,8 +7,6 @@ package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -31,13 +29,12 @@ import java.util.Map;
 /**
  * {@link WatcherSearchTemplateService} renders {@link WatcherSearchTemplateRequest} before their execution.
  */
-public class WatcherSearchTemplateService extends AbstractComponent {
+public class WatcherSearchTemplateService {
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
 
-    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
-        super(settings);
+    public WatcherSearchTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
     }
@@ -60,7 +57,9 @@ public class WatcherSearchTemplateService extends AbstractComponent {
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
-        searchRequest.types(request.getTypes());
+        if (request.getTypes() != null) {
+            searchRequest.types(request.getTypes());
+        }
         searchRequest.searchType(request.getSearchType());
         searchRequest.indicesOptions(request.getIndicesOptions());
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();

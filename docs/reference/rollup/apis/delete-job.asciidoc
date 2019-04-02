@@ -1,15 +1,15 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-delete-job]]
-=== Delete Job API
+=== Delete job API
 ++++
-<titleabbrev>Delete Job</titleabbrev>
+<titleabbrev>Delete job</titleabbrev>
 ++++
 
 experimental[]
 
-This API deletes an existing rollup job.  The job can be started or stopped, in both cases it will be deleted.  Attempting
-to delete a non-existing job will throw an exception
+This API deletes an existing rollup job.  A job must be *stopped* first before it can be deleted.  Attempting to delete
+a started job will result in an error. Similarly, attempting to delete a nonexistent job will throw an exception.
 
 .Deleting the job does not delete rolled up data
 **********************************
@@ -39,7 +39,7 @@ POST my_rollup_index/_delete_by_query
 **********************************
 ==== Request
 
-`DELETE _xpack/rollup/job/<job_id>`
+`DELETE _rollup/job/<job_id>`
 
 //===== Description
 
@@ -66,7 +66,7 @@ If we have a rollup job named `sensor`, it can be deleted with:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/rollup/job/sensor
+DELETE _rollup/job/sensor
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_rollup_job]
@@ -85,7 +85,7 @@ If however we try to delete a job which doesn't exist:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/rollup/job/does_not_exist
+DELETE _rollup/job/does_not_exist
 --------------------------------------------------
 // CONSOLE
 // TEST[catch:missing]
@@ -99,12 +99,12 @@ A 404 `resource_not_found` exception will be thrown:
         "root_cause" : [
             {
                 "type" : "resource_not_found_exception",
-                "reason" : "the task with id does_not_exist doesn't exist",
+                "reason" : "the task with id [does_not_exist] doesn't exist",
                 "stack_trace": ...
             }
         ],
         "type" : "resource_not_found_exception",
-        "reason" : "the task with id does_not_exist doesn't exist",
+        "reason" : "the task with id [does_not_exist] doesn't exist",
         "stack_trace": ...
     },
     "status": 404

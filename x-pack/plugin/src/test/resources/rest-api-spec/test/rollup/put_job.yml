@@ -1,15 +1,16 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
         body:
           mappings:
-            _doc:
-              properties:
-                the_field:
-                  type: date
-                value_field:
-                  type: integer
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
 ---
 "Test basic put_job":
@@ -17,7 +18,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -41,7 +42,7 @@ setup:
   - is_true: acknowledged
 
   - do:
-      xpack.rollup.get_jobs:
+      rollup.get_jobs:
         id: foo
 
   - match:
@@ -69,6 +70,12 @@ setup:
             documents_processed: 0
             rollups_indexed: 0
             trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
           status:
             job_state: "stopped"
             upgraded_doc_id: true
@@ -79,7 +86,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -106,7 +113,7 @@ setup:
       catch: /Cannot create rollup job \[foo\] because job was previously created \(existing metadata\)/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -137,7 +144,7 @@ setup:
       catch: /foo/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -167,7 +174,7 @@ setup:
       catch: /unknown field \[headers\], parser not found/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -196,10 +203,10 @@ setup:
 "Validation failures":
 
   - do:
-      catch: /Could not find a \[numeric\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
+      catch: /Could not find a \[numeric\] or \[date\] field with name \[field_doesnt_exist\] in any of the indices matching the index pattern/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -228,7 +235,7 @@ setup:
       catch: /Unsupported metric \[does_not_exist\]/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {

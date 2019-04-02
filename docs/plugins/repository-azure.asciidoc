@@ -124,11 +124,9 @@ The Azure repository supports following settings:
 
     When set to `true` metadata files are stored in compressed format. This
     setting doesn't affect index files that are already compressed by default.
-    Defaults to `false`.
+    Defaults to `true`.
 
-`readonly`::
-
-    Makes repository read-only. Defaults to `false`.
+include::repository-shared-settings.asciidoc[]
 
 `location_mode`::
 
@@ -139,7 +137,7 @@ Some examples, using scripts:
 
 [source,js]
 ----
-# The simpliest one
+# The simplest one
 PUT _snapshot/my_backup1
 {
     "type": "azure"

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.plugin.discovery.azure.classic;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.classic.AzureUnicastHostsProvider;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -43,12 +43,12 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String AZURE = "azure";
     protected final Settings settings;
-    private static final Logger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
+    private static final Logger logger = LogManager.getLogger(AzureDiscoveryPlugin.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        deprecationLogger.deprecated("azure classic discovery plugin is deprecated. Use azure arm discovery plugin instead");
+        deprecationLogger.deprecated("azure classic discovery plugin is deprecated.");
         logger.trace("starting azure classic discovery plugin...");
     }
 
@@ -58,18 +58,18 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     }
 
     @Override
-    public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                            NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
+                                                                         NetworkService networkService) {
         return Collections.singletonMap(AZURE,
-            () -> createUnicastHostsProvider(settings, createComputeService(), transportService, networkService));
+            () -> createSeedHostsProvider(settings, createComputeService(), transportService, networkService));
     }
 
     // Used for testing
-    protected AzureUnicastHostsProvider createUnicastHostsProvider(final Settings settings,
-                                                                   final AzureComputeService azureComputeService,
-                                                                   final TransportService transportService,
-                                                                   final NetworkService networkService) {
-        return new AzureUnicastHostsProvider(settings, azureComputeService, transportService, networkService);
+    protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
+                                                             final AzureComputeService azureComputeService,
+                                                             final TransportService transportService,
+                                                             final NetworkService networkService) {
+        return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService);
     }
 
     @Override

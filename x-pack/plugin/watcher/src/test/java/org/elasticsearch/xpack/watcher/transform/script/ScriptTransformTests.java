@@ -16,11 +16,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
-import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collections;
@@ -184,23 +181,6 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptTransform scriptCondition = transformFactory.parseTransform("_watch", parser);
         Exception e = expectThrows(IllegalArgumentException.class, () -> transformFactory.createExecutable(scriptCondition));
         assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
-    }
-
-    public void testParamsCtxDeprecated() throws Exception {
-        WatchExecutionContext watcherContext = mock(WatchExecutionContext.class);
-        when(watcherContext.id()).thenReturn(mock(Wid.class));
-        when(watcherContext.watch()).thenReturn(mock(Watch.class));
-        when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
-        Payload payload = mock(Payload.class);
-        WatcherTransformScript watcherScript = new WatcherTransformScript(Collections.emptyMap(), watcherContext, payload) {
-            @Override
-            public Object execute() {
-                return getParams().get("ctx");
-            }
-        };
-        assertThat(watcherScript.execute(), is(watcherScript.getCtx()));
-        assertWarnings("Accessing variable [ctx] via [params.ctx] from within a watcher_transform script " +
-            "is deprecated in favor of directly accessing [ctx].");
     }
 
     static String scriptTypeField(ScriptType type) {

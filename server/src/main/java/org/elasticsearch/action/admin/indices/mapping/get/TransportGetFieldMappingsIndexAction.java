@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -32,7 +33,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,7 +58,8 @@ import static java.util.Collections.singletonMap;
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
  */
-public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
+public class TransportGetFieldMappingsIndexAction
+        extends TransportSingleShardAction<GetFieldMappingsIndexRequest, GetFieldMappingsResponse> {
 
     private static final String ACTION_NAME = GetFieldMappingsAction.NAME + "[index]";
 
@@ -66,10 +67,10 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     private final IndicesService indicesService;
 
     @Inject
-    public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportGetFieldMappingsIndexAction(ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -91,7 +92,8 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, ShardId shardId) {
         assert shardId != null;
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        Predicate<String> metadataFieldPredicate = indicesService::isMetaDataField;
+        Version indexCreatedVersion = indexService.mapperService().getIndexSettings().getIndexVersionCreated();
+        Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetaDataField(indexCreatedVersion, f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
         DocumentMapper mapper = indexService.mapperService().documentMapper();

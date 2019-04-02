@@ -6,25 +6,27 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+
 abstract class NumericAggregate extends AggregateFunction {
 
-    NumericAggregate(Location location, Expression field, List<Expression> parameters) {
-        super(location, field, parameters);
+    NumericAggregate(Source source, Expression field, List<Expression> parameters) {
+        super(source, field, parameters);
     }
 
-    NumericAggregate(Location location, Expression field) {
-        super(location, field);
+    NumericAggregate(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field());
+        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
     }
 
     @Override

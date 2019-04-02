@@ -71,7 +71,6 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
-import static org.elasticsearch.xpack.core.rollup.RollupField.COUNT_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -148,7 +147,7 @@ public class SearchActionTests extends ESTestCase {
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
         Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("EST"), caps));
+            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("CET"), caps));
         assertThat(e.getMessage(), equalTo("Field [foo] in [range] query was found in rollup indices, but requested timezone is not " +
             "compatible. Options include: [UTC]"));
     }
@@ -630,7 +629,7 @@ public class SearchActionTests extends ESTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
@@ -687,7 +686,8 @@ public class SearchActionTests extends ESTestCase {
         metaMap.put("bar", indexMeta);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TransportRollupSearchAction.separateIndices(indices, metaMap.build()));
-        assertThat(e.getMessage(), equalTo("RollupSearch currently only supports searching one rollup index at a time."));
+        assertThat(e.getMessage(), equalTo("RollupSearch currently only supports searching one rollup index at a time. " +
+            "Found the following rollup indices: [foo, bar]"));
     }
 
     public void testEmptyMsearch() {
@@ -747,7 +747,7 @@ public class SearchActionTests extends ESTestCase {
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = new HashMap<>(1);
-        metadata.put(RollupField.ROLLUP_META + "." + COUNT_FIELD, "foo." + COUNT_FIELD);
+        metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);

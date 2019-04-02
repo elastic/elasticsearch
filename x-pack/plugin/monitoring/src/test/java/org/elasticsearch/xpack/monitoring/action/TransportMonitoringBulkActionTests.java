@@ -14,18 +14,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -111,10 +110,10 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     }
 
     public void testExecuteWithGlobalBlock() throws Exception {
-        final ClusterBlocks.Builder clusterBlock = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL);
+        final ClusterBlocks.Builder clusterBlock = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL);
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).blocks(clusterBlock).build());
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
                                                                                        transportService, filters, exporters,
                                                                                        monitoringService);
 
@@ -128,7 +127,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).build());
         when(monitoringService.isMonitoringActive()).thenReturn(false);
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
                                                                                        transportService, filters, exporters,
                                                                                        monitoringService);
 
@@ -150,7 +149,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         // it validates the request before it tries to execute it
         when(monitoringService.isMonitoringActive()).thenReturn(randomBoolean());
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
                                                                                        transportService, filters, exporters,
                                                                                        monitoringService);
 
@@ -215,7 +214,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(Settings.EMPTY, threadPool, clusterService,
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
                                                                                        transportService, filters, exporters,
                                                                                        monitoringService);
         ActionTestUtils.executeBlocking(action, request);

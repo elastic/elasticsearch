@@ -79,7 +79,8 @@ public class FreqTermsEnumTests extends ESTestCase {
         referenceFilter = new HashMap<>();
 
         Directory dir = newDirectory();
-        IndexWriterConfig conf = newIndexWriterConfig(new KeywordAnalyzer()); // use keyword analyzer we rely on the stored field holding the exact term.
+        // use keyword analyzer we rely on the stored field holding the exact term.
+        IndexWriterConfig conf = newIndexWriterConfig(new KeywordAnalyzer());
         if (frequently()) {
             // we don't want to do any merges, so we won't expunge deletes
             conf.setMergePolicy(NoMergePolicy.INSTANCE);
@@ -189,12 +190,14 @@ public class FreqTermsEnumTests extends ESTestCase {
         assertAgainstReference(false, true, filter, referenceFilter);
     }
 
-    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Query filter, Map<String, FreqHolder> reference) throws Exception {
+    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Query filter,
+            Map<String, FreqHolder> reference) throws Exception {
         FreqTermsEnum freqTermsEnum = new FreqTermsEnum(reader, "field", docFreq, totalTermFreq, filter, BigArrays.NON_RECYCLING_INSTANCE);
         assertAgainstReference(freqTermsEnum, reference, docFreq, totalTermFreq);
     }
 
-    private void assertAgainstReference(FreqTermsEnum termsEnum, Map<String, FreqHolder> reference, boolean docFreq, boolean totalTermFreq) throws Exception {
+    private void assertAgainstReference(FreqTermsEnum termsEnum, Map<String, FreqHolder> reference, boolean docFreq,
+            boolean totalTermFreq) throws Exception {
         int cycles = randomIntBetween(1, 5);
         for (int i = 0; i < cycles; i++) {
             List<String> terms = new ArrayList<>(Arrays.asList(this.terms));
@@ -209,7 +212,8 @@ public class FreqTermsEnumTests extends ESTestCase {
                     assertThat("cycle " + i + ", term " + term + ", docFreq", termsEnum.docFreq(), equalTo(reference.get(term).docFreq));
                 }
                 if (totalTermFreq) {
-                    assertThat("cycle " + i + ", term " + term + ", totalTermFreq", termsEnum.totalTermFreq(), equalTo(reference.get(term).totalTermFreq));
+                    assertThat("cycle " + i + ", term " + term + ", totalTermFreq", termsEnum.totalTermFreq(),
+                            equalTo(reference.get(term).totalTermFreq));
                 }
             }
         }

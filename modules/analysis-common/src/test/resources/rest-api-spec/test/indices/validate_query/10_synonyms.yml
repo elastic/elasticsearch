@@ -16,11 +16,10 @@
                     tokenizer: standard
                     filter: [ syns ]
           mappings:
-            test:
-              properties:
-                field:
-                  type: text
-                  analyzer: syns
+            properties:
+              field:
+                type: text
+                analyzer: syns
 
   - do:
       indices.validate_query:
@@ -77,6 +76,3 @@
   - is_true: valid
   - length: { explanations: 1 }
   - match: { explanations.0.explanation: "field:\"foo (one* two*)\"" }
-
-
-

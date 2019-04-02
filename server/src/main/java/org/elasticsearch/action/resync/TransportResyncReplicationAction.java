@@ -19,7 +19,6 @@
 package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -27,11 +26,13 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -45,7 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Consumer;
+import java.io.IOException;
 import java.util.function.Supplier;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
@@ -92,22 +93,29 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
         final DiscoveryNode node,
         final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            super.sendReplicaRequest(replicaRequest, node, listener);
-        } else {
-            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
-        }
+        super.sendReplicaRequest(replicaRequest, node, listener);
+    }
+
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
+    }
+
+    @Override
+    public ClusterBlockLevel indexBlockLevel() {
+        // resync should never be blocked because it's an internal action
+        return null;
     }
 
     @Override
     protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) throws Exception {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
+        ResyncReplicationRequest request, IndexShard primary) {
+        final ResyncReplicationRequest replicaRequest = performOnPrimary(request);
         return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
     }
 
-    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request, IndexShard primary) {
+    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 
@@ -151,8 +159,10 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             transportOptions,
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
-                public ResyncReplicationResponse newInstance() {
-                    return newResponseInstance();
+                public ResyncReplicationResponse read(StreamInput in) throws IOException {
+                    ResyncReplicationResponse response = newResponseInstance();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -193,10 +203,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         }
 
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, Runnable onSuccess,
-                                      Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(
+                replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception, listener);
         }
     }
 }

@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -41,10 +40,9 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     private final JobManager jobManager;
 
     @Inject
-    public TransportDeleteCalendarEventAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+    public TransportDeleteCalendarEventAction(TransportService transportService, ActionFilters actionFilters,
                                               Client client, JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(settings, DeleteCalendarEventAction.NAME, transportService, actionFilters,
-              DeleteCalendarEventAction.Request::new);
+        super(DeleteCalendarEventAction.NAME, transportService, actionFilters, DeleteCalendarEventAction.Request::new);
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
@@ -57,7 +55,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(
                 calendar -> {
-                    GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, eventId);
+                    GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, eventId);
                     executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
                             getResponse -> {
                                 if (getResponse.isExists() == false) {
@@ -91,7 +89,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     }
 
     private void deleteEvent(String eventId, Calendar calendar, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, eventId);
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest,
@@ -102,8 +100,10 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                         if (response.status() == RestStatus.NOT_FOUND) {
                             listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                         } else {
-                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
-                            listener.onResponse(new AcknowledgedResponse(true));
+                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
+                                    r -> listener.onResponse(new AcknowledgedResponse(true)),
+                                    listener::onFailure
+                            ));
                         }
                     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -135,6 +134,10 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     MultiSearchResponse() {
     }
 
+    MultiSearchResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;
@@ -166,9 +169,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (int i = 0; i < items.length; i++) {
             items[i] = Item.readItem(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            tookInMillis = in.readVLong();
-        }
+        tookInMillis = in.readVLong();
     }
 
     @Override
@@ -178,9 +179,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             item.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVLong(tookInMillis);
-        }
+        out.writeVLong(tookInMillis);
     }
 
     @Override

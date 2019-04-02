@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -22,7 +24,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -48,7 +49,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
-public class TriggeredWatchStore extends AbstractComponent {
+public class TriggeredWatchStore {
+
+    private static final Logger logger = LogManager.getLogger(TriggeredWatchStore.class);
 
     private final int scrollSize;
     private final Client client;
@@ -60,7 +63,6 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final BulkProcessor bulkProcessor;
 
     public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor bulkProcessor) {
-        super(settings);
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueMinutes(5));
@@ -94,8 +96,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     private BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
         BulkRequest request = new BulkRequest();
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
-            IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE,
-                triggeredWatch.id().value());
+            IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME).id(triggeredWatch.id().value());
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 triggeredWatch.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 indexRequest.source(builder);
@@ -113,7 +114,7 @@ public class TriggeredWatchStore extends AbstractComponent {
      * @param wid The ID os the triggered watch id
      */
     public void delete(Wid wid) {
-        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, TriggeredWatchStoreField.DOC_TYPE, wid.value());
+        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, wid.value());
         bulkProcessor.add(request);
     }
 
@@ -158,7 +159,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         SearchResponse response = null;
         try {
             response = client.search(searchRequest).actionGet(defaultSearchTimeout);
-            logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits());
+            logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits().value);
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     Wid wid = new Wid(hit.getId());

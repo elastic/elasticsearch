@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,8 +51,6 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -62,7 +61,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -119,7 +119,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         super.tearDown();
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
@@ -127,6 +127,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().keySet(),
                 metaData.transientSettings().size(), equalTo(0));
+        GetIndexResponse indices = client().admin().indices().prepareGetIndex().addIndices("*").get();
+        assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
+            indices.indices(), equalTo(Strings.EMPTY_ARRAY));
         if (resetNodeAfterTest()) {
             assert NODE != null;
             stopNode();
@@ -178,6 +181,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private Node newNode() {
         final Path tempDir = createTempDir();
+        final String nodeName = nodeSettings().get(Node.NODE_NAME_SETTING.getKey(), "node_s_0");
+
         Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
@@ -185,7 +190,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
-            .put("node.name", "node_s_0")
+            .put(Node.NODE_NAME_SETTING.getKey(), nodeName)
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE.getKey(), "1000/1m")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put("transport.type", getTestTransportType())
@@ -198,35 +203,37 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // turning on the real memory circuit breaker leads to spurious test failures. As have no full control over heap usage, we
             // turn it off for these tests.
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), nodeName)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
+
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         if (plugins.contains(getTestTransportPlugin()) == false) {
             plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }
-        if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
-            plugins = new ArrayList<>(plugins);
-            plugins.add(TestZenDiscovery.TestPlugin.class);
-        }
         if (addMockHttpTransport()) {
             plugins.add(MockHttpTransport.TestPlugin.class);
         }
-        Node build = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
         try {
-            build.start();
+            node.start();
         } catch (NodeValidationException e) {
             throw new RuntimeException(e);
         }
-        return build;
+        return node;
     }
 
     /**
      * Returns a client to the single-node cluster.
      */
     public Client client() {
-        return NODE.client();
+        return wrapClient(NODE.client());
+    }
+
+    public Client wrapClient(final Client client) {
+        return client;
     }
 
     /**
@@ -304,8 +311,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService);
+        return new TestSearchContext(bigArrays, indexService);
     }
 
     /**

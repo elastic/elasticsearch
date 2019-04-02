@@ -2,18 +2,17 @@
 [[configuring-ad-realm]]
 === Configuring an Active Directory realm
 
-You can configure {security} to communicate with Active Directory to authenticate
+You can configure {es} to communicate with Active Directory to authenticate
 users. To integrate with Active Directory, you configure an `active_directory`
-realm and map Active Directory users and groups to {security} roles in the role 
-mapping file.
+realm and map Active Directory users and groups to roles in the role mapping file.
 
 For more information about Active Directory realms, see 
-{xpack-ref}/active-directory-realm.html[Active Directory User Authentication].
+{stack-ov}/active-directory-realm.html[Active Directory User Authentication].
 
 . Add a realm configuration of type `active_directory` to `elasticsearch.yml`
-under the `xpack.security.authc.realms` namespace. At a minimum, you must set 
-the realm `type` to `active_directory` and specify the Active Directory 
-`domain_name`. If you are configuring multiple realms, you should also 
+under the `xpack.security.authc.realms.active_directory` namespace.
+At a minimum, you must specify the Active Directory `domain_name`.
+If you are configuring multiple realms, you should also 
 explicitly set the `order` attribute to control the order in which the realms 
 are consulted during authentication. 
 +
@@ -25,7 +24,7 @@ NOTE: Binding to Active Directory fails if the domain name is not mapped in DNS.
       If DNS is not being provided by a Windows DNS server, add a mapping for
       the domain in the local `/etc/hosts` file.
 
-For example, the following realm configuration configures {security} to connect
+For example, the following realm configuration configures {es} to connect
 to `ldaps://example.com:636` to authenticate users through Active Directory:
 
 [source, yaml]
@@ -35,10 +34,10 @@ xpack:
     authc:
       realms:
         active_directory:
-          type: active_directory
-          order: 0 <1>
-          domain_name: ad.example.com
-          url: ldaps://ad.example.com:636 <2>
+          my_ad:
+            order: 0 <1>
+            domain_name: ad.example.com
+            url: ldaps://ad.example.com:636 <2>
 ------------------------------------------------------------
 <1> The realm order controls the order in which the configured realms are checked
     when authenticating a user.
@@ -60,7 +59,7 @@ You must also set the `url` setting, since you must authenticate against the
 Global Catalog, which uses a different port and might not be running on every 
 Domain Controller.
 
-For example, the following realm configuration configures {security} to connect 
+For example, the following realm configuration configures {es} to connect 
 to specific Domain Controllers on the Global Catalog port with the domain name 
 set to the forest root:
 
@@ -71,12 +70,12 @@ xpack:
     authc:
       realms:
         active_directory:
-          type: active_directory
-          order: 0
-          domain_name: example.com <1>
-          url: ldaps://dc1.ad.example.com:3269, ldaps://dc2.ad.example.com:3269 <2>
-          load_balance:
-            type: "round_robin" <3>
+          my_ad:
+            order: 0
+            domain_name: example.com <1>
+            url: ldaps://dc1.ad.example.com:3269, ldaps://dc2.ad.example.com:3269 <2>
+            load_balance:
+              type: "round_robin" <3>
 ------------------------------------------------------------
 <1> The `domain_name` is set to the name of the root domain in the forest.
 <2> The `url` value used in this example has URLs for two different Domain Controllers,
@@ -96,7 +95,7 @@ ports (389 or 636) in order to query the configuration container to retrieve the
 domain name from the NetBIOS name.
 --
 
-. (Optional) Configure how {security} should interact with multiple Active 
+. (Optional) Configure how {es} should interact with multiple Active 
 Directory servers. 
 + 
 --
@@ -113,14 +112,14 @@ operation are supported: failover and load balancing.  See <<ref-ad-settings>>.
 +
 --
 The Active Directory realm authenticates users using an LDAP bind request. By 
-default, all of the LDAP operations are run by the user that {security} is
+default, all of the LDAP operations are run by the user that {es} is
 authenticating. In some cases, regular users may not be able to access all of the
 necessary items within Active Directory and a _bind user_ is needed. A bind user
 can be configured and is used to perform all operations other than the LDAP bind 
 request, which is required to authenticate the credentials provided by the user.
 
 The use of a bind user enables the 
-{xpack-ref}/run-as-privilege.html[run as feature] to be used with the Active 
+{stack-ov}/run-as-privilege.html[run as feature] to be used with the Active 
 Directory realm and the ability to maintain a set of pooled connections to 
 Active Directory. These pooled connection reduce the number of resources that 
 must be created and destroyed with every user authentication.
@@ -135,11 +134,11 @@ xpack:
     authc:
       realms:
         active_directory:
-          type: active_directory
-          order: 0
-          domain_name: ad.example.com
-          url: ldaps://ad.example.com:636
-          bind_dn: es_svc_user@ad.example.com <1>
+          my_ad:
+            order: 0
+            domain_name: ad.example.com
+            url: ldaps://ad.example.com:636
+            bind_dn: es_svc_user@ad.example.com <1>
 ------------------------------------------------------------
 <1> This is the user that all Active Directory search requests are executed as.
     Without a bind user configured, all requests run as the user that is authenticating
@@ -152,7 +151,7 @@ the following command adds the password for the example realm above:
 [source, shell]
 ------------------------------------------------------------
 bin/elasticsearch-keystore add  \
-xpack.security.authc.realms.active_directory.secure_bind_password
+xpack.security.authc.realms.active_directory.my_ad.secure_bind_password
 ------------------------------------------------------------
 
 When a bind user is configured, connection pooling is enabled by default.
@@ -187,7 +186,7 @@ role.
 Configured via the role-mapping API:
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/admins
+PUT /_security/role_mapping/admins
 {
   "roles" : [ "monitoring" , "user" ],
   "rules" : { "field" : {
@@ -201,7 +200,7 @@ PUT _xpack/security/role_mapping/admins
 
 [source,js]
 --------------------------------------------------
-PUT _xpack/security/role_mapping/basic_users
+PUT /_security/role_mapping/basic_users
 {
   "roles" : [ "user" ],
   "rules" : { "any": [
@@ -235,7 +234,7 @@ user:
 <4> The Active Directory distinguished name (DN) of the user `John Doe`.
 
 For more information, see 
-{xpack-ref}/mapping-roles.html[Mapping users and groups to roles].
+{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
 --
 
 . (Optional) Configure the `metadata` setting in the Active Directory realm to 

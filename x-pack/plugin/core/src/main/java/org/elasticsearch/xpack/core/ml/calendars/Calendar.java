@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -111,7 +111,7 @@ public class Calendar implements ToXContentObject, Writeable {
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }
-        if (params.paramAsBoolean(MlMetaIndex.INCLUDE_TYPE_KEY, false)) {
+        if (params.paramAsBoolean(ToXContentParams.INCLUDE_TYPE, false)) {
             builder.field(TYPE.getPreferredName(), CALENDAR_TYPE);
         }
         builder.endObject();

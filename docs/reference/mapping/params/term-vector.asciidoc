@@ -32,12 +32,10 @@ index.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type":        "text",
-          "term_vector": "with_positions_offsets"
-        }
+    "properties": {
+      "text": {
+        "type":        "text",
+        "term_vector": "with_positions_offsets"
       }
     }
   }

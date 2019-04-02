@@ -29,6 +29,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -37,7 +38,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -51,9 +54,9 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        UsageService usageService = new UsageService(settings);
-        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null, usageService);
-        final RestRecoveryAction action = new RestRecoveryAction(settings, restController);
+        UsageService usageService = new UsageService();
+        final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
+        final RestCatRecoveryAction action = new RestCatRecoveryAction(settings, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
@@ -64,7 +67,11 @@ public class RestRecoveryActionTests extends ESTestCase {
             final RecoveryState state = mock(RecoveryState.class);
             when(state.getShardId()).thenReturn(new ShardId(new Index("index", "_na_"), i));
             final RecoveryState.Timer timer = mock(RecoveryState.Timer.class);
-            when(timer.time()).thenReturn((long)randomIntBetween(1000000, 10 * 1000000));
+            final long startTime = randomLongBetween(0, new Date().getTime());
+            when(timer.startTime()).thenReturn(startTime);
+            final long time = randomLongBetween(1000000, 10 * 1000000);
+            when(timer.time()).thenReturn(time);
+            when(timer.stopTime()).thenReturn(startTime + time);
             when(state.getTimer()).thenReturn(timer);
             when(state.getRecoverySource()).thenReturn(TestShardRouting.randomRecoverySource());
             when(state.getStage()).thenReturn(randomFrom(RecoveryState.Stage.values()));
@@ -122,63 +129,78 @@ public class RestRecoveryActionTests extends ESTestCase {
 
         List<Table.Cell> headers = table.getHeaders();
 
-        assertThat(headers.get(0).value, equalTo("index"));
-        assertThat(headers.get(1).value, equalTo("shard"));
-        assertThat(headers.get(2).value, equalTo("time"));
-        assertThat(headers.get(3).value, equalTo("type"));
-        assertThat(headers.get(4).value, equalTo("stage"));
-        assertThat(headers.get(5).value, equalTo("source_host"));
-        assertThat(headers.get(6).value, equalTo("source_node"));
-        assertThat(headers.get(7).value, equalTo("target_host"));
-        assertThat(headers.get(8).value, equalTo("target_node"));
-        assertThat(headers.get(9).value, equalTo("repository"));
-        assertThat(headers.get(10).value, equalTo("snapshot"));
-        assertThat(headers.get(11).value, equalTo("files"));
-        assertThat(headers.get(12).value, equalTo("files_recovered"));
-        assertThat(headers.get(13).value, equalTo("files_percent"));
-        assertThat(headers.get(14).value, equalTo("files_total"));
-        assertThat(headers.get(15).value, equalTo("bytes"));
-        assertThat(headers.get(16).value, equalTo("bytes_recovered"));
-        assertThat(headers.get(17).value, equalTo("bytes_percent"));
-        assertThat(headers.get(18).value, equalTo("bytes_total"));
-        assertThat(headers.get(19).value, equalTo("translog_ops"));
-        assertThat(headers.get(20).value, equalTo("translog_ops_recovered"));
-        assertThat(headers.get(21).value, equalTo("translog_ops_percent"));
+        final List<String> expectedHeaders = Arrays.asList(
+                "index",
+                "shard",
+                "start_time",
+                "start_time_millis",
+                "stop_time",
+                "stop_time_millis",
+                "time",
+                "type",
+                "stage",
+                "source_host",
+                "source_node",
+                "target_host",
+                "target_node",
+                "repository",
+                "snapshot",
+                "files",
+                "files_recovered",
+                "files_percent",
+                "files_total",
+                "bytes",
+                "bytes_recovered",
+                "bytes_percent",
+                "bytes_total",
+                "translog_ops",
+                "translog_ops_recovered",
+                "translog_ops_percent");
+
+        for (int i = 0; i < expectedHeaders.size(); i++) {
+            assertThat(headers.get(i).value, equalTo(expectedHeaders.get(i)));
+        }
 
         assertThat(table.getRows().size(), equalTo(successfulShards));
+
         for (int i = 0; i < successfulShards; i++) {
             final RecoveryState state = recoveryStates.get(i);
-            List<Table.Cell> cells = table.getRows().get(i);
-            assertThat(cells.get(0).value, equalTo("index"));
-            assertThat(cells.get(1).value, equalTo(i));
-            assertThat(cells.get(2).value, equalTo(new TimeValue(state.getTimer().time())));
-            assertThat(cells.get(3).value, equalTo(state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT)));
-            assertThat(cells.get(4).value, equalTo(state.getStage().name().toLowerCase(Locale.ROOT)));
-            assertThat(cells.get(5).value, equalTo(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName()));
-            assertThat(cells.get(6).value, equalTo(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName()));
-            assertThat(cells.get(7).value, equalTo(state.getTargetNode().getHostName()));
-            assertThat(cells.get(8).value, equalTo(state.getTargetNode().getName()));
-            assertThat(
-                    cells.get(9).value,
-                    equalTo(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
-                        "n/a" :
-                        ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository()));
-            assertThat(
-                    cells.get(10).value,
-                    equalTo(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
-                        "n/a" :
-                        ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName()));
-            assertThat(cells.get(11).value, equalTo(state.getIndex().totalRecoverFiles()));
-            assertThat(cells.get(12).value, equalTo(state.getIndex().recoveredFileCount()));
-            assertThat(cells.get(13).value, equalTo(percent(state.getIndex().recoveredFilesPercent())));
-            assertThat(cells.get(14).value, equalTo(state.getIndex().totalFileCount()));
-            assertThat(cells.get(15).value, equalTo(state.getIndex().totalRecoverBytes()));
-            assertThat(cells.get(16).value, equalTo(state.getIndex().recoveredBytes()));
-            assertThat(cells.get(17).value, equalTo(percent(state.getIndex().recoveredBytesPercent())));
-            assertThat(cells.get(18).value, equalTo(state.getIndex().totalBytes()));
-            assertThat(cells.get(19).value, equalTo(state.getTranslog().totalOperations()));
-            assertThat(cells.get(20).value, equalTo(state.getTranslog().recoveredOperations()));
-            assertThat(cells.get(21).value, equalTo(percent(state.getTranslog().recoveredPercent())));
+            final List<Object> expectedValues = Arrays.asList(
+                    "index",
+                    i,
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
+                    state.getTimer().startTime(),
+                    XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
+                    state.getTimer().stopTime(),
+                    new TimeValue(state.getTimer().time()),
+                    state.getRecoverySource().getType().name().toLowerCase(Locale.ROOT),
+                    state.getStage().name().toLowerCase(Locale.ROOT),
+                    state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName(),
+                    state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName(),
+                    state.getTargetNode().getHostName(),
+                    state.getTargetNode().getName(),
+                    state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
+                            "n/a" :
+                            ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository(),
+                    state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ?
+                            "n/a" :
+                            ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName(),
+                    state.getIndex().totalRecoverFiles(),
+                    state.getIndex().recoveredFileCount(),
+                    percent(state.getIndex().recoveredFilesPercent()),
+                    state.getIndex().totalFileCount(),
+                    state.getIndex().totalRecoverBytes(),
+                    state.getIndex().recoveredBytes(),
+                    percent(state.getIndex().recoveredBytesPercent()),
+                    state.getIndex().totalBytes(),
+                    state.getTranslog().totalOperations(),
+                    state.getTranslog().recoveredOperations(),
+                    percent(state.getTranslog().recoveredPercent()));
+
+            final List<Table.Cell> cells = table.getRows().get(i);
+            for (int j = 0; j < expectedValues.size(); j++) {
+                assertThat(cells.get(j).value, equalTo(expectedValues.get(j)));
+            }
         }
     }
 

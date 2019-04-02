@@ -20,30 +20,33 @@
 package org.elasticsearch.cluster.allocation;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 
-    private final Logger logger = Loggers.getLogger(AwarenessAllocationIT.class);
+    private final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
 
     @Override
     protected int numberOfReplicas() {
@@ -54,7 +57,6 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         Settings commonSettings = Settings.builder()
                 .put("cluster.routing.allocation.awareness.attributes", "rack_id")
                 .build();
-
 
         logger.info("--> starting 2 nodes on the same rack");
         internalCluster().startNodes(2, Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_1").build());
@@ -69,6 +71,9 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
         ensureGreen();
 
+        final List<String> indicesToClose = randomSubsetOf(Arrays.asList("test1", "test2"));
+        indicesToClose.forEach(indexToClose -> assertAcked(client().admin().indices().prepareClose(indexToClose).get()));
+
         logger.info("--> starting 1 node on a different rack");
         final String node3 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_2").build());
 
@@ -76,13 +81,23 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(awaitBusy(
                 () -> {
                     logger.info("--> waiting for no relocation");
-                    ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForNoRelocatingShards(true).get();
+                    ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth()
+                        .setIndices("test1", "test2")
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForGreenStatus()
+                        .setWaitForNodes("3")
+                        .setWaitForNoRelocatingShards(true)
+                        .get();
                     if (clusterHealth.isTimedOut()) {
                         return false;
                     }
 
                     logger.info("--> checking current state");
                     ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+                    // check that closed indices are effectively closed
+                    if (indicesToClose.stream().anyMatch(index -> clusterState.metaData().index(index).getState() != State.CLOSE)) {
+                        return false;
+                    }
                     // verify that we have all the primaries on node3
                     ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
                     for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
@@ -99,11 +114,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ), equalTo(true));
     }
 
-    public void testAwarenessZones() throws Exception {
+    public void testAwarenessZones() {
         Settings commonSettings = Settings.builder()
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-                .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "10s")
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");
@@ -122,12 +136,21 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        client().admin().indices().prepareCreate("test")
-        .setSettings(Settings.builder().put("index.number_of_shards", 5)
-                .put("index.number_of_replicas", 1)).execute().actionGet();
+        createIndex("test", Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build());
+
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
 
         logger.info("--> waiting for shards to be allocated");
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNoRelocatingShards(true).execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -146,7 +169,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), anyOf(equalTo(2),equalTo(3)));
     }
 
-    public void testAwarenessZonesIncrementalNodes() throws Exception {
+    public void testAwarenessZonesIncrementalNodes() {
         Settings commonSettings = Settings.builder()
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
@@ -159,10 +182,23 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         );
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
-        client().admin().indices().prepareCreate("test")
-        .setSettings(Settings.builder().put("index.number_of_shards", 5)
-                .put("index.number_of_replicas", 1)).execute().actionGet();
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForNoRelocatingShards(true).execute().actionGet();
+
+        createIndex("test", Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build());
+
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
+
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("2")
+            .setWaitForNoRelocatingShards(true)
+            .execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         ObjectIntHashMap<String> counts = new ObjectIntHashMap<>();
@@ -179,10 +215,22 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         logger.info("--> starting another node in zone 'b'");
 
         String B_1 = internalCluster().startNode(Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("3")
+            .execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForActiveShards(10).setWaitForNoRelocatingShards(true).execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("3")
+            .setWaitForActiveShards(10)
+            .setWaitForNoRelocatingShards(true)
+            .execute().actionGet();
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -201,10 +249,22 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_1), equalTo(2));
 
         String noZoneNode = internalCluster().startNode();
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("4")
+            .execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         client().admin().cluster().prepareReroute().get();
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForActiveShards(10).setWaitForNoRelocatingShards(true).execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("4")
+            .setWaitForActiveShards(10)
+            .setWaitForNoRelocatingShards(true)
+            .execute().actionGet();
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -223,9 +283,17 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.containsKey(noZoneNode), equalTo(false));
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.awareness.attributes", "").build()).get();
 
-        health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("4").setWaitForActiveShards(10).setWaitForNoRelocatingShards(true).execute().actionGet();
+        health = client().admin().cluster().prepareHealth()
+            .setIndices("test")
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForGreenStatus()
+            .setWaitForNodes("4")
+            .setWaitForActiveShards(10)
+            .setWaitForNoRelocatingShards(true)
+            .execute().actionGet();
 
         assertThat(health.isTimedOut(), equalTo(false));
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();

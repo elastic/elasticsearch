@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface TransportMessageListener {
 
+    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
+
     /**
      * Called once a request is received
      * @param requestId the internal request ID
@@ -35,9 +37,8 @@ public interface TransportMessageListener {
      * @param requestId the request ID (unique per client)
      * @param action the request action
      * @param response the response send
-     * @param finalOptions the response options
      */
-    default void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions finalOptions) {}
+    default void onResponseSent(long requestId, String action, TransportResponse response) {}
 
     /***
      * Called for every failed action response after the response has been passed to the underlying network implementation.

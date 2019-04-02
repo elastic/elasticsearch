@@ -98,10 +98,6 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (INNER_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (queryFound) {
-                        throw new ParsingException(parser.getTokenLocation(), "[" + ConstantScoreQueryBuilder.NAME + "]"
-                                + " accepts only one 'filter' element.");
-                    }
                     query = parseInnerQueryBuilder(parser);
                     queryFound = true;
                 } else {
@@ -133,7 +129,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        Query innerFilter = filterBuilder.toFilter(context);
+        Query innerFilter = filterBuilder.toQuery(context);
         return new ConstantScoreQuery(innerFilter);
     }
 

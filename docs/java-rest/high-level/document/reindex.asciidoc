@@ -1,22 +1,29 @@
-[[java-rest-high-document-reindex]]
+--
+:api: reindex
+:request: ReindexRequest
+:response: BulkByScrollResponse
+--
+
+[id="{upid}-{api}"]
 === Reindex API
 
-[[java-rest-high-document-reindex-request]]
+[id="{upid}-{api}-request"]
 ==== Reindex Request
 
-A `ReindexRequest` can be used to copy documents from one or more indexes into a destination index.
+A +{request}+ can be used to copy documents from one or more indexes into a
+destination index.
 
 It requires an existing source index and a target index which may or may not exist pre-request. Reindex does not attempt
 to set up the destination index. It does not copy the settings of the source index. You should set up the destination
 index prior to running a _reindex action, including setting up mappings, shard counts, replicas, etc.
 
-The simplest form of a `ReindexRequest` looks like follows:
+The simplest form of a +{request}+ looks like this:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Creates the `ReindexRequest`
+<1> Creates the +{request}+
 <2> Adds a list of sources to copy from
 <3> Adds the destination index
 
@@ -28,7 +35,7 @@ source index.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-versionType]
+include-tagged::{doc-tests-file}[{api}-request-versionType]
 --------------------------------------------------
 <1> Set the versionType to `EXTERNAL`
 
@@ -37,33 +44,32 @@ documents will cause a version conflict. The default `opType` is `index`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-opType]
+include-tagged::{doc-tests-file}[{api}-request-opType]
 --------------------------------------------------
 <1> Set the opType to `create`
 
-By default version conflicts abort the `_reindex` process but you can just count them by settings it to `proceed`
-in the request body
+By default version conflicts abort the `_reindex` process but you can just count
+them instead with:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-conflicts]
+include-tagged::{doc-tests-file}[{api}-request-conflicts]
 --------------------------------------------------
 <1> Set `proceed` on version conflict
 
-You can limit the documents by adding a type to the source or by adding a query.
+You can limit the documents by adding a query.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-typeOrQuery]
+include-tagged::{doc-tests-file}[{api}-request-query]
 --------------------------------------------------
-<1> Only copy `doc` type
-<2> Only copy documents which have field `user` set to `kimchy`
+<1> Only copy documents which have field `user` set to `kimchy`
 
 It’s also possible to limit the number of processed documents by setting size.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-size]
+include-tagged::{doc-tests-file}[{api}-request-size]
 --------------------------------------------------
 <1> Only copy 10 documents
 
@@ -71,7 +77,7 @@ By default `_reindex` uses batches of 1000. You can change the batch size with `
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-sourceSize]
+include-tagged::{doc-tests-file}[{api}-request-sourceSize]
 --------------------------------------------------
 <1> Use batches of 100 documents
 
@@ -79,7 +85,7 @@ Reindex can also use the ingest feature by specifying a `pipeline`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-pipeline]
+include-tagged::{doc-tests-file}[{api}-request-pipeline]
 --------------------------------------------------
 <1> set pipeline to `my_pipeline`
 
@@ -88,21 +94,21 @@ selective query to size and sort.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-sort]
+include-tagged::{doc-tests-file}[{api}-request-sort]
 --------------------------------------------------
 <1> add descending sort to`field1`
 <2> add ascending sort to `field2`
 
-`ReindexRequest` also supports a `script` that modifies the document. It allows you to also change the document's
-metadata. The following example illustrates that.
++{request}+ also supports a `script` that modifies the document. It allows you to
+also change the document's metadata. The following example illustrates that.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-script]
+include-tagged::{doc-tests-file}[{api}-request-script]
 --------------------------------------------------
 <1> `setScript` to increment the `likes` field on all documents with user `kimchy`.
 
-`ReindexRequest` supports reindexing from a remote Elasticsearch cluster. When using a remote cluster the query should be
++{request}+ supports reindexing from a remote Elasticsearch cluster. When using a remote cluster the query should be
 specified inside the `RemoteInfo` object and not using `setSourceQuery`. If both the remote info and the source query are
 set it results in a validation error during the request. The reason for this is that the remote Elasticsearch may not
 understand queries built by the modern query builders. The remote cluster support works all the way back to Elasticsearch
@@ -111,23 +117,24 @@ in JSON.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-remote]
+include-tagged::{doc-tests-file}[{api}-request-remote]
 --------------------------------------------------
 <1> set remote elastic cluster
 
-`ReindexRequest` also helps in automatically parallelizing using `sliced-scroll` to
++{request}+ also helps in automatically parallelizing using `sliced-scroll` to
 slice on `_uid`. Use `setSlices` to specify the number of slices to use.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-slices]
+include-tagged::{doc-tests-file}[{api}-request-slices]
 --------------------------------------------------
 <1> set number of slices to use
 
-`ReindexRequest` uses the `scroll` parameter to control how long it keeps the "search context" alive.
++{request}+ uses the `scroll` parameter to control how long it keeps the
+"search context" alive.
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-scroll]
+include-tagged::{doc-tests-file}[{api}-request-scroll]
 --------------------------------------------------
 <1> set scroll time
 
@@ -137,66 +144,40 @@ In addition to the options above the following arguments can optionally be also 
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-timeout]
+include-tagged::{doc-tests-file}[{api}-request-timeout]
 --------------------------------------------------
 <1> Timeout to wait for the reindex request to be performed as a `TimeValue`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-request-refresh]
+include-tagged::{doc-tests-file}[{api}-request-refresh]
 --------------------------------------------------
 <1> Refresh index after calling reindex
 
+include::../execution.asciidoc[]
 
-[[java-rest-high-document-reindex-sync]]
-==== Synchronous Execution
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-execute]
---------------------------------------------------
-
-[[java-rest-high-document-reindex-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a reindex request requires both the `ReindexRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
+[id="{upid}-{api}-task-submission"]
+==== Reindex task submission
+It is also possible to submit a +{request}+ and not wait for it completion with the use of Task API. This is an equivalent of a REST request
+with wait_for_completion flag set to false.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-execute-async]
+include-tagged::{hlrc-tests}/ReindexIT.java[submit-reindex-task]
 --------------------------------------------------
-<1> The `ReindexRequest` to execute and the `ActionListener` to use when
-the execution completes
+<1> A +{request}+ is constructed the same way as for the synchronous method
+<2> A submit method returns a `TaskSubmissionResponse` which contains a task identifier.
+<3> The task identifier can be used to get `response` from a completed task.
 
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `BulkByScrollResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument and contains a list of individual results for each
-operation that was executed. Note that one or more operations might have
-failed while the others have been successfully executed.
-<2> Called when the whole `ReindexRequest` fails. In this case the raised
-exception is provided as an argument and no operation has been executed.
-
-[[java-rest-high-document-reindex-response]]
+[id="{upid}-{api}-response"]
 ==== Reindex Response
 
-The returned `BulkByScrollResponse` contains information about the executed operations and
- allows to iterate over each result as follows:
+The returned +{response}+ contains information about the executed operations and
+allows to iterate over each result as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[reindex-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Get total time taken
 <2> Check if the request timed out

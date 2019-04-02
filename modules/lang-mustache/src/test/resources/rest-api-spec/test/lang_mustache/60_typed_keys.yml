@@ -7,30 +7,29 @@ setup:
           settings:
             number_of_replicas: 0
           mappings:
-            user:
-              properties:
-                ip:
-                   type: ip
-                integer:
-                   type: integer
-                float:
-                   type: float
-                name:
-                   type: keyword
+            properties:
+              ip:
+                 type: ip
+              integer:
+                 type: integer
+              float:
+                 type: float
+              name:
+                 type: keyword
 
   - do:
      bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test-0", "_type": "user"}}'
+          - '{"index": {"_index": "test-0", "_type": "_doc"}}'
           - '{"ip": "10.0.0.1", "integer": 38, "float": 12.5713, "name": "Ruth", "bool": true}'
-          - '{"index": {"_index": "test-0", "_type": "user"}}'
+          - '{"index": {"_index": "test-0", "_type": "_doc"}}'
           - '{"ip": "10.0.0.2", "integer": 42, "float": 15.3393, "name": "Jackie", "surname": "Bowling", "bool": false}'
-          - '{"index": {"_index": "test-1", "_type": "user"}}'
+          - '{"index": {"_index": "test-1", "_type": "_doc"}}'
           - '{"ip": "10.0.0.3", "integer": 29, "float": 19.0517, "name": "Stephanie", "bool": true}'
-          - '{"index": {"_index": "test-1", "_type": "user"}}'
+          - '{"index": {"_index": "test-1", "_type": "_doc"}}'
           - '{"ip": "10.0.0.4", "integer": 19, "float": 19.3717, "surname": "Hamilton", "bool": true}'
-          - '{"index": {"_index": "test-2", "_type": "user"}}'
+          - '{"index": {"_index": "test-2", "_type": "_doc"}}'
           - '{"ip": "10.0.0.5", "integer": 0, "float": 17.3349, "name": "Natalie", "bool": false}'
 
 ---
@@ -60,6 +59,7 @@ setup:
 
   - do:
       search_template:
+        rest_total_hits_as_int: true
         index: test-*
         typed_keys: true
         body:
@@ -103,6 +103,7 @@ setup:
 
   - do:
       msearch_template:
+        rest_total_hits_as_int: true
         typed_keys: true
         body:
           - index: test-*

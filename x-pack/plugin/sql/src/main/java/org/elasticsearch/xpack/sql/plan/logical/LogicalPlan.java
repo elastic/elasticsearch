@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 
@@ -32,8 +32,8 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
     private Boolean lazyChildrenResolved = null;
     private Boolean lazyResolved = null;
 
-    public LogicalPlan(Location location, List<LogicalPlan> children) {
-        super(location, children);
+    public LogicalPlan(Source source, List<LogicalPlan> children) {
+        super(source, children);
     }
 
     public boolean preAnalyzed() {

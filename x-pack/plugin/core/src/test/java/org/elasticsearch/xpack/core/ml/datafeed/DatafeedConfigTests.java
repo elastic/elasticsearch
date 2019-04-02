@@ -6,15 +6,22 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,28 +32,38 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.TimeZone;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.datafeed.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -63,11 +80,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, long bucketSpanMillis) {
+        return createRandomizedDatafeedConfigBuilder(jobId, bucketSpanMillis).build();
+    }
+
+    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
-        builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
-            builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
@@ -83,7 +103,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean() && addScriptFields == false) {
             // can only test with a single agg as the xcontent order gets randomized by test base class and then
             // the actual xcontent isn't the same and test fail.
-            // Testing with a single agg is ok as we don't have special list writeable / xconent logic
+            // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
             aggHistogramInterval = randomNonNegativeLong();
             aggHistogramInterval = aggHistogramInterval> bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
@@ -91,7 +111,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
             aggs.addAggregator(AggregationBuilders.dateHistogram("buckets")
                     .interval(aggHistogramInterval).subAggregation(maxTime).field("time"));
-            builder.setAggregations(aggs);
+            builder.setParsedAggregations(aggs);
         }
         if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
@@ -109,7 +129,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        return builder.build();
+        if (randomBoolean()) {
+            builder.setDelayedDataCheckConfig(DelayedDataCheckConfigTests.createRandomizedConfig(bucketSpanMillis));
+        }
+        return builder;
     }
 
     @Override
@@ -152,19 +175,173 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             "    \"scroll_size\": 1234\n" +
             "}";
 
+    private static final String ANACHRONISTIC_QUERY_DATAFEED = "{\n" +
+            "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+            "    \"job_id\": \"farequote\",\n" +
+            "    \"frequency\": \"1h\",\n" +
+            "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+                 //query:match:type stopped being supported in 6.x
+            "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}},\n" +
+            "    \"scroll_size\": 1234\n" +
+            "}";
+
+    private static final String ANACHRONISTIC_AGG_DATAFEED = "{\n" +
+        "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+        "    \"job_id\": \"farequote\",\n" +
+        "    \"frequency\": \"1h\",\n" +
+        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+        "    \"aggregations\": {\n" +
+        "    \"buckets\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        },\n" +
+        "        \"airline\": {\n" +
+        "          \"terms\": {\n" +
+        "            \"field\": \"airline\",\n" +
+        "            \"size\": 0\n" + //size: 0 stopped being supported in 6.x
+        "          }\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n" +
+        "}";
+
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n" +
+        "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+        "    \"job_id\": \"farequote\",\n" +
+        "    \"frequency\": \"1h\",\n" +
+        "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+        "    \"aggregations\": {\n" +
+        "    \"buckets\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }," +
+        "    \"aggs\": {\n" +
+        "    \"buckets2\": {\n" +
+        "      \"date_histogram\": {\n" +
+        "        \"field\": \"time\",\n" +
+        "        \"interval\": \"360s\",\n" +
+        "        \"time_zone\": \"UTC\"\n" +
+        "      },\n" +
+        "      \"aggregations\": {\n" +
+        "        \"time\": {\n" +
+        "          \"max\": {\"field\": \"time\"}\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n" +
+        "}";
+
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
         assertEquals("[6:5] [datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
+    public void testPastQueryConfigParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)) {
+
+            DatafeedConfig config = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+            assertThat(config.getQueryParsingException().getMessage(),
+                equalTo("[match] query doesn't support multiple fields, found [query] and [type]"));
+        }
+
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATAFEED)) {
+
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
+            assertEquals("[6:64] [datafeed_config] failed to parse field [query]", e.getMessage());
+        }
+    }
+
+    public void testPastAggConfigParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
+
+            DatafeedConfig datafeedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+            assertThat(datafeedConfig.getAggParsingException().getMessage(),
+                equalTo("[size] must be greater than 0. Found [0] in [airline]"));
+        }
+
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_AGG_DATAFEED)) {
+
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
+            assertEquals("[25:3] [datafeed_config] failed to parse field [aggregations]", e.getMessage());
+        }
+    }
+
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
         assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
+    }
+
+    public void testMultipleDefinedAggParse() throws IOException {
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.LENIENT_PARSER.apply(parser, null));
+            assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
+        }
+        try(XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MULTIPLE_AGG_DEF_DATAFEED)) {
+            XContentParseException ex = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null));
+            assertThat(ex.getMessage(), equalTo("[32:3] [datafeed_config] failed to parse field [aggs]"));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause().getMessage(), equalTo("Found two aggregation definitions: [aggs] and [aggregations]"));
+        }
+    }
+
+    public void testToXContentForInternalStorage() throws IOException {
+        DatafeedConfig.Builder builder = createRandomizedDatafeedConfigBuilder("foo", 300);
+
+        // headers are only persisted to cluster state
+        Map<String, String> headers = new HashMap<>();
+        headers.put("header-name", "header-value");
+        builder.setHeaders(headers);
+        DatafeedConfig config = builder.build();
+
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
+
+        BytesReference forClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, params, false);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, forClusterstateXContent.streamInput());
+
+        DatafeedConfig parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders(), hasEntry("header-name", "header-value"));
+
+        // headers are not written without the FOR_INTERNAL_STORAGE param
+        BytesReference nonClusterstateXContent = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+        parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, nonClusterstateXContent.streamInput());
+
+        parsedConfig = DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
+        assertThat(parsedConfig.getHeaders().entrySet(), hasSize(0));
     }
 
     public void testCopyConstructor() {
@@ -268,10 +445,9 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenScriptFieldsAndAggregations() {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("datafeed1", "job1");
         datafeed.setIndices(Collections.singletonList("my_index"));
-        datafeed.setTypes(Collections.singletonList("my_type"));
         datafeed.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10),
                 mockScript(randomAlphaOfLength(10)), randomBoolean())));
-        datafeed.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
+        datafeed.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, datafeed::build);
 
@@ -281,7 +457,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testHasAggregations_GivenNull() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         DatafeedConfig datafeedConfig = builder.build();
 
         assertThat(datafeedConfig.hasAggregations(), is(false));
@@ -290,9 +465,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testHasAggregations_NonEmpty() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(
+        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.dateHistogram("time").interval(300000).subAggregation(maxTime).field("time")));
         DatafeedConfig datafeedConfig = builder.build();
 
@@ -302,8 +476,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenEmptyAggregations() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder());
+        builder.setParsedAggregations(new AggregatorFactories.Builder());
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
@@ -313,21 +486,20 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testBuild_GivenHistogramWithDefaultInterval() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(
+        builder.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("time").subAggregation(maxTime).field("time"))
         );
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("Aggregation interval must be greater than 0"));
+        assertThat(e.getMessage(), containsString(DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO));
     }
 
     public void testBuild_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(DateTimeZone.forTimeZone(TimeZone.getTimeZone("EST"))).subAggregation(maxTime);
+                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram(dateHistogram));
 
@@ -338,22 +510,22 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> createDatafeedWithDateHistogram((String) null));
 
-        assertThat(e.getMessage(), equalTo("Aggregation interval must be greater than 0"));
+        assertThat(e.getMessage(), containsString("Aggregation interval must be greater than 0"));
     }
 
     public void testBuild_GivenValidDateHistogram() {
         long millisInDay = 24 * 3600000L;
 
-        assertThat(createDatafeedWithDateHistogram("1s").getHistogramIntervalMillis(), equalTo(1000L));
-        assertThat(createDatafeedWithDateHistogram("2s").getHistogramIntervalMillis(), equalTo(2000L));
-        assertThat(createDatafeedWithDateHistogram("1m").getHistogramIntervalMillis(), equalTo(60000L));
-        assertThat(createDatafeedWithDateHistogram("2m").getHistogramIntervalMillis(), equalTo(120000L));
-        assertThat(createDatafeedWithDateHistogram("1h").getHistogramIntervalMillis(), equalTo(3600000L));
-        assertThat(createDatafeedWithDateHistogram("2h").getHistogramIntervalMillis(), equalTo(7200000L));
-        assertThat(createDatafeedWithDateHistogram("1d").getHistogramIntervalMillis(), equalTo(millisInDay));
-        assertThat(createDatafeedWithDateHistogram("7d").getHistogramIntervalMillis(), equalTo(7 * millisInDay));
+        assertThat(createDatafeedWithDateHistogram("1s").getHistogramIntervalMillis(xContentRegistry()), equalTo(1000L));
+        assertThat(createDatafeedWithDateHistogram("2s").getHistogramIntervalMillis(xContentRegistry()), equalTo(2000L));
+        assertThat(createDatafeedWithDateHistogram("1m").getHistogramIntervalMillis(xContentRegistry()), equalTo(60000L));
+        assertThat(createDatafeedWithDateHistogram("2m").getHistogramIntervalMillis(xContentRegistry()), equalTo(120000L));
+        assertThat(createDatafeedWithDateHistogram("1h").getHistogramIntervalMillis(xContentRegistry()), equalTo(3600000L));
+        assertThat(createDatafeedWithDateHistogram("2h").getHistogramIntervalMillis(xContentRegistry()), equalTo(7200000L));
+        assertThat(createDatafeedWithDateHistogram("1d").getHistogramIntervalMillis(xContentRegistry()), equalTo(millisInDay));
+        assertThat(createDatafeedWithDateHistogram("7d").getHistogramIntervalMillis(xContentRegistry()), equalTo(7 * millisInDay));
 
-        assertThat(createDatafeedWithDateHistogram(7 * millisInDay + 1).getHistogramIntervalMillis(),
+        assertThat(createDatafeedWithDateHistogram(7 * millisInDay + 1).getHistogramIntervalMillis(xContentRegistry()),
                 equalTo(7 * millisInDay + 1));
     }
 
@@ -399,16 +571,16 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
         toplevelTerms.subAggregation(dateHistogram);
 
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("foo", "bar");
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms));
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::validateAggregations);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> DatafeedConfig.validateAggregations(new AggregatorFactories.Builder().addAggregator(toplevelTerms)));
 
         assertEquals("Aggregations can only have 1 date_histogram or histogram aggregation", e.getMessage());
     }
 
     public void testDefaultFrequency_GivenNegative() {
         DatafeedConfig datafeed = createTestInstance();
-        ESTestCase.expectThrows(IllegalArgumentException.class, () -> datafeed.defaultFrequency(TimeValue.timeValueSeconds(-1)));
+        ESTestCase.expectThrows(IllegalArgumentException.class,
+            () -> datafeed.defaultFrequency(TimeValue.timeValueSeconds(-1), xContentRegistry()));
     }
 
     public void testDefaultFrequency_GivenNoAggregations() {
@@ -416,78 +588,183 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         datafeedBuilder.setIndices(Collections.singletonList("my_index"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(30)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(121)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(30), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(121), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueSeconds(61), datafeed.defaultFrequency(TimeValue.timeValueSeconds(122)));
-        assertEquals(TimeValue.timeValueSeconds(75), datafeed.defaultFrequency(TimeValue.timeValueSeconds(150)));
-        assertEquals(TimeValue.timeValueSeconds(150), datafeed.defaultFrequency(TimeValue.timeValueSeconds(300)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1200)));
+        assertEquals(TimeValue.timeValueSeconds(61), datafeed.defaultFrequency(TimeValue.timeValueSeconds(122), xContentRegistry()));
+        assertEquals(TimeValue.timeValueSeconds(75), datafeed.defaultFrequency(TimeValue.timeValueSeconds(150), xContentRegistry()));
+        assertEquals(TimeValue.timeValueSeconds(150), datafeed.defaultFrequency(TimeValue.timeValueSeconds(300), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1200), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1201)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1800)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1201), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1800), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(2), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(12 * 3600 + 1)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(24)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(48)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(12 * 3600 + 1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(24), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(48), xContentRegistry()));
     }
 
     public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Second() {
         DatafeedConfig datafeed = createDatafeedWithDateHistogram("1s");
 
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
-        assertEquals(TimeValue.timeValueSeconds(125), datafeed.defaultFrequency(TimeValue.timeValueSeconds(250)));
-        assertEquals(TimeValue.timeValueSeconds(250), datafeed.defaultFrequency(TimeValue.timeValueSeconds(500)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120), xContentRegistry()));
+        assertEquals(TimeValue.timeValueSeconds(125), datafeed.defaultFrequency(TimeValue.timeValueSeconds(250), xContentRegistry()));
+        assertEquals(TimeValue.timeValueSeconds(250), datafeed.defaultFrequency(TimeValue.timeValueSeconds(500), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13), xContentRegistry()));
     }
 
     public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Minute() {
         DatafeedConfig datafeed = createDatafeedWithDateHistogram("1m");
 
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120)));
-        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(180)));
-        assertEquals(TimeValue.timeValueMinutes(2), datafeed.defaultFrequency(TimeValue.timeValueSeconds(240)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20)));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(60), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(90), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(120), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(180), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(2), datafeed.defaultFrequency(TimeValue.timeValueSeconds(240), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueSeconds(20 * 60 + 1)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(6)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+        assertEquals(TimeValue.timeValueMinutes(10),
+            datafeed.defaultFrequency(TimeValue.timeValueSeconds(20 * 60 + 1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(6), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
 
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(72)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(13), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(72), xContentRegistry()));
     }
 
     public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_10_Minutes() {
         DatafeedConfig datafeed = createDatafeedWithDateHistogram("10m");
 
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(10)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(30)));
-        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(12 * 60)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueMinutes(13 * 60)));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(10), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(20), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(30), xContentRegistry()));
+        assertEquals(TimeValue.timeValueMinutes(10), datafeed.defaultFrequency(TimeValue.timeValueMinutes(12 * 60), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueMinutes(13 * 60), xContentRegistry()));
     }
 
     public void testDefaultFrequency_GivenAggregationsWithHistogramInterval_1_Hour() {
         DatafeedConfig datafeed = createDatafeedWithDateHistogram("1h");
 
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(1)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
-        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(1), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2), xContentRegistry()));
+        assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12), xContentRegistry()));
+    }
+
+    public void testSerializationOfComplexAggs() throws IOException {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder =
+            PipelineAggregatorBuilders.derivative("bytes_in_derivative", "bytes_in_avg");
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder =
+            PipelineAggregatorBuilders.bucketScript("non_negative_bytes",
+                Collections.singletonMap("bytes", "bytes_in_derivative"),
+                new Script("params.bytes > 0 ? params.bytes : null"));
+        DateHistogramAggregationBuilder dateHistogram =
+            AggregationBuilders.dateHistogram("histogram_buckets")
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
+                .subAggregation(maxTime)
+                .subAggregation(avgAggregationBuilder)
+                .subAggregation(derivativePipelineAggregationBuilder)
+                .subAggregation(bucketScriptPipelineAggregationBuilder);
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
+        datafeedConfigBuilder.setQueryProvider(
+            createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder().addAggregator(dateHistogram);
+
+
+        XContentType xContentType = XContentType.JSON;
+        BytesReference bytes = XContentHelper.toXContent(datafeedConfig, xContentType, false);
+        XContentParser parser = XContentHelper.createParser(xContentRegistry(),
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            bytes,
+            xContentType);
+
+        DatafeedConfig parsedDatafeedConfig = doParseInstance(parser);
+        assertEquals(datafeedConfig, parsedDatafeedConfig);
+
+        // Assert that the parsed versions of our aggs and queries work as well
+        assertEquals(aggBuilder, parsedDatafeedConfig.getParsedAggregations(xContentRegistry()));
+        assertEquals(datafeedConfig.getQuery(), parsedDatafeedConfig.getQuery());
+
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        try(BytesStreamOutput output = new BytesStreamOutput()) {
+            datafeedConfig.writeTo(output);
+            try(StreamInput streamInput = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(streamInput);
+                assertEquals(datafeedConfig, streamedDatafeedConfig);
+
+                // Assert that the parsed versions of our aggs and queries work as well
+                assertEquals(aggBuilder, streamedDatafeedConfig.getParsedAggregations(xContentRegistry()));
+                assertEquals(datafeedConfig.getQuery(), streamedDatafeedConfig.getQuery());
+            }
+        }
+    }
+
+    public void testSerializationOfComplexAggsBetweenVersions() throws IOException {
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("timestamp").field("timestamp");
+        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("bytes_in_avg").field("system.network.in.bytes");
+        DerivativePipelineAggregationBuilder derivativePipelineAggregationBuilder =
+            PipelineAggregatorBuilders.derivative("bytes_in_derivative", "bytes_in_avg");
+        BucketScriptPipelineAggregationBuilder bucketScriptPipelineAggregationBuilder =
+            PipelineAggregatorBuilders.bucketScript("non_negative_bytes",
+                Collections.singletonMap("bytes", "bytes_in_derivative"),
+                new Script("params.bytes > 0 ? params.bytes : null"));
+        DateHistogramAggregationBuilder dateHistogram =
+            AggregationBuilders.dateHistogram("histogram_buckets")
+                .field("timestamp").interval(300000).timeZone(ZoneOffset.UTC)
+                .subAggregation(maxTime)
+                .subAggregation(avgAggregationBuilder)
+                .subAggregation(derivativePipelineAggregationBuilder)
+                .subAggregation(bucketScriptPipelineAggregationBuilder);
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilderWithDateHistogram(dateHistogram);
+        // So equality check between the streamed and current passes
+        // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
+        // values are added between them
+        datafeedConfigBuilder.setQueryProvider(
+            QueryProvider
+                .fromParsedQuery(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))));
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_6_0_0);
+            datafeedConfig.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                in.setVersion(Version.V_6_0_0);
+                DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
+                assertEquals(datafeedConfig, streamedDatafeedConfig);
+
+                // Assert that the parsed versions of our aggs and queries work as well
+                assertEquals(new AggregatorFactories.Builder().addAggregator(dateHistogram),
+                    streamedDatafeedConfig.getParsedAggregations(xContentRegistry()));
+                assertEquals(datafeedConfig.getParsedQuery(xContentRegistry()), streamedDatafeedConfig.getParsedQuery(xContentRegistry()));
+            }
+        }
+    }
+
+    public void testCopyingDatafeedDoesNotCauseStackOverflow() {
+        DatafeedConfig datafeed = createTestInstance();
+        for (int i = 0; i < 100000; i++) {
+            datafeed = new DatafeedConfig.Builder(datafeed).build();
+        }
     }
 
     public static String randomValidDatafeedId() {
@@ -513,18 +790,23 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return createDatafeedWithDateHistogram(dateHistogram);
     }
 
-    private static DatafeedConfig createDatafeedWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
+    private static DatafeedConfig.Builder createDatafeedBuilderWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(Collections.singletonList("myIndex"));
-        builder.setTypes(Collections.singletonList("myType"));
-        builder.setAggregations(new AggregatorFactories.Builder().addAggregator(dateHistogram));
-        return builder.build();
+        AggregatorFactories.Builder aggs = new AggregatorFactories.Builder().addAggregator(dateHistogram);
+        DatafeedConfig.validateAggregations(aggs);
+        builder.setParsedAggregations(aggs);
+        return builder;
+    }
+
+    private static DatafeedConfig createDatafeedWithDateHistogram(DateHistogramAggregationBuilder dateHistogram) {
+        return createDatafeedBuilderWithDateHistogram(dateHistogram).build();
     }
 
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 10)) {
+        switch (between(0, 9)) {
         case 0:
             builder.setId(instance.getId() + randomValidDatafeedId());
             break;
@@ -547,43 +829,38 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             builder.setIndices(indices);
             break;
         case 5:
-            List<String> types = new ArrayList<>(instance.getTypes());
-            types.add(randomAlphaOfLengthBetween(1, 20));
-            builder.setTypes(types);
-            break;
-        case 6:
             BoolQueryBuilder query = new BoolQueryBuilder();
-            if (instance.getQuery() != null) {
-                query.must(instance.getQuery());
+            if (instance.getParsedQuery(xContentRegistry()) != null) {
+                query.must(instance.getParsedQuery(xContentRegistry()));
             }
             query.filter(new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-            builder.setQuery(query);
+            builder.setParsedQuery(query);
             break;
-        case 7:
+        case 6:
             if (instance.hasAggregations()) {
-                builder.setAggregations(null);
+                builder.setAggProvider(null);
             } else {
                 AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
                 String timeField = randomAlphaOfLength(10);
                 aggBuilder
                         .addAggregator(new DateHistogramAggregationBuilder(timeField).field(timeField).interval(between(10000, 3600000))
                                 .subAggregation(new MaxAggregationBuilder(timeField).field(timeField)));
-                builder.setAggregations(aggBuilder);
+                builder.setParsedAggregations(aggBuilder);
                 if (instance.getScriptFields().isEmpty() == false) {
                     builder.setScriptFields(Collections.emptyList());
                 }
             }
             break;
-        case 8:
+        case 7:
             ArrayList<ScriptField> scriptFields = new ArrayList<>(instance.getScriptFields());
             scriptFields.add(new ScriptField(randomAlphaOfLengthBetween(1, 10), new Script("foo"), true));
             builder.setScriptFields(scriptFields);
-            builder.setAggregations(null);
+            builder.setAggProvider(null);
             break;
-        case 9:
+        case 8:
             builder.setScrollSize(instance.getScrollSize() + between(1, 100));
             break;
-        case 10:
+        case 9:
             if (instance.getChunkingConfig() == null || instance.getChunkingConfig().getMode() == Mode.AUTO) {
                 ChunkingConfig newChunkingConfig = ChunkingConfig.newManual(new TimeValue(randomNonNegativeLong()));
                 builder.setChunkingConfig(newChunkingConfig);

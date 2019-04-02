@@ -30,7 +30,7 @@ public class PlanningException extends ClientSqlException {
     private static String extractMessage(Collection<Failure> failures) {
         return failures.stream()
                 .map(f -> {
-                    Location l = f.source().location();
+                    Location l = f.source().source().source();
                     return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
                 })
                 .collect(Collectors.joining("\n", "Found " + failures.size() + " problem(s)\n", ""));

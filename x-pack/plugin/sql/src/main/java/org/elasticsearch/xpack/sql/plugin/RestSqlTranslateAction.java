@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -14,7 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
-import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 
@@ -25,18 +27,29 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST action for translating SQL queries into ES requests
  */
 public class RestSqlTranslateAction extends BaseRestHandler {
+    
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSqlTranslateAction.class));
+    
     public RestSqlTranslateAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/_xpack/sql/translate", this);
-        controller.registerHandler(POST, "/_xpack/sql/translate", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                GET, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this,
+                GET, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, deprecationLogger);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(
+                POST, Protocol.SQL_TRANSLATE_REST_ENDPOINT, this,
+                POST, Protocol.SQL_TRANSLATE_DEPRECATED_REST_ENDPOINT, deprecationLogger);
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         SqlTranslateRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlTranslateRequest.fromXContent(parser, Mode.fromString(request.param("mode")));
+            sqlRequest = SqlTranslateRequest.fromXContent(parser);
         }
+        
         return channel -> client.executeLocally(SqlTranslateAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
     }
 

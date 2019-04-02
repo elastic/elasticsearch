@@ -20,11 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.rounding.DateTimeUnit;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,9 +41,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -70,19 +69,19 @@ public class AutoDateHistogramAggregationBuilder
      * The current implementation probably should not be invoked in a tight loop.
      * @return Array of RoundingInfo
      */
-    static RoundingInfo[] buildRoundings(DateTimeZone timeZone) {
+    static RoundingInfo[] buildRoundings(ZoneId timeZone) {
         RoundingInfo[] roundings = new RoundingInfo[6];
-        roundings[0] = new RoundingInfo(createRounding(DateTimeUnit.SECOND_OF_MINUTE, timeZone),
-            1000L, "s" , 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(createRounding(DateTimeUnit.MINUTES_OF_HOUR, timeZone),
+        roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
+            1000L, "s", 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone),
             60 * 1000L, "m", 1, 5, 10, 30);
-        roundings[2] = new RoundingInfo(createRounding(DateTimeUnit.HOUR_OF_DAY, timeZone),
-            60 * 60 * 1000L, "h", 1, 3, 12);
-        roundings[3] = new RoundingInfo(createRounding(DateTimeUnit.DAY_OF_MONTH, timeZone),
+        roundings[2] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone),
+            60 * 60 * 1000L, "h",1, 3, 12);
+        roundings[3] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone),
             24 * 60 * 60 * 1000L, "d", 1, 7);
-        roundings[4] = new RoundingInfo(createRounding(DateTimeUnit.MONTH_OF_YEAR, timeZone),
+        roundings[4] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone),
             30 * 24 * 60 * 60 * 1000L, "M", 1, 3);
-        roundings[5] = new RoundingInfo(createRounding(DateTimeUnit.YEAR_OF_CENTURY, timeZone),
+        roundings[5] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone),
             365 * 24 * 60 * 60 * 1000L, "y", 1, 5, 10, 20, 50, 100);
         return roundings;
     }
@@ -156,7 +155,7 @@ public class AutoDateHistogramAggregationBuilder
         return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
     }
 
-    static Rounding createRounding(DateTimeUnit interval, DateTimeZone timeZone) {
+    static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
         Rounding.Builder tzRoundingBuilder = Rounding.builder(interval);
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);
@@ -196,7 +195,7 @@ public class AutoDateHistogramAggregationBuilder
         }
 
         public RoundingInfo(StreamInput in) throws IOException {
-            rounding = Rounding.Streams.read(in);
+            rounding = Rounding.read(in);
             roughEstimateDurationMillis = in.readVLong();
             innerIntervals = in.readIntArray();
             unitAbbreviation = in.readString();
@@ -204,7 +203,7 @@ public class AutoDateHistogramAggregationBuilder
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(rounding, out);
+            rounding.writeTo(out);
             out.writeVLong(roughEstimateDurationMillis);
             out.writeIntArray(innerIntervals);
             out.writeString(unitAbbreviation);

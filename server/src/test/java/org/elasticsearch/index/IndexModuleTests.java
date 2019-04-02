@@ -33,6 +33,7 @@ import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -88,6 +89,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -132,7 +134,7 @@ public class IndexModuleTests extends ESTestCase {
         threadPool = new TestThreadPool("test");
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
-        bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService);
+        bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
         scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
@@ -147,8 +149,8 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
-        return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
-                scriptService, null, indicesQueryCache, mapperRegistry,
+        return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
+                threadPool, scriptService, null, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener), writableRegistry());
     }
 
@@ -382,19 +384,20 @@ public class IndexModuleTests extends ESTestCase {
         indexService.close("simon says", false);
     }
 
-    public void testMmapfsStoreTypeNotAllowed() {
+    public void testMmapNotAllowed() {
+        String storeType = randomFrom(IndexModule.Type.HYBRIDFS.getSettingsKey(), IndexModule.Type.MMAPFS.getSettingsKey());
         final Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .put("index.store.type", "mmapfs")
+                .put("index.store.type", storeType)
                 .build();
         final Settings nodeSettings = Settings.builder()
-                .put(IndexModule.NODE_STORE_ALLOW_MMAPFS.getKey(), false)
+                .put(IndexModule.NODE_STORE_ALLOW_MMAP.getKey(), false)
                 .build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
         final IndexModule module =
                 new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap());
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
-        assertThat(e, hasToString(containsString("store type [mmapfs] is not allowed")));
+        assertThat(e, hasToString(containsString("store type [" + storeType + "] is not allowed")));
     }
 
     class CustomQueryCache implements QueryCache {

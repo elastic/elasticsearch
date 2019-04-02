@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,9 +40,12 @@ public class RestForceMergeActionTests extends ESTestCase {
         final RestForceMergeAction handler = new RestForceMergeAction(Settings.EMPTY, mock(RestController.class));
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withContent(new BytesArray(json), XContentType.JSON).build();
+                .withContent(new BytesArray(json), XContentType.JSON)
+                .withPath("/_forcemerge")
+                .build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> handler.prepareRequest(request, mock(NodeClient.class)));
-        assertThat(e.getMessage(), equalTo("forcemerge takes arguments in query parameters, not in the request body"));
+            () -> handler.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), mock(NodeClient.class)));
+        assertThat(e.getMessage(), equalTo("request [GET /_forcemerge] does not support having a body"));
     }
+
 }

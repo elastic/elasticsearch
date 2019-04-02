@@ -1,0 +1,25 @@
+:odbc: {es-sql} ODBC Driver
+
+[role="xpack"]
+[testenv="platinum"]
+[[sql-odbc]]
+== SQL ODBC
+
+[[sql-odbc-overview]]
+[float]
+=== Overview
+
+{odbc} is a 3.80 compliant ODBC driver for {es}.
+It is a core level driver, exposing all of the functionality accessible through
+the {es}'s SQL API, converting ODBC calls into {es-sql}.
+
+In order to make use of the driver, the server must have {es-sql} installed and
+running with the valid license.
+
+* <<sql-odbc-installation, Driver installation>>
+* <<sql-odbc-setup, Configuration>>
+
+include::odbc/installation.asciidoc[]
+include::odbc/configuration.asciidoc[]
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138

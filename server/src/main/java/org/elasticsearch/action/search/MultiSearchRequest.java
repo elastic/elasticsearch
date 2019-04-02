@@ -58,7 +58,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     /**
      * Add a search request to execute. Note, the order is important, the search response will be returned in the
@@ -173,13 +173,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            String[] types,
                                            String routing,
                                            String searchType,
+                                           Boolean ccsMinimizeRoundtrips,
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex) throws IOException {
         int from = 0;
-        int length = data.length();
         byte marker = xContent.streamSeparator();
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
+            int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -205,12 +205,19 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
-            IndicesOptions defaultOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+            if (ccsMinimizeRoundtrips != null) {
+                searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
+            }
+            IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
                 try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
                      XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     Map<String, Object> source = parser.map();
+                    Object expandWildcards = null;
+                    Object ignoreUnavailable = null;
+                    Object ignoreThrottled = null;
+                    Object allowNoIndices = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
                         if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
@@ -222,6 +229,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
+                        } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
+                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -230,9 +239,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             searchRequest.routing(nodeStringValue(value, null));
                         } else if ("allow_partial_search_results".equals(entry.getKey())) {
                             searchRequest.allowPartialSearchResults(nodeBooleanValue(value, null));
+                        } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
+                            expandWildcards = value;
+                        } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
+                            ignoreUnavailable = value;
+                        } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
+                            allowNoIndices = value;
+                        } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
+                            ignoreThrottled = value;
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }
-                    defaultOptions = IndicesOptions.fromMap(source, defaultOptions);
+                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
+                        defaultOptions);
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
@@ -240,7 +260,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // move pointers
             from = nextMarker + 1;
             // now for the body
-            nextMarker = findNextMarker(marker, from, data, length);
+            nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -254,13 +274,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
     }
 
-    private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+    private static int findNextMarker(byte marker, int from, BytesReference data) {
+        final int res = data.indexOf(marker, from);
+        if (res != -1) {
+            assert res >= 0;
+            return res;
         }
-        if (from != length) {
+        if (from != data.length()) {
             throw new IllegalArgumentException("The msearch request must be terminated by a newline [\n]");
         }
         return -1;
@@ -287,7 +307,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         return output.toByteArray();
     }
-    
+
     public static void writeSearchRequestParams(SearchRequest request, XContentBuilder xContentBuilder) throws IOException {
         xContentBuilder.startObject();
         if (request.indices() != null) {
@@ -312,6 +332,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
         }
+        xContentBuilder.field("ccs_minimize_roundtrips", request.isCcsMinimizeRoundtrips());
         if (request.requestCache() != null) {
             xContentBuilder.field("request_cache", request.requestCache());
         }

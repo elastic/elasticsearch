@@ -54,7 +54,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))).actionGet();
+                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
+                    .waitForNodes(Integer.toString(numNodes))).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -215,9 +216,9 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         if (randomBoolean()) {
-            internalCluster().startMasterOnlyNode(Settings.EMPTY);
+            internalCluster().startMasterOnlyNode();
         } else {
-            internalCluster().startDataOnlyNode(Settings.EMPTY);
+            internalCluster().startDataOnlyNode();
         }
         // wait for the cluster status to settle
         ensureGreen();

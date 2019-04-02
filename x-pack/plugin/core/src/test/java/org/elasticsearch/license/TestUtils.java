@@ -10,9 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -23,7 +22,6 @@ import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.hamcrest.MatcherAssert;
-import org.joda.time.format.DateTimeFormatter;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -31,6 +29,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -49,16 +48,15 @@ import static org.junit.Assert.assertThat;
 
 public class TestUtils {
 
-    private static final FormatDateTimeFormatter formatDateTimeFormatter = Joda.forPattern("yyyy-MM-dd");
+    private static final DateFormatter formatDateTimeFormatter = DateFormatter.forPattern("yyyy-MM-dd");
     private static final DateMathParser dateMathParser = formatDateTimeFormatter.toDateMathParser();
-    private static final DateTimeFormatter dateTimeFormatter = formatDateTimeFormatter.printer();
 
     public static String dateMathString(String time, final long now) {
-        return dateTimeFormatter.print(dateMathParser.parse(time, () -> now));
+        return formatDateTimeFormatter.format(dateMathParser.parse(time, () -> now).atZone(ZoneOffset.UTC));
     }
 
     public static long dateMath(String time, final long now) {
-        return dateMathParser.parse(time, () -> now);
+        return dateMathParser.parse(time, () -> now).toEpochMilli();
     }
 
     public static LicenseSpec generateRandomLicenseSpec(int version) {

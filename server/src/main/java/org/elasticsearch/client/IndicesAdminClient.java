@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -147,24 +148,31 @@ public interface IndicesAdminClient extends ElasticsearchClient {
 
 
     /**
-     * Types Exists.
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request The types exists request
      * @return The result future
      */
+    @Deprecated
     ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
 
     /**
-     * Types exists
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request  The types exists
      * @param listener A listener to be notified with a result
      */
+    @Deprecated
     void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
 
     /**
-     * Indices exists.
+     * Types exists.
+     *
+     * @deprecated Types are deprecated and are in the process of being removed.
      */
+    @Deprecated
     TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
@@ -300,7 +308,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
      */
-    ActionFuture<AcknowledgedResponse> close(CloseIndexRequest request);
+    ActionFuture<CloseIndexResponse> close(CloseIndexRequest request);
 
     /**
      * Closes an index based on the index name.
@@ -309,7 +317,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
      */
-    void close(CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener);
+    void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
 
     /**
      * Closes one or more indices based on their index name.

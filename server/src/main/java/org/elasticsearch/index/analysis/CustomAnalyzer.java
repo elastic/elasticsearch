@@ -36,6 +36,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     private final int positionIncrementGap;
     private final int offsetGap;
+    private final AnalysisMode analysisMode;
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
             TokenFilterFactory[] tokenFilters) {
@@ -50,6 +51,12 @@ public final class CustomAnalyzer extends Analyzer {
         this.tokenFilters = tokenFilters;
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
+        // merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
+        for (TokenFilterFactory f : tokenFilters) {
+            mode = mode.merge(f.getAnalysisMode());
+        }
+        this.analysisMode = mode;
     }
 
     /**
@@ -84,6 +91,10 @@ public final class CustomAnalyzer extends Analyzer {
         return this.offsetGap;
     }
 
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
+    }
+
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
         Tokenizer tokenizer = tokenizerFactory.create();
@@ -107,10 +118,7 @@ public final class CustomAnalyzer extends Analyzer {
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
       for (CharFilterFactory charFilter : charFilters) {
-        if (charFilter instanceof MultiTermAwareComponent) {
-          charFilter = (CharFilterFactory) ((MultiTermAwareComponent) charFilter).getMultiTermComponent();
-          reader = charFilter.create(reader);
-        }
+          reader = charFilter.normalize(reader);
       }
       return reader;
     }
@@ -119,10 +127,7 @@ public final class CustomAnalyzer extends Analyzer {
     protected TokenStream normalize(String fieldName, TokenStream in) {
       TokenStream result = in;
       for (TokenFilterFactory filter : tokenFilters) {
-        if (filter instanceof MultiTermAwareComponent) {
-          filter = (TokenFilterFactory) ((MultiTermAwareComponent) filter).getMultiTermComponent();
-          result = filter.create(result);
-        }
+          result = filter.normalize(result);
       }
       return result;
     }

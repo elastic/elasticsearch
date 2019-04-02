@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  * to <a href="https://en.wikipedia.org/wiki/Radian">radians</a>.
  */
 public class Radians extends MathFunction {
-    public Radians(Location location, Expression field) {
-        super(location, field);
+    public Radians(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -26,12 +26,7 @@ public class Radians extends MathFunction {
 
     @Override
     protected Radians replaceChild(Expression newChild) {
-        return new Radians(location(), newChild);
-    }
-
-    @Override
-    protected String mathFunction() {
-        return "toRadians";
+        return new Radians(source(), newChild);
     }
 
     @Override

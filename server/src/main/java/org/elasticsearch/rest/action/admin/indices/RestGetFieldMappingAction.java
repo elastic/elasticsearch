@@ -19,12 +19,14 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -43,6 +45,12 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestGetFieldMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
+        "field mapping requests is deprecated. The parameter will be removed in the next major version.";
+
     public RestGetFieldMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
@@ -62,6 +70,16 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
+
+        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        if (includeTypeName == false && types.length > 0) {
+            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" +
+                " is set to true.");
+        }
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));

@@ -5,57 +5,36 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Literal;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.regex.Pattern;
+public class RLike extends RegexMatch<String> {
 
-public class RLike extends BinaryPredicate {
-
-    public RLike(Location location, Expression left, Literal right) {
-        super(location, left, right, "RLIKE");
+    public RLike(Source source, Expression value, String pattern) {
+        super(source, value, pattern);
     }
 
     @Override
     protected NodeInfo<RLike> info() {
-        return NodeInfo.create(this, RLike::new, left(), right());
+        return NodeInfo.create(this, RLike::new, field(), pattern());
     }
 
     @Override
-    protected BinaryPredicate replaceChildren(Expression newLeft, Expression newRight) {
-        return new RLike(location(), newLeft, (Literal) newRight);
+    protected RLike replaceChild(Expression newChild) {
+        return new RLike(source(), newChild, pattern());
+    }
+    
+    @Override
+    public Boolean fold() {
+        Object val = field().fold();
+        return RegexOperation.match(val, pattern());
     }
 
     @Override
-    public Literal right() {
-        return (Literal) super.right();
-    }
-
-    @Override
-    public Object fold() {
-        Pattern p = Pattern.compile(right().fold().toString());
-        return p.matcher(left().fold().toString()).matches();
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        throw new SqlIllegalArgumentException("Not supported yet");
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        throw new SqlIllegalArgumentException("Not supported yet");
+    protected Processor makeProcessor() {
+        return new RegexProcessor(pattern());
     }
 }

@@ -21,6 +21,8 @@ package org.elasticsearch.index.shard;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -45,7 +47,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -74,7 +75,7 @@ import java.util.Objects;
 
 public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
-    private static final Logger logger = Loggers.getLogger(RemoveCorruptedShardDataCommand.class);
+    private static final Logger logger = LogManager.getLogger(RemoveCorruptedShardDataCommand.class);
 
     private final OptionSpec<String> folderOption;
     private final OptionSpec<String> indexNameOption;
@@ -460,7 +461,7 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         final ShardStateMetaData newShardStateMetaData =
             new ShardStateMetaData(shardStateMetaData.primary, shardStateMetaData.indexUUID, newAllocationId);
 
-        ShardStateMetaData.FORMAT.write(newShardStateMetaData, shardStatePath);
+        ShardStateMetaData.FORMAT.writeAndCleanup(newShardStateMetaData, shardStatePath);
 
         terminal.println("");
         terminal.println("You should run the following command to allocate this shard:");

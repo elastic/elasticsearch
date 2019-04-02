@@ -19,6 +19,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -27,15 +28,25 @@ import java.io.IOException;
 public class VersionConflictEngineException extends EngineException {
 
     public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {
-        this(shardId, op.type(), op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
+        this(shardId, op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
     }
 
-    public VersionConflictEngineException(ShardId shardId, String type, String id, String explanation) {
-        this(shardId, null, type, id, explanation);
+    public VersionConflictEngineException(ShardId shardId, String id,
+                                          long compareAndWriteSeqNo, long compareAndWriteTerm,
+                                          long currentSeqNo, long currentTerm) {
+        this(shardId, id, "required seqNo [" + compareAndWriteSeqNo + "], primary term [" + compareAndWriteTerm +"]." +
+            (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ?
+                " but no document was found" :
+                " current document has seqNo [" + currentSeqNo + "] and primary term ["+ currentTerm + "]"
+            ));
     }
 
-    public VersionConflictEngineException(ShardId shardId, Throwable cause, String type, String id, String explanation) {
-        this(shardId, "[{}][{}]: version conflict, {}", cause, type, id, explanation);
+    public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
+        this(shardId, null, id, explanation);
+    }
+
+    public VersionConflictEngineException(ShardId shardId, Throwable cause, String id, String explanation) {
+        this(shardId, "[{}]: version conflict, {}", cause, id, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {

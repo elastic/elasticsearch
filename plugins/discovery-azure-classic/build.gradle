@@ -91,8 +91,7 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
-thirdPartyAudit.excludes = [
-  // classes are missing
+thirdPartyAudit.ignoreMissingClasses (
   'javax.servlet.ServletContextEvent', 
   'javax.servlet.ServletContextListener', 
   'org.apache.avalon.framework.logger.Logger', 
@@ -124,12 +123,12 @@ thirdPartyAudit.excludes = [
   'org.osgi.framework.BundleEvent', 
   'org.osgi.framework.SynchronousBundleListener',
   'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
-  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer',
-]
+  'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
+)
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreJarHellWithJDK (
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',
     'javax.xml.bind.ContextFinder',
@@ -231,10 +230,9 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.xml.bind.util.JAXBSource',
     'javax.xml.bind.util.Messages',
     'javax.xml.bind.util.ValidationEventCollector'
-  ]
+  )
 } else {
-  // jarhell with jdk (intentionally, because we still expect to run again JDK 8)
-  thirdPartyAudit.excludes += [
+  thirdPartyAudit.ignoreMissingClasses (
     'javax.activation.ActivationDataFlavor',
     'javax.activation.DataContentHandler',
     'javax.activation.DataHandler',
@@ -243,5 +241,5 @@ if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     'javax.activation.FileTypeMap',
     'javax.activation.MimeType',
     'javax.activation.MimeTypeParseException',
-  ]
+  )
 }

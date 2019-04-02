@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -19,7 +21,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
@@ -30,9 +31,9 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
-import org.joda.time.DateTime;
 
 import java.time.Clock;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
              "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexWatch() throws Exception {
@@ -160,7 +162,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_name")
+            client().prepareIndex().setIndex(Watch.INDEX).setId("_name")
                     .setSource(watchSource)
                     .get();
             fail();
@@ -177,7 +179,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(searchRequest))
-                .addAction("_id", indexAction("idx", "action"));
+                .addAction("_id", indexAction("idx"));
 
         watcherClient().preparePutWatch("_name")
                 .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
@@ -244,14 +246,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total.value"))
                         .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
@@ -340,7 +342,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     private void testConditionSearch(WatcherSearchTemplateRequest request) throws Exception {
         // reset, so we don't miss event docs when we filter over the _timestamp field.
-        timeWarp().clock().setTime(new DateTime(Clock.systemUTC().millis()));
+        timeWarp().clock().setTime(ZonedDateTime.now(Clock.systemUTC()));
 
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "level", "type=text"));
@@ -352,7 +354,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                         .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
                 .get();
 
-        logger.info("created watch [{}] at [{}]", watchName, new DateTime(Clock.systemUTC().millis()));
+        logger.info("created watch [{}] at [{}]", watchName, ZonedDateTime.now(Clock.systemUTC()));
 
         client().prepareIndex("events", "event")
                 .setSource("level", "a")

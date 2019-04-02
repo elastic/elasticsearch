@@ -39,6 +39,8 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
         stream.write(expectedBytes);
 
         BytesReference bytesRef = stream.materializeBytes();
+        // Closing compression stream does not close underlying stream
+        stream.close();
 
         assertFalse(CompressorFactory.COMPRESSOR.isCompressed(bytesRef));
 
@@ -48,7 +50,8 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
         assertEquals(-1, streamInput.read());
         assertArrayEquals(expectedBytes, actualBytes);
-        stream.close();
+
+        bStream.close();
 
         // The bytes should be zeroed out on close
         for (byte b : bytesRef.toBytesRef().bytes) {
@@ -64,6 +67,7 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
         stream.write(expectedBytes);
 
         BytesReference bytesRef = stream.materializeBytes();
+        stream.close();
 
         assertTrue(CompressorFactory.COMPRESSOR.isCompressed(bytesRef));
 
@@ -73,7 +77,8 @@ public class CompressibleBytesOutputStreamTests extends ESTestCase {
 
         assertEquals(-1, streamInput.read());
         assertArrayEquals(expectedBytes, actualBytes);
-        stream.close();
+
+        bStream.close();
 
         // The bytes should be zeroed out on close
         for (byte b : bytesRef.toBytesRef().bytes) {

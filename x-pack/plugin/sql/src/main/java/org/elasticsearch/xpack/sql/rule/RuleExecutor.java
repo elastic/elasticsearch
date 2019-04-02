@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.rule;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.tree.NodeUtils;
@@ -18,7 +18,7 @@ import java.util.Map;
 
 public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
 
-    private final Logger log = Loggers.getLogger(getClass());
+    private final Logger log = LogManager.getLogger(getClass());
 
     public static class Limiter {
         public static final Limiter DEFAULT = new Limiter(100);
@@ -152,6 +152,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
                 batchRuns++;
 
                 for (Rule<?, TreeType> rule : batch.rules) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("About to apply rule {}", rule);
+                    }
                     Transformation tf = new Transformation(currentPlan, rule);
                     tfs.add(tf);
                     currentPlan = tf.after;

@@ -26,7 +26,7 @@ dependencies {
     compile "org.elasticsearch:elasticsearch-core:${version}"
 }
 
-test.enabled = false
+unitTest.enabled = false
 // Since CLI does not depend on :server, it cannot run the jarHell task
 jarHell.enabled = false
 

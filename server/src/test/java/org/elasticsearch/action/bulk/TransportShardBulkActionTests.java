@@ -144,6 +144,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
+
         UpdateHelper updateHelper = null;
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -168,6 +170,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         primaryRequest = new BulkItemRequest(0, writeRequest);
         items[0] = primaryRequest;
         bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext secondContext = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(secondContext, updateHelper,
@@ -268,7 +272,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(mappingUpdate);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+            .thenReturn(mappingUpdate);
+
+        randomlySetIgnoredPrimaryResponse(items[0]);
 
         // Pretend the mappings haven't made it to the node yet
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
@@ -284,18 +291,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
-        // Verify that the shard "executed" the operation twice
-        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
+        // Verify that the shard "executed" the operation once
+        verify(shard, times(1)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(success);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+            .thenReturn(success);
 
         TransportShardBulkAction.executeBulkItemRequest(context, null, threadPool::absoluteTimeInMillis,
             (update, shardId, type) -> fail("should not have had to update the mappings"), () -> {});
 
 
-        // Verify that the shard "executed" the operation only once (2 for previous invocations plus
+        // Verify that the shard "executed" the operation only once (1 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean());
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
 
 
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
@@ -323,6 +331,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         RuntimeException err = new RuntimeException("some kind of exception");
 
         boolean errorOnWait = randomBoolean();
+
+        randomlySetIgnoredPrimaryResponse(items[0]);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -363,6 +373,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location location = new Translog.Location(0, 0, 0);
         UpdateHelper updateHelper = null;
 
+        randomlySetIgnoredPrimaryResponse(items[0]);
+
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), () -> {});
@@ -402,6 +414,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         location = context.getLocationToSync();
+
+        randomlySetIgnoredPrimaryResponse(items[0]);
 
         context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -457,6 +471,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
+
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(), () -> {});
@@ -488,7 +504,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -500,6 +517,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -532,11 +550,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
-        Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
+        Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0);
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -548,6 +567,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -581,7 +601,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation);
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenReturn(indexResult);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -593,6 +614,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -626,7 +648,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final long resultSeqNo = 13;
         Engine.DeleteResult deleteResult = new FakeDeleteResult(1, 1, resultSeqNo, found, resultLocation);
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any())).thenReturn(deleteResult);
+        when(shard.applyDeleteOperationOnPrimary(anyLong(), any(), any(), any(), anyLong(), anyLong())).thenReturn(deleteResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -638,6 +660,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -671,6 +694,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest =
             new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(context, updateHelper, threadPool::absoluteTimeInMillis,
@@ -760,7 +784,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexRequest updateResponse = new IndexRequest("index", "_doc", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
 
-        Exception err = new VersionConflictEngineException(shardId, "_doc", "id",
+        Exception err = new VersionConflictEngineException(shardId, "id",
             "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, 0);
         Engine.IndexResult mappingUpdate =
@@ -769,7 +793,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
 
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean())).thenAnswer(ir -> {
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(ir -> {
             if (randomBoolean()) {
                 return conflictedResult;
             }
@@ -802,6 +826,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(RestStatus.CREATED));
         assertThat(response.getSeqNo(), equalTo(13L));
+    }
+
+    private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {
+        if (randomBoolean()) {
+            // add a response to the request and thereby check that it is ignored for the primary.
+            primaryRequest.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, new IndexResponse(null, "_doc",
+                "ignore-primary-response-on-primary", 42, 42, 42, false)));
+        }
     }
 
     /**

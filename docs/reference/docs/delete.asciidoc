@@ -1,9 +1,9 @@
 [[docs-delete]]
 == Delete API
 
-The delete API allows to delete a typed JSON document from a specific
+The delete API allows to delete a JSON document from a specific
 index based on its id. The following example deletes the JSON document
-from an index called `twitter`, under a type called `_doc`, with id `1`:
+from an index called `twitter` with ID `1`:
 
 [source,js]
 --------------------------------------------------
@@ -34,6 +34,16 @@ The result of the above delete operation is:
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 // TESTRESPONSE[s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 // TESTRESPONSE[s/"_seq_no" : 5/"_seq_no" : $body._seq_no/]
+
+[float]
+[[optimistic-concurrency-control-delete]]
+=== Optimistic concurrency control
+
+Delete operations can be made conditional and only be performed if the last
+modification to the document was assigned the sequence number and primary 
+term specified by the `if_seq_no` and `if_primary_term` parameters. If a
+mismatch is detected, the operation will result in a `VersionConflictException`
+and a status code of 409. See <<optimistic-concurrency-control>> for more details. 
 
 [float]
 [[delete-versioning]]
@@ -78,11 +88,11 @@ DELETE /twitter/_doc/1?routing=kimchy
 // TEST[continued]
 
 The above will delete a tweet with id `1`, but will be routed based on the
-user. Note, issuing a delete without the correct routing, will cause the
+user. Note that issuing a delete without the correct routing will cause the
 document to not be deleted.
 
 When the `_routing` mapping is set as `required` and no routing value is
-specified, the delete api will throw a `RoutingMissingException` and reject
+specified, the delete API will throw a `RoutingMissingException` and reject
 the request.
 
 [float]
@@ -92,10 +102,7 @@ the request.
 If an <<docs-index_,external versioning variant>> is used,
 the delete operation automatically creates an index if it has not been
 created before (check out the <<indices-create-index,create index API>>
-for manually creating an index), and also automatically creates a
-dynamic type mapping for the specific type if it has not been created
-before (check out the <<indices-put-mapping,put mapping>>
-API for manually creating type mapping).
+for manually creating an index).
 
 [float]
 [[delete-distributed]]

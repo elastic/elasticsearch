@@ -19,6 +19,16 @@
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.ObjectArrayList;
+
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
+
 import java.nio.file.Path;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -27,7 +37,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,106 +44,8 @@ import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
-import org.elasticsearch.common.Strings;
-
 /** Collections-related utility methods. */
 public class CollectionUtils {
-
-    public static void sort(final long[] array, int len) {
-        new IntroSorter() {
-
-            long pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final long tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Long.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Long.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
-
-    public static void sort(final float[] array, int len) {
-        new IntroSorter() {
-
-            float pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final float tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Float.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Float.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
-
-    public static void sort(final double[] array, int len) {
-        new IntroSorter() {
-
-            double pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final double tmp = array[i];
-                array[i] = array[j];
-                array[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return Double.compare(array[i], array[j]);
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array[i];
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return Double.compare(pivot, array[j]);
-            }
-
-        }.sort(0, len);
-    }
 
     /**
      * Checks if the given array contains any elements.
@@ -246,7 +157,8 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            return ((Map<?,?>) value).values();
+            Map<?,?> map = (Map<?,?>) value;
+            return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {
@@ -299,13 +211,14 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
+    }
 
-    };
     public static void sort(final BytesRefArray bytes, final int[] indices) {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1, final BytesRefArray bytes, final int[] indices) {
+    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
+                             final BytesRefArray bytes, final int[] indices) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;
@@ -399,17 +312,6 @@ public class CollectionUtils {
 
     public static <E> ArrayList<E> newSingletonArrayList(E element) {
         return new ArrayList<>(Collections.singletonList(element));
-    }
-
-    public static <E> LinkedList<E> newLinkedList(Iterable<E> elements) {
-        if (elements == null) {
-            throw new NullPointerException("elements");
-        }
-        LinkedList<E> linkedList = new LinkedList<>();
-        for (E element : elements) {
-            linkedList.add(element);
-        }
-        return linkedList;
     }
 
     public static <E> List<List<E>> eagerPartition(List<E> list, int size) {

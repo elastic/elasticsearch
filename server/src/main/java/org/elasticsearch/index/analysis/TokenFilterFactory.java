@@ -32,6 +32,15 @@ public interface TokenFilterFactory {
     TokenStream create(TokenStream tokenStream);
 
     /**
+     * Normalize a tokenStream for use in multi-term queries
+     *
+     * The default implementation is a no-op
+     */
+    default TokenStream normalize(TokenStream tokenStream) {
+        return tokenStream;
+    }
+
+    /**
      * Does this analyzer mess up the {@link OffsetAttribute}s in such as way as to break the
      * {@link FastVectorHighlighter}? If this is {@code true} then the
      * {@linkplain FastVectorHighlighter} will attempt to work around the broken offsets.
@@ -58,10 +67,20 @@ public interface TokenFilterFactory {
      * Return a version of this TokenFilterFactory appropriate for synonym parsing
      *
      * Filters that should not be applied to synonyms (for example, those that produce
-     * multiple tokens) can return {@link #IDENTITY_FILTER}
+     * multiple tokens) should throw an exception
+     *
      */
     default TokenFilterFactory getSynonymFilter() {
         return this;
+    }
+
+    /**
+     * Get the {@link AnalysisMode} this filter is allowed to be used in. The default is
+     * {@link AnalysisMode#ALL}. Instances need to override this method to define their
+     * own restrictions.
+     */
+    default AnalysisMode getAnalysisMode() {
+        return AnalysisMode.ALL;
     }
 
     /**

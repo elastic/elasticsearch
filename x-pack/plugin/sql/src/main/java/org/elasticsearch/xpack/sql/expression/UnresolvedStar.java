@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
@@ -19,8 +19,8 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     // typically used for nested fields or inner/dotted fields
     private final UnresolvedAttribute qualifier;
 
-    public UnresolvedStar(Location location, UnresolvedAttribute qualifier) {
-        super(location, emptyList());
+    public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
+        super(source, emptyList());
         this.qualifier = qualifier;
     }
 
@@ -35,7 +35,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
     }
 
@@ -66,12 +66,12 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     private String message() {
-        return (qualifier() != null ? qualifier() + "." : "") + "*";
+        return (qualifier() != null ? qualifier().qualifiedName() + "." : "") + "*";
     }
 
     @Override
     public String unresolvedMessage() {
-        return "Cannot determine columns for " + message();
+        return "Cannot determine columns for [" + message() + "]";
     }
 
     @Override

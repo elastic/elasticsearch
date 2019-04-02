@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-datafeed]]
-=== Delete {dfeeds-cap} API
+=== Delete {dfeeds} API
 ++++
-<titleabbrev>Delete {dfeeds-cap}</titleabbrev>
+<titleabbrev>Delete {dfeeds}</titleabbrev>
 ++++
 
 Deletes an existing {dfeed}.
@@ -11,7 +11,7 @@ Deletes an existing {dfeed}.
 
 ==== Request
 
-`DELETE _xpack/ml/datafeeds/<feed_id>`
+`DELETE _ml/datafeeds/<feed_id>`
 
 
 ==== Description
@@ -45,7 +45,7 @@ The following example deletes the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/datafeeds/datafeed-total-requests
+DELETE _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]

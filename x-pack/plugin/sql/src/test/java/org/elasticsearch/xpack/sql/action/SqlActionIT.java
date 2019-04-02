@@ -10,19 +10,17 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
-import java.sql.JDBCType;
-
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SqlActionIT extends AbstractSqlIntegTestCase {
 
-    public void testSqlAction() throws Exception {
+    public void testSqlAction() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
-                .add(new IndexRequest("test", "doc", "1").source("data", "bar", "count", 42))
-                .add(new IndexRequest("test", "doc", "2").source("data", "baz", "count", 43))
+                .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
+                .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
         ensureYellow("test");
@@ -35,8 +33,8 @@ public class SqlActionIT extends AbstractSqlIntegTestCase {
         assertThat(response.columns(), hasSize(2));
         int dataIndex = dataBeforeCount ? 0 : 1;
         int countIndex = dataBeforeCount ? 1 : 0;
-        assertEquals(new ColumnInfo("", "data", "text", JDBCType.VARCHAR, 0), response.columns().get(dataIndex));
-        assertEquals(new ColumnInfo("", "count", "long", JDBCType.BIGINT, 20), response.columns().get(countIndex));
+        assertEquals(new ColumnInfo("", "data", "text", 2147483647), response.columns().get(dataIndex));
+        assertEquals(new ColumnInfo("", "count", "long", 20), response.columns().get(countIndex));
 
         assertThat(response.rows(), hasSize(2));
         assertEquals("bar", response.rows().get(0).get(dataIndex));

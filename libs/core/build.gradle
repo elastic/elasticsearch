@@ -48,8 +48,7 @@ if (!isEclipse && !isIdea) {
 
     forbiddenApisJava9 {
         if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-            targetCompatibility = JavaVersion.VERSION_1_9
-            javaHome = project.java9Home
+            targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
         }
         replaceSignatureFiles 'jdk-signatures'
     }
@@ -106,7 +105,7 @@ if (isEclipse) {
     }
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
     // from log4j
     'org/osgi/framework/AdaptPermission',
     'org/osgi/framework/AdminPermission',
@@ -117,4 +116,4 @@ thirdPartyAudit.excludes = [
     'org/osgi/framework/SynchronousBundleListener',
     'org/osgi/framework/wiring/BundleWire',
     'org/osgi/framework/wiring/BundleWiring'
-]
+)

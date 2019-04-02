@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-job]]
-=== Update Jobs API
+=== Update jobs API
 ++++
-<titleabbrev>Update Jobs</titleabbrev>
+<titleabbrev>Update jobs</titleabbrev>
 ++++
 
 Updates certain properties of a job.
 
 ==== Request
 
-`POST _xpack/ml/anomaly_detectors/<job_id>/_update`
+`POST _ml/anomaly_detectors/<job_id>/_update`
 
 
 ==== Path Parameters
@@ -99,7 +99,7 @@ The following example updates the `total-requests` job:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/anomaly_detectors/total-requests/_update
+POST _ml/anomaly_detectors/total-requests/_update
 {
   "description":"An updated job",
   "groups": ["group1","group2"],

@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.plan.physical;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class LimitExec extends UnaryExec implements Unexecutable {
 
     private final Expression limit;
 
-    public LimitExec(Location location, PhysicalPlan child, Expression limit) {
-        super(location, child);
+    public LimitExec(Source source, PhysicalPlan child, Expression limit) {
+        super(source, child);
         this.limit = limit;
     }
 
@@ -27,7 +27,7 @@ public class LimitExec extends UnaryExec implements Unexecutable {
 
     @Override
     protected LimitExec replaceChild(PhysicalPlan newChild) {
-        return new LimitExec(location(), newChild, limit);
+        return new LimitExec(source(), newChild, limit);
     }
 
     public Expression limit() {

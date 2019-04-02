@@ -18,8 +18,8 @@ import java.util.Objects;
 
 public class ModelPlotConfig implements ToXContentObject, Writeable {
 
-    private static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
-    private static final ParseField ENABLED_FIELD = new ParseField("enabled");
+    public static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
+    public static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField TERMS_FIELD = new ParseField("terms");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly

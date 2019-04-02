@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "mixed_role"
         body:  >
             {
@@ -19,7 +19,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "test_user"
         body:  >
           {
@@ -31,12 +31,12 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "test_user"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "mixed_role"
         ignore: 404
 
@@ -48,7 +48,6 @@ teardown:
       index:
         id: 1
         index: "<write-{now/M}>"
-        type: doc
         body: >
           {
             "name" : "doc1"
@@ -58,9 +57,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<write-{now/M{YYYY.MM}}>", "_type": "doc", "_id": "2"}}'
+            - '{"index": {"_index": "<write-{now/M{YYYY.MM}}>", "_id": "2"}}'
             - '{"name": "doc2"}'
-            - '{"index": {"_index": "<write-{now/d}>", "_type": "doc", "_id": "3"}}'
+            - '{"index": {"_index": "<write-{now/d}>", "_id": "3"}}'
             - '{"name": "doc3"}'
   - match: { errors: false }
   - match: { items.0.index.status: 201 }
@@ -72,6 +71,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: "write-*"
   - match: { hits.total: 3 }
 
@@ -83,7 +83,6 @@ teardown:
       index:
         id: 4
         index: "<read-{now/M}>"
-        type: doc
         body: >
           {
             "name" : "doc4"
@@ -93,9 +92,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<read-{now/M{YYYY.MM}}>", "_type": "doc", "_id": "5"}}'
+            - '{"index": {"_index": "<read-{now/M{YYYY.MM}}>", "_id": "5"}}'
             - '{"name": "doc5"}'
-            - '{"index": {"_index": "<read-{now/d}>", "_type": "doc", "_id": "6"}}'
+            - '{"index": {"_index": "<read-{now/d}>", "_id": "6"}}'
             - '{"name": "doc6"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -109,6 +108,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: "read-*"
   - match: { hits.total: 0 }
 
@@ -118,9 +118,9 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
-            - '{"index": {"_index": "<read-{now/M{YYYY}}>", "_type": "doc", "_id": "7"}}'
+            - '{"index": {"_index": "<read-{now/M{YYYY}}>", "_id": "7"}}'
             - '{"name": "doc7"}'
-            - '{"index": {"_index": "<write-{now/M{YYYY}}>", "_type": "doc", "_id": "8"}}'
+            - '{"index": {"_index": "<write-{now/M{YYYY}}>", "_id": "8"}}'
             - '{"name": "doc8"}'
   - match: { errors: true }
   - match: { items.0.index.status: 403 }
@@ -133,6 +133,7 @@ teardown:
 
   - do: # superuser
       search:
+        rest_total_hits_as_int: true
         index: write-*
         body: { "query": { "term": { "_id": "8" } } }
   - match: { hits.total: 1 }

@@ -36,7 +36,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongConsumer;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -51,12 +50,10 @@ public class RecoveriesCollection {
 
     private final Logger logger;
     private final ThreadPool threadPool;
-    private final LongConsumer ensureClusterStateVersionCallback;
 
-    public RecoveriesCollection(Logger logger, ThreadPool threadPool, LongConsumer ensureClusterStateVersionCallback) {
+    public RecoveriesCollection(Logger logger, ThreadPool threadPool) {
         this.logger = logger;
         this.threadPool = threadPool;
-        this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
     }
 
     /**
@@ -66,7 +63,7 @@ public class RecoveriesCollection {
      */
     public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                               PeerRecoveryTargetService.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(indexShard, sourceNode, listener);
         startRecoveryInternal(recoveryTarget, activityTimeout);
         return recoveryTarget.recoveryId();
     }
@@ -76,8 +73,8 @@ public class RecoveriesCollection {
         assert existingTarget == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId());
-        threadPool.schedule(activityTimeout, ThreadPool.Names.GENERIC,
-                new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout));
+        threadPool.schedule(new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout),
+            activityTimeout, ThreadPool.Names.GENERIC);
     }
 
     /**
@@ -258,7 +255,7 @@ public class RecoveriesCollection {
         private final long recoveryId;
         private final TimeValue checkInterval;
 
-        private long lastSeenAccessTime;
+        private volatile long lastSeenAccessTime;
 
         private RecoveryMonitor(long recoveryId, long lastSeenAccessTime, TimeValue checkInterval) {
             this.recoveryId = recoveryId;
@@ -289,7 +286,7 @@ public class RecoveriesCollection {
             }
             lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
-            threadPool.schedule(checkInterval, ThreadPool.Names.GENERIC, this);
+            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
         }
     }
 

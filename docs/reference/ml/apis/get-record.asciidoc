@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-record]]
-=== Get Records API
+=== Get records API
 ++++
-<titleabbrev>Get Records</titleabbrev>
+<titleabbrev>Get records</titleabbrev>
 ++++
 
 Retrieves anomaly records for a job.
@@ -11,7 +11,7 @@ Retrieves anomaly records for a job.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/records`
+`GET _ml/anomaly_detectors/<job_id>/results/records`
 
 //===== Description
 
@@ -76,7 +76,7 @@ The following example gets record information for the `it-ops-kpi` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it-ops-kpi/results/records
+GET _ml/anomaly_detectors/it-ops-kpi/results/records
 {
   "sort": "record_score",
   "desc": true,

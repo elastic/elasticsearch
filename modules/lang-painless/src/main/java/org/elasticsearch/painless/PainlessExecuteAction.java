@@ -71,11 +71,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -94,7 +92,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
 
@@ -218,19 +215,20 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                 ContextSetup that = (ContextSetup) o;
                 return Objects.equals(index, that.index) &&
                     Objects.equals(document, that.document) &&
-                    Objects.equals(query, that.query);
+                    Objects.equals(query, that.query) &&
+                    Objects.equals(xContentType, that.xContentType);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(index, document, query);
+                return Objects.hash(index, document, query, xContentType);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
-                out.writeOptionalString(xContentType != null ? xContentType.mediaType(): null);
+                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters(): null);
                 out.writeOptionalNamedWriteable(query);
             }
 
@@ -347,11 +345,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         // For testing only:
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field(SCRIPT_FIELD.getPreferredName(), script);
             builder.field(CONTEXT_FIELD.getPreferredName(), context.name);
             if (contextSetup != null) {
                 builder.field(CONTEXT_SETUP_FIELD.getPreferredName(), contextSetup);
             }
+            builder.endObject();
             return builder;
         }
 
@@ -464,10 +464,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         private final IndicesService indicesServices;
 
         @Inject
-        public TransportAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+        public TransportAction(ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
@@ -579,7 +579,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
                     String type = indexService.mapperService().documentMapper().type();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = SourceToParse.source(index, type, "_id", document, xContentType);
+                    SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
@@ -609,13 +609,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
-            return channel -> client.executeLocally(INSTANCE, request, new RestBuilderListener<Response>(channel) {
-                @Override
-                public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(OK, builder);
-                }
-            });
+            return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 

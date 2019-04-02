@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -84,7 +85,7 @@ public class RealmUserLookupTests extends ESTestCase {
     }
 
     public void testRealmException() {
-        final Realm realm = new Realm("test", new RealmConfig("test", Settings.EMPTY, globalSettings, env, threadContext)) {
+        final Realm realm = new Realm(new RealmConfig(new RealmIdentifier("test", "test"), globalSettings, env, threadContext)) {
             @Override
             public boolean supports(AuthenticationToken token) {
                 return false;
@@ -115,7 +116,7 @@ public class RealmUserLookupTests extends ESTestCase {
     private List<MockLookupRealm> buildRealms(int realmCount) {
         final List<MockLookupRealm> realms = new ArrayList<>(realmCount);
         for (int i = 1; i <= realmCount; i++) {
-            final RealmConfig config = new RealmConfig("lookup-" + i, Settings.EMPTY, globalSettings, env, threadContext);
+            final RealmConfig config = new RealmConfig(new RealmIdentifier("mock","lookup-" + i), globalSettings, env, threadContext);
             final MockLookupRealm realm = new MockLookupRealm(config);
             for (int j = 0; j < 5; j++) {
                 realm.registerUser(new User(randomAlphaOfLengthBetween(6, 12)));

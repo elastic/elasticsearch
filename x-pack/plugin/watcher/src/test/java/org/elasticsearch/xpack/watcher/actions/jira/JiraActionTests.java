@@ -9,6 +9,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,9 +32,9 @@ import org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraIssue;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -216,10 +217,13 @@ public class JiraActionTests extends ESTestCase {
         HttpClient httpClient = mock(HttpClient.class);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(new HttpResponse(HttpStatus.SC_CREATED));
 
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", "https://internal-jira.elastic.co:443");
+        secureSettings.setString("secure_user", "elastic");
+        secureSettings.setString("secure_password", "secret");
+
         Settings.Builder settings = Settings.builder()
-                .put("url", "https://internal-jira.elastic.co:443")
-                .put("user", "elastic")
-                .put("password", "secret")
+                .setSecureSettings(secureSettings)
                 .put("issue_defaults.customfield_000", "foo")
                 .put("issue_defaults.customfield_001", "bar");
 
@@ -234,7 +238,7 @@ public class JiraActionTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         Payload payload = new Payload.Simple(data);
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5),  now);
         WatchExecutionContext context = mockExecutionContextBuilder(wid.watchId())
@@ -293,7 +297,7 @@ public class JiraActionTests extends ESTestCase {
         private final Map<String, Object> model;
 
         ModelTextTemplateEngine(Map<String, Object> model) {
-            super(Settings.EMPTY, mock(ScriptService.class));
+            super(mock(ScriptService.class));
             this.model = model;
         }
 

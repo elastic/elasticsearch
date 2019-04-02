@@ -10,7 +10,6 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
@@ -19,7 +18,7 @@ teardown:
           transient:
             action.auto_create_index: false
   - do:
-      catch: /no such index and \[action.auto_create_index\] is \[false\]/
+      catch: /no such index \[dest\] and \[action.auto_create_index\] is \[false\]/
       reindex:
         body:
           source:
@@ -37,11 +36,10 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /no such index and \[action.auto_create_index\] \(\[test\]\) doesn't match/
+      catch: /no such index \[dest\] and \[action.auto_create_index\] \(\[test\]\) doesn't match/
       reindex:
         body:
           source:
@@ -59,11 +57,10 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /no such index and \[action.auto_create_index\] contains \[-dest\] which forbids automatic creation of the index/
+      catch: /no such index \[dest\] and \[action.auto_create_index\] contains \[-dest\] which forbids automatic creation of the index/
       reindex:
         body:
           source:

@@ -1,9 +1,9 @@
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 evaluationDependsOn(idpFixtureProject.path)
 
-apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -12,58 +12,68 @@ dependencies {
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile 'com.google.jimfs:jimfs:1.1'
 }
+testFixtures.useFixture ":x-pack:test:idp-fixture"
 
-task idpFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
-}
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpCertificate(type: Copy) {
-    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
+task copyIdpFiles(type: Copy) {
+    from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml');
     into outputDir
 }
-if (project.rootProject.vagrantSupported) {
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
-  integTestCluster.dependsOn idpFixture, copyIdpCertificate
-  integTest.finalizedBy idpFixtureProject.halt
-} else {
-  integTest.enabled = false
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
+
+task setupPorts {
+    dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+    doLast {
+        String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
+        int ephemeralPort = Integer.valueOf(portString)
+        File idpMetaFile = file(outputDir + '/idp-metadata.xml')
+        List<String> lines = idpMetaFile.readLines("UTF-8")
+        StringBuilder content = new StringBuilder()
+        for (String line : lines) {
+            content.append(line.replace("localhost:4443", "localhost:" + ephemeralPort))
+        }
+        idpMetaFile.delete()
+        idpMetaFile.createNewFile()
+        idpMetaFile.write(content.toString(), "UTF-8")
+    }
 }
+// Don't attempt to get ephemeral ports when Docker is not available
+setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
+
+integTestCluster.dependsOn setupPorts
 
 integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.realms.file.type', 'file'
-  setting 'xpack.security.authc.realms.file.order', '0'
+  setting 'xpack.security.authc.realms.file.file.order', '0'
   // SAML realm 1 (no authorization_realms)
-  setting 'xpack.security.authc.realms.shibboleth.type', 'saml'
-  setting 'xpack.security.authc.realms.shibboleth.order', '1'
-  setting 'xpack.security.authc.realms.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.shibboleth.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth.order', '1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.entity_id', 'http://mock1.http.elastic.local/'
   // The port in the ACS URL is fake - the test will bind the mock webserver
   // to a random port and then whenever it needs to connect to a URL on the
   // mock webserver it will replace 54321 with the real port
-  setting 'xpack.security.authc.realms.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
-  setting 'xpack.security.authc.realms.shibboleth.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
+  setting 'xpack.security.authc.realms.saml.shibboleth.sp.acs', 'http://localhost:54321/saml/acs1'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth.attributes.name', 'urn:oid:2.5.4.3'
   // SAML realm 2 (uses authorization_realms)
-  setting 'xpack.security.authc.realms.shibboleth_native.type', 'saml'
-  setting 'xpack.security.authc.realms.shibboleth_native.order', '2'
-  setting 'xpack.security.authc.realms.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
-  setting 'xpack.security.authc.realms.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
-  setting 'xpack.security.authc.realms.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
-  setting 'xpack.security.authc.realms.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
-  setting 'xpack.security.authc.realms.shibboleth_native.attributes.principal', 'uid'
-  setting 'xpack.security.authc.realms.shibboleth_native.authorization_realms', 'native'
-  setting 'xpack.security.authc.realms.native.type', 'native'
-  setting 'xpack.security.authc.realms.native.order', '3'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.order', '2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.entity_id', 'https://test.shibboleth.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.idp.metadata.path', 'idp-metadata.xml'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.entity_id', 'http://mock2.http.elastic.local/'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.sp.acs', 'http://localhost:54321/saml/acs2'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.attributes.principal', 'uid'
+  setting 'xpack.security.authc.realms.saml.shibboleth_native.authorization_realms', 'native'
+  setting 'xpack.security.authc.realms.native.native.order', '3'
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
-  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
+  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
 
   setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
@@ -86,15 +96,19 @@ forbiddenPatterns {
   exclude '**/*.key'
 }
 
-thirdPartyAudit.excludes = [
-  // uses internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-  // missing
-  'com.ibm.icu.lang.UCharacter'
-]
+thirdPartyAudit {
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+   )
+
+   ignoreMissingClasses ( 
+       'com.ibm.icu.lang.UCharacter'
+   )
+}

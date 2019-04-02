@@ -16,6 +16,7 @@
                   tokenizer: standard
                   filter: [lowercase]
                 search:
+                  rest_total_hits_as_int: true
                   tokenizer: standard
                   filter: [lowercase, keyword_repeat, porter_stem, unique_stem]
               filter:
@@ -23,23 +24,22 @@
                   type: unique
                   only_on_same_position: true
           mappings:
-            doc:
-              properties:
-                text:
-                  type: text
-                  analyzer: index
-                  search_analyzer: search
+            properties:
+              text:
+                type: text
+                analyzer: index
+                search_analyzer: search
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         body:  { "text": "the fox runs across the street" }
         refresh: true
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -51,13 +51,13 @@
   - do:
       index:
         index: test
-        type:  doc
         id:    2
         body:  { "text": "run fox run" }
         refresh: true
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:

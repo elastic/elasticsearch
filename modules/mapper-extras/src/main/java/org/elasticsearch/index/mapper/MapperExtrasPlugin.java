@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
-import org.elasticsearch.index.query.FeatureQueryBuilder;
+import org.elasticsearch.index.query.RankFeatureQueryBuilder;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -37,20 +37,24 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
         mappers.put(ScaledFloatFieldMapper.CONTENT_TYPE, new ScaledFloatFieldMapper.TypeParser());
         mappers.put(TokenCountFieldMapper.CONTENT_TYPE, new TokenCountFieldMapper.TypeParser());
-        mappers.put(FeatureFieldMapper.CONTENT_TYPE, new FeatureFieldMapper.TypeParser());
-        mappers.put(FeatureVectorFieldMapper.CONTENT_TYPE, new FeatureVectorFieldMapper.TypeParser());
+        mappers.put(RankFeatureFieldMapper.CONTENT_TYPE, new RankFeatureFieldMapper.TypeParser());
+        mappers.put(RankFeaturesFieldMapper.CONTENT_TYPE, new RankFeaturesFieldMapper.TypeParser());
+        mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, new DenseVectorFieldMapper.TypeParser());
+        mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, new SparseVectorFieldMapper.TypeParser());
+        mappers.put(SearchAsYouTypeFieldMapper.CONTENT_TYPE, new SearchAsYouTypeFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);
     }
 
     @Override
     public Map<String, TypeParser> getMetadataMappers() {
-        return Collections.singletonMap(FeatureMetaFieldMapper.CONTENT_TYPE, new FeatureMetaFieldMapper.TypeParser());
+        return Collections.singletonMap(RankFeatureMetaFieldMapper.CONTENT_TYPE, new RankFeatureMetaFieldMapper.TypeParser());
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
         return Collections.singletonList(
-                new QuerySpec<>(FeatureQueryBuilder.NAME, FeatureQueryBuilder::new, p -> FeatureQueryBuilder.PARSER.parse(p, null)));
+            new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new,
+                p -> RankFeatureQueryBuilder.PARSER.parse(p, null)));
     }
 
 }

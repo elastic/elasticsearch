@@ -110,19 +110,19 @@ public class WatcherScheduleEngineBenchmark {
 
                 client.admin().indices().prepareDelete("_all").get();
                 client.admin().indices().prepareCreate("test").get();
-                client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+                client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
                     final String id = "_id_" + i;
-                    client.prepareIndex(Watch.INDEX, Watch.DOC_TYPE, id)
+                    client.prepareIndex().setIndex(Watch.INDEX).setId(id)
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
                                             .condition(new ScriptCondition(new Script(
                                                     ScriptType.INLINE,
                                                     Script.DEFAULT_SCRIPT_LANG,
-                                                    "ctx.payload.hits.total > 0",
+                                                    "ctx.payload.hits.total.value > 0",
                                                     emptyMap())))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON), XContentType.JSON

@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.common.Priority;
@@ -34,8 +33,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -260,8 +261,10 @@ public class TaskBatcherTests extends TaskExecutorTests {
         Map<Integer, TestListener> tasks = new HashMap<>();
         final int numOfTasks = randomInt(10);
         final CountDownLatch latch = new CountDownLatch(numOfTasks);
+        Set<Integer> usedKeys = new HashSet<>(numOfTasks);
         for (int i = 0; i < numOfTasks; i++) {
-            while (null != tasks.put(randomInt(1024), new TestListener() {
+            int key = randomValueOtherThanMany(k -> usedKeys.contains(k), () -> randomInt(1024));
+            tasks.put(key, new TestListener() {
                 @Override
                 public void processed(String source) {
                     latch.countDown();
@@ -269,10 +272,12 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    fail(ExceptionsHelper.detailedMessage(e));
+                    throw new AssertionError(e);
                 }
-            })) ;
+            });
+            usedKeys.add(key);
         }
+        assert usedKeys.size() == numOfTasks;
 
         TestExecutor<Integer> executor = taskList -> {
             assertThat(taskList.size(), equalTo(tasks.size()));
@@ -298,7 +303,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    fail(ExceptionsHelper.detailedMessage(e));
+                    throw new AssertionError(e);
                 }
             };
 

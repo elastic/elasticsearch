@@ -12,11 +12,13 @@ import java.util.Locale;
  * SQL protocol mode
  */
 public enum Mode {
+    CLI,
     PLAIN,
-    JDBC;
+    JDBC, 
+    ODBC;
 
     public static Mode fromString(String mode) {
-        if (mode == null) {
+        if (mode == null || mode.isEmpty()) {
             return PLAIN;
         }
         return Mode.valueOf(mode.toUpperCase(Locale.ROOT));
@@ -26,5 +28,9 @@ public enum Mode {
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
+    }
+
+    public static boolean isDriver(Mode mode) {
+        return mode == JDBC || mode == ODBC;
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -12,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -114,14 +114,13 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.Month;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.YearTimes;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -147,7 +146,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
@@ -172,20 +170,20 @@ public class WatchTests extends ESTestCase {
         templateEngine = mock(TextTemplateEngine.class);
         htmlSanitizer = mock(HtmlSanitizer.class);
         licenseState = mock(XPackLicenseState.class);
-        logger = Loggers.getLogger(WatchTests.class);
+        logger = LogManager.getLogger(WatchTests.class);
         searchTemplateService = mock(WatcherSearchTemplateService.class);
     }
 
     public void testParserSelfGenerated() throws Exception {
         Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
-        DateTime now = new DateTime(clock.millis(), UTC);
+        ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
         TransformRegistry transformRegistry = transformRegistry();
         boolean includeStatus = randomBoolean();
         Schedule schedule = randomSchedule();
         Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
@@ -208,13 +206,16 @@ public class WatchTests extends ESTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 
-        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus, 1L);
+        final long sourceSeqNo = randomNonNegativeLong();
+        final long sourcePrimaryTerm = randomLongBetween(1, 200);
+        Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus,
+            sourceSeqNo, sourcePrimaryTerm);
 
         BytesReference bytes = BytesReference.bytes(jsonBuilder().value(watch));
         logger.info("{}", bytes.utf8ToString());
-        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
 
-        Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON);
+        Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes, XContentType.JSON, sourceSeqNo, sourcePrimaryTerm);
 
         if (includeStatus) {
             assertThat(parsedWatch.status(), equalTo(watchStatus));
@@ -227,13 +228,15 @@ public class WatchTests extends ESTestCase {
         }
         assertThat(parsedWatch.metadata(), equalTo(metadata));
         assertThat(parsedWatch.actions(), equalTo(actions));
+        assertThat(parsedWatch.getSourceSeqNo(), equalTo(sourceSeqNo));
+        assertThat(parsedWatch.getSourcePrimaryTerm(), equalTo(sourcePrimaryTerm));
     }
 
     public void testThatBothStatusFieldsCanBeRead() throws Exception {
         InputRegistry inputRegistry = mock(InputRegistry.class);
         ActionRegistry actionRegistry = mock(ActionRegistry.class);
         // a fake trigger service that advances past the trigger end object, which cannot be done with mocking
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, Collections.emptySet()) {
+        TriggerService triggerService = new TriggerService(Collections.emptySet()) {
             @Override
             public Trigger parseTrigger(String jobName, XContentParser parser) throws IOException {
                 while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -243,8 +246,10 @@ public class WatchTests extends ESTestCase {
             }
         };
 
-        DateTime now = new DateTime(UTC);
+        Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+
         ClockMock clock = ClockMock.frozen();
+        ZonedDateTime now = Instant.ofEpochMilli(fixedClock.millis()).atZone(ZoneOffset.UTC);
         clock.setTime(now);
 
         List<ActionWrapper> actions = randomActions();
@@ -252,12 +257,12 @@ public class WatchTests extends ESTestCase {
         for (ActionWrapper action : actions) {
             actionsStatuses.put(action.id(), new ActionStatus(now));
         }
-        WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
+        WatchStatus watchStatus = new WatchStatus(clock.instant().atZone(ZoneOffset.UTC), unmodifiableMap(actionsStatuses));
 
-        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
-        Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON);
-        assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
+        Watch watch = watchParser.parse("foo", true, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
+        assertThat(watch.status().state().getTimestamp().toInstant().toEpochMilli(), is(clock.millis()));
         for (ActionWrapper action : actions) {
             assertThat(watch.status().actionStatus(action.id()), is(actionsStatuses.get(action.id())));
         }
@@ -266,8 +271,8 @@ public class WatchTests extends ESTestCase {
     public void testParserBadActions() throws Exception {
         ClockMock clock = ClockMock.frozen();
         ScheduleRegistry scheduleRegistry = registry(randomSchedule());
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, clock);
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, clock);
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
         ConditionRegistry conditionRegistry = conditionRegistry();
         ExecutableInput input = randomInput();
         InputRegistry inputRegistry = registry(input.type());
@@ -282,9 +287,9 @@ public class WatchTests extends ESTestCase {
                 .startObject()
                     .startArray("actions").endArray()
                 .endObject();
-        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
+        WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, clock);
         try {
-            watchParser.parse("failure", false, BytesReference.bytes(jsonBuilder), XContentType.JSON);
+            watchParser.parse("failure", false, BytesReference.bytes(jsonBuilder), XContentType.JSON, 1L, 1L);
             fail("This watch should fail to parse as actions is an array");
         } catch (ElasticsearchParseException pe) {
             assertThat(pe.getMessage().contains("could not parse actions for watch [failure]"), is(true));
@@ -294,8 +299,8 @@ public class WatchTests extends ESTestCase {
     public void testParserDefaults() throws Exception {
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
         InputRegistry inputRegistry = registry(new ExecutableNoneInput().type());
@@ -308,8 +313,8 @@ public class WatchTests extends ESTestCase {
                 .field(ScheduleTrigger.TYPE, schedule(schedule).build())
                 .endObject();
         builder.endObject();
-        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
-        Watch watch = watchParser.parse("failure", false, BytesReference.bytes(builder), XContentType.JSON);
+        WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        Watch watch = watchParser.parse("failure", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
         assertThat(watch, notNullValue());
         assertThat(watch.trigger(), instanceOf(ScheduleTrigger.class));
         assertThat(watch.input(), instanceOf(ExecutableNoneInput.class));
@@ -322,16 +327,16 @@ public class WatchTests extends ESTestCase {
     public void testParseWatch_verifyScriptLangDefault() throws Exception {
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
         InputRegistry inputRegistry = registry(SearchInput.TYPE);
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
-        WatchParser watchParser = new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        WatchParser watchParser = new WatchParser(triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
-        WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry());
+        WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(scriptService, xContentRegistry());
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -375,7 +380,7 @@ public class WatchTests extends ESTestCase {
         builder.endObject();
 
         // parse in default mode:
-        Watch watch = watchParser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+        Watch watch = watchParser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
         assertThat(((ScriptCondition) watch.condition()).getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
         WatcherSearchTemplateRequest request = ((SearchInput) watch.input().input()).getRequest();
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
@@ -394,7 +399,7 @@ public class WatchTests extends ESTestCase {
             builder.endObject();
 
             WatchParser parser = createWatchparser();
-            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.input().type(), is(NoneInput.TYPE));
         }
@@ -410,7 +415,7 @@ public class WatchTests extends ESTestCase {
             builder.endObject();
 
             WatchParser parser = createWatchparser();
-            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON);
+            Watch watch = parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L);
             assertThat(watch, is(notNullValue()));
             assertThat(watch.actions(), hasSize(0));
         }
@@ -429,7 +434,7 @@ public class WatchTests extends ESTestCase {
 
             WatchParser parser = createWatchparser();
             ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                    () -> parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON));
+                    () -> parser.parse("_id", false, BytesReference.bytes(builder), XContentType.JSON, 1L, 1L));
             assertThat(e.getMessage(), is("could not parse watch [_id]. missing required field [trigger]"));
         }
     }
@@ -441,15 +446,15 @@ public class WatchTests extends ESTestCase {
 
         ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
                 IntervalSchedule.Interval.Unit.SECONDS)));
-        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, Clock.systemUTC());
-        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(scheduleRegistry, Clock.systemUTC());
+        TriggerService triggerService = new TriggerService(singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
         InputRegistry inputRegistry = registry(SimpleInput.TYPE);
         TransformRegistry transformRegistry = transformRegistry();
         ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
 
-        return new WatchParser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
+        return new WatchParser(triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
     }
 
     private static Schedule randomSchedule() {
@@ -543,7 +548,7 @@ public class WatchTests extends ESTestCase {
     private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
         TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
-        DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
+        ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
                 return new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")), logger, scriptService);
@@ -583,10 +588,10 @@ public class WatchTests extends ESTestCase {
                     new ExecutableEmailAction(action, logger, emailService, templateEngine, htmlSanitizer, Collections.emptyMap())));
         }
         if (randomBoolean()) {
-            DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
+            ZoneOffset timeZone = randomBoolean() ? ZoneOffset.UTC : null;
             TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             WriteRequest.RefreshPolicy refreshPolicy = randomBoolean() ? null : randomFrom(WriteRequest.RefreshPolicy.values());
-            IndexAction action = new IndexAction("_index", "_type", randomBoolean() ? "123" : null, null, timeout, timeZone,
+            IndexAction action = new IndexAction("_index", null, randomBoolean() ? "123" : null, null, timeout, timeZone,
                     refreshPolicy);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
@@ -645,8 +650,8 @@ public class WatchTests extends ESTestCase {
 
     public static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-        public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry, Clock clock) {
-            super(settings, registry, clock);
+        public ParseOnlyScheduleTriggerEngine(ScheduleRegistry registry, Clock clock) {
+            super(registry, clock);
         }
 
         @Override

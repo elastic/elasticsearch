@@ -363,7 +363,7 @@ public class QueryProfilerTests extends ESTestCase {
 
     public void testApproximations() throws IOException {
         QueryProfiler profiler = new QueryProfiler();
-        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), logger);
+        Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader), reader::close);
         // disable query caching since we want to test approximations, which won't
         // be exposed on a cached entry
         ContextIndexSearcher searcher = new ContextIndexSearcher(engineSearcher, null, MAYBE_CACHE_POLICY);

@@ -21,7 +21,6 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -67,6 +66,7 @@ public class TransportNodesListGatewayStartedShards extends
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
+    private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
     private final NamedXContentRegistry namedXContentRegistry;
@@ -76,8 +76,9 @@ public class TransportNodesListGatewayStartedShards extends
                                                   TransportService transportService, ActionFilters actionFilters,
                                                   NodeEnvironment env, IndicesService indicesService,
                                                   NamedXContentRegistry namedXContentRegistry) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
+        this.settings = settings;
         this.nodeEnv = env;
         this.indicesService = indicesService;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -87,11 +88,6 @@ public class TransportNodesListGatewayStartedShards extends
     public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
         execute(new Request(shardId, nodes), listener);
-    }
-
-    @Override
-    protected boolean transportCompress() {
-        return true; // this can become big...
     }
 
     @Override
@@ -282,10 +278,6 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                in.readLong();
-            }
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
@@ -296,10 +288,6 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-                // legacy version
-                out.writeLong(-1L);
-            }
             out.writeOptionalString(allocationId);
             out.writeBoolean(primary);
             if (storeException != null) {

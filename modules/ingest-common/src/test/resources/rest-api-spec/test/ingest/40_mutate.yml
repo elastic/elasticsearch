@@ -84,7 +84,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body:  >
@@ -103,7 +102,6 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - is_false: _source.field_to_rename
   - is_false: _source.field_to_remove
@@ -143,7 +141,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: {field: "value"}
@@ -151,8 +148,6 @@ teardown:
   - do:
       get:
         index: surprise
-        type: test
         id: 1
   - length: { _source: 1 }
   - match: { _source.field: "value" }
-

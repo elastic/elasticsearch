@@ -20,6 +20,8 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -35,13 +37,12 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -67,10 +68,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
-final class TransportClientNodesService extends AbstractComponent implements Closeable {
+final class TransportClientNodesService implements Closeable {
+
+    private static final Logger logger = LogManager.getLogger(TransportClientNodesService.class);
 
     private final TimeValue nodesSamplerInterval;
 
@@ -97,7 +99,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
     private final NodeSampler nodesSampler;
 
-    private volatile ScheduledFuture nodesSamplerFuture;
+    private volatile Scheduler.Cancellable nodesSamplerCancellable;
 
     private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
@@ -124,27 +126,26 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
     TransportClientNodesService(Settings settings, TransportService transportService,
                                        ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {
-        super(settings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
         this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
-        this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
-        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
-        this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
+        this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(settings);
+        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings).millis();
+        this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(settings);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
-        if (TransportClient.CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
+        if (TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();
         }
         this.hostFailureListener = hostFailureListener;
-        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
+        this.nodesSamplerCancellable = threadPool.schedule(new ScheduledNodeSampler(), nodesSamplerInterval, ThreadPool.Names.GENERIC);
     }
 
     public List<TransportAddress> transportAddresses() {
@@ -323,7 +324,9 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 return;
             }
             closed = true;
-            FutureUtils.cancel(nodesSamplerFuture);
+            if (nodesSamplerCancellable != null) {
+                nodesSamplerCancellable.cancel();
+            }
             for (DiscoveryNode node : nodes) {
                 transportService.disconnectFromNode(node);
             }
@@ -390,7 +393,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
             try {
                 nodesSampler.sample();
                 if (!closed) {
-                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, this);
+                    nodesSamplerCancellable = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.Names.GENERIC);
                 }
             } catch (Exception e) {
                 logger.warn("failed to sample", e);
@@ -511,8 +514,10 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                 new TransportResponseHandler<ClusterStateResponse>() {
 
                                     @Override
-                                    public ClusterStateResponse newInstance() {
-                                        return new ClusterStateResponse();
+                                    public ClusterStateResponse read(StreamInput in) throws IOException {
+                                        final ClusterStateResponse clusterStateResponse = new ClusterStateResponse();
+                                        clusterStateResponse.readFrom(in);
+                                        return clusterStateResponse;
                                     }
 
                                     @Override

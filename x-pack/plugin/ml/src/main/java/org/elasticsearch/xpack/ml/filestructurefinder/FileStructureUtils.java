@@ -34,8 +34,9 @@ public final class FileStructureUtils {
 
     private static final int NUM_TOP_HITS = 10;
     // NUMBER Grok pattern doesn't support scientific notation, so we extend it
-    private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$");
-    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$");
+    private static final Grok NUMBER_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{NUMBER}(?:[eE][+-]?[0-3]?[0-9]{1,2})?$",
+        TimeoutChecker.watchdog);
+    private static final Grok IP_GROK = new Grok(Grok.getBuiltinPatterns(), "^%{IP}$", TimeoutChecker.watchdog);
     private static final int KEYWORD_MAX_LEN = 256;
     private static final int KEYWORD_MAX_SPACES = 5;
 
@@ -69,7 +70,7 @@ public final class FileStructureUtils {
         }
 
         // Accept the first match from the first sample that is compatible with all the other samples
-        for (Tuple<String, TimestampMatch> candidate : findCandidates(explanation, sampleRecords, overrides)) {
+        for (Tuple<String, TimestampMatch> candidate : findCandidates(explanation, sampleRecords, overrides, timeoutChecker)) {
 
             boolean allGood = true;
             for (Map<String, ?> sampleRecord : sampleRecords.subList(1, sampleRecords.size())) {
@@ -87,7 +88,8 @@ public final class FileStructureUtils {
 
                 timeoutChecker.check("timestamp field determination");
 
-                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString(), overrides.getTimestampFormat());
+                TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(fieldValue.toString(), overrides.getTimestampFormat(),
+                    timeoutChecker);
                 if (match == null || match.candidateIndex != candidate.v2().candidateIndex) {
                     if (overrides.getTimestampFormat() != null) {
                         throw new IllegalArgumentException("Specified timestamp format [" + overrides.getTimestampFormat() +
@@ -111,7 +113,7 @@ public final class FileStructureUtils {
     }
 
     private static List<Tuple<String, TimestampMatch>> findCandidates(List<String> explanation, List<Map<String, ?>> sampleRecords,
-                                                                      FileStructureOverrides overrides) {
+                                                                      FileStructureOverrides overrides, TimeoutChecker timeoutChecker) {
 
         assert sampleRecords.isEmpty() == false;
         Map<String, ?> firstRecord = sampleRecords.get(0);
@@ -130,7 +132,8 @@ public final class FileStructureUtils {
             if (onlyConsiderField == null || onlyConsiderField.equals(fieldName)) {
                 Object value = field.getValue();
                 if (value != null) {
-                    TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString(), overrides.getTimestampFormat());
+                    TimestampMatch match = TimestampFormatFinder.findFirstFullMatch(value.toString(), overrides.getTimestampFormat(),
+                        timeoutChecker);
                     if (match != null) {
                         Tuple<String, TimestampMatch> candidate = new Tuple<>(fieldName, match);
                         candidates.add(candidate);
@@ -211,7 +214,7 @@ public final class FileStructureUtils {
         }
 
         Collection<String> fieldValuesAsStrings = fieldValues.stream().map(Object::toString).collect(Collectors.toList());
-        Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings);
+        Map<String, String> mapping = guessScalarMapping(explanation, fieldName, fieldValuesAsStrings, timeoutChecker);
         timeoutChecker.check("mapping determination");
         return new Tuple<>(mapping, calculateFieldStats(fieldValuesAsStrings, timeoutChecker));
     }
@@ -238,10 +241,12 @@ public final class FileStructureUtils {
      * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
      *                    mapping will be compatible with all the provided values.  Must not be
      *                    empty.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return The sub-section of the index mappings most appropriate for the field,
      *         for example <code>{ "type" : "keyword" }</code>.
      */
-    static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues) {
+    static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues,
+                                                  TimeoutChecker timeoutChecker) {
 
         assert fieldValues.isEmpty() == false;
 
@@ -251,11 +256,12 @@ public final class FileStructureUtils {
 
         // This checks if a date mapping would be appropriate, and, if so, finds the correct format
         Iterator<String> iter = fieldValues.iterator();
-        TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next());
+        TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(iter.next(), timeoutChecker);
         while (timestampMatch != null && iter.hasNext()) {
             // To be mapped as type date all the values must match the same timestamp format - it is
             // not acceptable for all values to be dates, but with different formats
-            if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex)) == false) {
+            if (timestampMatch.equals(TimestampFormatFinder.findFirstFullMatch(iter.next(), timestampMatch.candidateIndex,
+                timeoutChecker)) == false) {
                 timestampMatch = null;
             }
         }

@@ -147,16 +147,7 @@ public class DiscoveryNodeFilters {
                 }
             } else if ("_host".equals(attr)) {
                 for (String value : values) {
-                    if (Regex.simpleMatch(value, node.getHostName())) {
-                        if (opType == OpType.OR) {
-                            return true;
-                        }
-                    } else {
-                        if (opType == OpType.AND) {
-                            return false;
-                        }
-                    }
-                    if (Regex.simpleMatch(value, node.getHostAddress())) {
+                    if (Regex.simpleMatch(value, node.getHostName()) || Regex.simpleMatch(value, node.getHostAddress())) {
                         if (opType == OpType.OR) {
                             return true;
                         }

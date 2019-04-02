@@ -14,9 +14,8 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -39,9 +38,9 @@ public class SysTables extends Command {
     // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
     private final boolean legacyTableTypes;
 
-    public SysTables(Location location, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
             boolean legacyTableTypes) {
-        super(location);
+        super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;
@@ -77,8 +76,11 @@ public class SysTables extends Command {
         // namely one param specified with '%', everything else empty string
         // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqltables-function?view=ssdt-18vs2017#comments
 
-        if (clusterPattern != null && clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            if ((pattern == null || pattern.pattern().isEmpty()) && CollectionUtils.isEmpty(types)) {
+        // catalog enumeration
+        if (clusterPattern == null || clusterPattern.pattern().equals(SQL_WILDCARD)) {
+            // enumerate only if pattern is "" and no types are specified (types is null)
+            if (pattern != null && pattern.pattern().isEmpty() && index == null
+                    && types == null) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -87,12 +89,15 @@ public class SysTables extends Command {
             }
         }
         
-        // if no types were specified (the parser takes care of the % case)
-        if (IndexType.VALID.equals(types)) {
-            if ((clusterPattern == null || clusterPattern.pattern().isEmpty())
-                    && (pattern == null || pattern.pattern().isEmpty())) {
+        // enumerate types
+        // if no types are specified (the parser takes care of the % case)
+        if (types == null) {
+            // empty string for catalog
+            if (clusterPattern != null && clusterPattern.pattern().isEmpty()
+                    // empty string for table like and no index specified
+                    && pattern != null && pattern.pattern().isEmpty() && index == null) {
                 List<List<?>> values = new ArrayList<>();
-                // send only the types, everything else null
+                // send only the types, everything else is made of empty strings
                 for (IndexType type : IndexType.VALID) {
                     Object[] enumeration = new Object[10];
                     enumeration[3] = type.toSql();
@@ -105,7 +110,7 @@ public class SysTables extends Command {
             }
         }
 
-        
+        // no enumeration pattern found, list actual tables
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
         // if the catalog doesn't match, don't return any results

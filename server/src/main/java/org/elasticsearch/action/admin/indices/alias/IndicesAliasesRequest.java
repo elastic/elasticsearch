@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -67,7 +66,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // indices options that require every specified index to exist, expand wildcards only to open
     // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
     // expressions only against indices
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
     public IndicesAliasesRequest() {
     }
@@ -236,12 +235,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             routing = in.readOptionalString();
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                writeIndex = in.readOptionalBoolean();
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                originalAliases = in.readStringArray();
-            }
+            writeIndex = in.readOptionalBoolean();
+            originalAliases = in.readStringArray();
         }
 
         @Override
@@ -253,12 +248,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(routing);
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeOptionalBoolean(writeIndex);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-                out.writeStringArray(originalAliases);
-            }
+            out.writeOptionalBoolean(writeIndex);
+            out.writeStringArray(originalAliases);
         }
 
         /**
@@ -486,6 +477,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (false == Strings.isEmpty(searchRouting)) {
                 builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
+            if (null != writeIndex) {
+                builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -505,6 +499,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",routing=" + routing
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
+                    + ",writeIndex=" + writeIndex
                     + "]";
         }
 
@@ -521,12 +516,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(filter, other.filter)
                     && Objects.equals(routing, other.routing)
                     && Objects.equals(indexRouting, other.indexRouting)
-                    && Objects.equals(searchRouting, other.searchRouting);
+                    && Objects.equals(searchRouting, other.searchRouting)
+                    && Objects.equals(writeIndex, other.writeIndex);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
         }
     }
 

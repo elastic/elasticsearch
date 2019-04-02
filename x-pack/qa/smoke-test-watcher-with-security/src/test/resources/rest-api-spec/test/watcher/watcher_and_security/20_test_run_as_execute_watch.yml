@@ -8,7 +8,6 @@ setup:
   - do:
       index:
         index: my_test_index
-        type: type
         id: 1
         refresh: true
         body: >
@@ -19,17 +18,16 @@ setup:
 ---
 teardown:
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
         ignore: 404
 
-
-
-
 ---
 "Test watch search input is run as user who added the watch":
+  - skip:
+      features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -40,6 +38,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -64,13 +63,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -81,8 +80,10 @@ teardown:
 
 ---
 "Test watch is runas user properly recorded":
+  - skip:
+      features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -93,6 +94,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -117,14 +119,14 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
       headers: { es-security-runas-user: x_pack_rest_user }
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -133,11 +135,12 @@ teardown:
 
 ---
 "Test watch search input does not work against index user is not allowed to read":
-
+  - skip:
+      features: headers
   - do:
       # by impersonating this request as powerless user we cannot query the my_test_index
       # headers: { es-security-runas-user: powerless_user }
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -148,6 +151,7 @@ teardown:
               "search" : {
                 "request" : {
                   "indices" : [ "index_not_allowed_to_read" ],
+                  "rest_total_hits_as_int": true,
                   "body" :{
                     "query" : { "match_all": {} }
                   }
@@ -172,13 +176,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   # because we are not allowed to read the index, there wont be any data
@@ -189,7 +193,7 @@ teardown:
 ---
 "Test watch search transform is run as user who added the watch":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -215,7 +219,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -224,14 +227,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
 
   - do:
       get:
         index: my_test_index
-        type: type
         id: my-id
   # this value is from the document in the my_text_index index, see the setup
   - match: { _source.hits.hits.0._source.value: "15" }
@@ -240,7 +242,7 @@ teardown:
 ---
 "Test watch search transform does not work without permissions":
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -255,6 +257,7 @@ teardown:
             "transform" : {
               "search" : {
                 "request" : {
+                  "rest_total_hits_as_int": true,
                   "indices" : [ "index_not_allowed_to_read" ],
                   "body" :{
                     "query" : { "match_all": {} }
@@ -266,7 +269,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -275,14 +277,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
 
   - do:
       get:
         index: my_test_index
-        type: type
         id: my-id
   - match: { _source.hits.total: 0 }
 
@@ -290,8 +291,10 @@ teardown:
 
 ---
 "Test watch index action requires permission to write to an index":
+  - skip:
+      features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -307,7 +310,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "my_test_index",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -316,13 +318,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -331,7 +333,6 @@ teardown:
   - do:
       get:
         index: my_test_index
-        type: type
         id: 1
   - match: { _id: "1" }
 
@@ -339,8 +340,10 @@ teardown:
 
 ---
 "Test watch index action does not work without permissions":
+  - skip:
+      features: headers
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -356,7 +359,6 @@ teardown:
               "index": {
                 "index": {
                   "index" : "index_not_allowed_to_read",
-                  "doc_type" : "type",
                   "doc_id": "my-id"
                 }
               }
@@ -365,13 +367,13 @@ teardown:
   - match: { _id: "my_watch" }
 
   - do:
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "my_watch"
   - match: { _id: "my_watch" }
   - is_false: watch.status.headers
 
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
@@ -380,7 +382,6 @@ teardown:
   - do:
       get:
         index: index_not_allowed_to_read
-        type: type
         id: 1
       catch: forbidden
 

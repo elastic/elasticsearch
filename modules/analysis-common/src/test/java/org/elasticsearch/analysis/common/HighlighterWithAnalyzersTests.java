@@ -81,7 +81,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         .put("analysis.tokenizer.autocomplete.max_gram", 20)
                         .put("analysis.tokenizer.autocomplete.min_gram", 1)
                         .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.autocomplete.type", "nGram")
+                        .put("analysis.tokenizer.autocomplete.type", "ngram")
                         .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                         .putList("analysis.filter.wordDelimiter.type_table",
                                 "& => ALPHANUM", "| => ALPHANUM", "! => ALPHANUM",
@@ -249,7 +249,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
-        assertThat(searchResponse.getHits().totalHits, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         for (int i = 0; i < 2; i++) {
             assertHighlight(searchResponse, i, "field1", 0, 1, anyOf(
                 equalTo("The quick <x>browse</x> button is a fancy thing, right <x>bro</x>?"),

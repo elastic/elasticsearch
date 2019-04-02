@@ -28,23 +28,21 @@
                 name_search_analyzer:
                   tokenizer: whitespace
           mappings:
-            doc:
-              properties:
-                name:
-                  type: text
-                  term_vector: with_positions_offsets
-                  analyzer: name_index_analyzer
-                  search_analyzer: name_search_analyzer
-                name2:
-                  type: text
-                  term_vector: with_positions_offsets
-                  analyzer: name2_index_analyzer
-                  search_analyzer: name_search_analyzer
+            properties:
+              name:
+                type: text
+                term_vector: with_positions_offsets
+                analyzer: name_index_analyzer
+                search_analyzer: name_search_analyzer
+              name2:
+                type: text
+                term_vector: with_positions_offsets
+                analyzer: name2_index_analyzer
+                search_analyzer: name_search_analyzer
 
   - do:
       index:
         index: test
-        type:  doc
         id:    1
         refresh: true
         body:
@@ -53,6 +51,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -66,6 +65,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -79,6 +79,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -92,6 +93,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -105,6 +107,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -118,6 +121,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           query:
             match:

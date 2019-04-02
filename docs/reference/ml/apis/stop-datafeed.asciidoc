@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-stop-datafeed]]
-=== Stop {dfeeds-cap} API
+=== Stop {dfeeds} API
 ++++
-<titleabbrev>Stop {dfeeds-cap}</titleabbrev>
+<titleabbrev>Stop {dfeeds}</titleabbrev>
 ++++
 
 Stops one or more {dfeeds}.
@@ -13,11 +13,11 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
 ==== Request
 
-`POST _xpack/ml/datafeeds/<feed_id>/_stop` +
+`POST _ml/datafeeds/<feed_id>/_stop` +
 
-`POST _xpack/ml/datafeeds/<feed_id>,<feed_id>/_stop` +
+`POST _ml/datafeeds/<feed_id>,<feed_id>/_stop` +
 
-`POST _xpack/ml/datafeeds/_all/_stop`
+`POST _ml/datafeeds/_all/_stop`
 
 
 ===== Description
@@ -57,7 +57,7 @@ The following example stops the `datafeed-total-requests` {dfeed}:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/datafeeds/datafeed-total-requests/_stop
+POST _ml/datafeeds/datafeed-total-requests/_stop
 {
   "timeout": "30s"
 }

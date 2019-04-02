@@ -19,11 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
-import com.amazonaws.services.s3.model.HeadBucketRequest;
-import com.amazonaws.services.s3.model.HeadBucketResult;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -33,7 +29,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -46,29 +41,19 @@ public class S3RepositoryTests extends ESTestCase {
     private static class DummyS3Client extends AbstractAmazonS3 {
 
         @Override
-        public HeadBucketResult headBucket(final HeadBucketRequest request) throws SdkClientException, AmazonServiceException {
-            return new HeadBucketResult();
-        }
-
-        @Override
         public void shutdown() {
             // TODO check is closed
         }
     }
 
     private static class DummyS3Service extends S3Service {
-        DummyS3Service() {
-            super(Settings.EMPTY);
-        }
-
         @Override
-        public AmazonS3Reference client(String clientName) {
+        public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
             return new AmazonS3Reference(new DummyS3Client());
         }
 
         @Override
-        public Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
-            return Collections.emptyMap();
+        public void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
         }
 
         @Override

@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
@@ -26,9 +25,9 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateCalendarJobAction(Settings settings, TransportService transportService,
-                                            ActionFilters actionFilters, JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(settings, UpdateCalendarJobAction.NAME, transportService, actionFilters, UpdateCalendarJobAction.Request::new);
+    public TransportUpdateCalendarJobAction(TransportService transportService, ActionFilters actionFilters,
+                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
+        super(UpdateCalendarJobAction.NAME, transportService, actionFilters, UpdateCalendarJobAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
@@ -40,8 +39,10 @@ public class TransportUpdateCalendarJobAction extends HandledTransportAction<Upd
 
         jobResultsProvider.updateCalendar(request.getCalendarId(), jobIdsToAdd, jobIdsToRemove,
                 c -> {
-                    jobManager.updateProcessOnCalendarChanged(c.getJobIds());
-                    listener.onResponse(new PutCalendarAction.Response(c));
+                    jobManager.updateProcessOnCalendarChanged(c.getJobIds(), ActionListener.wrap(
+                            r -> listener.onResponse(new PutCalendarAction.Response(c)),
+                            listener::onFailure
+                    ));
                 }, listener::onFailure);
     }
 }

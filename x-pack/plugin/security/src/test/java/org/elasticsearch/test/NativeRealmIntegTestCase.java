@@ -17,12 +17,14 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -78,7 +80,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     public void setupReservedPasswords(RestClient restClient) throws IOException {
         logger.info("setting up reserved passwords for test");
         {
-            Request request = new Request("PUT", "/_xpack/security/user/elastic/_password");
+            Request request = new Request("PUT", "/_security/user/elastic/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD));
@@ -89,8 +91,10 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, reservedPassword));
         RequestOptions options = optionsBuilder.build();
-        for (String username : Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME)) {
-            Request request = new Request("PUT", "/_xpack/security/user/" + username + "/_password");
+        final List<String> usernames = Arrays.asList(KibanaUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME);
+        for (String username : usernames) {
+            Request request = new Request("PUT", "/_security/user/" + username + "/_password");
             request.setJsonEntity("{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}");
             request.setOptions(options);
             restClient.performRequest(request);

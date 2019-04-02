@@ -26,13 +26,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
 
 /**
  * Transport action for verifying repository operation
@@ -43,10 +44,11 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
 
 
     @Inject
-    public TransportVerifyRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportVerifyRepositoryAction(TransportService transportService, ClusterService clusterService,
                                            RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, VerifyRepositoryRequest::new);
+        super(VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, VerifyRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
     }
 
@@ -66,15 +68,12 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     }
 
     @Override
-    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state, final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), new  ActionListener<RepositoriesService.VerifyResponse>() {
+    protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
+                                   final ActionListener<VerifyRepositoryResponse> listener) {
+        repositoriesService.verifyRepository(request.name(), new ActionListener<List<DiscoveryNode>>() {
             @Override
-            public void onResponse(RepositoriesService.VerifyResponse verifyResponse) {
-                if (verifyResponse.failed()) {
-                    listener.onFailure(new RepositoryVerificationException(request.name(), verifyResponse.failureDescription()));
-                } else {
-                    listener.onResponse(new VerifyRepositoryResponse(verifyResponse.nodes()));
-                }
+            public void onResponse(List<DiscoveryNode> verifyResponse) {
+                listener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])));
             }
 
             @Override

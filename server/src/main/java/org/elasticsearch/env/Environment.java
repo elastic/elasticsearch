@@ -64,8 +64,6 @@ public class Environment {
 
     private final Path[] dataFiles;
 
-    private final Path[] dataWithClusterFiles;
-
     private final Path[] repoFiles;
 
     private final Path configFile;
@@ -118,18 +116,15 @@ public class Environment {
         if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             if (dataPaths.isEmpty() == false) {
                 dataFiles = new Path[dataPaths.size()];
-                dataWithClusterFiles = new Path[dataPaths.size()];
                 for (int i = 0; i < dataPaths.size(); i++) {
                     dataFiles[i] = PathUtils.get(dataPaths.get(i));
-                    dataWithClusterFiles[i] = dataFiles[i].resolve(clusterName.value());
                 }
             } else {
                 dataFiles = new Path[]{homeFile.resolve("data")};
-                dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
             }
         } else {
             if (dataPaths.isEmpty()) {
-                dataFiles = dataWithClusterFiles = EMPTY_PATH_ARRAY;
+                dataFiles = EMPTY_PATH_ARRAY;
             } else {
                 final String paths = String.join(",", dataPaths);
                 throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
@@ -195,17 +190,6 @@ public class Environment {
      */
     public Path sharedDataFile() {
         return sharedDataFile;
-    }
-
-    /**
-     * The data location with the cluster name as a sub directory.
-     *
-     * @deprecated Used to upgrade old data paths to new ones that do not include the cluster name, should not be used to write files to and
-     * will be removed in ES 6.0
-     */
-    @Deprecated
-    public Path[] dataWithClusterFiles() {
-        return dataWithClusterFiles;
     }
 
     /**
@@ -329,7 +313,7 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataWithClusterFiles(), expected.dataWithClusterFiles(), "dataWithClusterFiles");
+        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");

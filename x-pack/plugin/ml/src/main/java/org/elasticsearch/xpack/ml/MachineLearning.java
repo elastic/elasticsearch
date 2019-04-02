@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -16,19 +17,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,7 +51,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -95,6 +97,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateCalendarJobAction;
@@ -106,8 +109,8 @@ import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -149,6 +152,7 @@ import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
+import org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateCalendarJobAction;
@@ -161,15 +165,16 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
+import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -180,9 +185,13 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
+import org.elasticsearch.xpack.ml.rest.RestSetUpgradeModeAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarJobAction;
@@ -240,12 +249,14 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlugin, PersistentTaskPlugin {
     public static final String NAME = "ml";
-    public static final String BASE_PATH = "/_xpack/ml/";
+    public static final String BASE_PATH = "/_ml/";
+    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
-    public static final String AUTODETECT_THREAD_POOL_NAME = NAME + "_autodetect";
+    public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
 
     // This is for performance testing.  It's not exposed to the end user.
@@ -254,15 +265,29 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static final Setting<Boolean> ML_ENABLED =
             Setting.boolSetting("node.ml", XPackSettings.MACHINE_LEARNING_ENABLED, Property.NodeScope);
-    public static final String ML_ENABLED_NODE_ATTR = "ml.enabled";
+    // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
+    private static final String PRE_V7_ML_ENABLED_NODE_ATTR = "ml.enabled";
     public static final String MAX_OPEN_JOBS_NODE_ATTR = "ml.max_open_jobs";
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAX_LAZY_ML_NODES =
+            Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
-    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
+    // Before 8.0.0 this needs to match the max allowed value for xpack.ml.max_open_jobs,
+    // as the current node could be running in a cluster where some nodes are still using
+    // that setting.  From 8.0.0 onwards we have the flexibility to increase it...
+    private static final int MAX_MAX_OPEN_JOBS_PER_NODE = 512;
+    // This setting is cluster-wide and can be set dynamically. However, prior to version 7.1 it was
+    // a non-dynamic per-node setting. n a mixed version cluster containing 6.7 or 7.0 nodes those
+    // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
+    // allocation will be based on the value first read at node startup rather than the current value.
+    public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
+            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
 
     private final Settings settings;
     private final Environment env;
@@ -271,6 +296,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
+    private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
@@ -281,6 +307,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
+    public static boolean isMlNode(DiscoveryNode node) {
+        Map<String, String> nodeAttributes = node.getAttributes();
+        try {
+            return Integer.parseInt(nodeAttributes.get(MAX_OPEN_JOBS_NODE_ATTR)) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
 
     public List<Setting<?>> getSettings() {
         return Collections.unmodifiableList(
@@ -288,17 +322,17 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                        MAX_LAZY_ML_NODES,
                         MAX_MACHINE_MEMORY_PERCENT,
                         AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
-                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
-                        AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
-                        AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
-                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
+                        MAX_OPEN_JOBS_PER_NODE,
+                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
+                        MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
     }
 
     public Settings additionalSettings() {
-        String mlEnabledNodeAttrName = "node.attr." + ML_ENABLED_NODE_ATTR;
+        String mlEnabledNodeAttrName = "node.attr." + PRE_V7_ML_ENABLED_NODE_ATTR;
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
@@ -310,12 +344,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         Settings.Builder additionalSettings = Settings.builder();
         Boolean allocationEnabled = ML_ENABLED.get(settings);
         if (allocationEnabled != null && allocationEnabled) {
-            // TODO: the simple true/false flag will not be required once all supported versions have the number - consider removing in 7.0
-            addMlNodeAttribute(additionalSettings, mlEnabledNodeAttrName, "true");
+            // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
+            // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
             addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
-                    String.valueOf(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings)));
+                    String.valueOf(MAX_OPEN_JOBS_PER_NODE.get(settings)));
             addMlNodeAttribute(additionalSettings, machineMemoryAttrName,
                     Long.toString(machineMemoryFromStats(OsProbe.getInstance().osStats())));
+            // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
+            disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
         }
@@ -357,16 +393,30 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         if (enabled == false || transportClientMode) {
-            return emptyList();
+            // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
+            return Collections.singletonList(new JobManagerHolder());
         }
 
-        Auditor auditor = new Auditor(client, clusterService.nodeName());
+        Auditor auditor = new Auditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
-        JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, client, notifier);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
+        JobManager jobManager = new JobManager(env,
+            settings,
+            jobResultsProvider,
+            clusterService,
+            auditor,
+            threadPool,
+            client,
+            notifier,
+            xContentRegistry);
 
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
+        // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
+        JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
+
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
 
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
@@ -383,7 +433,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, settings, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
                 // hit the same error first and brought down the node with a friendlier error message
@@ -393,24 +443,26 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
-            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) ->
-                    new MultiplyingNormalizerProcess(settings, 1.0);
+            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
                 jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, xContentRegistry, auditor);
+                normalizerFactory, xContentRegistry, auditor, clusterService);
         this.autodetectProcessManager.set(autodetectProcessManager);
-        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, jobResultsProvider, auditor, System::currentTimeMillis);
+        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
+                auditor, System::currentTimeMillis);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, auditor);
+                System::currentTimeMillis, auditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
+        MlMemoryTracker memoryTracker = new MlMemoryTracker(settings, clusterService, threadPool, jobManager, jobResultsProvider);
+        this.memoryTracker.set(memoryTracker);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
-                autodetectProcessManager);
+                autodetectProcessManager, memoryTracker);
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
 
         // run node startup tasks
         autodetectProcessManager.onNodeStartup();
@@ -418,25 +470,32 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return Arrays.asList(
                 mlLifeCycleService,
                 jobResultsProvider,
+                jobConfigProvider,
+                datafeedConfigProvider,
                 jobManager,
+                jobManagerHolder,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(settings, auditor, clusterService)
+                new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
+                memoryTracker
         );
     }
 
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
 
         return Arrays.asList(
-                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
+                new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get(),
+                    memoryTracker.get(), client),
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get())
         );
     }
 
@@ -507,7 +566,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestPutCalendarJobAction(settings, restController),
             new RestGetCalendarEventsAction(settings, restController),
             new RestPostCalendarEventAction(settings, restController),
-            new RestFindFileStructureAction(settings, restController)
+            new RestFindFileStructureAction(settings, restController),
+            new RestSetUpgradeModeAction(settings, restController)
         );
     }
 
@@ -565,38 +625,41 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
                 new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
-                new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class)
+                new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class),
+                new ActionHandler<>(SetUpgradeModeAction.INSTANCE, TransportSetUpgradeModeAction.class)
         );
     }
+
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (false == enabled || transportClientMode) {
             return emptyList();
         }
-        int maxNumberOfJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
-        // 4 threads per job: for cpp logging, result processing, state processing and
-        // AutodetectProcessManager worker thread:
-        FixedExecutorBuilder autoDetect = new FixedExecutorBuilder(settings, AUTODETECT_THREAD_POOL_NAME,
-                maxNumberOfJobs * 4, maxNumberOfJobs * 4, "xpack.ml.autodetect_thread_pool");
 
-        // 4 threads per job: processing logging, result and state of the renormalization process.
-        // Renormalization does't run for the entire lifetime of a job, so additionally autodetect process
-        // based operation (open, close, flush, post data), datafeed based operations (start and stop)
-        // and deleting expired data use this threadpool too and queue up if all threads are busy.
-        FixedExecutorBuilder renormalizer = new FixedExecutorBuilder(settings, UTILITY_THREAD_POOL_NAME,
-                maxNumberOfJobs * 4, 500, "xpack.ml.utility_thread_pool");
+        // These thread pools scale such that they can accommodate the maximum number of jobs per node
+        // that is permitted to be configured.  It is up to other code to enforce the configured maximum
+        // number of jobs per node.
 
-        // TODO: if datafeed and non datafeed jobs are considered more equal and the datafeed and
-        // autodetect process are created at the same time then these two different TPs can merge.
-        FixedExecutorBuilder datafeed = new FixedExecutorBuilder(settings, DATAFEED_THREAD_POOL_NAME,
-                maxNumberOfJobs, 200, "xpack.ml.datafeed_thread_pool");
-        return Arrays.asList(autoDetect, renormalizer, datafeed);
+        // 4 threads per job process: for input, c++ logger output, result processing and state processing.
+        ScalingExecutorBuilder jobComms = new ScalingExecutorBuilder(JOB_COMMS_THREAD_POOL_NAME,
+            4, MAX_MAX_OPEN_JOBS_PER_NODE * 4, TimeValue.timeValueMinutes(1), "xpack.ml.job_comms_thread_pool");
+
+        // This pool is used by renormalization, plus some other parts of ML that
+        // need to kick off non-trivial activities that mustn't block other threads.
+        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME,
+            1, MAX_MAX_OPEN_JOBS_PER_NODE * 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool");
+
+        ScalingExecutorBuilder datafeed = new ScalingExecutorBuilder(DATAFEED_THREAD_POOL_NAME,
+            1, MAX_MAX_OPEN_JOBS_PER_NODE, TimeValue.timeValueMinutes(1), "xpack.ml.datafeed_thread_pool");
+
+        return Arrays.asList(jobComms, utility, datafeed);
     }
 
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         return Collections.singletonMap(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
     }
+
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
@@ -610,7 +673,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
                 IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
-                        .putMapping(AuditMessage.TYPE.getPreferredName(), Strings.toString(auditMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
                         .settings(Settings.builder()
@@ -635,29 +698,49 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
                         .version(Version.CURRENT.id)
-                        .putMapping(MlMetaIndex.TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .build();
                 templates.put(MlMetaIndex.INDEX_NAME, metaTemplate);
             } catch (IOException e) {
                 logger.warn("Error loading the template for the " + MlMetaIndex.INDEX_NAME + " index", e);
             }
 
+            try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
+                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.configIndexName()))
+                        .settings(Settings.builder()
+                                // Our indexes are small and one shard puts the
+                                // least possible burden on Elasticsearch
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting)
+                                .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                                        AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW))
+                        .version(Version.CURRENT.id)
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(configMapping))
+                        .build();
+                templates.put(AnomalyDetectorsIndex.configIndexName(), configTemplate);
+            } catch (IOException e) {
+                logger.warn("Error loading the template for the " + AnomalyDetectorsIndex.configIndexName() + " index", e);
+            }
+
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
-                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName())
-                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexName()))
+                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+                        .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayedNodeTimeOutSetting))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(stateMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(stateMapping))
                         .version(Version.CURRENT.id)
                         .build();
-                templates.put(AnomalyDetectorsIndex.jobStateIndexName(), stateTemplate);
+
+                templates.put(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, stateTemplate);
             } catch (IOException e) {
-                logger.error("Error loading the template for the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
+                logger.error("Error loading the template for the " + AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + " index", e);
             }
 
-            try (XContentBuilder docMapping = ElasticsearchMappings.docMapping()) {
+            try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping(SINGLE_MAPPING_NAME)) {
                 IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
@@ -669,7 +752,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), "async")
                                 // set the default all search field
                                 .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES))
-                        .putMapping(ElasticsearchMappings.DOC_TYPE, Strings.toString(docMapping))
+                        .putMapping(SINGLE_MAPPING_NAME, Strings.toString(docMapping))
                         .version(Version.CURRENT.id)
                         .build();
                 templates.put(AnomalyDetectorsIndex.jobResultsIndexPrefix(), jobResultsTemplate);
@@ -684,7 +767,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
         List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix());
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }

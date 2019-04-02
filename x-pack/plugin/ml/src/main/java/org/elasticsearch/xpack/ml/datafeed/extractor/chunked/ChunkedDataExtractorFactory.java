@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -20,12 +21,18 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     private final DatafeedConfig datafeedConfig;
     private final Job job;
     private final DataExtractorFactory dataExtractorFactory;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public ChunkedDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, DataExtractorFactory dataExtractorFactory) {
+    public ChunkedDataExtractorFactory(Client client,
+                                       DatafeedConfig datafeedConfig,
+                                       Job job,
+                                       NamedXContentRegistry xContentRegistry,
+                                       DataExtractorFactory dataExtractorFactory) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -35,14 +42,16 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 job.getId(),
                 job.getDataDescription().getTimeField(),
                 datafeedConfig.getIndices(),
-                datafeedConfig.getTypes(),
-                datafeedConfig.getQuery(),
+                datafeedConfig.getParsedQuery(xContentRegistry),
                 datafeedConfig.getScrollSize(),
                 timeAligner.alignToCeil(start),
                 timeAligner.alignToFloor(end),
                 datafeedConfig.getChunkingConfig().getTimeSpan(),
                 timeAligner,
-                datafeedConfig.getHeaders());
+                datafeedConfig.getHeaders(),
+                datafeedConfig.hasAggregations(),
+                datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null
+            );
         return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext);
     }
 
@@ -53,7 +62,7 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
             // the same bucket twice, we need to search buckets aligned to the histogram interval.
             // This allows us to steer away from partial buckets, and thus avoid the problem of
             // dropping or duplicating data.
-            return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis());
+            return newIntervalTimeAligner(datafeedConfig.getHistogramIntervalMillis(xContentRegistry));
         }
         return newIdentityTimeAligner();
     }

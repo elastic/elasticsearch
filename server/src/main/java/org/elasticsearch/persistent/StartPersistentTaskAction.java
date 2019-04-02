@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -86,11 +84,7 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
             super.readFrom(in);
             taskId = in.readString();
             taskName = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                params = in.readNamedWriteable(PersistentTaskParams.class);
-            } else {
-                params = in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            }
+            params = in.readNamedWriteable(PersistentTaskParams.class);
         }
 
         @Override
@@ -98,11 +92,7 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
             super.writeTo(out);
             out.writeString(taskId);
             out.writeString(taskName);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeNamedWriteable(params);
-            } else {
-                out.writeOptionalNamedWriteable(params);
-            }
+            out.writeNamedWriteable(params);
         }
 
         @Override
@@ -193,17 +183,17 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
+        public TransportAction(TransportService transportService, ClusterService clusterService,
                                ThreadPool threadPool, ActionFilters actionFilters,
                                PersistentTasksClusterService persistentTasksClusterService,
                                PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
                                PersistentTasksService persistentTasksService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(StartPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
-            clusterService.addListener(new PersistentTasksNodeService(settings, persistentTasksService, persistentTasksExecutorRegistry,
+            clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
                     transportService.getTaskManager(), executor));
         }
 

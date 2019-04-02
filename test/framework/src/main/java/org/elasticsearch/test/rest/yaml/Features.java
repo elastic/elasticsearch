@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -46,7 +45,11 @@ public final class Features {
             "stash_in_path",
             "stash_path_replace",
             "warnings",
-            "yaml"));
+            "yaml",
+            "contains",
+            "transform_and_set",
+            "arbitrary_key"
+    ));
 
     private Features() {
 
@@ -56,23 +59,19 @@ public final class Features {
      * Tells whether all the features provided as argument are supported
      */
     public static boolean areAllSupported(List<String> features) {
-        try {
-            for (String feature : features) {
-                if (feature.equals("xpack")) {
-                    if (false == ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (feature.equals("no_xpack")) {
-                    if (ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (false == SUPPORTED.contains(feature)) {
+        for (String feature : features) {
+            if (feature.equals("xpack")) {
+                if (false == ESRestTestCase.hasXPack()) {
                     return false;
                 }
+            } else if (feature.equals("no_xpack")) {
+                if (ESRestTestCase.hasXPack()) {
+                    return false;
+                }
+            } else if (false == SUPPORTED.contains(feature)) {
+                return false;
             }
-            return true;
-        } catch (IOException e) {
-            throw new RuntimeException("error checking if xpack is available", e);
         }
+        return true;
     }
 }

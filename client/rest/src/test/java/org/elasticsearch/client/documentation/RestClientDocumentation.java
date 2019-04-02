@@ -36,7 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
@@ -84,13 +84,14 @@ public class RestClientDocumentation {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
         builder.setHttpAsyncResponseConsumerFactory(           // <2>
-            new HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
+            new HttpAsyncResponseConsumerFactory
+                .HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
         COMMON_OPTIONS = builder.build();
     }
     // end::rest-client-options-singleton
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException, InterruptedException {
+    public void usage() throws IOException, InterruptedException {
 
         //tag::rest-client-init
         RestClient restClient = RestClient.builder(
@@ -109,13 +110,6 @@ public class RestClientDocumentation {
             Header[] defaultHeaders = new Header[]{new BasicHeader("header", "value")};
             builder.setDefaultHeaders(defaultHeaders); // <1>
             //end::rest-client-init-default-headers
-        }
-        {
-            //tag::rest-client-init-max-retry-timeout
-            RestClientBuilder builder = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"));
-            builder.setMaxRetryTimeoutMillis(10000); // <1>
-            //end::rest-client-init-max-retry-timeout
         }
         {
             //tag::rest-client-init-node-selector
@@ -290,7 +284,7 @@ public class RestClientDocumentation {
     }
 
     @SuppressWarnings("unused")
-    public void testCommonConfiguration() throws Exception {
+    public void commonConfiguration() throws Exception {
         {
             //tag::rest-client-config-timeouts
             RestClientBuilder builder = RestClient.builder(
@@ -304,8 +298,7 @@ public class RestClientDocumentation {
                                 .setConnectTimeout(5000)
                                 .setSocketTimeout(60000);
                         }
-                    })
-                .setMaxRetryTimeoutMillis(60000);
+                    });
             //end::rest-client-config-timeouts
         }
         {

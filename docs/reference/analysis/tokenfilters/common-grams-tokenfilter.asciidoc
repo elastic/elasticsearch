@@ -7,8 +7,8 @@ Single terms are still indexed. It can be used as an alternative to the
 Token Filter>> when we don't want to completely ignore common terms.
 
 For example, the text "the quick brown is a fox" will be tokenized as
-"the", "the_quick", "quick", "brown", "brown_is", "is_a", "a_fox",
-"fox". Assuming "the", "is" and "a" are common words.
+"the", "the_quick", "quick", "brown", "brown_is", "is", "is_a", "a",
+"a_fox", "fox". Assuming "the", "is" and "a" are common words.
 
 When `query_mode` is enabled, the token filter removes common words and
 single terms followed by a common word. This parameter should be enabled
@@ -45,7 +45,7 @@ PUT /common_grams_example
 {
     "settings": {
         "analysis": {
-            "my_analyzer": {
+            "analyzer": {
                 "index_grams": {
                     "tokenizer": "whitespace",
                     "filter": ["common_grams"]
@@ -58,12 +58,12 @@ PUT /common_grams_example
             "filter": {
                 "common_grams": {
                     "type": "common_grams",
-                    "common_words": ["a", "an", "the"]
+                    "common_words": ["the", "is", "a"]
                 },
                 "common_grams_query": {
                     "type": "common_grams",
                     "query_mode": true,
-                    "common_words": ["a", "an", "the"]
+                    "common_words": ["the", "is", "a"]
                 }
             }
         }
@@ -71,3 +71,101 @@ PUT /common_grams_example
 }
 --------------------------------------------------
 // CONSOLE
+
+You can see the output by using e.g. the `_analyze` endpoint:
+
+[source,js]
+--------------------------------------------------
+POST /common_grams_example/_analyze
+{
+  "analyzer" : "index_grams",
+  "text" : "the quick brown is a fox"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+And the response will be:
+
+[source,js]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "the",
+      "start_offset" : 0,
+      "end_offset" : 3,
+      "type" : "word",
+      "position" : 0
+    },
+    {
+      "token" : "the_quick",
+      "start_offset" : 0,
+      "end_offset" : 9,
+      "type" : "gram",
+      "position" : 0,
+      "positionLength" : 2
+    },
+    {
+      "token" : "quick",
+      "start_offset" : 4,
+      "end_offset" : 9,
+      "type" : "word",
+      "position" : 1
+    },
+    {
+      "token" : "brown",
+      "start_offset" : 10,
+      "end_offset" : 15,
+      "type" : "word",
+      "position" : 2
+    },
+    {
+      "token" : "brown_is",
+      "start_offset" : 10,
+      "end_offset" : 18,
+      "type" : "gram",
+      "position" : 2,
+      "positionLength" : 2
+    },
+    {
+      "token" : "is",
+      "start_offset" : 16,
+      "end_offset" : 18,
+      "type" : "word",
+      "position" : 3
+    },
+    {
+      "token" : "is_a",
+      "start_offset" : 16,
+      "end_offset" : 20,
+      "type" : "gram",
+      "position" : 3,
+      "positionLength" : 2
+    },
+    {
+      "token" : "a",
+      "start_offset" : 19,
+      "end_offset" : 20,
+      "type" : "word",
+      "position" : 4
+    },
+    {
+      "token" : "a_fox",
+      "start_offset" : 19,
+      "end_offset" : 24,
+      "type" : "gram",
+      "position" : 4,
+      "positionLength" : 2
+    },
+    {
+      "token" : "fox",
+      "start_offset" : 21,
+      "end_offset" : 24,
+      "type" : "word",
+      "position" : 5
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE

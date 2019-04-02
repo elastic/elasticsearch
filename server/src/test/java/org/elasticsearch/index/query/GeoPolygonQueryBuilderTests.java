@@ -63,14 +63,14 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     private static List<GeoPoint> randomPolygon() {
-        ShapeBuilder<?, ?> shapeBuilder = null;
+        ShapeBuilder<?, ?, ?> shapeBuilder = null;
         // This is a temporary fix because sometimes the RandomShapeGenerator
         // returns null. This is if there is an error generating the polygon. So
         // in this case keep trying until we successfully generate one
         while (shapeBuilder == null) {
             shapeBuilder = RandomShapeGenerator.createShapeWithin(random(), null, ShapeType.POLYGON);
         }
-        JtsGeometry shape = (JtsGeometry) shapeBuilder.build();
+        JtsGeometry shape = (JtsGeometry) shapeBuilder.buildS4J();
         Coordinate[] coordinates = shape.getGeom().getCoordinates();
         ArrayList<GeoPoint> polygonPoints = new ArrayList<>();
         for (Coordinate coord : coordinates) {

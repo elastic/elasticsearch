@@ -33,6 +33,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.License;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -242,6 +243,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeInfo.getSettings()).thenReturn(Settings.builder()
                                                             .put(NetworkModule.TRANSPORT_TYPE_KEY, "_transport")
                                                             .put(NetworkModule.HTTP_TYPE_KEY, "_http")
+                                                            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "_disco")
                                                             .build());
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
@@ -255,6 +257,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockOsInfo.getAvailableProcessors()).thenReturn(32);
         when(mockOsInfo.getAllocatedProcessors()).thenReturn(16);
         when(mockOsInfo.getName()).thenReturn("_os_name");
+        when(mockOsInfo.getPrettyName()).thenReturn("_pretty_os_name");
 
         final JvmInfo mockJvmInfo = mock(JvmInfo.class);
         when(mockNodeInfo.getJvm()).thenReturn(mockJvmInfo);
@@ -262,6 +265,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
+        when(mockJvmInfo.getBundledJdk()).thenReturn(true);
+        when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -446,6 +451,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"count\":1"
                           + "}"
                         + "],"
+                        + "\"pretty_names\":["
+                          + "{"
+                            + "\"pretty_name\":\"_pretty_os_name\","
+                            + "\"count\":1"
+                          + "}"
+                        + "],"
                         + "\"mem\":{"
                           + "\"total_in_bytes\":100,"
                           + "\"free_in_bytes\":79,"
@@ -472,6 +483,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                             + "\"vm_name\":\"_jvm_vm_name\","
                             + "\"vm_version\":\"_jvm_vm_version\","
                             + "\"vm_vendor\":\"_jvm_vm_vendor\","
+                            + "\"bundled_jdk\":true,"
+                            + "\"using_bundled_jdk\":true,"
                             + "\"count\":1"
                           + "}"
                         + "],"
@@ -505,6 +518,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"http_types\":{"
                           + "\"_http\":1"
                         + "}"
+                      + "},"
+                      + "\"discovery_types\":{"
+                        + "\"_disco\":1"
                       + "}"
                     + "}"
                   + "},"

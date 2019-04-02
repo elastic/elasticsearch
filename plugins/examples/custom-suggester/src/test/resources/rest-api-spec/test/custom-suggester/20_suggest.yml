@@ -24,7 +24,6 @@
   - do:
       bulk:
         index: test
-        type: test
         refresh: true
         body: |
           { "index": {} }
@@ -38,6 +37,7 @@
 
   - do:
       search:
+        rest_total_hits_as_int: true
         size: 0
         index: test
         body:

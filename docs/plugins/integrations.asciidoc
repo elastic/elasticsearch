@@ -191,10 +191,10 @@ releases 2.0 and later do not support rivers.
 ==== Supported by the community:
 
 * https://github.com/kodcu/pes[Pes]:
-  A pluggable elastic Javascript query DSL builder for Elasticsearch
+  A pluggable elastic JavaScript query DSL builder for Elasticsearch
 
 * https://www.wireshark.org/[Wireshark]:
-  Protocol dissection for Zen discovery, HTTP and the binary protocol
+  Protocol dissection for HTTP and the transport protocol
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web

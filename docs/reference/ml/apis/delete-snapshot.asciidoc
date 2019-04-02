@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-snapshot]]
-=== Delete Model Snapshots API
+=== Delete model snapshots API
 ++++
-<titleabbrev>Delete Model Snapshots</titleabbrev>
+<titleabbrev>Delete model snapshots</titleabbrev>
 ++++
 
 Deletes an existing model snapshot.
@@ -11,7 +11,7 @@ Deletes an existing model snapshot.
 
 ==== Request
 
-`DELETE _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
+`DELETE _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
 
 ==== Description
@@ -41,7 +41,7 @@ The following example deletes the `1491948163` snapshot:
 
 [source,js]
 --------------------------------------------------
-DELETE _xpack/ml/anomaly_detectors/farequote/model_snapshots/1491948163
+DELETE _ml/anomaly_detectors/farequote/model_snapshots/1491948163
 --------------------------------------------------
 // CONSOLE
 // TEST[skip:todo]

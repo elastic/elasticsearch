@@ -4,10 +4,9 @@
       catch: missing
       indices.get_mapping:
         index: test_index
-        type: not_test_type
   
 ---
-"Index missing, no indexes, no types":
+"Index missing, no indexes":
   - do:
       catch: missing
       indices.get_mapping:

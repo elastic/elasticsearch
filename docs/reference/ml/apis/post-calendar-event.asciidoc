@@ -1,16 +1,16 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-post-calendar-event]]
-=== Add Events to Calendar API
+=== Add events to calendar API
 ++++
-<titleabbrev>Add Events to Calendar</titleabbrev>
+<titleabbrev>Add events to calendar</titleabbrev>
 ++++
 
 Posts scheduled events in a calendar.
 
 ==== Request
 
-`POST _xpack/ml/calendars/<calendar_id>/events`
+`POST _ml/calendars/<calendar_id>/events`
 
 
 ==== Description
@@ -27,7 +27,9 @@ of which must have a start time, end time, and description.
 ==== Request Body
 
 `events`::
-  (array) A list of one of more scheduled events. See <<ml-event-resource>>.
+  (array) A list of one of more scheduled events. The event's start and end times
+  may be specified as integer milliseconds since the epoch or as a string in ISO 8601
+  format. See <<ml-event-resource>>.
 
 
 ==== Authorization
@@ -43,7 +45,7 @@ You can add scheduled events to the `planned-outages` calendar as follows:
 
 [source,js]
 --------------------------------------------------
-POST _xpack/ml/calendars/planned-outages/events
+POST _ml/calendars/planned-outages/events
 {
   "events" : [
     {"description": "event 1", "start_time": 1513641600000, "end_time": 1513728000000},

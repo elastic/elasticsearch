@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,9 +48,11 @@ import java.util.Set;
 public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
 
     @Inject
-    public TransportGetRepositoriesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetRepositoriesRequest::new, indexNameExpressionResolver);
+    public TransportGetRepositoriesAction(TransportService transportService, ClusterService clusterService,
+                                          ThreadPool threadPool, ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(GetRepositoriesAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              GetRepositoriesRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -70,7 +71,8 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
     }
 
     @Override
-    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state, final ActionListener<GetRepositoriesResponse> listener) {
+    protected void masterOperation(final GetRepositoriesRequest request, ClusterState state,
+                                   final ActionListener<GetRepositoriesResponse> listener) {
         MetaData metaData = state.metaData();
         RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
         if (request.repositories().length == 0 || (request.repositories().length == 1 && "_all".equals(request.repositories()[0]))) {

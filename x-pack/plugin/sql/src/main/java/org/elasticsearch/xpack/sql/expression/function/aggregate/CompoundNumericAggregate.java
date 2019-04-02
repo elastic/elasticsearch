@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 
@@ -14,11 +14,11 @@ import java.util.List;
 // and thus cannot be used directly in SQL and are mainly for internal use
 public abstract class CompoundNumericAggregate extends NumericAggregate {
 
-    CompoundNumericAggregate(Location location, Expression field, List<Expression> arguments) {
-        super(location, field, arguments);
+    CompoundNumericAggregate(Source source, Expression field, List<Expression> arguments) {
+        super(source, field, arguments);
     }
 
-    CompoundNumericAggregate(Location location, Expression field) {
-        super(location, field);
+    CompoundNumericAggregate(Source source, Expression field) {
+        super(source, field);
     }
 }

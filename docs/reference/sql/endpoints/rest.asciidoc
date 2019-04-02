@@ -4,12 +4,12 @@
 == SQL REST API
 
 The SQL REST API accepts SQL in a JSON document, executes it,
-and returns the results. For example:
-
+and returns the results. 
+For example:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=txt
+POST /_sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
 }
@@ -32,23 +32,72 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
-While the `text/plain` format is nice for humans, computers prefer something
-more structured. You can replace the value of `format` with:
-- `json` aka `application/json`
-- `yaml` aka `application/yaml`
-- `smile` aka `application/smile`
-- `cbor` aka `application/cbor`
-- `txt` aka `text/plain`
-- `csv` aka `text/csv`
-- `tsv` aka `text/tab-separated-values`
+[[sql-kibana-console]]
+.Using Kibana Console
+If you are using {kibana-ref}/console-kibana.html[Kibana Console].
+(which is highly recommended), take advantage of the
+triple quotes `"""` when creating the query. This not only automatically escapes double
+quotes (`"`) inside the query string but also support multi-line as shown below:
+image:images/sql/rest/console-triple-quotes.png[]
 
-Alternatively you can set the `Accept` HTTP header to the appropriate media
-format. The GET parameter takes precedence over the header. If neither is
-specified then the response is returned in the same format as the request.
+[[sql-rest-format]]
+[float]
+=== Response Data Formats
+
+While the textual format is nice for humans, computers prefer something
+more structured.
+
+{es-sql} can return the data in the following formats which can be set
+either through the `format` property in the URL or by setting the `Accept` HTTP header:
+
+NOTE: The URL parameter takes precedence over the `Accept` HTTP header.
+If neither is specified then the response is returned in the same format as the request.
+
+[cols="^m,^4m,^8"]
+
+|===
+s|format
+s|`Accept` HTTP header
+s|Description
+
+3+h| Human Readable
+
+|csv
+|text/csv
+|https://en.wikipedia.org/wiki/Comma-separated_values[Comma-separated values]
+
+|json
+|application/json
+|https://www.json.org/[JSON] (JavaScript Object Notation) human-readable format
+
+|tsv
+|text/tab-separated-values
+|https://en.wikipedia.org/wiki/Tab-separated_values[Tab-separated values]
+
+|txt
+|text/plain
+|CLI-like representation
+
+|yaml
+|application/yaml
+|https://en.wikipedia.org/wiki/YAML[YAML] (YAML Ain't Markup Language) human-readable format
+
+3+h| Binary Formats
+
+|cbor
+|application/cbor
+|http://cbor.io/[Concise Binary Object Representation]
+
+|smile
+|application/smile
+|https://en.wikipedia.org/wiki/Smile_(data_interchange_format)[Smile] binary data format similar to CBOR
+
+|===
+
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=json
+POST /_sql?format=json
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "fetch_size": 5
@@ -66,7 +115,7 @@ Which returns:
         {"name": "author",       "type": "text"},
         {"name": "name",         "type": "text"},
         {"name": "page_count",   "type": "short"},
-        {"name": "release_date", "type": "date"}
+        {"name": "release_date", "type": "datetime"}
     ],
     "rows": [
         ["Peter F. Hamilton",  "Pandora's Star",       768, "2004-03-02T00:00:00.000Z"],
@@ -80,12 +129,16 @@ Which returns:
 --------------------------------------------------
 // TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 
-You can continue to the next page by sending back the `cursor` field. In
+[[sql-pagination]]
+[float]
+=== Paginating through a large response
+
+Using the example above, one can continue to the next page by sending back the `cursor` field. In
 case of text format the cursor is returned as `Cursor` http header.
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=json
+POST /_sql?format=json
 {
     "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f///w8="
 }
@@ -111,7 +164,7 @@ Which looks like:
 --------------------------------------------------
 // TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWODRMaXBUaVlRN21iTlRyWHZWYUdrdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl9f\/\/\/w8=/$body.cursor/]
 
-Note that the `column` object is only part of the first page.
+Note that the `columns` object is only part of the first page.
 
 You've reached the last page when there is no `cursor` returned
 in the results. Like Elasticsearch's <<search-request-scroll,scroll>>,
@@ -123,7 +176,7 @@ To clear the state earlier, you can use the clear cursor command:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql/close
+POST /_sql/close
 {
     "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f///w8="
 }
@@ -145,14 +198,16 @@ Which will like return the
 
 
 [[sql-rest-filtering]]
+[float]
+=== Filtering using {es} query DSL
 
 You can filter the results that SQL will run on using a standard
-Elasticsearch query DSL by specifying the query in the filter
+{es} query DSL by specifying the query in the filter
 parameter.
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/sql?format=txt
+POST /_sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC",
     "filter": {
@@ -180,11 +235,132 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 // TESTRESPONSE[s/\|/\\|/ s/\+/\\+/]
 // TESTRESPONSE[_cat]
 
+[[sql-rest-columnar]]
+[float]
+=== Columnar results
+
+The most well known way of displaying the results of an SQL query result in general is the one where each
+individual record/document represents one line/row. For certain formats, {es-sql} can return the results
+in a columnar fashion: one row represents all the values of a certain column from the current page of results.
+
+The following formats can be returned in columnar orientation: `json`, `yaml`, `cbor` and `smile`.
+
+[source,js]
+--------------------------------------------------
+POST /_sql?format=json
+{
+    "query": "SELECT * FROM library ORDER BY page_count DESC",
+    "fetch_size": 5,
+    "columnar": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:library]
+
+Which returns:
+
+[source,js]
+--------------------------------------------------
+{
+    "columns": [
+        {"name": "author", "type": "text"},
+        {"name": "name", "type": "text"},
+        {"name": "page_count", "type": "short"},
+        {"name": "release_date", "type": "datetime"}
+    ],
+    "values": [
+        ["Peter F. Hamilton", "Vernor Vinge", "Frank Herbert", "Alastair Reynolds", "James S.A. Corey"],
+        ["Pandora's Star", "A Fire Upon the Deep", "Dune", "Revelation Space", "Leviathan Wakes"],
+        [768, 613, 604, 585, 561],
+        ["2004-03-02T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1965-06-01T00:00:00.000Z", "2000-03-15T00:00:00.000Z", "2011-06-02T00:00:00.000Z"]
+    ],
+    "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8="
+}
+--------------------------------------------------
+// TESTRESPONSE[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
+
+Any subsequent calls using a `cursor` still have to contain the `columnar` parameter to preserve the orientation,
+meaning the initial query will not _remember_ the columnar option.
+
+[source,js]
+--------------------------------------------------
+POST /_sql?format=json
+{
+    "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl+v///w8=",
+    "columnar": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
+
+Which looks like:
+
+[source,js]
+--------------------------------------------------
+{
+    "values": [
+        ["Dan Simmons", "Iain M. Banks", "Neal Stephenson", "Frank Herbert", "Frank Herbert"],
+        ["Hyperion", "Consider Phlebas", "Snow Crash", "God Emperor of Dune", "Children of Dune"],
+        [482, 471, 470, 454, 408],
+        ["1989-05-26T00:00:00.000Z", "1987-04-23T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1981-05-28T00:00:00.000Z", "1976-04-21T00:00:00.000Z"]
+    ],
+    "cursor": "46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3/////DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/46ToAwFzQERYRjFaWEo1UVc1a1JtVjBZMmdCQUFBQUFBQUFBQUVXWjBaNlFXbzNOV0pVY21Wa1NUZDJhV2t3V2xwblp3PT3\/\/\/\/\/DwQBZgZhdXRob3IBBHRleHQAAAFmBG5hbWUBBHRleHQAAAFmCnBhZ2VfY291bnQBBGxvbmcBAAFmDHJlbGVhc2VfZGF0ZQEIZGF0ZXRpbWUBAAEP/$body.cursor/]
+
 [[sql-rest-fields]]
-In addition to the `query` and `cursor` fields, the request can
-contain `fetch_size` and `time_zone`. `fetch_size` is a hint for how
-many results to return in each page. SQL might chose to return more
-or fewer results though. `time_zone` is the time zone to use for date
-functions and date parsing. `time_zone` defaults to `utc` and can take
-any values documented
-http://www.joda.org/joda-time/apidocs/org/joda/time/DateTimeZone.html[here].
+[float]
+=== Supported REST parameters
+
+In addition to the `query` and `fetch_size`, a request a number of user-defined fields for specifying
+the request time-outs or localization information (such as timezone).
+
+The table below lists the supported parameters:
+
+[cols="^m,^m,^5"]
+
+|===
+
+s|name
+s|Default value
+s|Description
+
+|query
+|Mandatory
+|SQL query to execute
+
+|fetch_size
+|1000
+|The maximum number of rows (or entries) to return in one response
+
+|filter
+|none
+|Optional {es} query DSL for additional <<sql-rest-filtering, filtering>>.
+
+|request_timeout
+|90s
+|The timeout before the request fails.
+
+|page_timeout
+|45s
+|The timeout before a pagination request fails.
+
+|time_zone
+|`Z` (or `UTC`)
+|Time-zone in ISO 8601 used for executing the query on the server.
+More information available https://docs.oracle.com/javase/8/docs/api/java/time/ZoneId.html[here].
+
+|columnar
+|false
+|Return the results in a columnar fashion, rather than row-based fashion. Valid for `json`, `yaml`, `cbor` and `smile`.
+
+|field_multi_value_leniency
+|false
+|Throw an exception when encountering multiple values for a field (default) or be lenient and return the first value from the list (without any guarantees of what that will be - typically the first in natural ascending order).
+
+|===
+
+Do note that most parameters (outside the timeout and `columnar` ones) make sense only during the initial query - any follow-up pagination request only requires the `cursor` parameter as explained in the <<sql-pagination, pagination>> chapter.
+That's because the query has already been executed and the calls are simply about returning the found results - thus the parameters are simply ignored.

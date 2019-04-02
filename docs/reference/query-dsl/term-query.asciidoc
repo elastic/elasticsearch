@@ -90,14 +90,12 @@ To demonstrate, try out the example below.  First, create an index, specifying t
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "full_text": {
-          "type":  "text" <1>
-        },
-        "exact_value": {
-          "type":  "keyword" <2>
-        }
+    "properties": {
+      "full_text": {
+        "type":  "text" <1>
+      },
+      "exact_value": {
+        "type":  "keyword" <2>
       }
     }
   }

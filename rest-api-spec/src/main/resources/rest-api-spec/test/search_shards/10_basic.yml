@@ -22,10 +22,9 @@
               number_of_shards: 1
               number_of_replicas: 0
           mappings:
-            type_1:
-              properties:
-                field:
-                  type: text
+            properties:
+              field:
+                type: text
           aliases:
             test_alias_no_filter: {}
             test_alias_filter_1:

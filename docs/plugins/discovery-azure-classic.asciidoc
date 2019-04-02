@@ -1,11 +1,10 @@
 [[discovery-azure-classic]]
 === Azure Classic Discovery Plugin
 
-The Azure Classic Discovery plugin uses the Azure Classic API for unicast discovery.
+The Azure Classic Discovery plugin uses the Azure Classic API to identify the
+addresses of seed hosts.
 
-// TODO: Link to ARM plugin when ready
-// See issue https://github.com/elastic/elasticsearch/issues/19146
-deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
+deprecated[5.0.0, This plugin will be removed in the future]
 
 :plugin_name: discovery-azure-classic
 include::install_remove.asciidoc[]
@@ -14,8 +13,8 @@ include::install_remove.asciidoc[]
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
 
-Azure VM discovery allows to use the azure APIs to perform automatic discovery (similar to multicast in non hostile
-multicast environments). Here is a simple sample configuration:
+Azure VM discovery allows to use the Azure APIs to perform automatic discovery.
+Here is a simple sample configuration:
 
 [source,yaml]
 ----
@@ -30,7 +29,7 @@ cloud:
                    type: pkcs12
 
 discovery:
-    zen.hosts_provider: azure
+    seed_providers: azure
 ----
 
 [IMPORTANT]
@@ -371,9 +370,9 @@ This command should give you a JSON result:
   "cluster_name" : "elasticsearch",
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
-    "number" : "{version}",
+    "number" : "{version_qualified}",
     "build_flavor" : "{build_flavor}",
-    "build_type" : "zip",
+    "build_type" : "{build_type}",
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,

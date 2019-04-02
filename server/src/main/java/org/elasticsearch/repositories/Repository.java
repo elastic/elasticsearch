@@ -216,7 +216,8 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                      ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot

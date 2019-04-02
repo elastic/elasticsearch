@@ -20,14 +20,16 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackUsageRequest;
 
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-public class XPackRequestConverters {
+final class XPackRequestConverters {
+
+    private XPackRequestConverters() {}
 
     static Request info(XPackInfoRequest infoRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, "/_xpack");

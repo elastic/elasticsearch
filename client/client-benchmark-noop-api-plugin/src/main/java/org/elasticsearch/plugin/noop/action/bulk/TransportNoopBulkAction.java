@@ -28,18 +28,19 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Supplier;
 
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
     private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
         new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
 
     @Inject
-    public TransportNoopBulkAction(Settings settings, TransportService transportService, ActionFilters actionFilters) {
-        super(settings, NoopBulkAction.NAME, transportService, actionFilters, BulkRequest::new);
+    public TransportNoopBulkAction(TransportService transportService, ActionFilters actionFilters) {
+        super(NoopBulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new);
     }
 
     @Override

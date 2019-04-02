@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.function.Function;
 
 public class StringProcessor implements Processor {
-    
+
     private interface StringFunction<R> {
         default R apply(Object o) {
             if (!(o instanceof String || o instanceof Character)) {
@@ -57,11 +57,11 @@ public class StringProcessor implements Processor {
             int i = n.intValue();
             if (i < 0) {
                 return null;
-            };
+            }
             char[] spaces = new char[i];
             char whitespace = ' ';
             Arrays.fill(spaces, whitespace);
-            
+
             return new String(spaces);
         }),
         BIT_LENGTH((String s) -> UnicodeUtil.calcUTF16toUTF8Length(s, 0, s.length()) * 8),
@@ -75,24 +75,7 @@ public class StringProcessor implements Processor {
         }
 
         StringOperation(NumericFunction<Object> apply) {
-            this.apply = l -> l == null ? null : apply.apply((l));
-        }
-        
-        StringOperation(Function<Object, Object> apply) {
-            this(apply, false);
-        }
-
-        /**
-         * Wrapper for nulls around the given function.
-         * If true, nulls are passed through, otherwise the function is short-circuited
-         * and null returned.
-         */
-        StringOperation(Function<Object, Object> apply, boolean nullAware) {
-            if (nullAware) {
-                this.apply = apply;
-            } else {
-                this.apply = l -> l == null ? null : apply.apply(l);
-            }
+            this.apply = l -> l == null ? null : apply.apply(l);
         }
 
         public final Object apply(Object l) {
@@ -108,7 +91,7 @@ public class StringProcessor implements Processor {
             return this == CHAR ? "character" : super.toString();
         }
     }
-    
+
     public static final String NAME = "s";
 
     private final StringOperation processor;

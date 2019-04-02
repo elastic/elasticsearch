@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 /**
  * Intermediate representation of queries that is rewritten to fetch
@@ -15,20 +15,20 @@ import org.elasticsearch.xpack.sql.tree.Location;
  * Elasticsearch {@link QueryBuilder}s.
  */
 public abstract class Query {
-    private final Location location;
+    private final Source source;
 
-    Query(Location location) {
-        if (location == null) {
+    Query(Source source) {
+        if (source == null) {
             throw new IllegalArgumentException("location must be specified");
         }
-        this.location = location;
+        this.source = source;
     }
 
     /**
      * Location in the source statement.
      */
-    public Location location() {
-        return location;
+    public Source source() {
+        return source;
     }
 
     /**
@@ -44,7 +44,7 @@ public abstract class Query {
      * @return a new query if we could add the nested field, the same query
      *      instance otherwise
      */
-    public abstract Query addNestedField(String path, String field, boolean hasDocValues);
+    public abstract Query addNestedField(String path, String field, String format, boolean hasDocValues);
 
     /**
      * Attach the one and only one matching nested query's filter to this
@@ -69,16 +69,16 @@ public abstract class Query {
             return false;
         }
         Query other = (Query) obj;
-        return location.equals(other.location);
+        return source.equals(other.source);
     }
 
     @Override
     public int hashCode() {
-        return location.hashCode();
+        return source.hashCode();
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + location + "[" + innerToString() + "]";
+        return getClass().getSimpleName() + source + "[" + innerToString() + "]";
     }
 }

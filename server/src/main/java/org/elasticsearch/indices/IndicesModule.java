@@ -25,13 +25,13 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -123,7 +122,10 @@ public class IndicesModule extends AbstractModule {
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
         mappers.put(BinaryFieldMapper.CONTENT_TYPE, new BinaryFieldMapper.TypeParser());
-        mappers.put(DateFieldMapper.CONTENT_TYPE, new DateFieldMapper.TypeParser());
+        DateFieldMapper.Resolution milliseconds = DateFieldMapper.Resolution.MILLISECONDS;
+        mappers.put(milliseconds.type(), new DateFieldMapper.TypeParser(milliseconds));
+        DateFieldMapper.Resolution nanoseconds = DateFieldMapper.Resolution.NANOSECONDS;
+        mappers.put(nanoseconds.type(), new DateFieldMapper.TypeParser(nanoseconds));
         mappers.put(IpFieldMapper.CONTENT_TYPE, new IpFieldMapper.TypeParser());
         mappers.put(TextFieldMapper.CONTENT_TYPE, new TextFieldMapper.TypeParser());
         mappers.put(KeywordFieldMapper.CONTENT_TYPE, new KeywordFieldMapper.TypeParser());
@@ -132,10 +134,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
-
-        if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
-            mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new GeoShapeFieldMapper.TypeParser());
-        }
+        mappers.put(BaseGeoShapeFieldMapper.CONTENT_TYPE, new BaseGeoShapeFieldMapper.TypeParser());
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

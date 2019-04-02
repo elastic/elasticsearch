@@ -22,9 +22,9 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.io.IOException;
@@ -36,6 +36,10 @@ public final class FetchSearchResult extends SearchPhaseResult {
     private transient int counter;
 
     public FetchSearchResult() {
+    }
+
+    public FetchSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
     }
 
     public FetchSearchResult(long id, SearchShardTarget shardTarget) {
@@ -88,7 +92,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         requestId = in.readLong();
-        hits = SearchHits.readSearchHits(in);
+        hits = new SearchHits(in);
     }
 
     @Override

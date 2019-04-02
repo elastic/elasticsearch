@@ -1,41 +1,100 @@
 plugins {
     id 'elasticsearch.testclusters'
+    id 'base'
 }
 
-elasticSearchClusters {
-    myTestCluster {
-       distribution = 'ZIP'
+allprojects { all ->
+    repositories {
+        flatDir {
+            dir System.getProperty("test.local-test-downloads-path")
+        }
+        maven {
+            url System.getProperty("local.repo.path")
+        }
+        String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision")
+        if (luceneSnapshotRevision != null) {
+            maven {
+                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
+            }
+        }
+
+        jcenter()
+    }
+
+    if (project == rootProject || project.name == "alpha" || project.name == "bravo") {
+        apply plugin: 'elasticsearch.testclusters'
+
+        all.testClusters {
+            myTestCluster {
+                distribution = 'DEFAULT'
+                version = System.getProperty("test.version_under_test")
+                javaHome = file(System.getProperty('java.home'))
+                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${version}.zip")
+            }
+        }
+
+        task user1 {
+            useCluster testClusters.myTestCluster
+            doFirst {
+                println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+            }
+        }
+        task user2 {
+            useCluster testClusters.myTestCluster
+            doFirst {
+                println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+            }
+        }
+        syncTestClustersArtifacts {
+            dependsOn ":dummyPlugin:bundlePlugin"
+        }
     }
 }
 
-task user1 {
-    useCluster elasticSearchClusters.myTestCluster
-    doLast {
-        println "user1 executing"
-    }
-}
-
-task user2 {
-    useCluster elasticSearchClusters.myTestCluster
-    doLast {
-        println "user2 executing"
+task printLog {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
+        testClusters.myTestCluster.logLines().each {
+            println it
+        }
     }
 }
 
 task upToDate1 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task upToDate2 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task skipped1 {
     enabled = false
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task skipped2 {
     enabled = false
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
+}
+
+task itAlwaysFails {
+    doLast {
+        throw new GradleException("Task 1 failed!")
+    }
+    useCluster testClusters.myTestCluster
+}
+
+task dependsOnFailed {
+    dependsOn itAlwaysFails
+    useCluster testClusters.myTestCluster
+}
+
+task illegalConfigAlter {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "Going to alter configuration after use"
+        testClusters.myTestCluster.distribution = 'OSS'
+    }
 }

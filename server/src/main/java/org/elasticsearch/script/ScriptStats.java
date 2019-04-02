@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,16 +41,14 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
-        compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) ? in.readVLong() : 0;
+        compilationLimitTriggered = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeVLong(compilationLimitTriggered);
-        }
+        out.writeVLong(compilationLimitTriggered);
     }
 
     public long getCompilations() {

@@ -152,7 +152,7 @@ public class NestedSortBuilderTests extends ESTestCase {
             @Override
             protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
                 return new MatchAllQueryBuilder();
-            };
+            }
         };
         // test that filter gets rewritten
         NestedSortBuilder original = new NestedSortBuilder("path").setFilter(filterThatRewrites);

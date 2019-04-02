@@ -8,15 +8,12 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
-import java.util.Locale;
-
-import static java.lang.String.format;
 
 /**
  * In a SQL statement, an Expression is whatever a user specifies inside an
@@ -35,8 +32,8 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public static final TypeResolution TYPE_RESOLVED = new TypeResolution(false, StringUtils.EMPTY);
 
-        public TypeResolution(String message, Object... args) {
-            this(true, format(Locale.ROOT, message, args));
+        public TypeResolution(String message) {
+            this(true, message);
         }
 
         private TypeResolution(boolean unresolved, String message) {
@@ -60,9 +57,10 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     private TypeResolution lazyTypeResolution = null;
     private Boolean lazyChildrenResolved = null;
     private Expression lazyCanonical = null;
+    private AttributeSet lazyReferences = null;
 
-    public Expression(Location location, List<Expression> children) {
-        super(location, children);
+    public Expression(Source source, List<Expression> children) {
+        super(source, children);
     }
 
     // whether the expression can be evaluated statically (folded) or not
@@ -74,11 +72,14 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         throw new SqlIllegalArgumentException("Should not fold expression");
     }
 
-    public abstract boolean nullable();
+    public abstract Nullability nullable();
 
     // the references/inputs/leaves of the expression tree
     public AttributeSet references() {
-        return Expressions.references(children());
+        if (lazyReferences == null) {
+            lazyReferences = Expressions.references(children());
+        }
+        return lazyReferences;
     }
 
     public boolean childrenResolved() {

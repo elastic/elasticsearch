@@ -51,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
-                                implements IndicesRequest.Replaceable, ToXContentObject {
+    implements IndicesRequest.Replaceable, ToXContentObject {
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -89,7 +89,10 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
 
     /**
      * Set the document types for the delete
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
      */
+    @Deprecated
     public DeleteByQueryRequest setDocTypes(String... types) {
         if (types != null) {
             getSearchRequest().types(types);
@@ -140,7 +143,10 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     /**
      * Gets the document types on which this request would be executed. Returns an empty array if all
      * types are to be processed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
      */
+    @Deprecated
     public String[] getDocTypes() {
         if (getSearchRequest().types() != null) {
             return getSearchRequest().types();
@@ -202,11 +208,23 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return getSearchRequest().indicesOptions();
     }
 
+    /**
+     * Gets the document types on which this request would be executed.
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
     public String[] types() {
         assert getSearchRequest() != null;
         return getSearchRequest().types();
     }
 
+    /**
+     * Set the document types for the delete
+     * @deprecated Types are in the process of being removed. Instead of
+     * using a type, prefer to filter on a field of the document.
+     */
+    @Deprecated
     public DeleteByQueryRequest types(String... types) {
         assert getSearchRequest() != null;
         getSearchRequest().types(types);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.QueryPlan;
@@ -17,7 +16,7 @@ import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 import org.elasticsearch.xpack.sql.util.Graphviz;
@@ -51,8 +50,8 @@ public class Explain extends Command {
     private final Format format;
     private final Type type;
 
-    public Explain(Location location, LogicalPlan plan, Type type, Format format, boolean verify) {
-        super(location);
+    public Explain(Source source, LogicalPlan plan, Type type, Format format, boolean verify) {
+        super(source);
         this.plan = plan;
         this.verify = verify;
         this.format = format == null ? Format.TEXT : format;
@@ -82,7 +81,7 @@ public class Explain extends Command {
 
     @Override
     public List<Attribute> output() {
-        return singletonList(new FieldAttribute(location(), "plan", new KeywordEsField("plan")));
+        return singletonList(new FieldAttribute(source(), "plan", new KeywordEsField("plan")));
     }
 
     @Override
@@ -131,7 +130,7 @@ public class Explain extends Command {
             // check errors manually to see how far the plans work out
             else {
                 // no analysis failure, can move on
-                if (Analyzer.verifyFailures(analyzedPlan).isEmpty()) {
+                if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
                             listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));

@@ -48,7 +48,7 @@ reordered or deleted after they were initially added.
 
 The `match_mapping_type` is the datatype detected by the json parser. Since
 JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, ie. `long` for integers
+a `float`, it will always choose the wider datatype, i.e. `long` for integers
 and `double` for floating-point numbers.
 
 The following datatypes may be automatically detected:
@@ -72,32 +72,30 @@ could use the following template:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "integers": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "integer"
-            }
+    "dynamic_templates": [
+      {
+        "integers": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "integer"
           }
-        },
-        {
-          "strings": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "fields": {
-                "raw": {
-                  "type":  "keyword",
-                  "ignore_above": 256
-                }
+        }
+      },
+      {
+        "strings": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "raw": {
+                "type":  "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -128,20 +126,18 @@ fields:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "longs_as_strings": {
-            "match_mapping_type": "string",
-            "match":   "long_*",
-            "unmatch": "*_text",
-            "mapping": {
-              "type": "long"
-            }
+    "dynamic_templates": [
+      {
+        "longs_as_strings": {
+          "match_mapping_type": "string",
+          "match":   "long_*",
+          "unmatch": "*_text",
+          "mapping": {
+            "type": "long"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -184,20 +180,18 @@ top-level `full_name` field, except for the `middle` field:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "full_name": {
-            "path_match":   "name.*",
-            "path_unmatch": "*.middle",
-            "mapping": {
-              "type":       "text",
-              "copy_to":    "full_name"
-            }
+    "dynamic_templates": [
+      {
+        "full_name": {
+          "path_match":   "name.*",
+          "path_unmatch": "*.middle",
+          "mapping": {
+            "type":       "text",
+            "copy_to":    "full_name"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 
@@ -225,29 +219,27 @@ field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "named_analyzers": {
-            "match_mapping_type": "string",
-            "match": "*",
-            "mapping": {
-              "type": "text",
-              "analyzer": "{name}"
-            }
-          }
-        },
-        {
-          "no_doc_values": {
-            "match_mapping_type":"*",
-            "mapping": {
-              "type": "{dynamic_type}",
-              "doc_values": false
-            }
+    "dynamic_templates": [
+      {
+        "named_analyzers": {
+          "match_mapping_type": "string",
+          "match": "*",
+          "mapping": {
+            "type": "text",
+            "analyzer": "{name}"
           }
         }
-      ]
-    }
+      },
+      {
+        "no_doc_values": {
+          "match_mapping_type":"*",
+          "mapping": {
+            "type": "{dynamic_type}",
+            "doc_values": false
+          }
+        }
+      }
+    ]
   }
 }
 
@@ -279,18 +271,16 @@ you will have to search on the exact same value that was indexed.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "keyword"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "keyword"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -309,18 +299,16 @@ before 5.0):
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_text": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text"
-            }
+    "dynamic_templates": [
+      {
+        "strings_as_text": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text"
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -337,25 +325,23 @@ disable the storage of these scoring factors in the index and save some space.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "strings_as_keywords": {
-            "match_mapping_type": "string",
-            "mapping": {
-              "type": "text",
-              "norms": false,
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "mapping": {
+            "type": "text",
+            "norms": false,
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
               }
             }
           }
         }
-      ]
-    }
+      }
+    ]
   }
 }
 --------------------------------------------------
@@ -378,28 +364,26 @@ maybe gain some indexing speed:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "dynamic_templates": [
-        {
-          "unindexed_longs": {
-            "match_mapping_type": "long",
-            "mapping": {
-              "type": "long",
-              "index": false
-            }
-          }
-        },
-        {
-          "unindexed_doubles": {
-            "match_mapping_type": "double",
-            "mapping": {
-              "type": "float", <1>
-              "index": false
-            }
+    "dynamic_templates": [
+      {
+        "unindexed_longs": {
+          "match_mapping_type": "long",
+          "mapping": {
+            "type": "long",
+            "index": false
           }
         }
-      ]
-    }
+      },
+      {
+        "unindexed_doubles": {
+          "match_mapping_type": "double",
+          "mapping": {
+            "type": "float", <1>
+            "index": false
+          }
+        }
+      }
+    ]
   }
 }
 --------------------------------------------------

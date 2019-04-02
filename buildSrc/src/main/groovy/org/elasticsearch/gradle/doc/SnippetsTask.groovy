@@ -45,7 +45,7 @@ public class SnippetsTask extends DefaultTask {
     private static final String WARNING = /warning:(.+)/
     private static final String CAT = /(_cat)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -233,6 +233,10 @@ public class SnippetsTask extends DefaultTask {
                                 snippet.warnings.add(it.group(7))
                                 return
                             }
+                            if (it.group(8) != null) {
+                                snippet.skipShardsFailures = true
+                                return
+                            }
                             throw new InvalidUserDataException(
                                     "Invalid test marker: $line")
                         }
@@ -271,6 +275,10 @@ public class SnippetsTask extends DefaultTask {
                 }
                 if (line ==~ /\/\/\s*TESTSETUP\s*/) {
                     snippet.testSetup = true
+                    return
+                }
+                if (line ==~ /\/\/\s*TEARDOWN\s*/) {
+                    snippet.testTearDown = true
                     return
                 }
                 if (snippet == null) {
@@ -317,6 +325,7 @@ public class SnippetsTask extends DefaultTask {
         boolean test = false
         boolean testResponse = false
         boolean testSetup = false
+        boolean testTearDown = false
         String skip = null
         boolean continued = false
         String language = null
@@ -324,6 +333,7 @@ public class SnippetsTask extends DefaultTask {
         String setup = null
         boolean curl
         List warnings = new ArrayList()
+        boolean skipShardsFailures = false
 
         @Override
         public String toString() {
@@ -353,6 +363,9 @@ public class SnippetsTask extends DefaultTask {
                 }
                 for (String warning in warnings) {
                     result += "[warning:$warning]"
+                }
+                if (skipShardsFailures) {
+                    result += '[skip_shard_failures]'
                 }
             }
             if (testResponse) {

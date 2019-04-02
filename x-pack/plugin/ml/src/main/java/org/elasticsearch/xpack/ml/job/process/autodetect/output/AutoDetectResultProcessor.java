@@ -5,18 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -33,8 +32,6 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
@@ -42,12 +39,10 @@ import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.time.Duration;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -74,22 +69,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutoDetectResultProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
-
-    /**
-     * This is how far behind real-time we'll update the job with the latest established model memory.
-     * If more updates are received during the delay period then they'll take precedence.
-     * As a result there will be at most one update of established model memory per delay period.
-     */
-    private static final TimeValue ESTABLISHED_MODEL_MEMORY_UPDATE_DELAY = TimeValue.timeValueSeconds(5);
+    private static final Logger LOGGER = LogManager.getLogger(AutoDetectResultProcessor.class);
 
     private final Client client;
     private final Auditor auditor;
     private final String jobId;
     private final Renormalizer renormalizer;
     private final JobResultsPersister persister;
-    private final JobResultsProvider jobResultsProvider;
-    private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
     final Semaphore updateModelSnapshotSemaphore = new Semaphore(1);
@@ -102,30 +88,21 @@ public class AutoDetectResultProcessor {
      * New model size stats are read as the process is running
      */
     private volatile ModelSizeStats latestModelSizeStats;
-    private volatile Date latestDateForEstablishedModelMemoryCalc;
-    private volatile long latestEstablishedModelMemory;
-    private volatile boolean haveNewLatestModelSizeStats;
-    private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
 
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
-                                     JobResultsPersister persister, JobResultsProvider jobResultsProvider,
-                                     ModelSizeStats latestModelSizeStats, boolean restoredSnapshot) {
-        this(client, auditor, jobId, renormalizer, persister, jobResultsProvider, latestModelSizeStats,
-                restoredSnapshot, new FlushListener());
+                                     JobResultsPersister persister, ModelSizeStats latestModelSizeStats) {
+        this(client, auditor, jobId, renormalizer, persister, latestModelSizeStats, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                              JobResultsPersister persister, ModelSizeStats latestModelSizeStats, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
         this.renormalizer = Objects.requireNonNull(renormalizer);
         this.persister = Objects.requireNonNull(persister);
-        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.flushListener = Objects.requireNonNull(flushListener);
         this.latestModelSizeStats = Objects.requireNonNull(latestModelSizeStats);
-        this.restoredSnapshot = restoredSnapshot;
     }
 
     public void process(AutodetectProcess process) {
@@ -135,25 +112,7 @@ public class AutoDetectResultProcessor {
         // to kill the results reader thread as autodetect will be blocked
         // trying to write its output.
         try {
-            bucketCount = 0;
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(context, result);
-                    if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
-                    }
-                } catch (Exception e) {
-                    if (processKilled) {
-                        throw e;
-                    }
-                    if (process.isProcessAliveAfterWaiting() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
-                }
-            }
+            readResults(process, context);
 
             try {
                 if (processKilled == false) {
@@ -162,9 +121,8 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-            runEstablishedModelMemoryUpdate(true);
+
         } catch (Exception e) {
             failed = true;
 
@@ -185,6 +143,32 @@ public class AutoDetectResultProcessor {
         } finally {
             flushListener.clear();
             completionLatch.countDown();
+        }
+    }
+
+    private void readResults(AutodetectProcess process, Context context) {
+        bucketCount = 0;
+        try {
+            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+            while (iterator.hasNext()) {
+                try {
+                    AutodetectResult result = iterator.next();
+                    processResult(context, result);
+                    if (result.getBucket() != null) {
+                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
+                    }
+                } catch (Exception e) {
+                    if (processKilled) {
+                        throw e;
+                    }
+                    if (process.isProcessAliveAfterWaiting() == false) {
+                        throw e;
+                    }
+                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+                }
+            }
+        } finally {
+            process.consumeAndCloseOutputStream();
         }
     }
 
@@ -211,17 +195,7 @@ public class AutoDetectResultProcessor {
             // persist after deleting interim results in case the new
             // results are also interim
             context.bulkResultsPersister.persistBucket(bucket).executeRequest();
-            latestDateForEstablishedModelMemoryCalc = bucket.getTimestamp();
             ++bucketCount;
-
-            // if we haven't previously set established model memory, consider trying again after
-            // a reasonable number of buckets have elapsed since the last model size stats update
-            long minEstablishedTimespanMs = JobResultsProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE * bucket.getBucketSpan() * 1000L;
-            if (haveNewLatestModelSizeStats && latestEstablishedModelMemory == 0 && latestDateForEstablishedModelMemoryCalc.getTime()
-                > latestModelSizeStats.getTimestamp().getTime() + minEstablishedTimespanMs) {
-                scheduleEstablishedModelMemoryUpdate(ESTABLISHED_MODEL_MEMORY_UPDATE_DELAY);
-                haveNewLatestModelSizeStats = false;
-            }
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -269,8 +243,10 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
-            updateModelSnapshotOnJob(modelSnapshot);
+            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                updateModelSnapshotOnJob(modelSnapshot);
+            }
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -310,15 +286,6 @@ public class AutoDetectResultProcessor {
         persister.persistModelSizeStats(modelSizeStats);
         notifyModelMemoryStatusChange(context, modelSizeStats);
         latestModelSizeStats = modelSizeStats;
-        latestDateForEstablishedModelMemoryCalc = modelSizeStats.getTimestamp();
-        haveNewLatestModelSizeStats = true;
-
-        // This is a crude way to NOT refresh the index and NOT attempt to update established model memory during the first 20 buckets
-        // because this is when the model size stats are likely to be least stable and lots of updates will be coming through, and
-        // we'll NEVER consider memory usage to be established during this period
-        if (restoredSnapshot || bucketCount >= JobResultsProvider.BUCKETS_FOR_ESTABLISHED_MEMORY_SIZE) {
-            scheduleEstablishedModelMemoryUpdate(ESTABLISHED_MODEL_MEMORY_UPDATE_DELAY);
-        }
     }
 
     private void notifyModelMemoryStatusChange(Context context, ModelSizeStats modelSizeStats) {
@@ -334,10 +301,7 @@ public class AutoDetectResultProcessor {
     }
 
     protected void updateModelSnapshotOnJob(ModelSnapshot modelSnapshot) {
-        JobUpdate update = new JobUpdate.Builder(jobId)
-                .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                .setModelSnapshotMinVersion(modelSnapshot.getMinVersion())
-                .build();
+        JobUpdate update = new JobUpdate.Builder(jobId).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
         UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
 
         try {
@@ -367,94 +331,6 @@ public class AutoDetectResultProcessor {
         });
     }
 
-    /**
-     * The purpose of this method is to avoid saturating the cluster state update thread
-     * when a lookback job is churning through buckets very fast and the memory usage of
-     * the job is changing regularly.  The idea is to only update the established model
-     * memory associated with the job a few seconds after the new value has been received.
-     * If more updates are received during the delay period then they simply replace the
-     * value that originally caused the update to be scheduled.  This rate limits cluster
-     * state updates due to established model memory changing to one per job per delay period.
-     * (In reality updates will only occur this rapidly during lookback.  During real-time
-     * operation the limit of one model size stats document per bucket will mean there is a
-     * maximum of one cluster state update per job per bucket, and usually the bucket span
-     * is 5 minutes or more.)
-     * @param delay The delay before updating established model memory.
-     */
-    synchronized void scheduleEstablishedModelMemoryUpdate(TimeValue delay) {
-
-        if (scheduledEstablishedModelMemoryUpdate == null) {
-            try {
-                scheduledEstablishedModelMemoryUpdate = client.threadPool().schedule(delay, MachineLearning.UTILITY_THREAD_POOL_NAME,
-                    () -> runEstablishedModelMemoryUpdate(false));
-                LOGGER.trace("[{}] Scheduled established model memory update to run in [{}]", jobId, delay);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    LOGGER.debug("failed to schedule established model memory update; shutting down", e);
-                } else {
-                    throw e;
-                }
-            }
-        }
-    }
-
-    /**
-     * This method is called from two places:
-     * - From the {@link Future} used for delayed updates
-     * - When shutting down this result processor
-     * When shutting down the result processor it's only necessary to do anything
-     * if an update has been scheduled, but we want to do the update immediately.
-     * Despite cancelling the scheduled update in this case, it's possible that
-     * it's already started running, in which case this method will get called
-     * twice in quick succession.  But the second call will do nothing, as
-     * <code>scheduledEstablishedModelMemoryUpdate</code> will have been reset
-     * to <code>null</code> by the first call.
-     */
-    private synchronized void runEstablishedModelMemoryUpdate(boolean cancelExisting) {
-
-        if (scheduledEstablishedModelMemoryUpdate != null) {
-            if (cancelExisting) {
-                LOGGER.debug("[{}] Bringing forward previously scheduled established model memory update", jobId);
-                FutureUtils.cancel(scheduledEstablishedModelMemoryUpdate);
-            }
-            scheduledEstablishedModelMemoryUpdate = null;
-            updateEstablishedModelMemoryOnJob();
-        }
-    }
-
-    private void updateEstablishedModelMemoryOnJob() {
-
-        // Copy these before committing writes, so the calculation is done based on committed documents
-        Date latestBucketTimestamp = latestDateForEstablishedModelMemoryCalc;
-        ModelSizeStats modelSizeStatsForCalc = latestModelSizeStats;
-
-        // We need to make all results written up to and including these stats available for the established memory calculation
-        persister.commitResultWrites(jobId);
-
-        jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
-            if (latestEstablishedModelMemory != establishedModelMemory) {
-                JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
-                UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
-                updateRequest.setWaitForAck(false);
-
-                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                    new ActionListener<PutJobAction.Response>() {
-                    @Override
-                    public void onResponse(PutJobAction.Response response) {
-                        latestEstablishedModelMemory = establishedModelMemory;
-                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
-                            establishedModelMemory + "]", e);
-                    }
-                });
-            }
-        }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
-    }
-
     public void awaitCompletion() throws TimeoutException {
         try {
             // Although the results won't take 30 minutes to finish, the pipe won't be closed
@@ -463,6 +339,7 @@ public class AutoDetectResultProcessor {
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
+
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotOnJob calls to complete.
             updateModelSnapshotSemaphore.acquire();

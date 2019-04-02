@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -28,21 +28,16 @@ import java.util.Map;
 
 public class MigrationRequestConvertersTests extends ESTestCase {
 
-    public static void testGetMigrationAssistance() {
-        IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
-        String expectedEndpoint = "/_xpack/migration/assistance";
-        if (randomBoolean()) {
-            String[] indices = RequestConvertersTests.randomIndicesNames(1, 5);
-            upgradeInfoRequest.indices(indices);
-            expectedEndpoint += "/" + String.join(",", indices);
-        }
+    public void testGetDeprecationInfo() {
+        DeprecationInfoRequest deprecationInfoRequest = new DeprecationInfoRequest();
+        String expectedEndpoint = "/_migration/deprecations";
+
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomIndicesOptions(upgradeInfoRequest::indicesOptions, upgradeInfoRequest::indicesOptions,
-            expectedParams);
-        Request request = MigrationRequestConverters.getMigrationAssistance(upgradeInfoRequest);
+        Request request = MigrationRequestConverters.getDeprecationInfo(deprecationInfoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());
     }
+
 }

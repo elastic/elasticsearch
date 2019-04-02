@@ -43,11 +43,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
@@ -55,7 +55,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        return new TestSearchContext(threadPool, bigArrays, indexService) {
+        return new TestSearchContext(bigArrays, indexService) {
             final ShardSearchRequest request = new ShardSearchRequest() {
                 private SearchSourceBuilder searchSourceBuilder;
                 @Override
@@ -114,8 +114,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Boolean allowPartialSearchResults() {
-                    return null;
+                public boolean allowPartialSearchResults() {
+                    return true;
                 }
 
                 @Override
@@ -134,17 +134,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public void setProfile(boolean profile) {
-
-                }
-
-                @Override
-                public boolean isProfile() {
-                    return false;
-                }
-
-                @Override
-                public BytesReference cacheKey() throws IOException {
+                public BytesReference cacheKey() {
                     return null;
                 }
 
@@ -170,7 +160,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
         assertThat(p.toString(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
@@ -188,14 +179,17 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchSlowLog log = new SearchSlowLog(settings);
         assertEquals(level, log.getLevel());
         level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
         level = randomFrom(SlowLogLevel.values());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
 
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), level).build()));
         assertEquals(level, log.getLevel());
 
         settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
@@ -207,7 +201,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         settings = new IndexSettings(metaData, Settings.EMPTY);
         log = new SearchSlowLog(settings);
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             final String expected = "illegal value can't update [index.search.slowlog.level] from [TRACE] to [NOT A LEVEL]";
@@ -235,7 +230,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getQueryInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(400).nanos(), log.getQueryWarnThreshold());
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "120ms")
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "120ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "220ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "320ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "420ms").build()));
@@ -263,28 +259,36 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getQueryWarnThreshold());
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.trace");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.debug");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.info");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder()
+                    .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.query.warn");
@@ -306,7 +310,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(300).nanos(), log.getFetchInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(400).nanos(), log.getFetchWarnThreshold());
 
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "120ms")
+        settings.updateIndexMetaData(newIndexMeta("index",
+            Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "120ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "220ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "320ms")
             .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "420ms").build()));
@@ -334,28 +339,36 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchInfoThreshold());
         assertEquals(TimeValue.timeValueMillis(-1).nanos(), log.getFetchWarnThreshold());
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.trace");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.debug");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.info");
         }
 
         try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
+            settings.updateIndexMetaData(newIndexMeta("index",
+                Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING.getKey(),
+                    "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
             assertTimeValueException(ex, "index.search.slowlog.threshold.fetch.warn");

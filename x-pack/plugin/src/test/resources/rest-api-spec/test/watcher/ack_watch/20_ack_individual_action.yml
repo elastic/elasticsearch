@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "my_watch"
         body:  >
           {
@@ -25,8 +25,7 @@
             "actions": {
               "test_index": {
                 "index": {
-                  "index": "test",
-                  "doc_type": "test2"
+                  "index": "test"
                 }
               }
             }
@@ -39,14 +38,14 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.ack_watch:
+      watcher.ack_watch:
         watch_id: "my_watch"
         action_id: "test_index"
 
   - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
 
   - do:
-      xpack.watcher.delete_watch:
+      watcher.delete_watch:
         id: "my_watch"
 
   - match: { found: true }

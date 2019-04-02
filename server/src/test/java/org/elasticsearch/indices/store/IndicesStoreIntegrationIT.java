@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -55,6 +54,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -162,13 +162,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
         internalCluster().setDisruptionScheme(disruption);
         MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeTo);
         CountDownLatch beginRelocationLatch = new CountDownLatch(1);
         CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
         // use a tracer on the target node to track relocation start and end
-        transportService.addTracer(new MockTransportService.Tracer() {
+        transportService.addMessageListener(new TransportMessageListener() {
             @Override
-            public void receivedRequest(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action) {
                 if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
                     logger.info("received: {}, relocation starts", action);
                     beginRelocationLatch.countDown();
@@ -178,18 +177,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                     // to the other nodes that should have a copy according to cluster state.
                     receivedShardExistsRequestLatch.countDown();
                     logger.info("received: {}, relocation done", action);
-                } else if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
-                    logger.info("received: {}, waiting on cluster state", action);
-                    // ensure that relocation target node is on the same cluster state as relocation source before proceeding with
-                    // this request. If the target does not have the relocating cluster state exposed through ClusterService.state(),
-                    // then waitForClusterState will have to register a ClusterObserver with the ClusterService, which can cause
-                    // a race with the BlockClusterStateProcessing block that is added below.
-                    try {
-                        assertBusy(() -> assertTrue(
-                            clusterService.state().routingTable().index(index).shard(shard).primaryShard().relocating()));
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
                 }
             }
         });
@@ -340,7 +327,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                         .put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node4)
         ));
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus().setWaitForNodes("5").get().isTimedOut());
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNoRelocatingShards(true).setWaitForGreenStatus()
+            .setWaitForNodes("5").get().isTimedOut());
 
         // disable allocation to control the situation more easily
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -406,7 +394,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         final int numShards = scaledRandomIntBetween(2, 10);
         assertAcked(prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
+                        .setSettings(Settings.builder()
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards))
         );
         ensureGreen("test");
 
@@ -424,9 +414,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE))
+            .get();
 
-        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode).getClusterApplierService();
+        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode)
+            .getClusterApplierService();
         ClusterState currentState = clusterApplierService.state();
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         for (int j = 0; j < numShards; j++) {
@@ -450,7 +443,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             @Override
             public void onFailure(String source, Exception e) {
                 latch.countDown();
-                fail("Excepted proper response " + ExceptionsHelper.detailedMessage(e));
+                throw new AssertionError("Expected a proper response", e);
             }
         });
         latch.await();

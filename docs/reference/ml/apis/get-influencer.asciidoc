@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-influencer]]
-=== Get Influencers API
+=== Get influencers API
 ++++
-<titleabbrev>Get Influencers</titleabbrev>
+<titleabbrev>Get influencers</titleabbrev>
 ++++
 
 Retrieves job results for one or more influencers.
@@ -11,7 +11,7 @@ Retrieves job results for one or more influencers.
 
 ==== Request
 
-`GET _xpack/ml/anomaly_detectors/<job_id>/results/influencers`
+`GET _ml/anomaly_detectors/<job_id>/results/influencers`
 
 //===== Description
 
@@ -75,7 +75,7 @@ The following example gets influencer information for the `it_ops_new_kpi` job:
 
 [source,js]
 --------------------------------------------------
-GET _xpack/ml/anomaly_detectors/it_ops_new_kpi/results/influencers
+GET _ml/anomaly_detectors/it_ops_new_kpi/results/influencers
 {
   "sort": "influencer_score",
   "desc": true

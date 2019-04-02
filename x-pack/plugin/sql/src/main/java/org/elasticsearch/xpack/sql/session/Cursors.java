@@ -14,11 +14,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.CompositeAggregationCursor;
+import org.elasticsearch.xpack.sql.execution.search.PagingListCursor;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.plugin.CliFormatterCursor;
+import org.elasticsearch.xpack.sql.expression.literal.Literals;
+import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
@@ -34,7 +36,7 @@ public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
 
-    private Cursors() {};
+    private Cursors() {}
 
     /**
      * The {@link NamedWriteable}s required to deserialize {@link Cursor}s.
@@ -46,12 +48,16 @@ public final class Cursors {
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, EmptyCursor.NAME, in -> Cursor.EMPTY));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, ScrollCursor.NAME, ScrollCursor::new));
         entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CompositeAggregationCursor.NAME, CompositeAggregationCursor::new));
-        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, CliFormatterCursor.NAME, CliFormatterCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, TextFormatterCursor.NAME, TextFormatterCursor::new));
+        entries.add(new NamedWriteableRegistry.Entry(Cursor.class, PagingListCursor.NAME, PagingListCursor::new));
 
         // plus all their dependencies
         entries.addAll(Processors.getNamedWriteables());
         entries.addAll(HitExtractors.getNamedWriteables());
         entries.addAll(BucketExtractors.getNamedWriteables());
+
+        // and custom types
+        entries.addAll(Literals.getNamedWriteables());
 
         return entries;
     }
@@ -70,7 +76,7 @@ public final class Cursors {
             }
             return os.toString(StandardCharsets.UTF_8.name());
         } catch (Exception ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure retriving next page", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
         }
     }
 

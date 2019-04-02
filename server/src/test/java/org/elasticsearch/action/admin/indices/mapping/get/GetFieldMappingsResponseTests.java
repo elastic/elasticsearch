@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTestCase<GetFieldMappingsResponse> {
@@ -119,6 +121,15 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
         // otherwise random field could be evaluated as index name or type name
         return s -> false == (s.matches("(?<index>[^.]+)")
             || s.matches("(?<index>[^.]+)\\.mappings\\.(?<doctype>[^.]+)\\.(?<field>[^.]+)"));
+    }
+
+    /**
+     * For xContent roundtrip testing we force the xContent output to still contain types because the parser
+     * still expects them. The new typeless parsing is implemented in the client side GetFieldMappingsResponse.
+     */
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(INCLUDE_TYPE_NAME_PARAMETER, "true"));
     }
 
     private Map<String, Map<String, Map<String, FieldMappingMetaData>>> randomMapping() {

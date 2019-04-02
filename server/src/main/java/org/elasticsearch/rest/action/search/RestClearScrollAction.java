@@ -50,7 +50,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
-        clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
+        clearRequest.setScrollIds(Arrays.asList(Strings.splitStringByCommaToArray(scrollIds)));
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
@@ -65,10 +65,4 @@ public class RestClearScrollAction extends BaseRestHandler {
         return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    private static String[] splitScrollIds(String scrollIds) {
-        if (scrollIds == null) {
-            return Strings.EMPTY_ARRAY;
-        }
-        return Strings.splitStringByCommaToArray(scrollIds);
-    }
 }

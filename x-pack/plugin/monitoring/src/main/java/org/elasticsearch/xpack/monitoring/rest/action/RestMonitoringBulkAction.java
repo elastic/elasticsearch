@@ -5,8 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.rest.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -19,7 +22,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.rest.MonitoringRestHandler;
+import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -33,20 +36,22 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestMonitoringBulkAction extends MonitoringRestHandler {
+public class RestMonitoringBulkAction extends XPackRestHandler {
 
     public static final String MONITORING_ID = "system_id";
     public static final String MONITORING_VERSION = "system_api_version";
     public static final String INTERVAL = "interval";
-
+    private static final Logger logger = LogManager.getLogger(RestMonitoringBulkAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
     public RestMonitoringBulkAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(POST, URI_BASE + "/_bulk", this);
-        controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
-        controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);
-        controller.registerHandler(PUT, URI_BASE + "/{type}/_bulk", this);
+        // TODO: remove deprecated endpoint in 8.0.0
+        controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
+            POST, "/_xpack/monitoring/_bulk", deprecationLogger);
+        controller.registerWithDeprecatedHandler(PUT, "/_monitoring/bulk", this,
+            PUT, "/_xpack/monitoring/_bulk", deprecationLogger);
 
         final List<String> allVersions = Arrays.asList(
                 MonitoringTemplateUtils.TEMPLATE_VERSION,
@@ -56,19 +61,17 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
         versionsMap.put(MonitoredSystem.KIBANA, allVersions);
         versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        // Beats did not report data in the 5.x timeline, so it should never send the original version
-        versionsMap.put(MonitoredSystem.BEATS, Collections.singletonList(MonitoringTemplateUtils.TEMPLATE_VERSION));
+        versionsMap.put(MonitoredSystem.BEATS, allVersions);
         supportedApiVersions = Collections.unmodifiableMap(versionsMap);
     }
 
     @Override
     public String getName() {
-        return "xpack_monitoring_bulk_action";
+        return "monitoring_bulk";
     }
 
     @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
-        final String defaultType = request.param("type");
 
         final String id = request.param(MONITORING_ID);
         if (Strings.isEmpty(id)) {
@@ -99,7 +102,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = client.monitoring().prepareMonitoringBulk();
-        requestBuilder.add(system, defaultType, request.content(), request.getXContentType(), timestamp, intervalMillis);
+        requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
         return channel -> requestBuilder.execute(new RestBuilderListener<MonitoringBulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {

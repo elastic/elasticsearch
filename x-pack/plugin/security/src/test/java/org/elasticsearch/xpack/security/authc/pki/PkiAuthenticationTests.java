@@ -18,14 +18,11 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
@@ -43,6 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -62,19 +60,15 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings())
-            .put("xpack.security.http.ssl.enabled", true)
+            .put(super.nodeSettings());
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
-            .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-            .put("xpack.security.authc.realms.file.order", "0")
-            .put("xpack.security.authc.realms.pki1.type", PkiRealmSettings.TYPE)
-            .put("xpack.security.authc.realms.pki1.order", "1")
-            .put("xpack.security.authc.realms.pki1.certificate_authorities",
+            .put("xpack.security.authc.realms.file.file.order", "0")
+            .put("xpack.security.authc.realms.pki.pki1.order", "1")
+            .put("xpack.security.authc.realms.pki.pki1.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
-
-        SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+            .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
         return builder.build();
     }
 
@@ -162,13 +156,15 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
-        if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
-            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false);
+        if (additionalSettings.getByPrefix("xpack.security.transport.ssl.").isEmpty() == false) {
+            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false);
         }
 
-        Settings.Builder builder = Settings.builder().put(clientSettings, false)
-                .put(additionalSettings)
-                .put("cluster.name", node().settings().get("cluster.name"));
+        Settings.Builder builder = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(clientSettings, false)
+            .put(additionalSettings)
+            .put("cluster.name", node().settings().get("cluster.name"));
         builder.remove(SecurityField.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return new TestXPackTransportClient(builder.build(), LocalStateSecurity.class);

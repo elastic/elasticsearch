@@ -6,7 +6,7 @@ The time functions detect events that happen at unusual times, either of the day
 or of the week. These functions can be used to find unusual patterns of behavior,
 typically associated with suspicious user activity.
 
-The {xpackml} features include the following time functions:
+The {ml-features} include the following time functions:
 
 * <<ml-time-of-day,`time_of_day`>>
 * <<ml-time-of-week,`time_of_week`>>

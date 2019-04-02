@@ -39,13 +39,12 @@ public class SimpleAllocationIT extends ESIntegTestCase {
         return 1;
     }
 
-    /**
-     * Test for
-     * https://groups.google.com/d/msg/elasticsearch/y-SY_HyoB-8/EZdfNt9VO44J
-     */
     public void testSaneAllocation() {
         assertAcked(prepareCreate("test", 3));
-        ensureGreen();
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test"));
+        }
+        ensureGreen("test");
 
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
@@ -54,8 +53,9 @@ public class SimpleAllocationIT extends ESIntegTestCase {
                 assertThat(node.size(), equalTo(2));
             }
         }
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
-        ensureGreen();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0)).execute().actionGet();
+        ensureGreen("test");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));
@@ -67,10 +67,14 @@ public class SimpleAllocationIT extends ESIntegTestCase {
 
         // create another index
         assertAcked(prepareCreate("test2", 3));
-        ensureGreen();
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareClose("test2"));
+        }
+        ensureGreen("test2");
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
-        ensureGreen();
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1)).execute().actionGet();
+        ensureGreen("test");
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
 
         assertThat(state.getRoutingNodes().unassigned().size(), equalTo(0));

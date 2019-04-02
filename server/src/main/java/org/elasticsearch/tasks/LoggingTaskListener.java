@@ -19,16 +19,16 @@
 
 package org.elasticsearch.tasks;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.logging.Loggers;
 
 /**
  * A TaskListener that just logs the response at the info level. Used when we
  * need a listener but aren't returning the result to the user.
  */
 public final class LoggingTaskListener<Response> implements TaskListener<Response> {
-    private static final Logger logger = Loggers.getLogger(LoggingTaskListener.class);
+    private static final Logger logger = LogManager.getLogger(LoggingTaskListener.class);
 
     /**
      * Get the instance of NoopActionListener cast appropriately.

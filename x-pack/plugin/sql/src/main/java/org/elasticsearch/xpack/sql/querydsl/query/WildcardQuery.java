@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import java.util.Objects;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 
@@ -16,8 +16,8 @@ public class WildcardQuery extends LeafQuery {
 
     private final String field, query;
 
-    public WildcardQuery(Location location, String field, String query) {
-        super(location);
+    public WildcardQuery(Source source, String field, String query) {
+        super(source);
         this.field = field;
         this.query = query;
     }

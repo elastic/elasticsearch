@@ -20,13 +20,14 @@
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
 import org.apache.tools.ant.filters.FixCrLfFilter
 
 import java.nio.file.Files
 import java.nio.file.Path
-
-Collection distributions = project('archives').subprojects + project('packages').subprojects
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /*****************************************************************************
  *                  Third party dependencies report                          *
@@ -51,10 +52,16 @@ task buildServerNotice(type: NoticeTask) {
 // other distributions include notices from modules as well, which are added below later
 task buildDefaultNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
-
-// other distributions include notices from modules as well, which are added below later
 task buildOssNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
+}
+task buildDefaultNoJdkNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+task buildOssNoJdkNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
@@ -212,6 +219,55 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
 
+/*****************************************************************************
+ *                                    JDKs                                   *
+ *****************************************************************************/
+// extract the bundled jdk version, broken into elements as: [feature, interim, update, build]
+// Note the "patch" version is not yet handled here, as it has not yet been used by java.
+Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)")
+Matcher jdkVersionMatcher = JDK_VERSION.matcher(VersionProperties.bundledJdk)
+if (jdkVersionMatcher.matches() == false) {
+  throw new IllegalArgumentException("Malformed jdk version [" + VersionProperties.bundledJdk + "]")
+}
+String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "")
+String jdkMajor = jdkVersionMatcher.group(1)
+String jdkBuild = jdkVersionMatcher.group(3)
+
+repositories {
+  ivy {
+    url "https://download.java.net"
+    patternLayout {
+      artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
+    }
+  }
+}
+for (String platform : ['linux', 'darwin', 'windows']) {
+  String jdkConfigName = "jdk_${platform}"
+  Configuration jdkConfig = configurations.create(jdkConfigName)
+  String extension = platform.equals('windows') ? 'zip' : 'tar.gz'
+  dependencies.add(jdkConfigName, "jdk:${platform.equals('darwin') ? 'osx' : platform}:${jdkVersion}@${extension}")
+
+  int rootNdx = platform.equals('darwin') ? 2 : 1
+  Closure removeRootDir = {
+    it.eachFile { FileCopyDetails details ->
+      details.relativePath = new RelativePath(true, details.relativePath.segments[rootNdx..-1] as String[])
+    }
+    it.includeEmptyDirs false
+  }
+  String extractDir = "${buildDir}/jdks/openjdk-${jdkVersion}_${platform}"
+  project.task("extract${platform.capitalize()}Jdk", type: Copy) {
+    doFirst {
+      project.delete(extractDir)
+    }
+    into extractDir
+    if (extension.equals('zip')) {
+      from({ zipTree(jdkConfig.singleFile) }, removeRootDir)
+    } else {
+      from({ tarTree(resources.gzip(jdkConfig.singleFile)) }, removeRootDir)
+    }
+  }
+}
+
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
 task clean(type: Delete) {
@@ -271,13 +327,13 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       from project(':distribution').buildTransportModules
     }
 
-    configFiles = { distributionType, oss ->
+    configFiles = { distributionType, oss, jdk ->
       copySpec {
         with copySpec {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         if (oss) {
           from project(':distribution').buildOssLog4jConfig
@@ -289,7 +345,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    binFiles = { distributionType, oss ->
+    binFiles = { distributionType, oss, jdk ->
       copySpec {
         // non-windows files, for all distributions 
         with copySpec {
@@ -297,7 +353,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -305,7 +361,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss))
+            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, oss, jdk))
           }
           with copySpec {
             from '../src/bin'
@@ -327,11 +383,32 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = copySpec {
-      if (project.name == 'integ-test-zip') {
-        from buildServerNotice
-      } else {
-        from buildDefaultNotice
+    noticeFile = { oss, jdk ->
+      copySpec {
+        if (project.name == 'integ-test-zip') {
+          from buildServerNotice
+        } else {
+          if (oss && jdk) {
+            from buildOssNotice
+          } else if (oss) {
+            from buildOssNoJdkNotice
+          } else if (jdk) {
+            from buildDefaultNotice
+          } else {
+            from buildDefaultNoJdkNotice
+          }
+      }  
+      }
+    }
+
+    jdkFiles = { platform ->
+      copySpec {
+        from project(':distribution').tasks.getByName("extract${platform.capitalize()}Jdk")
+        eachFile { FileCopyDetails details ->
+          if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
+            details.mode = 0755
+          }
+        }
       }
     }
   }
@@ -339,8 +416,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 }
 
 task run(type: RunTask) {
-  distribution = System.getProperty('run.distribution', 'zip')
-  if (distribution == 'zip') {
+  distribution = System.getProperty('run.distribution', 'default')
+  if (distribution == 'default') {
     String licenseType = System.getProperty("run.license_type", "basic")
     if (licenseType == 'trial') {
       setting 'xpack.ml.enabled', 'true'
@@ -391,7 +468,7 @@ task run(type: RunTask) {
  * </dl>
  */
 subprojects {
-  ext.expansionsForDistribution = { distributionType, oss ->
+  ext.expansionsForDistribution = { distributionType, oss, jdk ->
     final String defaultHeapSize = "1g"
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
@@ -484,6 +561,10 @@ subprojects {
         'zip': 'zip'
       ],
 
+      'es.bundled_jdk': [
+        'def': jdk ? 'true' : 'false'
+      ],
+
       'license.name': [
         'deb': oss ? 'ASL-2.0' : 'Elastic-License'
       ],
@@ -516,5 +597,19 @@ subprojects {
       }
       line++
     }
+  }
+}
+
+['archives:windows-zip','archives:oss-windows-zip',
+ 'archives:darwin-tar','archives:oss-darwin-tar',
+ 'archives:linux-tar', 'archives:oss-linux-tar',
+ 'archives:integ-test-zip',
+ 'packages:rpm', 'packages:deb',
+ 'packages:oss-rpm', 'packages:oss-deb',
+].forEach { subName ->
+  Project subproject = project("${project.path}:${subName}")
+  Configuration configuration = configurations.create(subproject.name)
+  dependencies {
+    "${configuration.name}" project(subproject.path)
   }
 }

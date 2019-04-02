@@ -1,14 +1,17 @@
 [role="xpack"]
 [[security-api-get-role]]
 === Get roles API
+++++
+<titleabbrev>Get roles</titleabbrev>
+++++
 
 Retrieves roles in the native realm.
 
 ==== Request
 
-`GET /_xpack/security/role` +
+`GET /_security/role` +
 
-`GET /_xpack/security/role/<name>` +
+`GET /_security/role/<name>` +
 
 ==== Description
 
@@ -37,7 +40,7 @@ the native realm:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/role/my_admin_role
+GET /_security/role/my_admin_role
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:admin_role]
@@ -54,9 +57,10 @@ role. If the role is not defined in the native realm, the request returns 404.
       {
         "names" : [ "index1", "index2" ],
         "privileges" : [ "all" ],
-        "field_security" : { 
+        "allow_restricted_indices" : false,
+        "field_security" : {
           "grant" : [ "title", "body" ]}
-      }   
+      }
     ],
     "applications" : [ ],
     "run_as" : [ "other_user" ],
@@ -66,7 +70,7 @@ role. If the role is not defined in the native realm, the request returns 404.
     "transient_metadata": {
       "enabled": true
     }
-  }  
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -75,7 +79,7 @@ To retrieve all roles, omit the role name:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/security/role
+GET /_security/role
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

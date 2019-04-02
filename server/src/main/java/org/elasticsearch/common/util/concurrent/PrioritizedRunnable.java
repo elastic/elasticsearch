@@ -29,7 +29,7 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
     private final long creationDate;
     private final LongSupplier relativeTimeProvider;
 
-    public static PrioritizedRunnable wrap(Runnable runnable, Priority priority) {
+    public static WrappedRunnable wrap(Runnable runnable, Priority priority) {
         return new Wrapped(runnable, priority);
     }
 
@@ -69,7 +69,7 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
         return priority;
     }
 
-    static class Wrapped extends PrioritizedRunnable {
+    static class Wrapped extends PrioritizedRunnable implements WrappedRunnable {
 
         private final Runnable runnable;
 
@@ -82,5 +82,11 @@ public abstract class PrioritizedRunnable implements Runnable, Comparable<Priori
         public void run() {
             runnable.run();
         }
+
+        @Override
+        public Runnable unwrap() {
+            return runnable;
+        }
+
     }
 }

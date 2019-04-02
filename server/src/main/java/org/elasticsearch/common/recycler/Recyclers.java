@@ -51,41 +51,7 @@ public enum Recyclers {
      * Return a recycler based on a deque.
      */
     public static <T> Recycler.Factory<T> dequeFactory(final Recycler.C<T> c, final int limit) {
-        return new Recycler.Factory<T>() {
-            @Override
-            public Recycler<T> build() {
-                return deque(c, limit);
-            }
-        };
-    }
-
-    /**
-     * Wrap two recyclers and forward to calls to <code>smallObjectRecycler</code> when <code>size &lt; minSize</code> and to
-     * <code>defaultRecycler</code> otherwise.
-     */
-    public static <T> Recycler<T> sizing(final Recycler<T> defaultRecycler, final Recycler<T> smallObjectRecycler, final int minSize) {
-        return new FilterRecycler<T>() {
-
-            @Override
-            protected Recycler<T> getDelegate() {
-                return defaultRecycler;
-            }
-
-            @Override
-            public Recycler.V<T> obtain(int sizing) {
-                if (sizing > 0 && sizing < minSize) {
-                    return smallObjectRecycler.obtain(sizing);
-                }
-                return super.obtain(sizing);
-            }
-
-            @Override
-            public void close() {
-                defaultRecycler.close();
-                smallObjectRecycler.close();
-            }
-
-        };
+        return () -> deque(c, limit);
     }
 
     /**
@@ -107,14 +73,7 @@ public enum Recyclers {
             }
 
             @Override
-            public org.elasticsearch.common.recycler.Recycler.V<T> obtain(int sizing) {
-                synchronized (lock) {
-                    return super.obtain(sizing);
-                }
-            }
-
-            @Override
-            public org.elasticsearch.common.recycler.Recycler.V<T> obtain() {
+            public Recycler.V<T> obtain() {
                 synchronized (lock) {
                     return super.obtain();
                 }
@@ -148,7 +107,8 @@ public enum Recyclers {
     }
 
     /**
-     * Create a concurrent implementation that can support concurrent access from <code>concurrencyLevel</code> threads with little contention.
+     * Create a concurrent implementation that can support concurrent access from
+     * <code>concurrencyLevel</code> threads with little contention.
      */
     public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory, final int concurrencyLevel) {
         if (concurrencyLevel < 1) {

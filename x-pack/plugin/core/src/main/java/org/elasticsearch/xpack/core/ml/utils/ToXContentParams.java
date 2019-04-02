@@ -12,9 +12,17 @@ package org.elasticsearch.xpack.core.ml.utils;
 public final class ToXContentParams {
 
     /**
-     * Parameter to indicate whether we are serialising to X Content for cluster state output.
+     * Parameter to indicate whether we are serialising to X Content for
+     * internal storage. Certain fields need to be persisted but should
+     * not be visible everywhere.
      */
-    public static final String FOR_CLUSTER_STATE = "for_cluster_state";
+    public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+
+    /**
+     * When serialising POJOs to X Content this indicates whether the type field
+     * should be included or not
+     */
+    public static final String INCLUDE_TYPE = "include_type";
 
     private ToXContentParams() {
     }

@@ -1,14 +1,17 @@
 [role="xpack"]
 [[security-api-put-role]]
 === Create or update roles API
+++++
+<titleabbrev>Create or update roles</titleabbrev>
+++++
 
 Adds and updates roles in the native realm.
 
 ==== Request
 
-`POST /_xpack/security/role/<name>` +
+`POST /_security/role/<name>` +
 
-`PUT /_xpack/security/role/<name>`
+`PUT /_security/role/<name>`
 
 
 ==== Description
@@ -77,7 +80,7 @@ The following example adds a role called `my_admin_role`:
 
 [source,js]
 --------------------------------------------------
-POST /_xpack/security/role/my_admin_role
+POST /_security/role/my_admin_role
 {
   "cluster": ["all"],
   "indices": [

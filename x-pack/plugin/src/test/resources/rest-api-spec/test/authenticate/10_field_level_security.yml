@@ -8,7 +8,7 @@ setup:
           wait_for_status: yellow
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "readall"
         body:  >
             {
@@ -21,7 +21,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_role:
+      security.put_role:
         name: "limitread"
         body:  >
             {
@@ -35,7 +35,7 @@ setup:
             }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "full"
         body:  >
           {
@@ -45,7 +45,7 @@ setup:
           }
 
   - do:
-      xpack.security.put_user:
+      security.put_user:
         username: "limited"
         body:  >
           {
@@ -56,22 +56,22 @@ setup:
 ---
 teardown:
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "full"
         ignore: 404
 
   - do:
-      xpack.security.delete_user:
+      security.delete_user:
         username: "limited"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "readall"
         ignore: 404
 
   - do:
-      xpack.security.delete_role:
+      security.delete_role:
         name: "limitread"
         ignore: 404
 
@@ -85,12 +85,11 @@ teardown:
           aliases:
             the_alias : {}
           mappings:
-            doc:
-              properties:
-                location:
-                  properties:
-                    city:
-                      type: "keyword"
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
           settings:
             index:
               number_of_shards: 1
@@ -100,14 +99,15 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index", "_type": "doc"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"marker": "test_1", "location.city": "bos"}'
-            - '{"index": {"_index": "test_index", "_type": "doc"}}'
+            - '{"index": {"_index": "test_index"}}'
             - '{"marker": "test_2", "location.city": "ams"}'
 
   - do:
       headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
       search:
+        rest_total_hits_as_int: true
         index: the_alias
         size: 0
         from: 0
@@ -128,6 +128,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: the_alias
         size: 0
         from: 0
@@ -146,6 +147,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: the_*
         size: 0
         from: 0
@@ -164,6 +166,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
+        rest_total_hits_as_int: true
         index: test_*
         size: 0
         from: 0

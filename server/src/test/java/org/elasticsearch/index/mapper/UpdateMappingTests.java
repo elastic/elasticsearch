@@ -80,7 +80,8 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
         try {
-            indexService.mapperService().merge("type", new CompressedXContent(BytesReference.bytes(mappingUpdate)), MapperService.MergeReason.MAPPING_UPDATE);
+            indexService.mapperService().merge("type", new CompressedXContent(BytesReference.bytes(mappingUpdate)),
+                MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
             // expected
@@ -150,14 +151,14 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
             mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
         }
 
         try {
             mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("Field [_id] is defined twice in [type]"));
+            assertTrue(e.getMessage().contains("Field [_id] is defined twice."));
         }
     }
 

@@ -5,13 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,7 +26,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class Auditor {
 
-    private static final Logger LOGGER = Loggers.getLogger(Auditor.class);
+    private static final Logger LOGGER = LogManager.getLogger(Auditor.class);
 
     private final Client client;
     private final String nodeName;
@@ -38,30 +37,30 @@ public class Auditor {
     }
 
     public void info(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newInfo(jobId, message, nodeName));
+        indexDoc(AuditMessage.newInfo(jobId, message, nodeName));
     }
 
     public void warning(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newWarning(jobId, message, nodeName));
+        indexDoc(AuditMessage.newWarning(jobId, message, nodeName));
     }
 
     public void error(String jobId, String message) {
-        indexDoc(AuditMessage.TYPE.getPreferredName(), AuditMessage.newError(jobId, message, nodeName));
+        indexDoc(AuditMessage.newError(jobId, message, nodeName));
     }
 
-    private void indexDoc(String type, ToXContent toXContent) {
-        IndexRequest indexRequest = new IndexRequest(AuditorField.NOTIFICATIONS_INDEX, type);
+    private void indexDoc(ToXContent toXContent) {
+        IndexRequest indexRequest = new IndexRequest(AuditorField.NOTIFICATIONS_INDEX);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                LOGGER.trace("Successfully persisted {}", type);
+                LOGGER.trace("Successfully persisted audit message");
             }
 
             @Override
             public void onFailure(Exception e) {
-                LOGGER.debug(new ParameterizedMessage("Error writing {}", new Object[]{type}, e));
+                LOGGER.debug("Error writing audit message", e);
             }
         }, client::index);
     }

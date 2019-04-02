@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -37,15 +36,6 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
     private String id;
     private BytesReference source;
     private XContentType xContentType;
-
-    /**
-     * Create a new pipeline request
-     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, XContentType)} to avoid content type auto-detection
-     */
-    @Deprecated
-    public PutPipelineRequest(String id, BytesReference source) {
-        this(id, source, XContentHelper.xContentType(source));
-    }
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source

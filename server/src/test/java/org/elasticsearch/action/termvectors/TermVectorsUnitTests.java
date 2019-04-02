@@ -269,13 +269,14 @@ public class TermVectorsUnitTests extends ESTestCase {
         String ftOpts = FieldMapper.termVectorOptionsToString(ft);
         assertThat("with_positions_payloads", equalTo(ftOpts));
         TextFieldMapper.Builder builder = new TextFieldMapper.Builder(null);
-        boolean exceptiontrown = false;
+        boolean exceptionThrown = false;
         try {
             TypeParsers.parseTermVector("", ftOpts, builder);
         } catch (MapperParsingException e) {
-            exceptiontrown = true;
+            exceptionThrown = true;
         }
-        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.", exceptiontrown, equalTo(false));
+        assertThat("TypeParsers.parseTermVector should accept string with_positions_payloads but does not.",
+            exceptionThrown, equalTo(false));
     }
 
     public void testTermVectorStringGenerationWithoutPositions() throws Exception {
@@ -299,7 +300,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
+
         checkParsedParameters(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -329,7 +332,9 @@ public class TermVectorsUnitTests extends ESTestCase {
         XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
+
         checkParsedFilterParameters(request);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {

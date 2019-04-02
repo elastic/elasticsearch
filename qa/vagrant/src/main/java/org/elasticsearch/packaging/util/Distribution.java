@@ -19,34 +19,77 @@
 
 package org.elasticsearch.packaging.util;
 
+import java.util.Locale;
+
 public enum Distribution {
 
-    OSS_TAR(Packaging.TAR, Flavor.OSS),
-    OSS_ZIP(Packaging.ZIP, Flavor.OSS),
-    OSS_DEB(Packaging.DEB, Flavor.OSS),
-    OSS_RPM(Packaging.RPM, Flavor.OSS),
+    OSS_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, true),
+    OSS_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, true),
+    OSS_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, true),
+    OSS_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, true),
+    OSS_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, true),
 
-    DEFAULT_TAR(Packaging.TAR, Flavor.DEFAULT),
-    DEFAULT_ZIP(Packaging.ZIP, Flavor.DEFAULT),
-    DEFAULT_DEB(Packaging.DEB, Flavor.DEFAULT),
-    DEFAULT_RPM(Packaging.RPM, Flavor.DEFAULT);
+    DEFAULT_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, true),
+    DEFAULT_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, true),
+    DEFAULT_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, true),
+    DEFAULT_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, true),
+    DEFAULT_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, true),
+
+    OSS_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.OSS, false),
+    OSS_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.OSS, false),
+    OSS_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.OSS, false),
+    OSS_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.OSS, false),
+    OSS_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.OSS, false),
+
+    DEFAULT_NO_JDK_LINUX(Packaging.TAR, Platform.LINUX, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_WINDOWS(Packaging.ZIP, Platform.WINDOWS, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_DARWIN(Packaging.TAR, Platform.DARWIN, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_DEB(Packaging.DEB, Platform.LINUX, Flavor.DEFAULT, false),
+    DEFAULT_NO_JDK_RPM(Packaging.RPM, Platform.LINUX, Flavor.DEFAULT, false);
 
     public final Packaging packaging;
+    public final Platform platform;
     public final Flavor flavor;
+    public final boolean hasJdk;
 
-    Distribution(Packaging packaging, Flavor flavor) {
+    Distribution(Packaging packaging, Platform platform, Flavor flavor, boolean hasJdk) {
         this.packaging = packaging;
+        this.platform = platform;
         this.flavor = flavor;
+        this.hasJdk = hasJdk;
     }
 
     public String filename(String version) {
-        return flavor.name + "-" + version + packaging.extension;
+        String classifier = "";
+        if (version.startsWith("6.") == false) {
+
+            if (hasJdk == false) {
+                classifier += "-no-jdk";
+            }
+            if (packaging == Packaging.DEB) {
+                classifier += "-amd64";
+            } else {
+                if (packaging != Packaging.RPM) {
+                    classifier += "-" + platform.toString();
+                }
+                classifier += "-x86_64";
+            }
+        }
+        return flavor.name + "-" + version + classifier + packaging.extension;
+    }
+
+    public boolean isDefault() {
+        return flavor.equals(Flavor.DEFAULT);
+    }
+
+    public boolean isOSS() {
+        return flavor.equals(Flavor.OSS);
     }
 
     public enum Packaging {
 
-        TAR(".tar.gz", Platforms.LINUX),
-        ZIP(".zip", true),
+        TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),
+        ZIP(".zip", Platforms.WINDOWS),
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM());
 
@@ -59,6 +102,16 @@ public enum Distribution {
         Packaging(String extension, boolean compatible) {
             this.extension = extension;
             this.compatible = compatible;
+        }
+    }
+
+    public enum Platform {
+        LINUX,
+        WINDOWS,
+        DARWIN;
+
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

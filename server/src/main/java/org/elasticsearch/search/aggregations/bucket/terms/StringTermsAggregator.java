@@ -93,7 +93,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                         if (includeExclude != null && !includeExclude.accept(bytes)) {
                             continue;
                         }
-                        if (previous.get().equals(bytes)) {
+                        if (i > 0 && previous.get().equals(bytes)) {
                             continue;
                         }
                         long bucketOrdinal = bucketOrds.add(bytes);
@@ -114,7 +114,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
+                bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);

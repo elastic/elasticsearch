@@ -1,0 +1,98 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-requirements]]
+=== Requirements for leader indices
+
+{ccr-cap} works by replaying the history of individual write
+operations that were performed on the shards of the leader index. This means that the
+history of these operations needs to be retained on the leader shards so that
+they can be pulled by the follower shard tasks. The underlying mechanism used to
+retain these operations is _soft deletes_. A soft delete occurs whenever an
+existing document is deleted or updated. By retaining these soft deletes up to
+configurable limits, the history of operations can be retained on the leader
+shards and made available to the follower shard tasks as it replays the history
+of operations.
+
+Soft deletes must be enabled for indices that you want to use as leader
+indices. Soft deletes are enabled by default on new indices created on
+or after {es} 7.0.0.
+
+IMPORTANT: This means that {ccr} can not be used on existing indices. If you have
+existing data that you want to replicate from another cluster, you must
+{ref}/docs-reindex.html[reindex] your data into a new index with soft deletes 
+enabled.
+
+[float]
+[[ccr-overview-soft-deletes]]
+==== Soft delete settings
+
+`index.soft_deletes.enabled`::
+
+Whether or not soft deletes are enabled on the index. Soft deletes can only be
+configured at index creation and only on indices created on or after 6.5.0. The
+default value is `true`.
+
+`index.soft_deletes.retention_lease.period`::
+
+The maximum period to retain a shard history retention lease before it is considered
+expired. Shard history retention leases ensure that soft deletes are retained during
+merges on the Lucene index. If a soft delete is merged away before it can be replicated
+to a follower the following process will fail due to incomplete history on the leader.
+The default value is `12h`.
+
+For more information about index settings, see {ref}/index-modules.html[Index modules].
+
+[float]
+[[ccr-overview-beats]]
+==== Setting soft deletes on indices created by APM Server or Beats
+
+If you want to replicate indices created by APM Server or Beats, and are
+allowing APM Server or Beats to manage index templates, you need to configure
+soft deletes on the underlying index templates. To configure soft deletes on the
+underlying index templates, incorporate the following changes to the relevant
+APM Server or Beats configuration file.
+
+["source","yaml"]
+----------------------------------------------------------------------
+setup.template.overwrite: true
+setup.template.settings:
+  index.soft_deletes.retention.operations: 1024
+----------------------------------------------------------------------
+
+For additional information on controlling the index templates managed by APM
+Server or Beats, see the relevant documentation on loading the Elasticsearch
+index template.
+
+[float]
+[[ccr-overview-logstash]]
+==== Setting soft deletes on indices created by Logstash
+
+If you want to replicate indices created by Logstash, and are using Logstash to
+manage index templates, you need to configure soft deletes on a custom Logstash
+index template. To configure soft deletes on the underlying index template,
+incorporate the following change to a custom Logstash template.
+
+["source","js"]
+----------------------------------------------------------------------
+{
+  "settings" : {
+    "index.soft_deletes.retention.operations" : 1024
+  }
+}
+----------------------------------------------------------------------
+// NOTCONSOLE
+
+Additionally, you will need to configure the Elasticsearch output plugin to use
+this custom template.
+
+["source","ruby"]
+----------------------------------------------------------------------
+output {
+  elasticsearch {
+    template => "/path/to/custom/logstash/template.json"
+  }
+}
+----------------------------------------------------------------------
+
+For additional information on controlling the index templates managed by
+Logstash, see the relevant documentation on the Elasticsearch output plugin.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -56,7 +57,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 123)
@@ -66,7 +67,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
@@ -84,7 +85,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 123)
@@ -107,7 +108,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 123)
@@ -117,7 +118,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
     }
 
@@ -131,7 +132,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", 123)
@@ -141,7 +142,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -160,7 +161,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "123")
@@ -170,7 +171,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -183,7 +184,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper2.mappingSource().toString());
 
-        ThrowingRunnable runnable = () -> mapper2.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ThrowingRunnable runnable = () -> mapper2.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "123")
@@ -203,7 +204,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "7.89")
@@ -230,7 +231,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ThrowingRunnable runnable = () -> mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ThrowingRunnable runnable = () -> mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "a")
@@ -246,7 +247,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         DocumentMapper mapper2 = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = mapper2.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper2.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "a")
@@ -308,7 +309,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -335,7 +336,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, mapper.mappingSource().toString());
 
-        doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
+        doc = mapper.parse(new SourceToParse("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("field")
@@ -344,7 +345,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDimensionCount());
+        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
@@ -367,17 +368,20 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+    @Timeout(millis = 30000)
     public void testOutOfRangeValues() throws IOException {
         final List<OutOfRangeSpec<Object>> inputs = Arrays.asList(
             OutOfRangeSpec.of(NumberType.BYTE, "128", "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "9223372036854775808", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.LONG, "1e999999999", "out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, "-129", "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
             OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
             OutOfRangeSpec.of(NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+            OutOfRangeSpec.of(NumberType.LONG, "-1e999999999", "out of range for a long"),
 
             OutOfRangeSpec.of(NumberType.BYTE, 128, "is out of range for a byte"),
             OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
@@ -419,10 +423,14 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                     e.getCause().getMessage(), containsString(item.message));
             }
         }
+
+        // the following two strings are in-range for a long after coercion
+        parseRequest(NumberType.LONG, createIndexRequest("9223372036854775807.9"));
+        parseRequest(NumberType.LONG, createIndexRequest("-9223372036854775808.9"));
     }
 
     private void parseRequest(NumberType type, BytesReference content) throws IOException {
-        createDocumentMapper(type).parse(SourceToParse.source("test", "type", "1", content, XContentType.JSON));
+        createDocumentMapper(type).parse(new SourceToParse("test", "type", "1", content, XContentType.JSON));
     }
 
     private DocumentMapper createDocumentMapper(NumberType type) throws IOException {

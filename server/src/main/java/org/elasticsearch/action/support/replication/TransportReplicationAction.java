@@ -610,11 +610,7 @@ public abstract class TransportReplicationAction<
                         replicaRequest.getRequest());
                 }
                 setPhase(task, "finished");
-                try {
-                    onCompletionListener.onResponse(replicaResponse);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
+                onCompletionListener.onResponse(replicaResponse);
             }
 
             @Override

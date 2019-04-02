@@ -291,7 +291,7 @@ final class QueryTranslator {
                                 if (h.dataType() == DATE) {
                                     intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
                                 }
-                                // TODO: set timezone
+
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {

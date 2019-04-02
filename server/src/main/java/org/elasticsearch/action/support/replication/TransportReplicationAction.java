@@ -278,14 +278,14 @@ public abstract class TransportReplicationAction<
     }
 
     class AsyncPrimaryAction extends AbstractRunnable {
-        private final ActionListener<Response> listener;
+        private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
         private final ConcreteShardRequest<Request> primaryRequest;
 
-        AsyncPrimaryAction(ConcreteShardRequest<Request> primaryRequest, ActionListener<Response> listener,
+        AsyncPrimaryAction(ConcreteShardRequest<Request> primaryRequest, ActionListener<Response> onCompletionListener,
                            ReplicationTask replicationTask) {
             this.primaryRequest = primaryRequest;
-            this.listener = listener;
+            this.onCompletionListener = onCompletionListener;
             this.replicationTask = replicationTask;
         }
 
@@ -346,7 +346,7 @@ public abstract class TransportReplicationAction<
                         new ConcreteShardRequest<>(primaryRequest.getRequest(), primary.allocationId().getRelocationId(),
                             primaryRequest.getPrimaryTerm()),
                         transportOptions,
-                        new ActionListenerResponseHandler<Response>(listener, reader) {
+                        new ActionListenerResponseHandler<Response>(onCompletionListener, reader) {
                             @Override
                             public void handleResponse(Response response) {
                                 setPhase(replicationTask, "finished");
@@ -376,7 +376,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            listener.onFailure(e);
+            onCompletionListener.onFailure(e);
         }
 
         private ActionListener<Response> createResponseListener(final PrimaryShardReference primaryShardReference) {
@@ -401,14 +401,14 @@ public abstract class TransportReplicationAction<
                     }
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
-                    listener.onResponse(response);
+                    onCompletionListener.onResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     primaryShardReference.close(); // release shard operation lock before responding to caller
                     setPhase(replicationTask, "finished");
-                    listener.onFailure(e);
+                    onCompletionListener.onFailure(e);
                 }
             };
         }
@@ -505,7 +505,7 @@ public abstract class TransportReplicationAction<
     }
 
     private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
-        private final ActionListener<ReplicaResponse> listener;
+        private final ActionListener<ReplicaResponse> onCompletionListener;
         private final IndexShard replica;
         /**
          * The task on the node with the replica shard.
@@ -516,10 +516,10 @@ public abstract class TransportReplicationAction<
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
         private final ConcreteReplicaRequest<ReplicaRequest> replicaRequest;
 
-        AsyncReplicaAction(ConcreteReplicaRequest<ReplicaRequest> replicaRequest, ActionListener<ReplicaResponse> listener,
+        AsyncReplicaAction(ConcreteReplicaRequest<ReplicaRequest> replicaRequest, ActionListener<ReplicaResponse> onCompletionListener,
                            ReplicationTask task) {
             this.replicaRequest = replicaRequest;
-            this.listener = listener;
+            this.onCompletionListener = onCompletionListener;
             this.task = task;
             final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
@@ -557,7 +557,7 @@ public abstract class TransportReplicationAction<
                         // opportunity to execute custom logic before the replica operation begins
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             replicaRequest,
-                            new ActionListenerResponseHandler<>(listener, in -> new ReplicaResponse()));
+                            new ActionListenerResponseHandler<>(onCompletionListener, in -> new ReplicaResponse()));
                     }
 
                     @Override
@@ -577,7 +577,7 @@ public abstract class TransportReplicationAction<
 
         protected void responseWithFailure(Exception e) {
             setPhase(task, "finished");
-            listener.onFailure(e);
+            onCompletionListener.onFailure(e);
         }
 
         @Override
@@ -611,7 +611,7 @@ public abstract class TransportReplicationAction<
                 }
                 setPhase(task, "finished");
                 try {
-                    listener.onResponse(replicaResponse);
+                    onCompletionListener.onResponse(replicaResponse);
                 } catch (Exception e) {
                     onFailure(e);
                 }

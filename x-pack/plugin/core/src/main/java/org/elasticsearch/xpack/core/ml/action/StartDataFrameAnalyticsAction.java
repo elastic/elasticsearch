@@ -158,6 +158,9 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
 
     public static class TaskParams implements XPackPlugin.XPackPersistentTaskParams {
 
+        // TODO Update to first released version
+        public static final Version VERSION_INTRODUCED = Version.V_7_1_0;
+
         public static ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true, a -> new TaskParams((String) a[0]));
 
@@ -186,8 +189,7 @@ public class StartDataFrameAnalyticsAction extends Action<AcknowledgedResponse> 
 
         @Override
         public Version getMinimalSupportedVersion() {
-            // TODO Update to first released version
-            return Version.CURRENT;
+            return VERSION_INTRODUCED;
         }
 
         @Override

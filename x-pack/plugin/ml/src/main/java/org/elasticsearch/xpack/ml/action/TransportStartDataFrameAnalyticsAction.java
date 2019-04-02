@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -37,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -46,11 +48,15 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -265,10 +271,24 @@ public class TransportStartDataFrameAnalyticsAction
     public static class TaskExecutor extends PersistentTasksExecutor<StartDataFrameAnalyticsAction.TaskParams> {
 
         private final DataFrameAnalyticsManager manager;
+        private final MlMemoryTracker memoryTracker;
 
-        public TaskExecutor(DataFrameAnalyticsManager manager) {
+        private volatile int maxMachineMemoryPercent;
+        private volatile int maxLazyMLNodes;
+        private volatile int maxOpenJobs;
+
+        public TaskExecutor(Settings settings, ClusterService clusterService, DataFrameAnalyticsManager manager,
+                            MlMemoryTracker memoryTracker) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.manager = Objects.requireNonNull(manager);
+            this.memoryTracker = Objects.requireNonNull(memoryTracker);
+            this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
+            this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+            this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         }
 
         @Override
@@ -280,10 +300,43 @@ public class TransportStartDataFrameAnalyticsAction
         }
 
         @Override
-        protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState, Predicate<DiscoveryNode> selector) {
-            // For starters, let's just select the least loaded ML node
-            // TODO implement memory-based load balancing
-            return super.selectLeastLoadedNode(clusterState, MachineLearning::isMlNode);
+        public PersistentTasksCustomMetaData.Assignment getAssignment(StartDataFrameAnalyticsAction.TaskParams params,
+                                                                      ClusterState clusterState) {
+
+            // If we are waiting for an upgrade to complete, we should not assign to a node
+            if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
+                return AWAITING_UPGRADE;
+            }
+
+            String id = params.getId();
+
+            boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+            if (isMemoryTrackerRecentlyRefreshed == false) {
+                boolean scheduledRefresh = memoryTracker.asyncRefresh();
+                if (scheduledRefresh) {
+                    String reason = "Not opening job [" + id + "] because job memory requirements are stale - refresh requested";
+                    LOGGER.debug(reason);
+                    return new PersistentTasksCustomMetaData.Assignment(null, reason);
+                }
+            }
+
+            JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
+                node -> nodeFilter(node, id));
+            PersistentTasksCustomMetaData.Assignment assignment = jobNodeSelector.selectNode(
+                maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
+            if (assignment.getExecutorNode() == null) {
+                int numMlNodes = 0;
+                for (DiscoveryNode node : clusterState.getNodes()) {
+                    if (MachineLearning.isMlNode(node)) {
+                        numMlNodes++;
+                    }
+                }
+
+                if (numMlNodes < maxLazyMLNodes) { // Means we have lazy nodes left to allocate
+                    assignment = TransportOpenJobAction.AWAITING_LAZY_ASSIGNMENT;
+                }
+            }
+            return assignment;
         }
 
         @Override
@@ -306,7 +359,29 @@ public class TransportStartDataFrameAnalyticsAction
             } else {
                 manager.execute((DataFrameAnalyticsTask)task, analyticsTaskState.getState());
             }
+        }
 
+        public static String nodeFilter(DiscoveryNode node, String id) {
+
+            if (node.getVersion().before(StartDataFrameAnalyticsAction.TaskParams.VERSION_INTRODUCED)) {
+                return "Not opening job [" + id + "] on node [" + JobNodeSelector.nodeNameAndVersion(node)
+                    + "], because the data frame analytics requires a node of version ["
+                    + StartDataFrameAnalyticsAction.TaskParams.VERSION_INTRODUCED + "] or higher";
+            }
+
+            return null;
+        }
+
+        void setMaxMachineMemoryPercent(int maxMachineMemoryPercent) {
+            this.maxMachineMemoryPercent = maxMachineMemoryPercent;
+        }
+
+        void setMaxLazyMLNodes(int maxLazyMLNodes) {
+            this.maxLazyMLNodes = maxLazyMLNodes;
+        }
+
+        void setMaxOpenJobs(int maxOpenJobs) {
+            this.maxOpenJobs = maxOpenJobs;
         }
     }
 }

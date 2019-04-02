@@ -46,15 +46,11 @@ public class JodaDateFormatter implements DateFormatter {
     }
 
     /**
-     * Try to parse input to a java time TemporalAccessor using Joda library
+     * Try to parse input to a java time TemporalAccessor using joda-time library.
      * @see DateFormatter#parse(String)
-     * @throws UnsupportedOperationException if parsing is not supported
      * @throws IllegalArgumentException if the text to parse is invalid
-     * @see DateTimeFormatter#parseDateTime
-     *
-     * @throws java.time.DateTimeException as per java-time javadoc
-     * @see ZonedDateTime#ofInstant(Instant, ZoneId)
-     * @see Instant#ofEpochMilli(long)
+     * @throws java.time.DateTimeException if the parsing result exceeds the supported range of <code>ZoneDateTime</code>
+     * or if the parsed instant exceeds the maximum or minimum instant
      */
     @Override
     public TemporalAccessor parse(String input) {

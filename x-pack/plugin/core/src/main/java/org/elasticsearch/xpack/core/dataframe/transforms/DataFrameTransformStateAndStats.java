@@ -40,9 +40,13 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
+        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
         return new DataFrameTransformStateAndStats(id,
             new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
-            new DataFrameIndexerTransformStats());
+            indexerTransformStats);
     }
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
@@ -62,7 +66,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState);
-        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.endObject();
         return builder;
     }

@@ -196,7 +196,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         // start the transform
         startDataframeTransform(transformId, false, authHeader);
         // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(transformId);
+        waitForDataFrameCheckpoint(transformId);
         refreshIndex(dataFrameIndex);
     }
 
@@ -212,10 +212,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return request;
     }
 
-    void waitForDataFrameGeneration(String transformId) throws Exception {
+    void waitForDataFrameCheckpoint(String transformId) throws Exception {
         assertBusy(() -> {
-            long generation = getDataFrameCheckpoint(transformId);
-            assertEquals(1, generation);
+            long checkpoint = getDataFrameCheckpoint(transformId);
+            assertEquals(1, checkpoint);
         }, 30, TimeUnit.SECONDS);
     }
 

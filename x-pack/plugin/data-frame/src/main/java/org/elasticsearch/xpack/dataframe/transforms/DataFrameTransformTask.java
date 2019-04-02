@@ -104,7 +104,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 initialState = existingState;
             }
             initialPosition = state.getPosition();
-            initialGeneration = state.getGeneration();
+            initialGeneration = state.getCheckpoint();
         }
 
         this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,

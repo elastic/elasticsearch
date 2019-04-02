@@ -87,12 +87,12 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
-                                   long generation,
+                                   long checkpoint,
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
-        this.checkpoint = generation;
+        this.checkpoint = checkpoint;
         this.reason = reason;
     }
 
@@ -116,7 +116,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return currentPosition;
     }
 
-    public long getGeneration() {
+    public long getCheckpoint() {
         return checkpoint;
     }
 

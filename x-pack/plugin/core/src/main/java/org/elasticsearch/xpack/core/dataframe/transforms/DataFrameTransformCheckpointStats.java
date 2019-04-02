@@ -57,6 +57,10 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
         return timestampMillis;
     }
 
+    public long getTimeUpperBoundMillis() {
+        return timeUpperBoundMillis;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

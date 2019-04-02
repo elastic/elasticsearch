@@ -214,7 +214,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     void waitForDataFrameGeneration(String transformId) throws Exception {
         assertBusy(() -> {
-            long generation = getDataFrameGeneration(transformId);
+            long generation = getDataFrameCheckpoint(transformId);
             assertEquals(1, generation);
         }, 30, TimeUnit.SECONDS);
     }
@@ -321,11 +321,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
     }
 
-    static int getDataFrameGeneration(String transformId) throws IOException {
+    static int getDataFrameCheckpoint(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
+        return (int) XContentMapValues.extractValue("state.checkpoint", transformStatsAsMap);
     }
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {

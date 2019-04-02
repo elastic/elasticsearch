@@ -73,6 +73,18 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         operationsBehind = in.readLong();
     }
 
+    public DataFrameTransformCheckpointStats getCurrent() {
+        return current;
+    }
+
+    public DataFrameTransformCheckpointStats getInProgress() {
+        return inProgress;
+    }
+
+    public long getOperationsBehind() {
+        return operationsBehind;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

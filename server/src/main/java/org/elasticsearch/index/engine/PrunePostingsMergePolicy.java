@@ -255,7 +255,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         private final Bits liveDocs;
         private final TermVectorsReader termVectorsReader;
 
-        public FilteredTermVectorsReader(Bits liveDocs, TermVectorsReader termVectorsReader) {
+        FilteredTermVectorsReader(Bits liveDocs, TermVectorsReader termVectorsReader) {
             this.liveDocs = liveDocs;
             this.termVectorsReader = termVectorsReader;
         }

@@ -3,13 +3,13 @@
   - skip:
       version: " - 6.9.99"
       reason: expects warnings that pre-7.0.0 will not send
-      features: "warnings"
+      features: [arbitrary_key, warnings]
 
   - do:
-      cluster.state: {}
-
-  # get master node id
-  - set: { master_node: master }
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       indices.create:
@@ -17,8 +17,8 @@
         wait_for_active_shards: 1
         body:
           settings:
-            # ensure everything is allocated on the master node
-            index.routing.allocation.include._id: $master
+            # ensure everything is allocated on the same node
+            index.routing.allocation.include._id: $node_id
             index.number_of_replicas: 0
             index.number_of_shards: 1
             index.number_of_routing_shards: 4
@@ -62,4 +62,4 @@
   - match: { copy-settings-target.settings.index.merge.scheduler.max_merge_count: "4" }
   - match: { copy-settings-target.settings.index.merge.scheduler.max_thread_count: "2" }
   - match: { copy-settings-target.settings.index.blocks.write: "true" }
-  - match: { copy-settings-target.settings.index.routing.allocation.include._id: $master }
+  - match: { copy-settings-target.settings.index.routing.allocation.include._id: $node_id }

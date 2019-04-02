@@ -26,6 +26,7 @@ public final class DataFrameField {
     public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FORCE = new ParseField("force");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
@@ -51,6 +52,9 @@ public final class DataFrameField {
      * API's)
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+
+    // internal document id
+    public static String DOCUMENT_ID_FIELD = "_id";
 
     private DataFrameField() {
     }

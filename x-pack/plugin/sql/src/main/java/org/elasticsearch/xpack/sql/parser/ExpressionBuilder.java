@@ -114,7 +114,6 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
@@ -124,11 +123,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -387,11 +386,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public DataType visitPrimitiveDataType(PrimitiveDataTypeContext ctx) {
-        String type = visitIdentifier(ctx.identifier());
-        DataType dataType = DataType.fromSqlOrEsType(type);
-        if (dataType == null) {
-            throw new ParsingException(source(ctx), "Does not recognize type [{}]", type);        }
-        return dataType;
+        return dataType(source(ctx), visitIdentifier(ctx.identifier()));
     }
 
     //
@@ -404,27 +399,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
         } else {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
-            String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
-            DataType dataType;
-            if (convertDataType.startsWith("SQL_")) {
-                dataType = DataType.fromOdbcType(convertDataType);
-                if (dataType == null) {
-                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-                }
-            } else {
-                try {
-                    dataType = DataType.valueOf(convertDataType);
-                } catch (IllegalArgumentException e) {
-                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
-                }
-            }
+            DataType dataType = dataType(source(convertTc.dataType()), convertTc.dataType().getText());
             return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
         }
     }
 
+    private static DataType dataType(Source ctx, String string) {
+        String type = string.toUpperCase(Locale.ROOT);
+        DataType dataType = type.startsWith("SQL_") ? DataType.fromOdbcType(type) : DataType.fromSqlOrEsType(type);
+        if (dataType == null) {
+            throw new ParsingException(ctx, "Does not recognize type [{}]", string);
+        }
+        return dataType;
+    }
+
     @Override
     public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
-        return new Cast(source(ctx), expression(ctx.valueExpression()), typedParsing(ctx.dataType(), DataType.class));
+        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(ctx.dataType(), DataType.class));
     }
 
     @Override
@@ -776,14 +767,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
 
         // parse HH:mm:ss
-        LocalTime lt = null;
         try {
-            lt = LocalTime.parse(string, ISO_LOCAL_TIME);
+            return new Literal(source, asTimeOnly(string), DataType.TIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
-
-        throw new SqlIllegalArgumentException("Time (only) literals are not supported; a date component is required as well");
     }
 
     @Override

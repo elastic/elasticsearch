@@ -146,7 +146,7 @@ public class BatchedDataIteratorTests extends ESTestCase {
         testIterator.next(future);
         batch = future.get();
         assertEquals(1, batch.size());
-        assertTrue(batch.containsAll(Collections.singletonList(createJsonDoc("f"))));
+        assertTrue(batch.contains(createJsonDoc("f")));
 
         assertFalse(testIterator.hasNext());
         assertTrue(wasScrollCleared);
@@ -183,7 +183,6 @@ public class BatchedDataIteratorTests extends ESTestCase {
         SearchRequest searchRequest = searchRequests.get(0);
         assertThat(searchRequest.indices(), equalTo(new String[] {INDEX_NAME}));
         assertThat(searchRequest.scroll().keepAlive(), equalTo(TimeValue.timeValueMinutes(5)));
-        assertThat(searchRequest.types().length, equalTo(0));
         assertThat(searchRequest.source().query(), equalTo(QueryBuilders.matchAllQuery()));
         assertThat(searchRequest.source().trackTotalHitsUpTo(), is(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
     }

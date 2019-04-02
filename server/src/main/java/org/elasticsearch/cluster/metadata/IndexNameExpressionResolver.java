@@ -157,10 +157,19 @@ public class IndexNameExpressionResolver {
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             expressions = expressionResolver.resolve(context, expressions);
         }
-
+        
         if (expressions.isEmpty()) {
             if (!options.allowNoIndices()) {
-                IndexNotFoundException infe = new IndexNotFoundException((String)null);
+                IndexNotFoundException infe;
+                if (indexExpressions.length == 1) {
+                    if (indexExpressions[0].equals(MetaData.ALL)) {
+                        infe = new IndexNotFoundException("no indices exist", (String)null);
+                    } else {
+                        infe = new IndexNotFoundException((String)null);
+                    }
+                } else {
+                    infe = new IndexNotFoundException((String)null);
+                }
                 infe.setResources("index_expression", indexExpressions);
                 throw infe;
             } else {
@@ -173,7 +182,12 @@ public class IndexNameExpressionResolver {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null ) {
                 if (failNoIndices) {
-                    IndexNotFoundException infe = new IndexNotFoundException(expression);
+                    IndexNotFoundException infe;
+                    if (expression.equals(MetaData.ALL)) {
+                        infe = new IndexNotFoundException("no indices exist", expression);
+                    } else {
+                        infe = new IndexNotFoundException(expression);  
+                    }
                     infe.setResources("index_expression", expression);
                     throw infe;
                 } else {

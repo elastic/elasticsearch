@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -15,11 +16,13 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
@@ -60,6 +63,14 @@ public class TransportStopDataFrameTransformAction extends
     protected void taskOperation(StopDataFrameTransformAction.Request request, DataFrameTransformTask transformTask,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
+            if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException("Unable to stop data frame transform [" + request.getId()
+                        + "] as it is in a failed state with reason: [" + transformTask.getState().getReason() +
+                        "]. Use force stop to stop the data frame transform.",
+                        RestStatus.CONFLICT));
+                return;
+            }
             if (request.waitForCompletion() == false) {
                 transformTask.stop(listener);
             } else {

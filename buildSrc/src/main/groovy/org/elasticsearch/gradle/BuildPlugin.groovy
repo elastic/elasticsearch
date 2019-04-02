@@ -1076,18 +1076,14 @@ class BuildPlugin implements Plugin<Project> {
              * initialized one time. */
             return project.rootProject.ext.testSeed
         }
+
         String testSeed = System.getProperty('tests.seed')
         if (testSeed == null) {
             long seed = new Random(System.currentTimeMillis()).nextLong()
             testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
         }
-        /* Set the testSeed on the root project first so other projects can use
-         * it during initialization. */
-        project.rootProject.ext.testSeed = testSeed
-        project.rootProject.subprojects {
-            project.ext.testSeed = testSeed
-        }
 
+        project.rootProject.ext.testSeed = testSeed
         return testSeed
     }
 }

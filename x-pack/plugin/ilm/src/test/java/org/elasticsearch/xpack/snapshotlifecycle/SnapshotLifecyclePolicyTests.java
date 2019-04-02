@@ -53,7 +53,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
                 "invalid snapshot name [<my, snapshot-{now/M}>]: must not contain contain" +
                     " the following characters [ , \", *, \\, <, |, ,, >, /, ?]",
                 "invalid repository name [  ]: cannot be empty",
-                "invalid schedule with invalid cron expression: invalid cron expression [* * * * * L]"));
+                "invalid schedule: invalid cron expression [* * * * * L]"));
 
         policy = new SnapshotLifecyclePolicy("_my_policy", "mySnap",
             " ", "repo", Collections.emptyMap());

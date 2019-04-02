@@ -159,7 +159,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             try {
                 new Cron(schedule);
             } catch (IllegalArgumentException e) {
-                err.addValidationError("invalid schedule with invalid cron expression: " +
+                err.addValidationError("invalid schedule: " +
                     ExceptionsHelper.unwrapCause(e).getMessage());
             }
         }

@@ -10,6 +10,8 @@
 
 include::../Versions.asciidoc[]
 
+include::quick-start.asciidoc[]
+
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]

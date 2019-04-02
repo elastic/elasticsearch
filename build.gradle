@@ -32,7 +32,7 @@ plugins {
     id 'com.gradle.build-scan' version '2.0.2'
     id 'base'
 }
-if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
+if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
     buildScan {
         termsOfServiceUrl = 'https://gradle.com/terms-of-service'
         termsOfServiceAgree = 'yes'

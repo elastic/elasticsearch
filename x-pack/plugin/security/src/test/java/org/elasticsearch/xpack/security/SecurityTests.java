@@ -27,6 +27,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -129,7 +130,7 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class));
+        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class));
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {

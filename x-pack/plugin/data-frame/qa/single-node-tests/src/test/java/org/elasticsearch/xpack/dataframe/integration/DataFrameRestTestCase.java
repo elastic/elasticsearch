@@ -167,17 +167,34 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertTrue(indexExists(dataFrameIndex));
     }
 
+    protected void startDataframeTransform(String transformId, boolean force) throws IOException {
+        startDataframeTransform(transformId, force, null);
+    }
+
+    protected void startDataframeTransform(String transformId, boolean force, String authHeader) throws IOException {
+        // start the transform
+        final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
+        startTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
+        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
+        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+    }
+
+    protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
+        // start the transform
+        final Request stopTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_stop", null);
+        stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
+        stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
+        Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
+        assertThat(stopTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
+    }
+
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
         startAndWaitForTransform(transformId, dataFrameIndex, null);
     }
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
         // start the transform
-        final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
-
-        Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
-
+        startDataframeTransform(transformId, false, authHeader);
         // wait until the dataframe has been created and all data is available
         waitForDataFrameGeneration(transformId);
         refreshIndex(dataFrameIndex);
@@ -216,13 +233,29 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     protected static String getDataFrameIndexerState(String transformId) throws IOException {
+        Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
+        return transformStatsAsMap == null ? null :
+            (String) XContentMapValues.extractValue("state.indexer_state", transformStatsAsMap);
+    }
+
+    protected static String getDataFrameTaskState(String transformId) throws IOException {
+        Map<?, ?> transformStatsAsMap = getDataFrameState(transformId);
+        return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state.task_state", transformStatsAsMap);
+    }
+
+    protected static Map<?, ?> getDataFrameState(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
         List<?> transforms = ((List<?>) entityAsMap(statsResponse).get("transforms"));
         if (transforms.isEmpty()) {
             return null;
         }
-        Map<?, ?> transformStatsAsMap = (Map<?, ?>) transforms.get(0);
-        return (String) XContentMapValues.extractValue("state.transform_state", transformStatsAsMap);
+        return (Map<?, ?>) transforms.get(0);
+    }
+
+    protected static void deleteDataFrameTransform(String transformId) throws IOException {
+        Request request = new Request("DELETE", DATAFRAME_ENDPOINT + transformId);
+        request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+        adminClient().performRequest(request);
     }
 
     @AfterClass
@@ -251,9 +284,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
-            Request request = new Request("DELETE", DATAFRAME_ENDPOINT + transformId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
-            adminClient().performRequest(request);
+            deleteDataFrameTransform(transformId);
         }
 
         // transforms should be all gone

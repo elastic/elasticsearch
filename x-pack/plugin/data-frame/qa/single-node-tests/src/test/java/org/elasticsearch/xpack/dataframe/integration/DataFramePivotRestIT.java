@@ -311,7 +311,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=by_day:2017-01-15");
         String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.timestamp", searchResult)).get(0);
         // Do `containsString` as actual ending timestamp is indeterminate due to how data is generated
-        assertThat(actual, containsString("2017-01-15T20:"));
+        assertThat(actual, containsString("2017-01-15T"));
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

@@ -50,7 +50,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -156,15 +155,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(SETTINGS, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
-                    TransportBulkActionIngestTests.this.clusterService,
-                    null, null, null, new ActionFilters(Collections.emptySet()), null,
-                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.WRITE, bulkAction, null);
-        }
-
-        @Override
-        protected IndexResponse newResponseInstance() {
-            return new IndexResponse();
+            super(IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
+                    new ActionFilters(Collections.emptySet()), IndexRequest::new, bulkAction);
         }
     }
 

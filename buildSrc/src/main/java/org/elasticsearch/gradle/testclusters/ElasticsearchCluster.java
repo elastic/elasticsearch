@@ -75,7 +75,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     public void setNumberOfNodes(int numberOfNodes) {
         checkFrozen();
         if (numberOfNodes < 1) {
-            throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes);
+            throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
         if (numberOfNodes <= nodes.size()) {
             throw new IllegalArgumentException(
@@ -188,8 +188,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                 node.defaultConfig.put("discovery.seed_providers", "file");
             }
+            node.start();
         }
-        nodes.forEach(ElasticsearchNode::start);
     }
 
     private void writeUnicastHostsFiles() {
@@ -198,7 +198,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             try {
                 Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
             } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }
         });
     }
@@ -248,16 +248,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     @Override
     public boolean isProcessAlive() {
-        return ! nodes.stream().anyMatch(node -> node.isProcessAlive() == false);
+        return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }
 
-    public void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
+    void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
         nodes.forEach(each -> consumer.accept(each.getVersion(), each.getDistribution()));
     }
 
     public ElasticsearchNode singleNode() {
         if (nodes.size() != 1) {
-            throw new IllegalStateException("Can't threat cluster as single node as it has " + nodes.size() + " nodes");
+            throw new IllegalStateException(
+                "Can't treat " + this + " as single node as it has " + nodes.size() + " nodes"
+            );
         }
         return getFirstNode();
     }

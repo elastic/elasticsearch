@@ -56,6 +56,11 @@ import static java.util.Objects.requireNonNull;
 
 public class ElasticsearchNode implements TestClusterConfiguration {
 
+    private static final int ES_DESTROY_TIMEOUT = 20;
+    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int NODE_UP_TIMEOUT = 60;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
     private final String name;
     final GradleServicesAdapter services;
@@ -63,10 +68,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     final Path artifactsExtractDir;
     private final Path workingDir;
 
-    private static final int ES_DESTROY_TIMEOUT = 20;
-    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 60;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final List<URI> plugins = new ArrayList<>();
@@ -74,6 +75,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
+    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -90,7 +92,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private File javaHome;
     private volatile Process esProcess;
     final String path;
-    final LinkedHashMap<String, String> defaultConfig;
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -109,7 +110,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("http ports file", node -> Files.exists(((ElasticsearchNode) node).httpPortsFile));
         waitConditions.put("transport ports file", node -> Files.exists(((ElasticsearchNode)node).transportPortFile));
-        defaultConfig = new LinkedHashMap<>();
     }
 
     public String getName() {
@@ -261,7 +261,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         try {
             createWorkingDir(distroArtifact);
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
         createConfiguration();
 
@@ -310,7 +310,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
             });
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to run " + tool + " for " + this, e);
         }
     }
 
@@ -337,7 +337,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {
-            throw new IllegalStateException("testcluster does not allow setting the following env vars " + commonKeys);
+            throw new IllegalStateException(
+                "testcluster does not allow overwriting the following env vars " + commonKeys + " for " + this
+            );
         }
 
         checkSuppliers("Environment variable", environment);
@@ -437,7 +439,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         waitForProcessToExit(processHandle);
         if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate elasticsearch process");
+            throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
         }
     }
 
@@ -457,7 +459,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 .map(line -> "  " + line)
                 .forEach(logger::error);
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to tail log " + this, e);
         }
     }
 
@@ -559,14 +561,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(userConfig.keySet());
         if (overriden.isEmpty() ==false) {
-            throw new IllegalArgumentException("Testclusters does not allow the following settings to be changed:" + overriden);
+            throw new IllegalArgumentException(
+                "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
+            );
         }
 
         try {
             // We create hard links  for the distribution, so we need to remove the config file before writing it
             // to prevent the changes to reflect across all copies.
             Files.delete(configFile);
-            Files.write(configFile.getParent().resolve("unicast_hosts.txt"), "".getBytes(StandardCharsets.UTF_8));
             Files.write(
                 configFile,
                 Stream.concat(

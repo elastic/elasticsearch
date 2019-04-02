@@ -128,7 +128,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=keyword",
                         MULTI_VALUED_FIELD_NAME, "type=keyword",
                         "tag", "type=keyword",
-                        JSON_FIELD_NAME, "type=json").get());
+                        JSON_FIELD_NAME, "type=embedded_json").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             builders.add(client().prepareIndex("idx", "type").setSource(

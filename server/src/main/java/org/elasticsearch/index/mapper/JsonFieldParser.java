@@ -139,7 +139,7 @@ public class JsonFieldParser {
 
         String key = path.pathAsText(currentName);
         if (key.contains(SEPARATOR)) {
-            throw new IllegalArgumentException("Keys in [json] fields cannot contain the reserved character \\0."
+            throw new IllegalArgumentException("Keys in [embedded_json] fields cannot contain the reserved character \\0."
                 + " Offending key: [" + key + "].");
         }
         String keyedValue = createKeyedValue(key, value);

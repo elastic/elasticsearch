@@ -117,7 +117,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
-        assertEquals("[fuzzy] queries are not currently supported on [json] fields.", e.getMessage());
+        assertEquals("[fuzzy] queries are not currently supported on [embedded_json] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -136,12 +136,12 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery("lower", null, false, false, null));
-        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+        assertEquals("[range] queries on keyed [embedded_json] fields must include both an upper and a lower bound.",
             e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () ->
             ft.rangeQuery(null, "upper", false, false, null));
-        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+        assertEquals("[range] queries on keyed [embedded_json] fields must include both an upper and a lower bound.",
             e.getMessage());
     }
 
@@ -151,7 +151,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 10, null, null));
-        assertEquals("[regexp] queries are not currently supported on [json] fields.", e.getMessage());
+        assertEquals("[regexp] queries are not currently supported on [embedded_json] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
@@ -160,6 +160,6 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("valu*", null, null));
-        assertEquals("[wildcard] queries are not currently supported on [json] fields.", e.getMessage());
+        assertEquals("[wildcard] queries are not currently supported on [embedded_json] fields.", e.getMessage());
     }
 }

@@ -717,7 +717,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             .startObject("_doc")
                 .startObject("properties")
                     .startObject("headers")
-                        .field("type", "json")
+                        .field("type", "embedded_json")
                         .field("split_queries_on_whitespace", true)
                     .endObject()
                 .endObject()

@@ -1343,7 +1343,7 @@ setup:
             dynamic: false
             properties:
               json:
-                type: json
+                type: embedded_json
   - do:
       index:
         index:  json_test

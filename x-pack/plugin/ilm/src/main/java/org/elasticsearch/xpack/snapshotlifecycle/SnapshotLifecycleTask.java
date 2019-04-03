@@ -163,7 +163,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
-            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles);
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
             MetaData currentMeta = currentState.metaData();
             return ClusterState.builder(currentState)
                 .metaData(MetaData.builder(currentMeta)

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
@@ -63,6 +64,14 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     public void clusterChanged(final ClusterChangedEvent event) {
         if (this.isMaster) {
             final ClusterState state = event.state();
+
+            if (ilmStoppedOrStopping(state)) {
+                if (scheduler.scheduledJobIds().size() > 0) {
+                    cancelSnapshotJobs();
+                }
+                return;
+            }
+
             scheduleSnapshotJobs(state);
             cleanupDeletedPolicies(state);
         }
@@ -72,7 +81,12 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     public void onMaster() {
         this.isMaster = true;
         scheduler.register(snapshotTask);
-        scheduleSnapshotJobs(clusterService.state());
+        final ClusterState state = clusterService.state();
+        if (ilmStoppedOrStopping(state)) {
+            // ILM is currently stopped, so don't schedule jobs
+            return;
+        }
+        scheduleSnapshotJobs(state);
     }
 
     @Override
@@ -85,6 +99,16 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     // Only used for testing
     SchedulerEngine getScheduler() {
         return this.scheduler;
+    }
+
+    /**
+     * Returns true if ILM is in the stopped or stopped state
+     */
+    private static boolean ilmStoppedOrStopping(ClusterState state) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
+            .map(SnapshotLifecycleMetadata::getOperationMode)
+            .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)
+            .orElse(false);
     }
 
     /**

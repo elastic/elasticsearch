@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
@@ -47,7 +48,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testGetSnapMetadata() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm));
+        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -67,7 +68,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testSkipCreatingSnapshotWhenJobDoesNotMatch() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm));
+        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -95,7 +96,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testCreateSnapshotOnTrigger() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm));
+        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()

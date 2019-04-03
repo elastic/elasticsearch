@@ -23,7 +23,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
@@ -34,6 +36,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TransportPutSnapshotLifecycleAction extends
@@ -90,7 +93,11 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setHeaders(filteredHeaders)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta));
+                        IndexLifecycleMetadata ilmMeta = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+                        OperationMode mode = Optional.ofNullable(ilmMeta)
+                            .map(IndexLifecycleMetadata::getOperationMode)
+                            .orElse(OperationMode.RUNNING);
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta), mode);
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
@@ -102,7 +109,7 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         snapLifecycles.put(id, newLifecycle);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles);
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
                         if (oldLifecycle == null) {
                             logger.info("adding new snapshot lifecycle [{}]", id);
                         } else {

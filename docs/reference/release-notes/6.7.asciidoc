@@ -65,6 +65,16 @@ SQL::
 
 Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 
+[float]
+=== Known issues
+
+Java High Level REST Client::
+* A new `build_type` value was introduced in 6.7.0 for Docker images: `docker`.
+If you have a 6.6 or earlier client, however, it cannot understand this new
+value when it's returned by the
+{java-rest}/java-rest-high-main.html[info API]. This problem blocks client
+upgrades from 6.6 to 6.7.0. (issue: {issue}/40511[#40511])
+
 [[breaking-6.7.0]]
 [float]
 === Breaking changes

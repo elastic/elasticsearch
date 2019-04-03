@@ -177,6 +177,10 @@ if (useFixture) {
     }
     plugin file(tasks.bundlePlugin.archiveFile)
   }
+
+  integTest.runner {
+    systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
+  }
 } else {
   integTest.runner {
     systemProperty 'tests.rest.blacklist',
@@ -257,10 +261,6 @@ testClusters.integTest {
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
-}
-
-integTest.runner {
-  systemProperty 'tests.rest.blacklist', 'repository_s3/50_repository_ecs_credentials/*'
 }
 
 if (useFixture) {

@@ -47,9 +47,13 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
+        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
         return new DataFrameTransformStateAndStats(id,
             new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
-            new DataFrameIndexerTransformStats(),
+            indexerTransformStats,
             // TODO: needs refactoring, returns empty stats for dataframes without tasks
             new DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats.EMPTY, DataFrameTransformCheckpointStats.EMPTY, 0L));
     }

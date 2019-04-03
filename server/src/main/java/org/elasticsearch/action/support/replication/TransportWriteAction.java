@@ -60,11 +60,12 @@ public abstract class TransportWriteAction<
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
-            ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                   Supplier<ReplicaRequest> replicaRequest, String executor) {
+                                   ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
+                                   ShardStateAction shardStateAction, ActionFilters actionFilters,
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                   Supplier<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor, true);
+              indexNameExpressionResolver, request, replicaRequest, executor, true, forceExecutionOnPrimary);
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */

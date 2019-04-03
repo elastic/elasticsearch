@@ -119,6 +119,7 @@ public class IndexLifecycleService
                             logger.info("waiting to stop ILM because index [{}] with policy [{}] is currently in action [{}]",
                                 idxMeta.getIndex().getName(), policyName, stepKey.getAction());
                             lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
+                            // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
                             safeToStop = false;
                         } else {
                             logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",
@@ -256,6 +257,7 @@ public class IndexLifecycleService
                         } else {
                             lifecycleRunner.runPeriodicStep(policyName, idxMeta);
                         }
+                        // ILM is trying to stop, but this index is in a Shrink action (or other dangerous action) so we can't stop
                         safeToStop = false;
                     } else {
                         logger.info("skipping policy execution for index [{}] with policy [{}] because ILM is stopping",

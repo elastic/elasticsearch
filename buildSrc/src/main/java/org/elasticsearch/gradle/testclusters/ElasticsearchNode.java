@@ -550,7 +550,7 @@ public class ElasticsearchNode {
         defaultConfig.put("node.attr.testattr", "test");
         defaultConfig.put("node.portsfile", "true");
         defaultConfig.put("http.port", "0");
-        defaultConfig.put("transport.tcp.port", "0");
+        defaultConfig.put("transport.port", "0");
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         defaultConfig.put("cluster.routing.allocation.disk.watermark.low", "1b");
         defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");

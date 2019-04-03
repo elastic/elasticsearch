@@ -244,10 +244,11 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     @Override
     public Iterator<DocumentField> iterator() {
         // need to join the fields and metadata fields
-        if (otherFields == null) {
+        Map<String, DocumentField> allFields = this.getFields();
+        if (allFields == null) {
             return Collections.emptyIterator();
         }
-        return otherFields.values().iterator();
+        return allFields.values().iterator();
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {

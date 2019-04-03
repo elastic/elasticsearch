@@ -96,7 +96,6 @@ public class GetResultTests extends ESTestCase {
         GetResult getResult = tuple.v1();
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
-        // TODO use different getters
         GetResult expectedGetResult = new GetResult(null, null, null, tuple.v2().getSeqNo(), tuple.v2().getPrimaryTerm(), -1,
                 tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields(), tuple.v2().getFields());
 

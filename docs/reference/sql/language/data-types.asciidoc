@@ -26,7 +26,7 @@ s|SQL precision
 | <<keyword, `keyword`>>      | keyword       | VARCHAR     | 32,766
 | <<text, `text`>>            | text          | VARCHAR     | 2,147,483,647
 | <<binary, `binary`>>        | binary        | VARBINARY   | 2,147,483,647
-| <<date, `date`>>            | datetime      | TIMESTAMP   | 24
+| <<date, `date`>>            | datetime      | TIMESTAMP   | 29
 | <<ip, `ip`>>                | ip            | VARCHAR     | 39
 
 4+h| Complex types
@@ -66,7 +66,7 @@ s|SQL type
 s|SQL precision
 
 
-| date                      | 24
+| date                      | 29
 | time                      | 18
 | interval_year             | 7
 | interval_month            | 7

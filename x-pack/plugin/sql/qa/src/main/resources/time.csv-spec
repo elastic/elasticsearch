@@ -2,6 +2,7 @@
 // TIME
 //
 // All tests are run with UTC timezone
+// TODO: https://github.com/elastic/elasticsearch/issues/40779
 
 timeExtractTimeParts
 SELECT

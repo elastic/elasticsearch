@@ -149,7 +149,8 @@ public abstract class PackageTestCase extends PackagingTestCase {
         startElasticsearch(sh);
 
         String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
-            "--since \"" + start + "\" --output cat | grep -v \"future versions of Elasticsearch will require Java 11\" | wc -l").stdout.trim();
+            "--since \"" + start + "\" --output cat | grep -v \"future versions of Elasticsearch will require Java 11\" | wc -l")
+            .stdout.trim();
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));

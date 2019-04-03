@@ -77,10 +77,17 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, BinaryDocValuesRangeQuery.LengthType.FIXED_8, BinaryRangeUtil::decodeDouble);
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.DOUBLE, BinaryDocValuesRangeQuery.LengthType.FIXED_8,
+            BinaryRangeUtil::decodeDouble);
     }
 
-    static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, BinaryDocValuesRangeQuery.LengthType lengthType,
+    static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.FLOAT, BinaryDocValuesRangeQuery.LengthType.FIXED_4,
+            BinaryRangeUtil::decodeFloat);
+    }
+
+    static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeFieldMapper.RangeType rangeType,
+                                                     BinaryDocValuesRangeQuery.LengthType lengthType,
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
         ByteArrayDataInput in = new ByteArrayDataInput();
@@ -92,7 +99,6 @@ enum BinaryRangeUtil {
         final byte[] bytes = encodedRanges.bytes;
         int offset = in.getPosition();
         for (int i = 0; i < numRanges; i++) {
-            // TODO: make this a lambda parmeter
             int length = lengthType.readLength(bytes, offset);
             Object from = decodeBytes.apply(bytes, offset, length);
             offset += length;
@@ -101,7 +107,7 @@ enum BinaryRangeUtil {
             Object to = decodeBytes.apply(bytes, offset, length);
             offset += length;
             // TODO: Support for exclusive ranges, pending resolution of #40601
-            RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.DOUBLE, from, to, true, true);
+            RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(rangeType, from, to, true, true);
             ranges.add(decodedRange);
         }
         return ranges;
@@ -139,6 +145,10 @@ enum BinaryRangeUtil {
         byte[] encoded = new byte[4];
         NumericUtils.intToSortableBytes(NumericUtils.floatToSortableInt(number), encoded, 0);
         return encoded;
+    }
+
+    static float decodeFloat(byte[] bytes, int offset, int length) {
+       return NumericUtils.sortableIntToFloat(NumericUtils.sortableBytesToInt(bytes, offset));
     }
 
     /**

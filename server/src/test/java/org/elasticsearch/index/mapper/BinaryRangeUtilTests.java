@@ -163,6 +163,15 @@ public class BinaryRangeUtilTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
+    public void testDecodeFloatRanges() throws IOException {
+        // TODO: Apply randomized testing here
+        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.FLOAT, -10.0F, 42.3F, true, true);
+        List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(BinaryRangeUtil.encodeFloatRanges(singleton(expected)));
+        assertEquals(1, decoded.size());
+        RangeFieldMapper.Range actual = decoded.get(0);
+        assertEquals(expected, actual);
+    }
+
     private static int normalize(int cmp) {
         if (cmp < 0) {
             return -1;

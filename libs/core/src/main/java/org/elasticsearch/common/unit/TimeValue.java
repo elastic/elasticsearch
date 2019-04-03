@@ -341,10 +341,13 @@ public class TimeValue implements Comparable<TimeValue> {
         // check for overflow/underflow
         if (fractional > 0) {
             if (fractional != 0 && (Long.MAX_VALUE / (double) multiplier) < fractional) {
-                throw new IllegalArgumentException("Values greater than " + Long.MAX_VALUE + " nanoseconds are not supported: " + initialInput);            }
+                throw new IllegalArgumentException(
+                    "Values greater than " + Long.MAX_VALUE + " nanoseconds are not supported: " + initialInput);
+            }
         } else {
             if (fractional != 0 && (Long.MIN_VALUE / (double) multiplier) > fractional) {
-                throw new IllegalArgumentException("Values less than " + Long.MIN_VALUE + " nanoseconds are not supported: " + initialInput);
+                throw new IllegalArgumentException(
+                    "Values less than " + Long.MIN_VALUE + " nanoseconds are not supported: " + initialInput);
             }
         }
         long nanoValue = (long)(multiplier * fractional);

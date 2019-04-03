@@ -320,7 +320,14 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
                 finished = true;
                 return generation;
             } catch (WriteStateException e) {
-                rollback();
+                // if Manifest write results in dirty WriteStateException it's not safe to remove
+                // new metadata files, because if Manifest was actually written to disk and its deletion
+                // fails it will reference these new metadata files.
+                // In the future, we might decide to add more fine grained check to understand if after
+                // WriteStateException Manifest deletion has actually failed.
+                if (e.isDirty() == false) {
+                    rollback();
+                }
                 throw e;
             }
         }

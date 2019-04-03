@@ -12,7 +12,7 @@ IMPORTANT: Elastic does not endorse, promote or provide support for this applica
 
 ==== Prerequisites
 
-* DBeaver version 5.1.4 or higher
+* DBeaver version 6.0.0 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== New Connection

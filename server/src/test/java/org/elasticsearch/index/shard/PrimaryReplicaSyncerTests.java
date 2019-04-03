@@ -50,15 +50,15 @@ import org.elasticsearch.tasks.TaskManager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.Matchers.anyLong;
@@ -195,7 +195,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
     }
 
-    public void testDoNotSendOperationsIfGlobalCheckpointUnassigned() throws Exception {
+    public void testDoNotSendOperationsWithoutSequenceNumber() throws Exception {
         IndexShard shard = spy(newStartedShard(true));
         when(shard.getGlobalCheckpoint()).thenReturn(SequenceNumbers.UNASSIGNED_SEQ_NO);
         int numOps = between(0, 20);
@@ -206,23 +206,17 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
         doReturn(TestTranslog.newSnapshotFromOperations(operations)).when(shard).getHistoryOperations(anyString(), anyLong());
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
-        List<ResyncReplicationRequest> resyncRequests = new ArrayList<>();
+        List<Translog.Operation> sentOperations = new ArrayList<>();
         PrimaryReplicaSyncer.SyncAction syncAction = (request, parentTask, allocationId, primaryTerm, listener) -> {
-            assertThat("primary-replica resync with unassigned global checkpoint should not send translog operations",
-                request.getOperations(), emptyArray());
-            resyncRequests.add(request);
+            sentOperations.addAll(Arrays.asList(request.getOperations()));
             listener.onResponse(new ResyncReplicationResponse());
         };
         PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
         PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
         syncer.resync(shard, fut);
-        PrimaryReplicaSyncer.ResyncTask resyncTask = fut.actionGet();
-        assertThat(resyncRequests, hasSize(1));
-        assertThat(resyncRequests.get(0).getOperations(), emptyArray());
-        assertThat(resyncTask.getSkippedOperations(), equalTo(numOps));
-        assertThat(resyncTask.getResyncedOperations(), equalTo(0));
-        assertThat(resyncTask.getTotalOperations(), equalTo(numOps));
+        fut.actionGet();
+        assertThat(sentOperations, equalTo(operations.stream().filter(op -> op.seqNo() >= 0).collect(Collectors.toList())));
         closeShards(shard);
     }
 

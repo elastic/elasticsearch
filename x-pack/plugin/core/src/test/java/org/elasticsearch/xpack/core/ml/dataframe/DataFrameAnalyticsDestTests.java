@@ -15,7 +15,7 @@ public class DataFrameAnalyticsDestTests extends AbstractSerializingTestCase<Dat
 
     @Override
     protected DataFrameAnalyticsDest doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameAnalyticsDest.STRICT_PARSER.apply(parser, null);
+        return DataFrameAnalyticsDest.createParser(false).apply(parser, null);
     }
 
     @Override

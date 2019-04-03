@@ -21,9 +21,6 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
 
     public static final ParseField INDEX = new ParseField("index");
 
-    public static final ConstructingObjectParser<DataFrameAnalyticsDest, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<DataFrameAnalyticsDest, Void> LENIENT_PARSER = createParser(true);
-
     public static ConstructingObjectParser<DataFrameAnalyticsDest, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DataFrameAnalyticsDest, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_dest",
             ignoreUnknownFields, a -> new DataFrameAnalyticsDest((String) a[0]));

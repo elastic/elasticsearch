@@ -35,7 +35,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractSerializingTestCase<D
 
     @Override
     protected DataFrameAnalyticsSource doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameAnalyticsSource.STRICT_PARSER.apply(parser, null);
+        return DataFrameAnalyticsSource.createParser(false).apply(parser, null);
     }
 
     @Override

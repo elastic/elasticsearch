@@ -32,9 +32,6 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public static final ParseField INDEX = new ParseField("index");
     public static final ParseField QUERY = new ParseField("query");
 
-    public static final ConstructingObjectParser<DataFrameAnalyticsSource, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<DataFrameAnalyticsSource, Void> LENIENT_PARSER = createParser(true);
-
     public static ConstructingObjectParser<DataFrameAnalyticsSource, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_source",
             ignoreUnknownFields, a -> new DataFrameAnalyticsSource((String) a[0], (QueryProvider) a[1]));
@@ -117,7 +114,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     }
 
     Exception getQueryParsingException() {
-        return queryProvider == null ? null : queryProvider.getParsingException();
+        return queryProvider.getParsingException();
     }
 
     /**

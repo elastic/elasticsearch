@@ -282,7 +282,7 @@ public final class TokenService {
                 tokenDocument = createTokenDocument(userToken, versionedRefreshToken, originatingClientAuth);
             }
             final String documentId = getTokenDocumentId(userToken);
-            final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(version);
+            final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(version);
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
@@ -346,7 +346,7 @@ public final class TokenService {
      * Gets the UserToken with given id by fetching the the corresponding token document
      */
     void getUserTokenFromId(String userTokenId, Version version, ActionListener<UserToken> listener) {
-        final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(version);
+        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(version);
         if (tokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
@@ -727,16 +727,23 @@ public final class TokenService {
      * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy.
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
-        Tuple<Version, String> versionAndRefreshTokenTuple;
+        final Version refreshTokenVersion;
+        final String unencodedRefreshToken;
         try {
-            versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+            final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+            refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+            unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
         } catch (IOException e) {
             // could be an old format refresh token
             logger.debug("refresh token could be one of the old unversioned format");
-            versionAndRefreshTokenTuple = new Tuple<Version, String>(Version.V_7_0_0, refreshToken);
+            findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
+            return;
         }
-        final SecurityIndexManager tokensIndexManager = getSecurityIndexManagerForVersion(versionAndRefreshTokenTuple.v1());
-        findTokenFromRefreshToken(versionAndRefreshTokenTuple.v2(), tokensIndexManager, backoff, listener);
+        if (refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+        } else {
+            findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
+        }
     }
 
     /**
@@ -889,7 +896,7 @@ public final class TokenService {
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final SecurityIndexManager refreshedTokenIndex = getSecurityIndexManagerForVersion(refreshTokenStatus.getVersion());
+            final SecurityIndexManager refreshedTokenIndex = getTokensIndexManagerForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
                     .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
@@ -979,7 +986,7 @@ public final class TokenService {
             logger.debug("superseding token-doc-id in old unversioned format");
             versionAndSupersedingTokenDocId = new Tuple<Version, String>(Version.V_7_0_0, refreshTokenStatus.getSupersedingDocId());
         }
-        final SecurityIndexManager securityIndexManager = getSecurityIndexManagerForVersion(versionAndSupersedingTokenDocId.v1());
+        final SecurityIndexManager securityIndexManager = getTokensIndexManagerForVersion(versionAndSupersedingTokenDocId.v1());
         getTokenDocAsync(versionAndSupersedingTokenDocId.v2(), securityIndexManager, listener);
     }
 
@@ -1337,7 +1344,7 @@ public final class TokenService {
      * ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to consider both the new and the old
      * indices.
      */
-    private SecurityIndexManager getSecurityIndexManagerForVersion(Version version) {
+    private SecurityIndexManager getTokensIndexManagerForVersion(Version version) {
         if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
@@ -1353,7 +1360,7 @@ public final class TokenService {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
             return;
         }
-        final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(userToken.getVersion());
+        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(userToken.getVersion());
         if (tokensIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate access token because the security index doesn't exist");

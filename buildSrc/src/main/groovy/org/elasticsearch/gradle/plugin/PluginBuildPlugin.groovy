@@ -76,6 +76,15 @@ public class PluginBuildPlugin extends BuildPlugin {
                             project.file(project.tasks.bundlePlugin.archiveFile)
                     )
                 }
+
+                project.tasks.pluginProperties.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                    // Auto add dependent modules to the test cluster
+                    if (project.findProject(":modules:${pluginName}") != null) {
+                        project.testClusters.integTest.module(
+                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                        )
+                    }
+                }
             }
 
             project.tasks.run.dependsOn(project.tasks.bundlePlugin)
@@ -90,17 +99,6 @@ public class PluginBuildPlugin extends BuildPlugin {
 
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project)
-            }
-
-            if (project.plugins.hasPlugin(TestClustersPlugin.class)) {
-                project.tasks.pluginProperties.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
-                    // Auto add dependent modules to the test cluster
-                    if (project.findProject(":modules:${pluginName}") != null) {
-                        project.testClusters.integTest.module(
-                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
-                        )
-                    }
-                }
             }
         }
         project.testingConventions {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -126,29 +127,10 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
 
         final boolean rolesStoreEnabled = randomBoolean();
-        doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
-            if (rolesStoreEnabled) {
-                listener.onResponse(Collections.singletonMap("count", 1));
-            } else {
-                listener.onResponse(Collections.emptyMap());
-            }
-            return Void.TYPE;
-        }).when(rolesStore).usageStats(any(ActionListener.class));
+        configureRoleStoreUsage(rolesStoreEnabled);
 
         final boolean roleMappingStoreEnabled = randomBoolean();
-        doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
-            if (roleMappingStoreEnabled) {
-                final Map<String, Object> map = new HashMap<>();
-                map.put("size", 12L);
-                map.put("enabled", 10L);
-                listener.onResponse(map);
-            } else {
-                listener.onResponse(Collections.emptyMap());
-            }
-            return Void.TYPE;
-        }).when(roleMappingStore).usageStats(any(ActionListener.class));
+        configureRoleMappingStoreUsage(roleMappingStoreEnabled);
 
         Map<String, Object> realmsUsageStats = new HashMap<>();
         for (int i = 0; i < 5; i++) {
@@ -158,11 +140,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
             realmUsage.put("key2", Arrays.asList(i));
             realmUsage.put("key3", Arrays.asList(i % 2 == 0));
         }
-        doAnswer(invocationOnMock -> {
-            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
-            listener.onResponse(realmsUsageStats);
-            return Void.TYPE;
-        }).when(realms).usageStats(any(ActionListener.class));
+        configureRealmsUsage(realmsUsageStats);
 
         final boolean anonymousEnabled = randomBoolean();
         if (anonymousEnabled) {
@@ -182,11 +160,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
             assertThat(usage.name(), is(XPackField.SECURITY));
             assertThat(usage.enabled(), is(enabled));
             assertThat(usage.available(), is(authcAuthzAvailable));
-            XContentSource source;
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                source = new XContentSource(builder);
-            }
+            XContentSource source = getXContentSource(usage);
 
             if (enabled) {
                 if (authcAuthzAvailable) {
@@ -250,5 +224,102 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 assertThat(source.getValue("roles"), is(nullValue()));
             }
         }
+    }
+
+    public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
+        when(licenseState.isSecurityAvailable()).thenReturn(true);
+        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
+
+        Settings.Builder settings = Settings.builder().put(this.settings);
+
+        final boolean httpSSLEnabled = randomBoolean();
+        settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
+        final boolean transportSSLEnabled = randomBoolean();
+        settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
+
+        final boolean auditingEnabled = randomBoolean();
+        settings.put(XPackSettings.AUDIT_ENABLED.getKey(), auditingEnabled);
+
+        final boolean rolesStoreEnabled = randomBoolean();
+        configureRoleStoreUsage(rolesStoreEnabled);
+
+        final boolean roleMappingStoreEnabled = randomBoolean();
+        configureRoleMappingStoreUsage(roleMappingStoreEnabled);
+
+        configureRealmsUsage(Collections.emptyMap());
+
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
+                realms, rolesStore, roleMappingStore, ipFilter);
+        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
+        featureSet.usage(future);
+        XPackFeatureSet.Usage securityUsage = future.get();
+        BytesStreamOutput out = new BytesStreamOutput();
+        securityUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSetUsage(out.bytes().streamInput());
+        for (XPackFeatureSet.Usage usage : Arrays.asList(securityUsage, serializedUsage)) {
+            assertThat(usage, is(notNullValue()));
+            assertThat(usage.name(), is(XPackField.SECURITY));
+            assertThat(usage.enabled(), is(false));
+            assertThat(usage.available(), is(true));
+            XContentSource source = getXContentSource(usage);
+
+            // check SSL : This is permitted even though security has been dynamically disabled by the trial license.
+            assertThat(source.getValue("ssl"), is(notNullValue()));
+            assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
+            assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+
+            // everything else is missing because security is disabled
+            assertThat(source.getValue("realms"), is(nullValue()));
+            assertThat(source.getValue("token_service"), is(nullValue()));
+            assertThat(source.getValue("api_key_service"), is(nullValue()));
+            assertThat(source.getValue("audit"), is(nullValue()));
+            assertThat(source.getValue("anonymous"), is(nullValue()));
+            assertThat(source.getValue("ipfilter"), is(nullValue()));
+            assertThat(source.getValue("roles"), is(nullValue()));
+        }
+    }
+
+    private XContentSource getXContentSource(XPackFeatureSet.Usage usage) throws IOException {
+        XContentSource source;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            source = new XContentSource(builder);
+        }
+        return source;
+    }
+
+    private void configureRealmsUsage(Map<String, Object> realmsUsageStats) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            listener.onResponse(realmsUsageStats);
+            return Void.TYPE;
+        }).when(realms).usageStats(any(ActionListener.class));
+    }
+
+    private void configureRoleStoreUsage(boolean rolesStoreEnabled) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
+            if (rolesStoreEnabled) {
+                listener.onResponse(Collections.singletonMap("count", 1));
+            } else {
+                listener.onResponse(Collections.emptyMap());
+            }
+            return Void.TYPE;
+        }).when(rolesStore).usageStats(any(ActionListener.class));
+    }
+
+    private void configureRoleMappingStoreUsage(boolean roleMappingStoreEnabled) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<Map<String, Object>> listener = (ActionListener) invocationOnMock.getArguments()[0];
+            if (roleMappingStoreEnabled) {
+                final Map<String, Object> map = new HashMap<>();
+                map.put("size", 12L);
+                map.put("enabled", 10L);
+                listener.onResponse(map);
+            } else {
+                listener.onResponse(Collections.emptyMap());
+            }
+            return Void.TYPE;
+        }).when(roleMappingStore).usageStats(any(ActionListener.class));
     }
 }

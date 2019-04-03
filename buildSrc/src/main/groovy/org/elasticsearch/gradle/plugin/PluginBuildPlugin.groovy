@@ -81,7 +81,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                     // Auto add dependent modules to the test cluster
                     if (project.findProject(":modules:${pluginName}") != null) {
                         project.testClusters.integTest.module(
-                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                                project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile
                         )
                     }
                 }

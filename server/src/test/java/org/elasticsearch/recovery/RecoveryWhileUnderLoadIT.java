@@ -286,7 +286,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_SHARDS, numShards)
                 .put(SETTING_NUMBER_OF_REPLICAS, numReplicas)
                 .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms"))));
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), randomFrom("100ms", "1s", "5s", "30s", "60s"))));
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 

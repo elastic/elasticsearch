@@ -40,12 +40,16 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
-        try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
-
-            // pass the testName as table for debugging purposes (in case the underlying reader is missing)
-            ResultSet expected = executeCsvQuery(csv, testName);
-            ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
-            assertResults(expected, elasticResults);
+        // Run the time tests always in UTC
+        // TODO: https://github.com/elastic/elasticsearch/issues/40779
+        if ("time".equals(groupName)) {
+            try (Connection csv = csvConnection(testCase); Connection es = esJdbc(connectionProperties())) {
+                executeAndAssert(csv, es);
+            }
+        } else {
+            try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
+                executeAndAssert(csv, es);
+            }
         }
     }
 
@@ -53,5 +57,12 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
         JdbcAssert.assertResultSets(expected, elastic, log, false, true);
+    }
+
+    private void executeAndAssert(Connection csv, Connection es) throws SQLException {
+        // pass the testName as table for debugging purposes (in case the underlying reader is missing)
+        ResultSet expected = executeCsvQuery(csv, testName);
+        ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
+        assertResults(expected, elasticResults);
     }
 }

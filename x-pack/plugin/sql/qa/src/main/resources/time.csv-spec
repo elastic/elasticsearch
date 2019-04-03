@@ -1,26 +1,27 @@
 //
 // TIME
 //
+// All tests are run with UTC timezone
+// TODO: https://github.com/elastic/elasticsearch/issues/40779
 
-// AwaitsFix: https://github.com/elastic/elasticsearch/issues/40717
-//timeExtractTimeParts
-//SELECT
-//SECOND(CAST(birth_date AS TIME)) d,
-//MINUTE(CAST(birth_date AS TIME)) m,
-//HOUR(CAST(birth_date AS TIME)) h
-//FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
-//
-// d:i     | m:i      | h:i
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//0        |0         |0
-//;
+timeExtractTimeParts
+SELECT
+SECOND(CAST(birth_date AS TIME)) d,
+MINUTE(CAST(birth_date AS TIME)) m,
+HOUR(CAST(birth_date AS TIME)) h
+FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
+
+ d:i     | m:i      | h:i
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+0        |0         |0
+;
 
 timeAsFilter
 SELECT birth_date, last_name FROM "test_emp" WHERE birth_date::TIME = CAST('00:00:00' AS TIME) ORDER BY emp_no LIMIT 5;
@@ -59,15 +60,14 @@ null      |100445
 0         |904605
 ;
 
-// AwaitsFix: https://github.com/elastic/elasticsearch/issues/40717
-//timeAsHavingFilter
-//SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME + INTERVAL 10 MINUTES) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) = CAST('00:00:00.000' AS TIME) ORDER BY gender;
-//
-//minute:i    | gender:s
-//10          | null
-//10          | F
-//10          | M
-//;
+timeAsHavingFilter
+SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME + INTERVAL 10 MINUTES) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) = CAST('00:00:00.000' AS TIME) ORDER BY gender;
+
+minute:i    | gender:s
+10          | null
+10          | F
+10          | M
+;
 
 timeAsHavingFilterNoMatch
 SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) > CAST('00:00:00.000' AS TIME);

@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Properties;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
@@ -116,7 +117,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty("timezone", "UTC");
+        connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
         return connectionProperties;
     }
 

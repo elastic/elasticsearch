@@ -15,6 +15,8 @@ Infra/Core::
 SQL::
 * SQL: add "fuzziness" option to QUERY and MATCH function predicates {pull}40529[#40529] (issue: {issue}40495[#40495])
 
+
+
 [[bug-6.7.1]]
 [float]
 === Bug fixes
@@ -38,10 +40,14 @@ Geo::
 Infra/Core::
 * Parse composite patterns using ClassicFormat.parseObject {pull}40100[#40100] (issue: {issue}39916[#39916])
 
+Infra/Packaging::
+* Use TAR instead of DOCKER build type before 6.7.0 {pull}40723[#40723] (issues: {issue}39378[#39378], {issue}40511[#40511])
+
 Machine Learning::
 * [ML] Addressing bug streaming DatafeedConfig aggs from (<= 6.5.4) -> 6.7.0 {pull}40610[#40610]
 
 SQL::
+* SQL: have LIKE/RLIKE use wildcard and regexp queries {pull}40628[#40628] (issue: {issue}40557[#40557])
 * SQL: Fix getTime() methods in JDBC {pull}40484[#40484]
 * SQL: Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
 * SQL: Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])

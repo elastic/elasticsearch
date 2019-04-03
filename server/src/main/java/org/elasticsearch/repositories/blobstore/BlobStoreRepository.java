@@ -461,7 +461,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         blobStore().blobContainer(basePath().add("indices")).deleteBlobsIgnoringIfNotExists(
                             unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
                     } catch (IOException e) {
-                        // a different Exception occurred while trying to delete - will just log the issue for now
                         logger.warn(() ->
                             new ParameterizedMessage(
                                 "[{}] indices {} are no longer part of any snapshots in the repository, " +

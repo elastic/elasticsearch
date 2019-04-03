@@ -203,8 +203,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             actions[threadId] = singlePermitAction;
 
             Thread thread = new Thread(() -> {
+                final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                    = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
                 TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                    singlePermitAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(listener), null) {
+                    singlePermitAction.new AsyncPrimaryAction(primaryRequest, listener, null) {
                         @Override
                         protected void doRun() throws Exception {
                             if (delayed) {
@@ -254,8 +256,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
+            final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
             TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
-                allPermitsAction.new AsyncPrimaryAction(request(), allocationId(), primaryTerm(), transportChannel(allPermitFuture), null) {
+                allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
                     void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired", 0, reference.indexShard.getActiveOperationsCount());
@@ -407,9 +411,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                                           final DiscoveryNode node,
                                           final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
             assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2"), node);
-            ReplicaOperationTransportHandler replicaOperationTransportHandler = new ReplicaOperationTransportHandler();
             try {
-                replicaOperationTransportHandler.messageReceived(replicaRequest, new TransportChannel() {
+                handleReplicaRequest(replicaRequest, new TransportChannel() {
                     @Override
                     public String getProfileName() {
                         return null;
@@ -529,33 +532,5 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     static class Response extends ReplicationResponse {
-    }
-
-    /**
-     * Transport channel that is needed for replica operation testing.
-     */
-    public TransportChannel transportChannel(final PlainActionFuture<Response> listener) {
-        return new TransportChannel() {
-
-            @Override
-            public String getProfileName() {
-                return "";
-            }
-
-            @Override
-            public void sendResponse(TransportResponse response) throws IOException {
-                listener.onResponse(((Response) response));
-            }
-
-            @Override
-            public void sendResponse(Exception exception) throws IOException {
-                listener.onFailure(exception);
-            }
-
-            @Override
-            public String getChannelType() {
-                return "replica_test";
-            }
-        };
     }
 }

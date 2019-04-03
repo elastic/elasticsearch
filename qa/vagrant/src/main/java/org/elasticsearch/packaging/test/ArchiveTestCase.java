@@ -33,23 +33,18 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
-
-import java.nio.charset.StandardCharsets;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -84,7 +79,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -256,7 +251,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test60AutoCreateKeystore() {
+    public void test60AutoCreateKeystore() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));

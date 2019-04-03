@@ -20,19 +20,14 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
-
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,8 +38,6 @@ import java.util.regex.Pattern;
 import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
-import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.assertPathsDontExist;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
@@ -58,13 +51,11 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
-
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.isEmptyString;
-
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -77,7 +68,7 @@ public abstract class PackageTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }

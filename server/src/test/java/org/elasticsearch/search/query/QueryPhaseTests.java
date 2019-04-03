@@ -24,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
@@ -36,6 +37,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.MinDocQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
@@ -50,9 +52,11 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
@@ -65,6 +69,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.shard.IndexShard;
@@ -84,6 +92,9 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
 
 public class QueryPhaseTests extends IndexShardTestCase {
 
@@ -579,7 +590,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-
     public void testDisableTopScoreCollection() throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(new StandardAnalyzer());
@@ -630,6 +640,75 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
+
+    public void testNumericLongOrDateSortOptimization() throws Exception {
+        final String fieldNameLong = "long-field";
+        final String fieldNameDate = "date-field";
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(mapperService.fullName(fieldNameDate)).thenReturn(fieldTypeDate);
+        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        final int numDocs = scaledRandomIntBetween(50, 100);
+        Directory dir = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        for (int i = 0; i < numDocs; ++i) {
+            Document doc = new Document();
+            long longValue = randomLongBetween(-10000000L, 10000000L);
+            doc.add(new LongPoint(fieldNameLong, longValue));
+            doc.add(new NumericDocValuesField(fieldNameLong, longValue));
+            longValue = randomLongBetween(0, 3000000000000L);
+            doc.add(new LongPoint(fieldNameDate, longValue));
+            doc.add(new NumericDocValuesField(fieldNameDate, longValue));
+            writer.addDocument(doc);
+        }
+        writer.close();
+        final IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 0);
+
+        // 1. Test a sort on long field
+        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
+        sortFieldLong.setMissingValue(Long.MAX_VALUE);
+        final Sort longSort = new Sort(sortFieldLong);
+        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+        searchContext.sort(sortAndFormats);
+        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        searchContext.setSize(10);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+
+        // 2. Test a sort on long field + date field
+        final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
+        DocValueFormat dateFormat = fieldTypeDate.docValueFormat(null, null);
+        final Sort longDateSort = new Sort(sortFieldLong, sortFieldDate);
+        sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat});
+        searchContext.sort(sortAndFormats);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+
+        // 3. Test a sort on date field
+        sortFieldDate.setMissingValue(Long.MAX_VALUE);
+        final Sort dateSort = new Sort(sortFieldDate);
+        sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
+        searchContext.sort(sortAndFormats);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+
+        // 4. Test a sort on date field + long field
+        final Sort dateLongSort = new Sort(sortFieldDate, sortFieldLong);
+        sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW});
+        searchContext.sort(sortAndFormats);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+        reader.close();
+        dir.close();
+    }
+
+
     public void testMaxScoreQueryVisitor() {
         BitSetProducer producer = context -> new FixedBitSet(1);
         Query query = new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested");
@@ -678,6 +757,115 @@ public class QueryPhaseTests extends IndexShardTestCase {
             } else {
                 assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
             }
+        }
+    }
+
+    public void testNumericLongSortOptimizationDocsHaveTheSameValue() throws Exception {
+        final String fieldNameLong = "long-field";
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
+        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        final int numDocs = scaledRandomIntBetween(5, 10);
+        long longValue = randomLongBetween(-10000000L, 10000000L); // all docs have the same value
+        Directory dir = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        for (int i = 0; i < numDocs; ++i) {
+            Document doc = new Document();
+            doc.add(new LongPoint(fieldNameLong, longValue));
+            doc.add(new NumericDocValuesField(fieldNameLong, longValue));
+            writer.addDocument(doc);
+        }
+        writer.close();
+        final IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 1);
+
+        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
+        sortFieldLong.setMissingValue(Long.MAX_VALUE);
+        final Sort longSort = new Sort(sortFieldLong);
+        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+        searchContext.sort(sortAndFormats);
+        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        searchContext.setSize(10);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+        reader.close();
+        dir.close();
+    }
+
+    public void testNumericLongSortOptimizationNoValuesForField() throws Exception {
+        final String fieldNameLong = "long-field";
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
+        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        Directory dir = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
+        Document doc = new Document();
+        doc.add(new LongPoint("random_field", randomLong()));
+        writer.addDocument(doc);
+        writer.close();
+        final IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 2);
+
+        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
+        sortFieldLong.setMissingValue(Long.MAX_VALUE);
+        final Sort longSort = new Sort(sortFieldLong);
+        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+        searchContext.sort(sortAndFormats);
+        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
+        searchContext.setSize(10);
+        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
+        assertSortResults(searchContext.queryResult().topDocs().topDocs, 1, false);
+        reader.close();
+        dir.close();
+    }
+
+    // used to check that numeric long or date sort optimization was run
+    private static IndexSearcher getAssertingSortOptimizedSearcher(IndexReader reader, int queryType) {
+        return new IndexSearcher(reader) {
+            @Override
+            public void search(Query query, Collector results) throws IOException {
+                assertTrue(query instanceof BooleanQuery);
+                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
+                assertTrue(clauses.size() == 2);
+                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
+                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
+                if (queryType == 0) {
+                    assertTrue (clauses.get(1).getQuery().getClass() ==
+                        LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
+                    );
+                }
+                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
+                if (queryType == 2) assertTrue(clauses.get(1).getQuery() instanceof MatchAllDocsQuery);
+                super.search(query, results);
+            }
+        };
+    }
+
+    // assert score docs are in order and their number is as expected
+    private void assertSortResults(TopDocs topDocs, long expectedNumDocs, boolean isDoubleSort) {
+        assertEquals(topDocs.totalHits.value, expectedNumDocs);
+        long cur1, cur2;
+        long prev1 = Long.MIN_VALUE;
+        long prev2 = Long.MIN_VALUE;
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            cur1 = (long) ((FieldDoc) scoreDoc).fields[0];
+            assertThat(cur1, greaterThanOrEqualTo(prev1)); // test that docs are properly sorted on the first sort
+            if (isDoubleSort) {
+                cur2 = (long) ((FieldDoc) scoreDoc).fields[1];
+                if (cur1 == prev1) {
+                    assertThat(cur2, greaterThanOrEqualTo(prev2)); // test that docs are properly sorted on the secondary sort
+                }
+                prev2 = cur2;
+            }
+            prev1 = cur1;
         }
     }
 

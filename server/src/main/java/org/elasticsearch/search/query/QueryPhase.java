@@ -25,17 +25,14 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiDocValues;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.queries.MinDocQuery;
 import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -43,19 +40,15 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -193,17 +186,32 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            // rewrite numeric sort to the optimized distanceFeatureQuery
+            // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
             if (searchContext.sort() != null) {
                 try {
-                    Query distanceFeatureQuery = tryRewriteNumericLongSort(searchContext, searcher.getIndexReader());
-                    if (distanceFeatureQuery != null) {
+                    Query rewrittenQuery = tryRewriteNumericLongOrDateSort(searchContext, searcher.getIndexReader());
+                    if (rewrittenQuery != null) {
                         query = new BooleanQuery.Builder()
                             .add(query, BooleanClause.Occur.FILTER) // filter for original query
-                            .add(distanceFeatureQuery, BooleanClause.Occur.SHOULD) //should for DistanceFeatureQuery
+                            .add(rewrittenQuery, BooleanClause.Occur.SHOULD) //should for rewrittenQuery
                             .build();
-                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); //stash SortAndFormats to restore it later
-                        searchContext.sort(null);
+
+                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the last
+                        SortField[] oldSortFields = searchContext.sort().sort.getSort();
+                        DocValueFormat[] oldFormats = searchContext.sort().formats;
+                        SortField[] newSortFields = new SortField[oldSortFields.length + 1];
+                        DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                        newSortFields[0] = SortField.FIELD_SCORE;
+                        newFormats[0] = DocValueFormat.RAW;
+                        for (int i = 1; i < oldSortFields.length; i++) {
+                            newSortFields[i] = oldSortFields[i];
+                            newFormats[i] = oldFormats[i];
+                        }
+                        // add the numeric field as the last sort, so we can access its values later
+                        newSortFields[oldSortFields.length] = oldSortFields[0];
+                        newFormats[oldSortFields.length] = oldFormats[0];
+                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
+                        searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
                     }
                 } finally {
                     // in case of errors do nothing - keep the same query
@@ -325,11 +333,10 @@ public class QueryPhase implements SearchPhase {
                 ctx.postProcess(result);
             }
 
-            // if we rewrote numeric sort, rewrite the result back to fieldDocs
+            // if we rewrote numeric long or date sort, restore fieldDocs based on the original sort
             if (sortAndFormatsForRewrittenNumericSort != null) {
                 searchContext.sort(sortAndFormatsForRewrittenNumericSort); // restore SortAndFormats
-                TopDocs topDocs = convertToTopFieldDocs(searchContext.sort().sort.getSort(), reader, result);
-                result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), searchContext.sort().formats);
+                restoreTopFieldDocs(result, sortAndFormatsForRewrittenNumericSort);
             }
 
             ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
@@ -348,73 +355,64 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-     private static Query tryRewriteNumericLongSort(SearchContext searchContext, IndexReader reader) throws IOException {
-        // check sort
+     private static Query tryRewriteNumericLongOrDateSort(SearchContext searchContext, IndexReader reader) throws IOException {
+        if (searchContext.searchAfter() != null) return null;
+        if (searchContext.scrollContext() != null) return null;
+        if (searchContext.collapse() != null) return null;
         Sort sort = searchContext.sort().sort;
         if (Sort.RELEVANCE.equals(sort)) return null;
         if (Sort.INDEXORDER.equals(sort)) return null;
-        if (sort.getSort().length > 1) return null; // we need only a single sort
         SortField sortField = sort.getSort()[0];
 
-        // check if this is a field of type Long, that is indexed and has doc values
+         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
+        if (fieldName == null) return null; // happens when _score is the 1st sort field
+        if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
         final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
-        if (fieldType == null) return  null;
-        if (fieldType.typeName() != "long") return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null;
+        if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
+         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
+        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
         if (fieldType.hasDocValues() == false) return null;
-        byte[] minValueBytes =  PointValues.getMinPackedValue(reader, fieldName);
-        byte[] maxValueBytes =  PointValues.getMaxPackedValue(reader, fieldName);
-        if ((maxValueBytes == null) || (minValueBytes == null)) return null; // no values on this shard
 
-        // finally all checks done, query can be rewritten, rewrite
+        // check that setting of missing values allows optimization
+        if (sortField.getMissingValue() == null) return null;
+        Long missingValue = (Long) sortField.getMissingValue();
+        boolean missingValuesAccordingToSort = (sortField.getReverse() && (missingValue == Long.MIN_VALUE)) ||
+        ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
+        if (missingValuesAccordingToSort == false) return null;
+
+         // check for multiple values
+        if (PointValues.size(reader, fieldName) != PointValues.getDocCount(reader, fieldName)) return null; //TODO: handle multiple values
+
+        byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
+        byte[] maxValueBytes = PointValues.getMaxPackedValue(reader, fieldName);
+        if ((maxValueBytes == null) || (minValueBytes == null)) return new MatchAllDocsQuery(); // no values on this shard
         long minValue = LongPoint.decodeDimension(minValueBytes, 0);
         long maxValue = LongPoint.decodeDimension(maxValueBytes, 0);
+        if (minValue == maxValue) return new DocValuesFieldExistsQuery(fieldName);
+
         final long origin = (sortField.getReverse()) ? maxValue : minValue;
-        final long pivotDistance = maxValue == minValue ? maxValue/2 : (maxValue - minValue)/2;
+        final long pivotDistance = (maxValue - minValue)/2;
         return LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
     }
 
-    static TopDocs convertToTopFieldDocs(SortField[] sortFields, IndexReader reader, QuerySearchResult result) throws IOException {
-        // 1. sort docIds, so DocValues iterator can iterate over docIds in ascending order
-        // keep their original positions in positions
-        TopDocsAndMaxScore topDocsAndMaxScore = result.topDocs();
-        ScoreDoc[] oldScoreDocs = topDocsAndMaxScore.topDocs.scoreDocs;
-        int[] docIds = new int[oldScoreDocs.length];
-        int[] positions = new int[oldScoreDocs.length];
-        for (int i = 0; i < oldScoreDocs.length; i++) {
-            docIds[i] = oldScoreDocs[i].doc;
-            positions[i] = i;
-        }
-        new InPlaceMergeSorter() {
-            @Override
-            public int compare(int i, int j) {
-                return Integer.compare(docIds[i], docIds[j]);
+    // Restore sorts to remove the first _score sort; and move the last sort on the numeric/date field to be the first
+    // updating in place without creating new FieldDoc objects
+    static void restoreTopFieldDocs(QuerySearchResult result, SortAndFormats originalSortAndFormats) {
+        TopDocs topDocs = result.topDocs().topDocs;
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+            Object[] oldFieldValues = fieldDoc.fields;
+            Object[] newFieldValues = new Object[oldFieldValues.length - 1];
+            newFieldValues[0] = oldFieldValues[oldFieldValues.length - 1];
+            for (int j = 1; j < oldFieldValues.length - 1; j++) {
+                newFieldValues[j] = oldFieldValues[j];
             }
-            @Override
-            public void swap(int i, int j) {
-                int tempDocId = docIds[i];
-                docIds[i] = docIds[j];
-                docIds[j] = tempDocId;
-
-                int pos = positions[i];
-                positions[i] = positions[j];
-                positions[j] = pos;
-            }
-        }.sort(0, docIds.length);
-
-        // 2. Iterate over DocValues and fill fieldDocs
-        Long missingValue = (Long) sortFields[0].getMissingValue(); // for rewritten numeric sort, when we had a single sort on Long field
-        SortedNumericDocValues sdvs = MultiDocValues.getSortedNumericValues(reader, sortFields[0].getField());
-        FieldDoc[] newFieldDocs = new FieldDoc[oldScoreDocs.length];
-        for (int i = 0; i < docIds.length; i++) {
-            Long[] fieldValues = {sdvs.advanceExact(docIds[i]) ? sdvs.nextValue() : missingValue};
-            newFieldDocs[positions[i]] = new FieldDoc(docIds[i], Float.NaN, fieldValues, oldScoreDocs[i].shardIndex);
+            fieldDoc.fields = newFieldValues;
         }
-        return new TopFieldDocs(topDocsAndMaxScore.topDocs.totalHits, newFieldDocs, sortFields);
+        TopFieldDocs newTopDocs = new TopFieldDocs(topDocs.totalHits, topDocs.scoreDocs, originalSortAndFormats.sort.getSort());
+        result.topDocs(new TopDocsAndMaxScore(newTopDocs, Float.NaN), originalSortAndFormats.formats);
     }
-
-
 
     /**
      * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).

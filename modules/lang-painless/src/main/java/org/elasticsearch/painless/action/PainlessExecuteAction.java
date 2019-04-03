@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.action;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.DirectoryReader;
@@ -95,7 +95,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response> {
 
-    static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
+    public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
     private static final String NAME = "cluster:admin/scripts/painless/execute";
 
     private PainlessExecuteAction() {
@@ -593,9 +593,9 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
     }
 
-    static class RestAction extends BaseRestHandler {
+    public static class RestAction extends BaseRestHandler {
 
-        RestAction(Settings settings, RestController controller) {
+        public RestAction(Settings settings, RestController controller) {
             super(settings);
             controller.registerHandler(GET, "/_scripts/painless/_execute", this);
             controller.registerHandler(POST, "/_scripts/painless/_execute", this);

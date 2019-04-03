@@ -25,16 +25,12 @@ import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,29 +53,30 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
-public class ElasticsearchNode {
+public class ElasticsearchNode implements TestClusterConfiguration {
 
-    private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
+    private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
+    private static final int ES_DESTROY_TIMEOUT = 20;
+    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final int NODE_UP_TIMEOUT = 60;
+    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+
+    private final String path;
     private final String name;
     private final GradleServicesAdapter services;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path artifactsExtractDir;
     private final Path workingDir;
 
-    private static final int ES_DESTROY_TIMEOUT = 20;
-    private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
-    private static final int NODE_UP_TIMEOUT = 30;
-    private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
-    private final LinkedHashMap<String, Predicate<ElasticsearchNode>> waitConditions;
+    private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final List<URI> plugins = new ArrayList<>();
     private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
+    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -95,7 +92,6 @@ public class ElasticsearchNode {
     private String version;
     private File javaHome;
     private volatile Process esProcess;
-    private final String path;
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -112,10 +108,8 @@ public class ElasticsearchNode {
         esStdoutFile = confPathLogs.resolve("es.stdout.log");
         esStderrFile = confPathLogs.resolve("es.stderr.log");
         tmpDir = workingDir.resolve("tmp");
-        this.waitConditions = new LinkedHashMap<>();
-        waitConditions.put("http ports file", node -> Files.exists(node.httpPortsFile));
-        waitConditions.put("transport ports file", node -> Files.exists(node.transportPortFile));
-        waitForUri("cluster health yellow", "/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow");
+        waitConditions.put("http ports file", node -> Files.exists(((ElasticsearchNode) node).httpPortsFile));
+        waitConditions.put("transport ports file", node -> Files.exists(((ElasticsearchNode)node).transportPortFile));
     }
 
     public String getName() {
@@ -126,6 +120,7 @@ public class ElasticsearchNode {
         return version;
     }
 
+    @Override
     public void setVersion(String version) {
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         checkFrozen();
@@ -136,50 +131,61 @@ public class ElasticsearchNode {
         return distribution;
     }
 
+    @Override
     public void setDistribution(Distribution distribution) {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.distribution = distribution;
     }
 
+    @Override
     public void plugin(URI plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();
         this.plugins.add(plugin);
     }
 
+    @Override
     public void plugin(File plugin) {
         plugin(plugin.toURI());
     }
 
+    @Override
     public void keystore(String key, String value) {
         addSupplier("Keystore", keystoreSettings, key, value);
     }
 
+    @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Keystore", keystoreSettings, key, valueSupplier);
     }
 
+    @Override
     public void setting(String key, String value) {
         addSupplier("Settings", settings, key, value);
     }
 
+    @Override
     public void setting(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Setting", settings, key, valueSupplier);
     }
 
+    @Override
     public void systemProperty(String key, String value) {
         addSupplier("Java System property", systemProperties, key, value);
     }
 
+    @Override
     public void systemProperty(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Java System property", systemProperties, key, valueSupplier);
     }
 
+    @Override
     public void environment(String key, String value) {
         addSupplier("Environment variable", environment, key, value);
     }
 
+    @Override
     public void environment(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Environment variable", environment, key, valueSupplier);
     }
@@ -205,14 +211,16 @@ public class ElasticsearchNode {
         return configFile.getParent();
     }
 
+    @Override
     public void freeze() {
         requireNonNull(distribution, "null distribution passed when configuring test cluster `" + this + "`");
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
-        logger.info("Locking configuration of `{}`", this);
+        LOGGER.info("Locking configuration of `{}`", this);
         configurationFrozen.set(true);
     }
 
+    @Override
     public void setJavaHome(File javaHome) {
         requireNonNull(javaHome, "null javaHome passed when configuring test cluster `" + this + "`");
         checkFrozen();
@@ -226,27 +234,6 @@ public class ElasticsearchNode {
         return javaHome;
     }
 
-
-
-    private void waitForUri(String description, String uri) {
-        waitConditions.put(description, (node) -> {
-            try {
-                URL url = new URL("http://" + this.getHttpPortInternal().get(0) + uri);
-                HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                con.setRequestMethod("GET");
-                con.setConnectTimeout(500);
-                con.setReadTimeout(500);
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
-                    String response = reader.lines().collect(Collectors.joining("\n"));
-                    logger.info("{} -> {} ->\n{}", this, uri, response);
-                }
-                return true;
-            } catch (IOException e) {
-                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
-            }
-        });
-    }
-
     /**
      * Returns a stream of lines in the generated logs similar to Files.lines
      *
@@ -256,8 +243,9 @@ public class ElasticsearchNode {
         return Files.lines(esStdoutFile, StandardCharsets.UTF_8);
     }
 
-    synchronized void start() {
-        logger.info("Starting `{}`", this);
+    @Override
+    public synchronized void start() {
+        LOGGER.info("Starting `{}`", this);
 
         Path distroArtifact = artifactsExtractDir
             .resolve(distribution.getGroup())
@@ -273,7 +261,7 @@ public class ElasticsearchNode {
         try {
             createWorkingDir(distroArtifact);
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
         createConfiguration();
 
@@ -322,7 +310,7 @@ public class ElasticsearchNode {
 
             });
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to run " + tool + " for " + this, e);
         }
     }
 
@@ -349,7 +337,9 @@ public class ElasticsearchNode {
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {
-            throw new IllegalStateException("testcluster does not allow setting the following env vars " + commonKeys);
+            throw new IllegalStateException(
+                "testcluster does not allow overwriting the following env vars " + commonKeys + " for " + this
+            );
         }
 
         checkSuppliers("Environment variable", environment);
@@ -373,7 +363,7 @@ public class ElasticsearchNode {
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(esStderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esStdoutFile.toFile()));
-        logger.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
         try {
             esProcess = processBuilder.start();
         } catch (IOException e) {
@@ -381,33 +371,34 @@ public class ElasticsearchNode {
         }
     }
 
+    @Override
     public String getHttpSocketURI() {
-        waitForAllConditions();
         return getHttpPortInternal().get(0);
     }
 
+    @Override
     public String getTransportPortURI() {
-        waitForAllConditions();
         return getTransportPortInternal().get(0);
     }
 
+    @Override
     public List<String> getAllHttpSocketURI() {
-        waitForAllConditions();
         return getHttpPortInternal();
     }
 
+    @Override
     public List<String> getAllTransportPortURI() {
-        waitForAllConditions();
         return getTransportPortInternal();
     }
 
-    synchronized void stop(boolean tailLogs) {
+    @Override
+    public synchronized void stop(boolean tailLogs) {
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
             return;
         }
-        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
+        LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
@@ -421,7 +412,7 @@ public class ElasticsearchNode {
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
         if (processHandle.isAlive() == false) {
-            logger.info("Process was not running when we tried to terminate it.");
+            LOGGER.info("Process was not running when we tried to terminate it.");
             return;
         }
 
@@ -441,19 +432,19 @@ public class ElasticsearchNode {
             if (processHandle.isAlive() == false) {
                 return;
             }
-            logger.info("process did not terminate after {} {}, stopping it forcefully",
+            LOGGER.info("process did not terminate after {} {}, stopping it forcefully",
                 ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
             processHandle.destroyForcibly();
         }
 
         waitForProcessToExit(processHandle);
         if (processHandle.isAlive()) {
-            throw new TestClustersException("Was not able to terminate elasticsearch process");
+            throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
         }
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {
-        logger.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
+        LOGGER.info(prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"), info.command().orElse("-"),
             Arrays.stream(info.arguments().orElse(new String[]{}))
                 .map(each -> "'" + each + "'")
@@ -462,13 +453,13 @@ public class ElasticsearchNode {
     }
 
     private void logFileContents(String description, Path from) {
-        logger.error("{} `{}`", description, this);
+        LOGGER.error("{} `{}`", description, this);
         try(Stream<String> lines = Files.lines(from, StandardCharsets.UTF_8)) {
             lines
                 .map(line -> "  " + line)
-                .forEach(logger::error);
+                .forEach(LOGGER::error);
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new UncheckedIOException("Failed to tail log " + this, e);
         }
     }
 
@@ -476,12 +467,12 @@ public class ElasticsearchNode {
         try {
             processHandle.onExit().get(ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
         } catch (InterruptedException e) {
-            logger.info("Interrupted while waiting for ES process", e);
+            LOGGER.info("Interrupted while waiting for ES process", e);
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
-            logger.info("Failure while waiting for process to exist", e);
+            LOGGER.info("Failure while waiting for process to exist", e);
         } catch (TimeoutException e) {
-            logger.info("Timed out waiting for process to exit", e);
+            LOGGER.info("Timed out waiting for process to exit", e);
         }
     }
 
@@ -538,11 +529,7 @@ public class ElasticsearchNode {
     }
 
     private void createConfiguration()  {
-        LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
-
-        String nodeName = safeName(name);
-        defaultConfig.put("cluster.name",nodeName);
-        defaultConfig.put("node.name", nodeName);
+        defaultConfig.put("node.name", safeName(name));
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
@@ -559,16 +546,24 @@ public class ElasticsearchNode {
         if (Version.fromString(version).getMajor() >= 6) {
             defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
+        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
         if (Version.fromString(version).getMajor() >= 7) {
-            defaultConfig.put("cluster.initial_master_nodes", "[" + nodeName + "]");
+            defaultConfig.put("indices.breaker.total.use_real_memory",  "false");
         }
+        // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+        defaultConfig.put("discovery.initial_state_timeout",  "0s");
+
         checkSuppliers("Settings", settings);
         Map<String, String> userConfig = settings.entrySet().stream()
             .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get().toString()));
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(userConfig.keySet());
         if (overriden.isEmpty() ==false) {
-            throw new IllegalArgumentException("Testclusters does not allow the following settings to be changed:" + overriden);
+            throw new IllegalArgumentException(
+                "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
+            );
         }
 
         try {
@@ -588,19 +583,13 @@ public class ElasticsearchNode {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write config file: " + configFile, e);
         }
-        logger.info("Written config file:{} for {}", configFile, this);
+        LOGGER.info("Written config file:{} for {}", configFile, this);
     }
 
     private void checkFrozen() {
         if (configurationFrozen.get()) {
-            throw new IllegalStateException("Configuration can not be altered, already locked");
+            throw new IllegalStateException("Configuration for " + this +  " can not be altered, already locked");
         }
-    }
-
-    private static String safeName(String name) {
-        return name
-            .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
     }
 
     private List<String> getTransportPortInternal() {
@@ -629,59 +618,17 @@ public class ElasticsearchNode {
         }
     }
 
-    private void waitForAllConditions() {
-        requireNonNull(esProcess, "Can't wait for `" + this + "` as it was stopped.");
-        long startedAt = System.currentTimeMillis();
-        logger.info("Starting to wait for cluster to come up");
-        waitConditions.forEach((description, predicate) -> {
-            long thisConditionStartedAt = System.currentTimeMillis();
-            boolean conditionMet = false;
-            Throwable lastException = null;
-            while (
-                System.currentTimeMillis() - startedAt < MILLISECONDS.convert(NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT)
-            ) {
-                if (esProcess.isAlive() == false) {
-                    throw new TestClustersException(
-                        "process was found dead while waiting for " + description + ", " + this
-                    );
-                }
-                try {
-                    if(predicate.test(this)) {
-                        conditionMet = true;
-                        break;
-                    }
-                } catch (TestClustersException e) {
-                    throw new TestClustersException(e);
-                } catch (Exception e) {
-                    if (lastException == null) {
-                        lastException = e;
-                    } else {
-                        e.addSuppressed(lastException);
-                        lastException = e;
-                    }
-                }
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-            if (conditionMet == false) {
-                String message = "`" + this + "` failed to wait for " + description + " after " +
-                    NODE_UP_TIMEOUT + " " + NODE_UP_TIMEOUT_UNIT;
-                if (lastException == null) {
-                    throw new TestClustersException(message);
-                } else {
-                    throw new TestClustersException(message, lastException);
-                }
-            }
-            logger.info(
-                "{}: {} took {} seconds",
-                this,  description,
-                SECONDS.convert(System.currentTimeMillis() - thisConditionStartedAt, MILLISECONDS)
-            );
-        });
+    @Override
+    public boolean isProcessAlive() {
+        requireNonNull(
+            esProcess,
+            "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?"
+        );
+        return esProcess.isAlive();
+    }
+
+    void waitForAllConditions() {
+        waitForConditions(waitConditions, System.currentTimeMillis(), NODE_UP_TIMEOUT, NODE_UP_TIMEOUT_UNIT, this);
     }
 
     @Override

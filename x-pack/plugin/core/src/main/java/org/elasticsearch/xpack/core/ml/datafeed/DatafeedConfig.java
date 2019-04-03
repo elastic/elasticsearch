@@ -212,6 +212,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         // each of these writables are version aware
         this.queryProvider = QueryProvider.fromStream(in);
+        // This reads a boolean from the stream, if true, it sends the stream to the `fromStream` method
         this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
 
         if (in.readBoolean()) {
@@ -311,7 +312,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      */
     public List<String> getQueryDeprecations(NamedXContentRegistry namedXContentRegistry) {
         List<String> deprecations = new ArrayList<>();
-        parseAggregations(namedXContentRegistry, deprecations);
+        parseQuery(namedXContentRegistry, deprecations);
         return deprecations;
     }
 
@@ -420,6 +421,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         // Each of these writables are version aware
         queryProvider.writeTo(out); // never null
+        // This writes a boolean to the stream, if true, it sends the stream to the `writeTo` method
         out.writeOptionalWriteable(aggProvider);
 
         if (scriptFields != null) {

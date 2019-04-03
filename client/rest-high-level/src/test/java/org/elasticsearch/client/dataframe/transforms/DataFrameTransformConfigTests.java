@@ -30,11 +30,19 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
+import static org.elasticsearch.client.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+
 public class DataFrameTransformConfigTests extends AbstractXContentTestCase<DataFrameTransformConfig> {
+
+    public static DataFrameTransformConfig randomDataFrameTransformConfig() {
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
+                randomDestConfig(), PivotConfigTests.randomPivotConfig());
+    }
+
     @Override
     protected DataFrameTransformConfig createTestInstance() {
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10), QueryConfigTests.randomQueryConfig(), PivotConfigTests.randomPivotConfig());
+        return randomDataFrameTransformConfig();
     }
 
     @Override

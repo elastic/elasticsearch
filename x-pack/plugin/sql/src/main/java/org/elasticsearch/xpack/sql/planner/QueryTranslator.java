@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.MedianAbsoluteDeviationAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MinAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.OrAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
@@ -144,7 +146,8 @@ final class QueryTranslator {
             new CountAggs(),
             new DateTimes(),
             new Firsts(),
-            new Lasts()
+            new Lasts(), 
+            new MADs()
             );
 
     static class QueryTranslation {
@@ -288,7 +291,7 @@ final class QueryTranslator {
                                 if (h.dataType() == DATE) {
                                     intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
                                 }
-                                // TODO: set timezone
+
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {
@@ -467,41 +470,30 @@ final class QueryTranslator {
             af.nodeString());
     }
 
-    // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override
         protected QueryTranslation asQuery(RegexMatch e, boolean onAggs) {
             Query q = null;
-            boolean inexact = true;
-            String target = null;
+            String targetFieldName = null;
 
             if (e.field() instanceof FieldAttribute) {
-                target = nameOf(((FieldAttribute) e.field()).exactAttribute());
+                targetFieldName = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
+                throw new SqlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.functionName(),
                         Expressions.name(e.field()));
             }
 
             if (e instanceof Like) {
                 LikePattern p = ((Like) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), p.asLuceneWildcard(), target);
-                }
-                else {
-                    q = new WildcardQuery(e.source(), nameOf(e.field()), p.asLuceneWildcard());
-                }
+                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
             }
 
             if (e instanceof RLike) {
                 String pattern = ((RLike) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), "/" + pattern + "/", target);
-                }
-                else {
-                    q = new RegexQuery(e.source(), nameOf(e.field()), pattern);
-                }
+                q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 
             return q != null ? new QueryTranslation(wrapIfNested(q, e.field())) : null;
@@ -830,6 +822,13 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Min m) {
             return new MinAgg(id, field(m));
+        }
+    }
+
+    static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
+        @Override
+        protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
+            return new MedianAbsoluteDeviationAgg(id, field(m));
         }
     }
 

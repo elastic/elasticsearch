@@ -137,3 +137,11 @@ setup:
         forecast_id: _all
         allow_no_forecasts: true
   - match: { acknowledged: true }
+
+---
+"Test delete all where no forecast_id is set":
+  - do:
+      ml.delete_forecast:
+        job_id: delete-forecast-job
+        allow_no_forecasts: true
+  - match: { acknowledged: true }

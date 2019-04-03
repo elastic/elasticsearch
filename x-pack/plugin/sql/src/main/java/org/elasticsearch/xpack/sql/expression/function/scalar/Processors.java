@@ -11,7 +11,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor;
@@ -68,7 +70,6 @@ public final class Processors {
         // arithmetic
         entries.add(new Entry(Processor.class, BinaryArithmeticProcessor.NAME, BinaryArithmeticProcessor::new));
         entries.add(new Entry(Processor.class, UnaryArithmeticProcessor.NAME, UnaryArithmeticProcessor::new));
-        entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
         // comparators
         entries.add(new Entry(Processor.class, BinaryComparisonProcessor.NAME, BinaryComparisonProcessor::new));
         entries.add(new Entry(Processor.class, InProcessor.NAME, InProcessor::new));
@@ -78,10 +79,13 @@ public final class Processors {
 
         // datetime
         entries.add(new Entry(Processor.class, DateTimeProcessor.NAME, DateTimeProcessor::new));
+        entries.add(new Entry(Processor.class, TimeProcessor.NAME, TimeProcessor::new));
         entries.add(new Entry(Processor.class, NamedDateTimeProcessor.NAME, NamedDateTimeProcessor::new));
         entries.add(new Entry(Processor.class, NonIsoDateTimeProcessor.NAME, NonIsoDateTimeProcessor::new));
         entries.add(new Entry(Processor.class, QuarterProcessor.NAME, QuarterProcessor::new));
         // math
+        entries.add(new Entry(Processor.class, BinaryMathProcessor.NAME, BinaryMathProcessor::new));
+        entries.add(new Entry(Processor.class, BinaryOptionalMathProcessor.NAME, BinaryOptionalMathProcessor::new));
         entries.add(new Entry(Processor.class, MathProcessor.NAME, MathProcessor::new));
         // string
         entries.add(new Entry(Processor.class, StringProcessor.NAME, StringProcessor::new));

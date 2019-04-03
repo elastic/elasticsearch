@@ -62,7 +62,9 @@ The following settings are supported:
 
 `compress`::
 
-    Whether to compress the metadata or not. (Disabled by default)
+    Whether to compress the metadata or not. (Enabled by default)
+
+include::repository-shared-settings.asciidoc[]
 
 `chunk_size`::
 

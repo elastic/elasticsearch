@@ -68,12 +68,13 @@ class AggProvider implements Writeable, ToXContentObject {
     }
 
     static AggProvider fromStream(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             return new AggProvider(in.readMap(), in.readOptionalWriteable(AggregatorFactories.Builder::new), in.readException());
         } else if (in.getVersion().onOrAfter(Version.V_6_6_0)) { // Has the bug, but supports lazy objects
             return new AggProvider(in.readMap(), null, null);
         } else { // only supports eagerly parsed objects
-            return AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
+            // Upstream, we have read the bool already and know for sure that we have parsed aggs in the stream
+            return AggProvider.fromParsedAggs(new AggregatorFactories.Builder(in));
         }
     }
 
@@ -91,7 +92,7 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.CURRENT)) { // Has our bug fix for query/agg providers
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) { // Has our bug fix for query/agg providers
             out.writeMap(aggs);
             out.writeOptionalWriteable(parsedAggs);
             out.writeException(parsingException);
@@ -111,7 +112,8 @@ class AggProvider implements Writeable, ToXContentObject {
                 // actually are aggregations defined
                 throw new ElasticsearchException("Unsupported operation: parsed aggregations are null");
             }
-            out.writeOptionalWriteable(parsedAggs);
+            // Upstream we already verified that this calling object is not null, no need to write a second boolean to the stream
+            parsedAggs.writeTo(out);
         }
     }
 

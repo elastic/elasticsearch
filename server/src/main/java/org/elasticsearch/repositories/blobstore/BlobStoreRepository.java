@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -104,15 +103,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -445,42 +445,38 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final SnapshotInfo finalSnapshotInfo = snapshot;
             final Collection<IndexId> unreferencedIndices = Sets.newHashSet(repositoryData.getIndices().values());
             unreferencedIndices.removeAll(updatedRepositoryData.getIndices().values());
-            final ActionListener<Void> afterDeleteIndices = unreferencedIndices.isEmpty()
-                ? listener // if we don't have any newly unreferenced indices we move to the next step directly
-                : ActionListener.wrap(
-                    vv -> deleteUnreferencedIndices(unreferencedIndices, listener), listener::onFailure);
-            deleteSnapshotBlobs(snapshot, snapshotId,
-                snapshot == null || snapshot.indices().isEmpty()
-                    ? afterDeleteIndices // if we don't have any indices to delete we move to the next step
-                    : ActionListener.wrap(
-                        v -> deleteIndices(
-                            finalSnapshotInfo.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()),
-                            snapshotId, afterDeleteIndices), listener::onFailure));
+            try {
+                blobContainer().deleteBlobsIgnoringIfNotExists(
+                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
+            }
+            deleteIndices(
+                Optional.ofNullable(finalSnapshotInfo)
+                    .map(info -> info.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()))
+                    .orElse(Collections.emptyList()),
+                snapshotId,
+                ActionListener.wrap(v -> {
+                    try {
+                        blobStore().blobContainer(basePath().add("indices")).deleteBlobsIgnoringIfNotExists(
+                            unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
+                    } catch (IOException e) {
+                        // a different Exception occurred while trying to delete - will just log the issue for now
+                        logger.warn(() ->
+                            new ParameterizedMessage(
+                                "[{}] indices {} are no longer part of any snapshots in the repository, " +
+                                    "but failed to clean up their index folders.", metadata.name(), unreferencedIndices), e);
+                    }
+                    listener.onResponse(null);
+                }, listener::onFailure)
+            );
         }
     }
 
-    private void deleteSnapshotBlobs(@Nullable SnapshotInfo snapshot, SnapshotId snapshotId, ActionListener<Void> listener) {
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        final ActionListener<Void> deleteListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), 2);
-        executor.execute(new ActionRunnable<Void>(listener) {
-            @Override
-            protected void doRun() {
-                // delete the snapshot file
-                deleteSnapshotBlobIgnoringErrors(snapshot, snapshotId.getUUID());
-                deleteListener.onResponse(null);
-            }
-        });
-        executor.execute(new ActionRunnable<Void>(listener) {
-            @Override
-            protected void doRun() {
-                // delete the global metadata file
-                deleteGlobalMetaDataBlobIgnoringErrors(snapshot, snapshotId.getUUID());
-                deleteListener.onResponse(null);
-            }
-        });
-    }
-
     private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {
+        if (indices.isEmpty()) {
+            listener.onResponse(null);
+        }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
         for (IndexId indexId: indices) {
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
@@ -510,59 +506,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     groupedListener.onResponse(null);
                 }
             });
-        }
-    }
-
-    // cleanup indices that are no longer part of the repository
-    private void deleteUnreferencedIndices(Collection<IndexId> indicesToCleanUp, ActionListener<Void> listener) {
-        final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-        final ActionListener<Void> groupedListener =
-            new GroupedActionListener<>(ActionListener.map(listener, v -> null), indicesToCleanUp.size());
-        for (final IndexId indexId : indicesToCleanUp) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                try {
-                    indicesBlobContainer.deleteBlobIgnoringIfNotExists(indexId.getId());
-                } catch (DirectoryNotEmptyException dnee) {
-                    // if the directory isn't empty for some reason, it will fail to clean up;
-                    // we'll ignore that and accept that cleanup didn't fully succeed.
-                    // since we are using UUIDs for path names, this won't be an issue for
-                    // snapshotting indices of the same name
-                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
-                        "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
-                } catch (Exception e) {
-                    // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
-                        "but failed to clean up its index folder.", metadata.name(), indexId), e);
-                } finally {
-                    groupedListener.onResponse(null);
-                }
-            });
-        }
-    }
-
-    private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
-        try {
-            snapshotFormat.delete(blobContainer(), blobId);
-        } catch (IOException e) {
-            if (snapshotInfo != null) {
-                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]",
-                    snapshotInfo.snapshotId(), blobId), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("Unable to delete snapshot file [{}]", blobId), e);
-            }
-        }
-    }
-
-    private void deleteGlobalMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
-        try {
-            globalMetaDataFormat.delete(blobContainer(), blobId);
-        } catch (IOException e) {
-            if (snapshotInfo != null) {
-                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]",
-                    snapshotInfo.snapshotId(), blobId), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("Unable to delete global metadata file [{}]", blobId), e);
-            }
         }
     }
 

@@ -149,9 +149,6 @@ setup:
   - is_false: fields.geo.keyword.on_aggregatable_indices
 ---
 "Get date_nanos field caps":
-  - skip:
-      version: " - 6.99.99"
-      reason: date_nanos field mapping type has been introcued in 7.0
 
   - do:
         indices.create:
@@ -204,9 +201,7 @@ setup:
   - is_false: fields.object\.nested2.keyword.non_searchable_indices
 ---
 "Get object and nested field caps":
-  - skip:
-      version: " - 6.99.99"
-      reason: object and nested fields are returned since 7.0
+
 
   - do:
       field_caps:

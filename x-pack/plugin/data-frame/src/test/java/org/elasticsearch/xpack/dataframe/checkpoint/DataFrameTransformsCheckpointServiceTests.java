@@ -82,7 +82,6 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40368")
     public void testExtractIndexCheckpointsInconsistentGlobalCheckpoints() {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();
         Set<String> indices = randomUserIndices();
@@ -161,7 +160,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
                 long globalCheckpoint = randomBoolean() ? localCheckpoint : randomLongBetween(0L, 100000000L);
                 long maxSeqNo = Math.max(localCheckpoint, globalCheckpoint);
 
-                SeqNoStats seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
+                final SeqNoStats validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
                 checkpoints.add(globalCheckpoint);
 
                 for (int replica = 0;  replica < numShardCopies; replica++) {
@@ -194,10 +193,16 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
                     if (inconsistentReplica == replica) {
                         // overwrite
-                        seqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                        SeqNoStats invalidSeqNoStats =
+                            new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint + randomLongBetween(10L, 100L));
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, invalidSeqNoStats, null));
+                    } else {
+                        shardStats.add(
+                            new ShardStats(shardRouting,
+                                new ShardPath(false, path, path, shardId), stats, null, validSeqNoStats, null));
                     }
-
-                    shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, seqNoStats, null));
                 }
             }
 

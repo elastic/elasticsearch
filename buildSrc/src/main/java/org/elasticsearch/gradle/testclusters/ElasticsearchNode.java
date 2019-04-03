@@ -314,7 +314,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        if (distribution.equals(Distribution.INTEG_TEST)) {
+        if (distribution == Distribution.INTEG_TEST) {
             modules.forEach(module -> {
                 services.copy(spec -> {
                     if (module.getName().toLowerCase().endsWith(".zip")) {

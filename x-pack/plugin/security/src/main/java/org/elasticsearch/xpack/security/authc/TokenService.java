@@ -274,13 +274,7 @@ public final class TokenService {
                 authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
             final UserToken userToken = new UserToken(userTokenId, version, tokenAuth, getExpirationTime(), metadata);
             final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
-            final String versionedRefreshToken = includeRefreshToken ? prependVersionAndEncode(version, plainRefreshToken) : null;
-            final BytesReference tokenDocument;
-            if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
-            } else {
-                tokenDocument = createTokenDocument(userToken, versionedRefreshToken, originatingClientAuth);
-            }
+            final BytesReference tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(userToken);
             final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(version);
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
@@ -292,7 +286,14 @@ public final class TokenService {
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
                                 if (indexResponse.getResult() == Result.CREATED) {
-                                    listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
+                                    if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+                                        final String versionedRefreshToken = plainRefreshToken != null
+                                                ? prependVersionAndEncode(version, plainRefreshToken)
+                                                : null;
+                                        listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
+                                    } else {
+                                        listener.onResponse(new Tuple<>(userToken, plainRefreshToken));
+                                    }
                                 } else {
                                     listener.onFailure(traceLog("create token",
                                             new ElasticsearchException("failed to create token document [{}]", indexResponse)));

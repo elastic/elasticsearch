@@ -466,8 +466,8 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
-            unmodifiableMap(analyzers), unmodifiableMap(normalizers), unmodifiableMap(whitespaceNormalizers));
+        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer, analyzers, normalizers,
+                whitespaceNormalizers);
     }
 
     private void processAnalyzerFactory(IndexSettings indexSettings,

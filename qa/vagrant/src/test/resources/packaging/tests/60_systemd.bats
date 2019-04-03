@@ -106,7 +106,7 @@ setup() {
 
     # Verifies that no new entries in journald have been added
     # since the last start
-    result="$(journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since" --output cat | wc -l)"
+    result="$(journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since" --output cat | grep -v "future versions of Elasticsearch will require Java 11" | wc -l)"
     [ "$result" -eq "0" ] || {
             echo "Expected no entries in journalctl for the Elasticsearch service but found:"
             journalctl _SYSTEMD_UNIT=elasticsearch.service --since "$since"

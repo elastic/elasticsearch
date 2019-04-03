@@ -24,7 +24,7 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.PainlessExecuteAction.PainlessTestScript;
+import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessCast;

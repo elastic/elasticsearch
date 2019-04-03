@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.PainlessExecuteAction.PainlessTestScript;
+import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 import static org.hamcrest.Matchers.hasSize;
 

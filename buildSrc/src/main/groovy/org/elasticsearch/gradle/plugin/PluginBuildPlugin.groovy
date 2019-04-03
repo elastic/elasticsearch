@@ -93,7 +93,7 @@ public class PluginBuildPlugin extends BuildPlugin {
             }
 
             if (project.plugins.hasPlugin(TestClustersPlugin.class)) {
-                project.tasks.pluginProperties.extension.extendedPlugins.each { pluginName ->
+                project.tasks.pluginProperties.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                     // Auto add dependent modules to the test cluster
                     if (project.findProject(":modules:${pluginName}") != null) {
                         project.testClusters.integTest.module(

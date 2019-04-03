@@ -1,11 +1,19 @@
 [[query-dsl-nested-query]]
 === Nested Query
 
-A `nested` query allows you to query objects of the <<nested,nested datatype>> type, executing against each field in an array. You can query each field independently while maintaining the relationship between fields in a record, for example, a user's first name, last name, and address.
+A `nested` query allows you to query objects of the <<nested,nested datatype>>
+type, executing against each field in an array. You can query each field
+independently while maintaining the relationship between fields in a record,
+for example, a user's first name, last name, and address.
 
-As an example, let's use the same mapping from <<nested,nested datatype>>. This `nested` query will correctly select only the arrays that contain both the first name Alice and the last name White. Because the objects are mapped as nested, if you queried for user.first Alice and user.last Smith, this query would return no results.
+As an example, let's use the same mapping from <<nested,nested datatype>>.
+This `nested` query will correctly select only the arrays that contain both
+the first name Alice and the last name White. Because the objects are mapped
+as nested, if you queried for user.first Alice and user.last Smith, this query
+would return no results.
 
-Enter the mappings, add the data you wish to query, then query the data with a `nested` query:
+Enter the mappings, add the data you wish to query, then query the data with a
+`nested` query:
 
 
 [source,js]
@@ -115,10 +123,14 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Adding the option `score_mode` allows you to set how inner children matching affects scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
+Adding the option `score_mode` allows you to set how inner children matching
+affects scoring of parent. It defaults to `avg`, but can be `sum`, `min`,
 `max` and `none`.
 
-The `ignore_unmapped` option set to `true` will ignore an unmapped `path` and will not match any documents for this query. This can be useful when querying multiple indexes which might have different mappings. Set to `false` (the default value) the query will throw an exception if the `path` is not mapped.
+The `ignore_unmapped` option set to `true` will ignore an unmapped `path` and
+will not match any documents for this query. This can be useful when querying
+multiple indexes which might have different mappings. Set to `false` (the
+default value) the query will throw an exception if the `path` is not mapped.
 
 ==== Multi-level nesting
 
@@ -126,7 +138,8 @@ Multi-level nesting is automatically supported and detected, resulting
 in an inner nested query that automatically matches the relevant nesting
 level (and not root) if it exists within another nested query.
 
-To set up a multi-level nested query, use this example. Notice that each level within the nest is separated by a dot (name.state.city).
+To set up a multi-level nested query, use this example. Notice that each level
+within the nest is separated by a dot (person.car.make).
 
 [source,js]
 --------------------------------------------------
@@ -148,18 +161,18 @@ PUT my_index
                             "type": "nested",
                             "properties": {
                                 "model": {
-                                    "type": "string"
+                                    "type": "keyword"
                                 },
                                 "make": {
-                                    "type": "string"
+                                    "type": "keyword"
                                 }
                             }
                         },
                         "last_name": {
-                            "type": "string"
+                            "type": "keyword"
                         },
                         "first_name": {
-                            "type": "string"
+                            "type": "keyword"
                         }
                     }
                 }
@@ -188,6 +201,7 @@ PUT my_index/_doc/1
     "lastUpdated": 1433257051959
 }
 
+PUT customers/_doc/2
 {
     "person": {
         "first_name": "Bob",
@@ -212,19 +226,19 @@ GET my_index/_search
 {
   "query": {
     "nested": {
-      "path": "user",
+      "path": "person",
       "query": {
         "bool": {
           "must": [
-            { "match": { "user.first": "Alice" }},
-            { "match": { "user.last":  "White" }}
+            { "match": { "person.first_name": "Zach" }},
+            { "match": { "person.last_name":  "Foobar" }}
           ]
         }
       },
       "inner_hits": {
         "highlight": {
           "fields": {
-            "user.first": {}
+            "person.first_name": {}
           }
         }
       }

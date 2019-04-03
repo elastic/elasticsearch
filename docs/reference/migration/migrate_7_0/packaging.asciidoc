@@ -16,3 +16,9 @@ in `/etc/systemd/system/elasticsearch.service.d/override.conf`.
 
 The tar package previously included files in the `bin` directory meant only
 for windows. These files have been removed. Use the `zip` package instead.
+
+[float]
+==== Ubuntu 14.04 is no longer supported
+
+Ubuntu 14.04 will reach end-of-life on April 30, 2019. As such, we are no longer
+supporting Ubuntu 14.04.

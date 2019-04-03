@@ -81,8 +81,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
-    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
     private final Map<String, File> extraConfigFiles = new HashMap<>();
+    final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
     private final Path configFile;

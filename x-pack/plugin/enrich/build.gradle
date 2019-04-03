@@ -1,0 +1,25 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'x-pack-enrich'
+    description 'Elasticsearch Expanded Pack Plugin - Enrich'
+    classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-enrich'
+
+dependencies {
+    compileOnly "org.elasticsearch:elasticsearch:${version}"
+
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+run {
+    plugin xpackModule('core')
+}
+
+// No tests yet:
+integTest.enabled = false
+unitTest.enabled = false

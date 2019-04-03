@@ -27,6 +27,7 @@ public class JavaVersion {
 
     public static final List<Integer> CURRENT = parse(System.getProperty("java.specification.version"));
     public static final List<Integer> JAVA_8 = parse("1.8");
+    public static final List<Integer> JAVA_11 = parse("11");
 
     static List<Integer> parse(final String value) {
         if (!value.matches("^0*[0-9]+(\\.[0-9]+)*$")) {
@@ -65,6 +66,5 @@ public class JavaVersion {
         }
         return 0;
     }
-
 
 }

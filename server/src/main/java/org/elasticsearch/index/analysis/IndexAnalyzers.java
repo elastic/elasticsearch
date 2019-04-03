@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * IndexAnalyzers contains a name to analyzer mapping for a specific index.
  * This class only holds analyzers that are explicitly configured for an index and doesn't allow
@@ -41,7 +43,6 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     private final Map<String, NamedAnalyzer> analyzers;
     private final Map<String, NamedAnalyzer> normalizers;
     private final Map<String, NamedAnalyzer> whitespaceNormalizers;
-    private final IndexSettings indexSettings;
 
     public IndexAnalyzers(IndexSettings indexSettings, NamedAnalyzer defaultIndexAnalyzer, NamedAnalyzer defaultSearchAnalyzer,
                           NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers,
@@ -53,10 +54,9 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         this.defaultIndexAnalyzer = defaultIndexAnalyzer;
         this.defaultSearchAnalyzer = defaultSearchAnalyzer;
         this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
-        this.analyzers = analyzers;
-        this.normalizers = normalizers;
-        this.whitespaceNormalizers = whitespaceNormalizers;
-        this.indexSettings = indexSettings;
+        this.analyzers = unmodifiableMap(analyzers);
+        this.normalizers = unmodifiableMap(normalizers);
+        this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
     }
 
     /**
@@ -107,12 +107,4 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
            .filter(a -> a.scope() == AnalyzerScope.INDEX)
            .iterator());
     }
-
-    /**
-     * Returns the indices settings
-     */
-    public IndexSettings getIndexSettings() {
-        return indexSettings;
-    }
-
 }

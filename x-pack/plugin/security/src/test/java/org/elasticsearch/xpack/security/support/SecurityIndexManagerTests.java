@@ -325,12 +325,13 @@ public class SecurityIndexManagerTests extends ESTestCase {
         return createClusterState(indexName, aliasName, templateName, templateName, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT);
     }
 
-    public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, int format) throws IOException {
+    public static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, int format)
+            throws IOException {
         return createClusterState(indexName, aliasName, templateName, templateName, format);
     }
 
-    private static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, String buildMappingFrom, int format)
-            throws IOException {
+    private static ClusterState.Builder createClusterState(String indexName, String aliasName, String templateName, String buildMappingFrom,
+            int format) throws IOException {
         IndexTemplateMetaData.Builder templateBuilder = getIndexTemplateMetaData(templateName);
         IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, aliasName, buildMappingFrom, format);
 
@@ -353,7 +354,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 .build();
     }
 
-    private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format) throws IOException {
+    private static IndexMetaData.Builder getIndexMetadata(String indexName, String aliasName, String templateName, int format)
+            throws IOException {
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
         indexMetaData.settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

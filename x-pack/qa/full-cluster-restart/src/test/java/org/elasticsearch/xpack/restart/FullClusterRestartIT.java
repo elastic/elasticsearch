@@ -23,7 +23,6 @@ import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;

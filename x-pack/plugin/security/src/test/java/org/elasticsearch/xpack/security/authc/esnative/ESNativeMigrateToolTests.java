@@ -16,7 +16,6 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;

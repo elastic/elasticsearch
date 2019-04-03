@@ -741,8 +741,8 @@ public final class TokenService {
 
     /**
      * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the listener with the
-     * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy. This method
-     * requires the tokens index where the token document, pointed to by the refresh token, resides.
+     * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy. This
+     * method requires the tokens index where the token document, pointed to by the refresh token, resides.
      */
     private void findTokenFromRefreshToken(String refreshToken, SecurityIndexManager tokensIndexManager, Iterator<TimeValue> backoff,
                                            ActionListener<SearchHit> listener) {
@@ -890,7 +890,8 @@ public final class TokenService {
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
             final SecurityIndexManager refreshedTokenIndex = getSecurityIndexManagerForVersion(refreshTokenStatus.getVersion());
-            final UpdateRequestBuilder updateRequest = client.prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
+            final UpdateRequestBuilder updateRequest = client
+                    .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
                     .setFetchSource(true)
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)

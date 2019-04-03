@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -596,7 +595,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
         assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
-        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(), is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
+                is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
     }
 
     public void testOperationsOnReservedUsers() throws Exception {

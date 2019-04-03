@@ -386,7 +386,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test91ElasticsearchShardCliPackaging() throws Exception {
+    public void test100RepairIndexCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();

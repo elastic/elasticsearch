@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 

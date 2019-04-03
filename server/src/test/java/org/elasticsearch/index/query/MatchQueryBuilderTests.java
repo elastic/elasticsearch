@@ -40,6 +40,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.MatchQuery;
@@ -298,6 +299,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.toQuery(context); // no exception
         query.analyzer(null);
         query.toQuery(context); // no exception
+    }
+
+    public void testFuzziness() throws Exception {
+        MatchQueryBuilder query = new MatchQueryBuilder(STRING_FIELD_NAME, "this is a testt");
+        query.fuzziness(Fuzziness.TWO);
+        QueryShardContext context = createShardContext();
+        Query q = query.toQuery(context);
+        System.out.println(q);
     }
 
     public void testExactOnUnsupportedField() throws Exception {

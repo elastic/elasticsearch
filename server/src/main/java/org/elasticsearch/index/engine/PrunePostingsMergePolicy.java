@@ -66,8 +66,6 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                 return wrapReader(wrapped);
             }
         });
-        assert in instanceof SoftDeletesRetentionMergePolicy == false :
-            "wrapped merge policy should not be a SoftDeletesRetentionMergePolicy";
     }
 
     private static int skipDeletedDocs(DocIdSetIterator iterator, Bits liveDocs) throws IOException {

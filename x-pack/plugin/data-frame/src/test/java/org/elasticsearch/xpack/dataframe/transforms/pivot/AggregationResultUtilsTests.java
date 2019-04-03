@@ -501,7 +501,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           "value", 122.55),
                                   DOC_COUNT, 44)
                     ));
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
 
         Map<String, String> fieldTypeMap = asStringMap(
                 aggName, "double",
@@ -534,7 +534,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     private void executeTest(GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders, Map<String, Object> input,
             Map<String, String> fieldTypeMap, List<Map<String, Object>> expected, long expectedDocCounts) throws IOException {
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 

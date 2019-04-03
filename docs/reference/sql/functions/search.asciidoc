@@ -61,11 +61,11 @@ case of an `or` operator or all of the low frequency terms in the case of an `an
 <<query-dsl-match-query-cutoff>> page.
 
 NOTE: The allowed optional parameters for a single-field `MATCH()` variant (for the `match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
-`cutoff_frequency`, `lenient`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
+`cutoff_frequency`, `lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`.
 
 NOTE: The allowed optional parameters for a multi-field `MATCH()` variant (for the `multi_match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
-`cutoff_frequency`, `lenient`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
+`cutoff_frequency`, `lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`, `slop`, `tie_breaker`, `type`.
 
 
@@ -115,9 +115,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParameterQuery]
 
 NOTE: The allowed optional parameters for `QUERY()` are: `allow_leading_wildcard`, `analyze_wildcard`, `analyzer`,
 `auto_generate_synonyms_phrase_query`, `default_field`, `default_operator`, `enable_position_increments`,
-`escape`, `fuzzy_max_expansions`, `fuzzy_prefix_length`, `fuzzy_rewrite`, `fuzzy_transpositions`, `lenient`,
-`locale`, `lowercase_expanded_terms`, `max_determinized_states`, `minimum_should_match`, `phrase_slop`, `rewrite`,
-`quote_analyzer`, `quote_field_suffix`, `tie_breaker`, `time_zone`, `type`.
+`escape`, `fuzziness`, `fuzzy_max_expansions`, `fuzzy_prefix_length`, `fuzzy_rewrite`, `fuzzy_transpositions`,
+`lenient`, `max_determinized_states`, `minimum_should_match`, `phrase_slop`, `rewrite`, `quote_analyzer`,
+`quote_field_suffix`, `tie_breaker`, `time_zone`, `type`.
 
 
 [[sql-functions-search-score]]

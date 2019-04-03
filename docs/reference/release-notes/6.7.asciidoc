@@ -80,6 +80,13 @@ the new `build_type` value. For example, it cannot read main responses on `/`
 from a cluster that's running 6.7.0. Upgrade your client to 6.7.0 or later.
 (issue: {issue}/40511[#40511])
 
+Features/ILM::
+If an index is configured with an `index.lifecycle.name` that refers to a policy
+that does not exist, when <<start-stop-ilm, {ilm} is stopped>>, {ilm}'s status
+will remain as `STOPPING` until all policies that do not exist are removed from
+any indices by using the <<ilm-remove-policy,Remove Policy API>>.
+(issue: {issue}/40824[#40824])
+
 [[breaking-6.7.0]]
 [float]
 === Breaking changes

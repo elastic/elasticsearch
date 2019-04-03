@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.painless;
+package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.painless.PainlessExecuteAction.Request;
-import org.elasticsearch.painless.PainlessExecuteAction.Response;
+import org.elasticsearch.painless.PainlessPlugin;
+import org.elasticsearch.painless.action.PainlessExecuteAction.Request;
+import org.elasticsearch.painless.action.PainlessExecuteAction.Response;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -39,7 +40,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.painless.PainlessExecuteAction.TransportAction.innerShardOperation;
+import static org.elasticsearch.painless.action.PainlessExecuteAction.TransportAction.innerShardOperation;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PainlessExecuteApiTests extends ESSingleNodeTestCase {

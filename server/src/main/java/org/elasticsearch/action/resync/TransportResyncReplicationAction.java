@@ -66,16 +66,16 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Override
     protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<ResyncReplicationRequest> request,
                                            Supplier<ResyncReplicationRequest> replicaRequest, String executor) {
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
         // we should never reject resync because of thread pool capacity on primary
         transportService.registerRequestHandler(transportPrimaryAction,
             () -> new ConcreteShardRequest<>(request),
             executor, true, true,
-            new PrimaryOperationTransportHandler());
+            this::handlePrimaryRequest);
         transportService.registerRequestHandler(transportReplicaAction,
             () -> new ConcreteReplicaRequest<>(replicaRequest),
             executor, true, true,
-            new ReplicaOperationTransportHandler());
+            this::handleReplicaRequest);
     }
 
     @Override

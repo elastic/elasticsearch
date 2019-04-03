@@ -350,8 +350,15 @@ public class IndexNameExpressionResolver {
         return indexAliases(state, index, AliasMetaData::filteringRequired, false, resolvedExpressions);
     }
 
+    /**
+     * Whether to generate the candidate set from index aliases, or from the set of resolved expressions.
+     * @param indexAliasesSize        the number of aliases of the index
+     * @param resolvedExpressionsSize the number of resolved expressions
+     */
     // pkg-private for testing
-    Boolean forceIterateIndexAliases;
+    boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
+        return indexAliasesSize <= resolvedExpressionsSize;
+    }
 
     /**
      * Iterates through the list of indices and selects the effective list of required aliases for the given index.
@@ -376,17 +383,8 @@ public class IndexNameExpressionResolver {
         }
 
         final ImmutableOpenMap<String, AliasMetaData> indexAliases = indexMetaData.getAliases();
-        final boolean iterateIndexAliases;
-        if (forceIterateIndexAliases != null) {
-            iterateIndexAliases = forceIterateIndexAliases;
-        } else {
-            // We need the intersection of indexAliases and resolvedExpressions, so we
-            // iterate the smaller set and filter based on the other set.
-            iterateIndexAliases = indexAliases.size() <= resolvedExpressions.size();
-        }
-
         final AliasMetaData[] aliasCandidates;
-        if (iterateIndexAliases) {
+        if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
             // faster to iterate indexAliases
             aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
                     .map(cursor -> cursor.value)

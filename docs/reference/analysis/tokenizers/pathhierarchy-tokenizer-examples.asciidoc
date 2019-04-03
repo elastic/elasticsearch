@@ -7,10 +7,10 @@ file paths. If indexing a file path along with the data, the use of the
 by different parts of the file path string.
 
 
-This example configures an index to have two customer analyzers and applies
-those analyzers to subfields of a text field called `file_path` that will 
+This example configures an index to have two custom analyzers and applies
+those analyzers to multifields of the `file_path` text field that will 
 store filenames. One of the two analyzers uses reverse tokenization.
-Some sample documents are then indexed in to represent some file paths
+Some sample documents are then indexed to represent some file paths
 for photos inside photo folders of two different users.
 
 

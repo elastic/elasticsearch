@@ -476,6 +476,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {
         if (indices.isEmpty()) {
             listener.onResponse(null);
+            return;
         }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
         for (IndexId indexId: indices) {

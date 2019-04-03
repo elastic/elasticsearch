@@ -73,7 +73,7 @@ Java High Level REST Client::
 If you have a 6.6 or earlier client, however, it cannot understand this new
 value when it's returned by the
 {java-rest}/java-rest-high-main.html[info API]. This problem blocks client
-upgrades from 6.6 to 6.7.0. (issue: {issue}/40511[#40511])
+upgrades from 6.6 to 6.7.0. Upgrade to 6.7.1 instead. (issue: {issue}/40511[#40511])
 
 [[breaking-6.7.0]]
 [float]

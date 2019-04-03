@@ -214,7 +214,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return DataFrameIndexerTransformStats.PARSER.apply(parser, null);
+            return DataFrameIndexerTransformStats.fromXContent(parser);
         }
     }
 }

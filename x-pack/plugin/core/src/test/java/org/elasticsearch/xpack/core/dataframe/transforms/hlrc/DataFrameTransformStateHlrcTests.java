@@ -4,10 +4,13 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms;
+package org.elasticsearch.xpack.core.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
@@ -15,6 +18,12 @@ import java.util.function.Predicate;
 
 public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCase<DataFrameTransformState,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformState> {
+
+    public static DataFrameTransformState fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformState instance) {
+        return new DataFrameTransformState(DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
+                IndexerState.fromString(instance.getIndexerState().value()), instance.getPosition(), instance.getGeneration(),
+                instance.getReason());
+    }
 
     @Override
     public org.elasticsearch.client.dataframe.transforms.DataFrameTransformState doHlrcParseInstance(XContentParser parser)
@@ -24,9 +33,7 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
 
     @Override
     public DataFrameTransformState convertHlrcToInternal(org.elasticsearch.client.dataframe.transforms.DataFrameTransformState instance) {
-        return new DataFrameTransformState(DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
-                IndexerState.fromString(instance.getIndexerState().value()),
-                instance.getPosition(), instance.getGeneration(), instance.getReason());
+        return fromHlrc(instance);
     }
 
     @Override

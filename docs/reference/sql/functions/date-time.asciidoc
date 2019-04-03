@@ -187,6 +187,10 @@ relative date/time filtering:
 include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 --------------------------------------------------
 
+[IMPORTANT]
+Currently, Using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`
 

@@ -319,7 +319,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (module.getName().toLowerCase().endsWith(".zip")) {
                     spec.from(services.zipTree(module));
                 } else if (module.isDirectory()) {
-                    spec.from(services.fileTree(module));
+                    spec.from(module);
                 } else {
                     throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
                 }

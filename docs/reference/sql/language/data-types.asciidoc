@@ -29,7 +29,7 @@ s|SQL precision
 | <<keyword, `keyword`>>      | varchar     | based on <<ignore-above>>
 | <<text, `text`>>            | varchar     | 2,147,483,647
 | <<binary, `binary`>>        | varbinary   | 2,147,483,647
-| <<date, `date`>>            | timestamp   | 24
+| <<date, `date`>>            | timestamp   | 29
 | <<ip, `ip`>>                | varchar     | 39
                                 
 3+h| Complex types              

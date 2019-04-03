@@ -195,62 +195,62 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             mv(relocatedJdk, installation.bundledJdk);
         }
     }
-
-    public void test53JavaHomeWithSpecialCharacters() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
-        Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
-            try {
-                // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
-
-                sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
-
-                //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
-
-                Archives.stopElasticsearch(installation);
-
-                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
-                Result result = sh.run(pluginListCommand);
-                assertThat(result.exitCode, equalTo(0));
-
-            } finally {
-                //clean up sym link
-                sh.run("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
-            }
-        });
-
-        Platforms.onLinux(() -> {
-            final Shell sh = new Shell();
-            // Create temporary directory with a space and link to java binary.
-            // Use it as java_home
-            String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
-            String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
-            try {
-                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-                final String java = systemJavaHome + "/bin/java";
-
-                sh.run("mkdir -p \"" + test_java_home + "/bin\"");
-                sh.run("ln -s \"" + java + "\" \"" + test_java_home + "/bin/java\"");
-                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + test_java_home + "\"");
-
-                sh.getEnv().put("JAVA_HOME", test_java_home);
-
-                //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
-
-                Archives.stopElasticsearch(installation);
-
-                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
-                Result result = sh.run(pluginListCommand);
-                assertThat(result.exitCode, equalTo(0));
-            } finally {
-                FileUtils.rm(Paths.get("\"" + test_java_home + "\""));
-            }
-        });
-    }
+//@AwaitsFix(bugurl="https://github.com/elastic/elasticsearch/issues/40797")
+//    public void test53JavaHomeWithSpecialCharacters() throws Exception {
+//        assumeThat(installation, is(notNullValue()));
+//
+//        Platforms.onWindows(() -> {
+//            final Shell sh = new Shell();
+//            try {
+//                // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
+//                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
+//
+//                sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
+//
+//                //verify ES can start, stop and run plugin list
+//                Archives.runElasticsearch(installation, sh);
+//
+//                Archives.stopElasticsearch(installation);
+//
+//                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+//                Result result = sh.run(pluginListCommand);
+//                assertThat(result.exitCode, equalTo(0));
+//
+//            } finally {
+//                //clean up sym link
+//                sh.run("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
+//            }
+//        });
+//
+//        Platforms.onLinux(() -> {
+//            final Shell sh = new Shell();
+//            // Create temporary directory with a space and link to java binary.
+//            // Use it as java_home
+//            String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
+//            String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
+//            try {
+//                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+//                final String java = systemJavaHome + "/bin/java";
+//
+//                sh.run("mkdir -p \"" + test_java_home + "/bin\"");
+//                sh.run("ln -s \"" + java + "\" \"" + test_java_home + "/bin/java\"");
+//                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + test_java_home + "\"");
+//
+//                sh.getEnv().put("JAVA_HOME", test_java_home);
+//
+//                //verify ES can start, stop and run plugin list
+//                Archives.runElasticsearch(installation, sh);
+//
+//                Archives.stopElasticsearch(installation);
+//
+//                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+//                Result result = sh.run(pluginListCommand);
+//                assertThat(result.exitCode, equalTo(0));
+//            } finally {
+//                FileUtils.rm(Paths.get("\"" + test_java_home + "\""));
+//            }
+//        });
+//    }
 
     public void test60AutoCreateKeystore() throws Exception {
         assumeThat(installation, is(notNullValue()));

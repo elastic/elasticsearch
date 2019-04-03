@@ -2435,6 +2435,16 @@ SELECT CURRENT_TIME() AS result;
 // end::currentTimeFunction
 ;
 
+curTimeFunction-Ignore
+// tag::curTimeFunction
+SELECT CURTIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::curTimeFunction
+;
+
 currentTimeFunctionPrecision-Ignore
 // tag::currentTimeFunctionPrecision
 SELECT CURRENT_TIME(1) AS result;

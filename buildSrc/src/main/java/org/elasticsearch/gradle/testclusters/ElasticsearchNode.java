@@ -29,7 +29,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 
 import java.io.UncheckedIOException;
@@ -468,34 +467,28 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
             for (String line = reader.readLine(); line != null ; line = reader.readLine()) {
                 final String lineToAdd;
-                if (line.startsWith("[")) {
-                    // check to see if the previous message (possibly combined from multiple lines) was an error or
-                    // warning as we want to show all of them
-                    if (ring.isEmpty() == false) {
-                        String previousMessage = normalizeLogLine(ring.getLast());
-                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(match -> previousMessage.contains(match))) {
-                            ring.removeLast();
-                        } else {
-                            if (previousMessage.contains("ERROR") || previousMessage.contains("WARN")) {
-                                errorsAndWarnings.put(
-                                    previousMessage,
-                                    errorsAndWarnings.getOrDefault(previousMessage, 0) + 1
-                                );
-                            }
-                        }
-                    }
+                if (ring.isEmpty()) {
                     lineToAdd = line;
                 } else {
-                    // We combine multi line log messages to make sure we never break exceptions apart
-                    if (ring.isEmpty()) {
+                    if (line.startsWith("[")) {
                         lineToAdd = line;
+
+                        // check to see if the previous message (possibly combined from multiple lines) was an error or
+                        // warning as we want to show all of them
+                        String previousMessage = normalizeLogLine(ring.getLast());
+                        if (MESSAGES_WE_DONT_CARE_ABOUT.stream().noneMatch(previousMessage::contains) &&
+                            (previousMessage.contains("ERROR") || previousMessage.contains("WARN"))) {
+                            errorsAndWarnings.put(
+                                previousMessage,
+                                errorsAndWarnings.getOrDefault(previousMessage, 0) + 1
+                            );
+                        }
                     } else {
+                        // We combine multi line log messages to make sure we never break exceptions apart
                         lineToAdd = ring.removeLast() + "\n" + line;
                     }
                 }
-                if (MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(match -> lineToAdd.contains(match)) == false) {
-                    ring.add(lineToAdd);
-                }
+                ring.add(lineToAdd);
                 if (ring.size() >= TAIL_LOG_MESSAGES_COUNT) {
                     ring.removeFirst();
                 }
@@ -516,6 +509,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             });
         }
+
+        ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
+
         if (ring.isEmpty() == false) {
             LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
             ring.forEach(message -> {

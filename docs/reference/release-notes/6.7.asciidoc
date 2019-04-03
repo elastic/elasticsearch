@@ -73,10 +73,11 @@ which caused two problems:
 
 * If you perform a rolling upgrade to 6.7.0 on nodes that are running the
 official Docker container, they cannot rejoin the cluster. Upgrade to 6.7.1
-instead or perform a <<restart-upgrade,full cluster restart upgrade>>. (issue: {issue}/40784[#40784])
+instead or perform a <<restart-upgrade,full cluster restart upgrade>>.
+(issue: {issue}/40784[#40784])
 * If you have a 6.6 or earlier Java High Level REST client, it cannot understand
 the new `build_type` value. For example, it cannot read main responses on `/`
-from a cluster that's running 6.7.0. Upgrade your cluster to 6.7.1 instead.
+from a cluster that's running 6.7.0. Upgrade your client to 6.7.0 or later.
 (issue: {issue}/40511[#40511])
 
 [[breaking-6.7.0]]

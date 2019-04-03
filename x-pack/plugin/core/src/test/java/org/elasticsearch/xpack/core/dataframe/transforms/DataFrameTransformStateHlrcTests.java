@@ -26,7 +26,7 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
     public DataFrameTransformState convertHlrcToInternal(org.elasticsearch.client.dataframe.transforms.DataFrameTransformState instance) {
         return new DataFrameTransformState(DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
                 IndexerState.fromString(instance.getIndexerState().value()),
-                instance.getPosition(), instance.getGeneration(), instance.getReason());
+                instance.getPosition(), instance.getCheckpoint(), instance.getReason());
     }
 
     @Override

@@ -29,7 +29,7 @@ import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'com.gradle.build-scan' version '2.0.2'
+    id 'com.gradle.build-scan' version '2.2.1'
     id 'base'
 }
 if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {

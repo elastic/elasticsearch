@@ -131,6 +131,24 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         idxMaxTokenCount = idxSettings.getMaxTokenCount();
     }
 
+    public void testPositionIncrementGap() throws IOException {
+        AnalyzeRequest request = new AnalyzeRequest();
+        request.text("a", "b");
+        request.analyzer("standard");
+
+        // check against no index
+        AnalyzeResponse response = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
+        assertEquals(2, response.getTokens().size());
+        assertEquals(0, response.getTokens().get(0).getPosition());
+        assertEquals(101, response.getTokens().get(1).getPosition());
+
+        // check against defined index
+        response = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment, maxTokenCount);
+        assertEquals(2, response.getTokens().size());
+        assertEquals(0, response.getTokens().get(0).getPosition());
+        assertEquals(101, response.getTokens().get(1).getPosition());
+    }
+
     /**
      * Test behavior when the named analysis component isn't defined on the index. In that case we should build with defaults.
      */
@@ -267,7 +285,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                     .analyzer("custom_analyzer")
                     .text("the qu1ck brown fox-dog"),
                 "text", null, null, registry, environment, maxTokenCount));
-        assertEquals(e.getMessage(), "failed to find global analyzer [custom_analyzer]");
+        assertEquals(e.getMessage(), "failed to find analyzer [custom_analyzer]");
     }
 
     public void testUnknown() throws IOException {

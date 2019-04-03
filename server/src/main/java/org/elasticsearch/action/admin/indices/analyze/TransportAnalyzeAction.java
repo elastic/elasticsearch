@@ -178,20 +178,25 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
             AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
+        if (indexAnalyzers == null) {
+            Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+            IndexMetaData metaData = IndexMetaData.builder("_none_")
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            IndexSettings idxSettings = new IndexSettings(metaData, environment.settings());
+            indexAnalyzers = analysisRegistry.build(idxSettings);
+        }
         if (analyzer == null && request.analyzer() != null) {
-            if (indexAnalyzers == null) {
-                analyzer = analysisRegistry.getAnalyzer(request.analyzer());
-                if (analyzer == null) {
-                    throw new IllegalArgumentException("failed to find global analyzer [" + request.analyzer() + "]");
-                }
-            } else {
-                analyzer = indexAnalyzers.get(request.analyzer());
-                if (analyzer == null) {
-                    throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
-                }
+            analyzer = indexAnalyzers.get(request.analyzer());
+            if (analyzer == null) {
+                throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
             }
         } else if (request.tokenizer() != null) {
-            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+            final IndexSettings indexSettings = indexAnalyzers.getIndexSettings();
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
                         analysisRegistry, environment);
 
@@ -213,7 +218,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
                 || (request.charFilters() != null && request.charFilters().size() > 0))) {
-            final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
+            final IndexSettings indexSettings = indexAnalyzers.getIndexSettings();
             // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
             // get charfilter and filter from request
             List<CharFilterFactory> charFilterFactoryList =
@@ -232,11 +237,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
         } else if (analyzer == null) {
-            if (indexAnalyzers == null) {
-                analyzer = analysisRegistry.getAnalyzer("standard");
-            } else {
-                analyzer = indexAnalyzers.getDefaultIndexAnalyzer();
-            }
+            analyzer = indexAnalyzers.getDefaultIndexAnalyzer();
         }
         if (analyzer == null) {
             throw new IllegalArgumentException("failed to find analyzer");

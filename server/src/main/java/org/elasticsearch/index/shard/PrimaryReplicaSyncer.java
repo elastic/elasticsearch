@@ -246,7 +246,6 @@ public class PrimaryReplicaSyncer {
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
-                // do not send operations if the global checkpoint is still unassigned.
                 if (seqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo) {
                     totalSkippedOps.incrementAndGet();
                     continue;

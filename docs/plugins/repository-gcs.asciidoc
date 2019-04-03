@@ -88,8 +88,9 @@ A JSON service account file looks like this:
 ----
 // NOTCONSOLE
 
-To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must add a setting name of the form `gcs.client.NAME.credentials_file`, where `NAME`
-is the name of the client configuration for the repository. The implicit client
+To provide this file to the plugin, it must be stored in the {ref}/secure-settings.html[Elasticsearch keystore].  You must
+add a `file` setting with the name `gcs.client.NAME.credentials_file` using the `add-file` subcommand.
+ `NAME` is the name of the client configuration for the repository. The implicit client
 name is `default`, but a different client name can be specified in the
 repository settings with the `client` key. 
 

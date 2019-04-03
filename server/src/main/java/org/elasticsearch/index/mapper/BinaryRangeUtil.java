@@ -24,6 +24,7 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.TriFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,8 +76,12 @@ enum BinaryRangeUtil {
         return new BytesRef(encoded, 0, out.getPosition());
     }
 
-    static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges)  {
-        BinaryDocValuesRangeQuery.LengthType lengthType = BinaryDocValuesRangeQuery.LengthType.FIXED_8;
+    static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
+        return decodeRanges(encodedRanges, BinaryDocValuesRangeQuery.LengthType.FIXED_8, BinaryRangeUtil::decodeDouble);
+    }
+
+    static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, BinaryDocValuesRangeQuery.LengthType lengthType,
+                                                     TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
         ByteArrayDataInput in = new ByteArrayDataInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
@@ -87,14 +92,17 @@ enum BinaryRangeUtil {
         final byte[] bytes = encodedRanges.bytes;
         int offset = in.getPosition();
         for (int i = 0; i < numRanges; i++) {
+            // TODO: make this a lambda parmeter
             int length = lengthType.readLength(bytes, offset);
-            double from = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, offset));
+            Object from = decodeBytes.apply(bytes, offset, length);
             offset += length;
 
             length = lengthType.readLength(bytes, offset);
-            double to = NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, offset));
+            Object to = decodeBytes.apply(bytes, offset, length);
             offset += length;
-            ranges.add(new RangeFieldMapper.Range(RangeFieldMapper.RangeType.DOUBLE, from, to, true, true));
+            // TODO: Support for exclusive ranges, pending resolution of #40601
+            RangeFieldMapper.Range decodedRange = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.DOUBLE, from, to, true, true);
+            ranges.add(decodedRange);
         }
         return ranges;
     }
@@ -121,6 +129,10 @@ enum BinaryRangeUtil {
         byte[] encoded = new byte[8];
         NumericUtils.longToSortableBytes(NumericUtils.doubleToSortableLong(number), encoded, 0);
         return encoded;
+    }
+
+    static double decodeDouble(byte[] bytes, int offset, int length){
+        return NumericUtils.sortableLongToDouble(NumericUtils.sortableBytesToLong(bytes, offset));
     }
 
     static byte[] encodeFloat(float number) {

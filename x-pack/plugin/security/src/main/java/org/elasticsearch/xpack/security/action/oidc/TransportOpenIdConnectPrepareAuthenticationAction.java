@@ -46,7 +46,6 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
             List<OpenIdConnectRealm> matchingRealms = this.realms.stream()
                 .filter(r -> r instanceof OpenIdConnectRealm && ((OpenIdConnectRealm) r).isIssuerValid(request.getIssuer()))
                 .map(r -> (OpenIdConnectRealm) r)
-                .filter(r -> r.isIssuerValid(request.getIssuer()))
                 .collect(Collectors.toList());
             if (matchingRealms.isEmpty()) {
                 listener.onFailure(

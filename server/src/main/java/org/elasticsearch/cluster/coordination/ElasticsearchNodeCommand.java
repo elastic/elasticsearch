@@ -44,19 +44,21 @@ import java.util.Objects;
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
     protected final NamedXContentRegistry namedXContentRegistry;
+    static final String DELIMITER = "------------------------------------------------------------------------\n";
+
     static final String STOP_WARNING_MSG =
-            "--------------------------------------------------------------------------\n" +
+            DELIMITER +
                     "\n" +
                     "    WARNING: Elasticsearch MUST be stopped before running this tool." +
                     "\n";
-    static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
+    protected static final String FAILED_TO_OBTAIN_NODE_LOCK_MSG = "failed to lock node's directory, is Elasticsearch still running?";
     static final String NO_NODE_FOLDER_FOUND_MSG = "no node folder is found in data folder(s), node has not been started yet?";
     static final String NO_MANIFEST_FILE_FOUND_MSG = "no manifest file is found, do you run pre 7.0 Elasticsearch?";
-    static final String GLOBAL_GENERATION_MISSING_MSG = "no metadata is referenced from the manifest file, cluster has never been " +
-            "bootstrapped?";
+    protected static final String GLOBAL_GENERATION_MISSING_MSG =
+        "no metadata is referenced from the manifest file, cluster has never been bootstrapped?";
     static final String NO_GLOBAL_METADATA_MSG = "failed to find global metadata, metadata corrupted?";
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
-    static final String ABORTED_BY_USER_MSG = "aborted by user";
+    protected static final String ABORTED_BY_USER_MSG = "aborted by user";
     final OptionSpec<Integer> nodeOrdinalOption;
 
     public ElasticsearchNodeCommand(String description) {
@@ -78,7 +80,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             if (dataPaths.length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths);
+            processNodePaths(terminal, dataPaths, env);
         } catch (LockObtainFailedException ex) {
             throw new ElasticsearchException(
                     FAILED_TO_OBTAIN_NODE_LOCK_MSG + " [" + ex.getMessage() + "]");
@@ -114,35 +116,67 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         terminal.println(STOP_WARNING_MSG);
+        if (validateBeforeLock(terminal, env)) {
+            processNodePathsWithLock(terminal, options, env);
+        }
     }
 
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths) throws IOException;
+    /**
+     * Validate that the command can run before taking any locks.
+     * @param terminal the terminal to print to
+     * @param env the env to validate.
+     * @return true to continue, false to stop (must print message in validate).
+     */
+    protected boolean validateBeforeLock(Terminal terminal, Environment env) {
+        return true;
+    }
+
+
+    /**
+     * Process the paths. Locks for the paths is held during this method invocation.
+     * @param terminal the terminal to use for messages
+     * @param dataPaths the paths of the node to process
+     * @param env the env of the node to process
+     */
+    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, Environment env) throws IOException;
 
 
     protected void writeNewMetaData(Terminal terminal, Manifest oldManifest, long newCurrentTerm,
                                     MetaData oldMetaData, MetaData newMetaData, Path[] dataPaths) {
+        long newGeneration;
         try {
             terminal.println(Terminal.Verbosity.VERBOSE,
                     "[clusterUUID = " + oldMetaData.clusterUUID() + ", committed = " + oldMetaData.clusterUUIDCommitted() + "] => " +
                          "[clusterUUID = " + newMetaData.clusterUUID() + ", committed = " + newMetaData.clusterUUIDCommitted() + "]");
             terminal.println(Terminal.Verbosity.VERBOSE, "New coordination metadata is " + newMetaData.coordinationMetaData());
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new global metadata to disk");
-            long newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
+            newGeneration = MetaData.FORMAT.write(newMetaData, dataPaths);
             Manifest newManifest = new Manifest(newCurrentTerm, oldManifest.getClusterStateVersion(), newGeneration,
                     oldManifest.getIndexGenerations());
             terminal.println(Terminal.Verbosity.VERBOSE, "New manifest is " + newManifest);
             terminal.println(Terminal.Verbosity.VERBOSE, "Writing new manifest file to disk");
             Manifest.FORMAT.writeAndCleanup(newManifest, dataPaths);
-            terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
-            MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
         } catch (Exception e) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up new metadata");
             MetaData.FORMAT.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
             throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
         }
+        // if cleaning old files fail, we still succeeded.
+        try {
+            cleanUpOldMetaData(terminal, dataPaths, newGeneration);
+        } catch (Exception e) {
+            terminal.println(Terminal.Verbosity.SILENT,
+                "Warning: Cleaning up old metadata failed, but operation was otherwise successful (message: " + e.getMessage() + ")");
+        }
     }
+
+    protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
+        terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up old metadata");
+        MetaData.FORMAT.cleanupOldFiles(newGeneration, dataPaths);
+    }
+
 
     //package-private for testing
     OptionParser getParser() {

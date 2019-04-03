@@ -37,7 +37,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -83,13 +85,13 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertValidTransform(client, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"non_existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -97,7 +99,9 @@ public class PivotTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        Pivot pivot = new Pivot("existing_source_index_with_failing_shards", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index_with_failing_shards"},
+            new MatchAllQueryBuilder(),
+            getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -106,8 +110,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
             assertValidTransform(client, pivot);
         }
     }
@@ -116,8 +119,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
             assertInvalidTransform(client, pivot);
         }
     }
@@ -176,6 +178,10 @@ public class PivotTests extends ESTestCase {
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
+    }
+
+    private Map<String, String> getFieldMappings() {
+        return Collections.singletonMap("values", "double");
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support;
 
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -259,30 +258,12 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        EnumSet<Option> options = this.options;
-        // never write this out to a pre 6.6 version
-        if (out.getVersion().before(Version.V_6_6_0) && options.contains(Option.IGNORE_THROTTLED)) {
-            options = EnumSet.copyOf(options);
-            options.remove(Option.IGNORE_THROTTLED);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeEnumSet(options);
-            out.writeEnumSet(expandWildcards);
-        } else {
-            out.write(IndicesOptions.toByte(this));
-        }
+        out.writeEnumSet(options);
+        out.writeEnumSet(expandWildcards);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
-        } else {
-            byte id = in.readByte();
-            if (id >= OLD_VALUES.length) {
-                throw new IllegalArgumentException("No valid missing index type id: " + id);
-            }
-            return OLD_VALUES[id];
-        }
+        return new IndicesOptions(in.readEnumSet(Option.class), in.readEnumSet(WildcardStates.class));
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,

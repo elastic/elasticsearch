@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -25,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,7 +38,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -51,12 +52,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -80,16 +84,18 @@ public class JoinHelper {
     private final JoinTaskExecutor joinTaskExecutor;
     private final TimeValue joinTimeout;
 
-    final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = ConcurrentCollections.newConcurrentSet();
+    private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
 
-    public JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
-                      TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
-                      BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
-                      Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
+    private AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
+
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService,
+               TransportService transportService, LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
+               BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
+               Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(settings, allocationService, logger) {
+        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
@@ -167,12 +173,59 @@ public class JoinHelper {
         };
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
-        sendJoinRequest(destination, optionalJoin, () -> {
-        });
+    boolean isJoinPending() {
+        return pendingOutgoingJoins.isEmpty() == false;
     }
 
-    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin, Runnable onCompletion) {
+    // package-private for testing
+    static class FailedJoinAttempt {
+        private final DiscoveryNode destination;
+        private final JoinRequest joinRequest;
+        private final TransportException exception;
+        private final long timestamp;
+
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, TransportException exception) {
+            this.destination = destination;
+            this.joinRequest = joinRequest;
+            this.exception = exception;
+            this.timestamp = System.nanoTime();
+        }
+
+        void logNow() {
+            logger.log(getLogLevel(exception),
+                    () -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest),
+                    exception);
+        }
+
+        static Level getLogLevel(TransportException e) {
+            Throwable cause = e.unwrapCause();
+            if (cause instanceof CoordinationStateRejectedException ||
+                cause instanceof FailedToCommitClusterStateException ||
+                cause instanceof NotMasterException) {
+                return Level.DEBUG;
+            }
+            return Level.INFO;
+        }
+
+        void logWarnWithTimestamp() {
+            logger.info(() -> new ParameterizedMessage("last failed join attempt was {} ms ago, failed to join {} with {}",
+                            TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
+                            destination,
+                            joinRequest),
+                    exception);
+        }
+    }
+
+
+    void logLastFailedJoinAttempt() {
+        FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
+        if (attempt != null) {
+            attempt.logWarnWithTimestamp();
+            lastFailedJoinAttempt.compareAndSet(attempt, null);
+        }
+    }
+
+    public void sendJoinRequest(DiscoveryNode destination, Optional<Join> optionalJoin) {
         assert destination.isMasterNode() : "trying to join master-ineligible " + destination;
         final JoinRequest joinRequest = new JoinRequest(transportService.getLocalNode(), optionalJoin);
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
@@ -190,14 +243,15 @@ public class JoinHelper {
                     public void handleResponse(Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
-                        onCompletion.run();
+                        lastFailedJoinAttempt.set(null);
                     }
 
                     @Override
                     public void handleException(TransportException exp) {
                         pendingOutgoingJoins.remove(dedupKey);
-                        logger.info(() -> new ParameterizedMessage("failed to join {} with {}", destination, joinRequest), exp);
-                        onCompletion.run();
+                        FailedJoinAttempt attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                        attempt.logNow();
+                        lastFailedJoinAttempt.set(attempt);
                     }
 
                     @Override
@@ -210,7 +264,7 @@ public class JoinHelper {
         }
     }
 
-    public void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
+    void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
         transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
@@ -237,7 +291,7 @@ public class JoinHelper {
             });
     }
 
-    public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
+    void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
         transportService.sendRequest(node, VALIDATE_JOIN_ACTION_NAME,
             new ValidateJoinRequest(state),
             TransportRequestOptions.builder().withTimeout(joinTimeout).build(),

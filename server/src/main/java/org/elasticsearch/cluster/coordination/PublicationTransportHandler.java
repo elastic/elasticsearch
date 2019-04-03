@@ -273,13 +273,17 @@ public class PublicationTransportHandler {
             }
             try {
                 if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
-                    serializedStates.putIfAbsent(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
+                    if (serializedStates.containsKey(node.getVersion()) == false) {
+                        serializedStates.put(node.getVersion(), serializeFullClusterState(clusterState, node.getVersion()));
+                    }
                 } else {
                     // will send a diff
                     if (diff == null) {
                         diff = clusterState.diff(previousState);
                     }
-                    serializedDiffs.putIfAbsent(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
+                    if (serializedDiffs.containsKey(node.getVersion()) == false) {
+                        serializedDiffs.put(node.getVersion(), serializeDiffClusterState(diff, node.getVersion()));
+                    }
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);

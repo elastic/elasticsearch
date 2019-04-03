@@ -289,7 +289,7 @@ POST /sales/_search?size=0
 // CONSOLE
 // TEST[setup:sales]
 
-<1> This date will be converted to `2016-02-15T00:00:00.000+01:00`.
+<1> This date will be converted to `2016-02-01T00:00:00.000+01:00`.
 <2> `now/d` will be rounded to the beginning of the day in the CET time zone.
 
 ==== Keyed Response

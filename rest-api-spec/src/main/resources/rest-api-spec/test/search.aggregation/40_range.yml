@@ -210,9 +210,6 @@ setup:
 
 ---
 "IP Range Key Generation":
-  - skip:
-     version: " - 6.3.99"
-     reason: "Before 6.4.0, ip_range did not always generate bucket keys (see #21045)."
 
   - do:
       search:

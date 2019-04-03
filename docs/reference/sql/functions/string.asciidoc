@@ -26,7 +26,7 @@ Returns the ASCII code value of the leftmost character of `string_exp` as an int
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringAscii]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringAscii]
 --------------------------------------------------
 
 [[sql-functions-string-bit-length]]
@@ -49,7 +49,7 @@ Returns the length in bits of the `string_exp` input expression.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringBitLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringBitLength]
 --------------------------------------------------
 
 [[sql-functions-string-char]]
@@ -72,7 +72,7 @@ Returns the character that has the ASCII code value specified by the numeric inp
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringChar]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringChar]
 --------------------------------------------------
 
 [[sql-functions-string-char-length]]
@@ -95,7 +95,7 @@ Returns the length in characters of the input, if the string expression is of a 
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringCharLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringCharLength]
 --------------------------------------------------
 
 [[sql-functions-string-concat]]
@@ -119,7 +119,7 @@ Returns a character string that is the result of concatenating `string_exp1` to 
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringConcat]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringConcat]
 --------------------------------------------------
 
 [[sql-functions-string-insert]]
@@ -145,7 +145,7 @@ Returns a string where `length` characters have been deleted from `source`, begi
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringInsert]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringInsert]
 --------------------------------------------------
 
 [[sql-functions-string-lcase]]
@@ -168,7 +168,7 @@ Returns a string equal to that in `string_exp`, with all uppercase characters co
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLCase]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLCase]
 --------------------------------------------------
 
 [[sql-functions-string-left]]
@@ -192,7 +192,7 @@ Returns the leftmost count characters of `string_exp`.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLeft]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLeft]
 --------------------------------------------------
 
 [[sql-functions-string-length]]
@@ -215,7 +215,7 @@ Returns the number of characters in `string_exp`, excluding trailing blanks.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLength]
 --------------------------------------------------
 
 [[sql-functions-string-locate]]
@@ -240,12 +240,12 @@ Returns the starting position of the first occurrence of `pattern` within `sourc
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLocateWoStart]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLocateWoStart]
 --------------------------------------------------
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLocateWithStart]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLocateWithStart]
 --------------------------------------------------
 
 [[sql-functions-string-ltrim]]
@@ -268,7 +268,7 @@ Returns the characters of `string_exp`, with leading blanks removed.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringLTrim]
 --------------------------------------------------
 
 [[sql-functions-string-octet-length]]
@@ -291,7 +291,7 @@ Returns the length in bytes of the `string_exp` input expression.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringOctetLength]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringOctetLength]
 --------------------------------------------------
 
 [[sql-functions-string-position]]
@@ -315,7 +315,7 @@ Returns the position of the `string_exp1` in `string_exp2`. The result is an exa
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringPosition]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringPosition]
 --------------------------------------------------
 
 [[sql-functions-string-repeat]]
@@ -339,7 +339,7 @@ Returns a character string composed of `string_exp` repeated `count` times.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRepeat]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRepeat]
 --------------------------------------------------
 
 [[sql-functions-string-replace]]
@@ -364,7 +364,7 @@ Search `source` for occurrences of `pattern`, and replace with `replacement`.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringReplace]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringReplace]
 --------------------------------------------------
 
 [[sql-functions-string-right]]
@@ -388,7 +388,7 @@ Returns the rightmost count characters of `string_exp`.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRight]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRight]
 --------------------------------------------------
 
 [[sql-functions-string-rtrim]]
@@ -411,7 +411,7 @@ Returns the characters of `string_exp` with trailing blanks removed.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringRTrim]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringRTrim]
 --------------------------------------------------
 
 [[sql-functions-string-space]]
@@ -434,7 +434,7 @@ Returns a character string consisting of `count` spaces.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringSpace]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringSpace]
 --------------------------------------------------
 
 [[sql-functions-string-substring]]
@@ -459,7 +459,7 @@ Returns a character string that is derived from `source`, beginning at the chara
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringSubString]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringSubString]
 --------------------------------------------------
 
 [[sql-functions-string-ucase]]
@@ -482,5 +482,5 @@ Returns a string equal to that of the input, with all lowercase characters conve
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[stringUCase]
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringUCase]
 --------------------------------------------------

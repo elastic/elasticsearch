@@ -229,4 +229,4 @@ This information is available only for open jobs.
   (string) The host and port where transport HTTP connections are accepted.
 
 `attributes`::
-  (object) For example, {"ml.max_open_jobs": "10"}.
+  (object) For example, {"ml.machine_memory": "17179869184"}.

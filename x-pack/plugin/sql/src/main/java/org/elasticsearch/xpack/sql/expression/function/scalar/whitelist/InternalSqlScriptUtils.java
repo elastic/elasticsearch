@@ -12,7 +12,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -197,11 +200,11 @@ public final class InternalSqlScriptUtils {
     }
 
     public static Number round(Number v, Number s) {
-        return BinaryMathOperation.ROUND.apply(v, s);
+        return BinaryOptionalMathOperation.ROUND.apply(v, s);
     }
 
     public static Number truncate(Number v, Number s) {
-        return BinaryMathOperation.TRUNCATE.apply(v, s);
+        return BinaryOptionalMathOperation.TRUNCATE.apply(v, s);
     }
 
     public static Double abs(Number value) {
@@ -218,6 +221,10 @@ public final class InternalSqlScriptUtils {
 
     public static Double atan(Number value) {
         return MathOperation.ATAN.apply(value);
+    }
+    
+    public static Number atan2(Number left, Number right) {
+        return BinaryMathOperation.ATAN2.apply(left, right);
     }
 
     public static Double cbrt(Number value) {
@@ -271,6 +278,10 @@ public final class InternalSqlScriptUtils {
     public static Double pi(Number value) {
         return MathOperation.PI.apply(value);
     }
+    
+    public static Number power(Number left, Number right) {
+        return BinaryMathOperation.POWER.apply(left, right);
+    }
 
     public static Double radians(Number value) {
         return MathOperation.RADIANS.apply(value);
@@ -306,6 +317,9 @@ public final class InternalSqlScriptUtils {
     public static Integer dateTimeChrono(Object dateTime, String tzId, String chronoName) {
         if (dateTime == null || tzId == null || chronoName == null) {
             return null;
+        }
+        if (dateTime instanceof OffsetTime) {
+            return TimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
         }
         return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
     }
@@ -348,7 +362,7 @@ public final class InternalSqlScriptUtils {
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }
-    
+
     private static Object asDateTime(Object dateTime, boolean lenient) {
         if (dateTime == null) {
             return null;
@@ -363,7 +377,10 @@ public final class InternalSqlScriptUtils {
             if (dateTime instanceof Number) {
                 return DateUtils.asDateTime(((Number) dateTime).longValue());
             }
-    
+
+            if (dateTime instanceof String) {
+                return DateUtils.asDateTime(dateTime.toString());
+            }
             throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
         }
         return dateTime;
@@ -382,6 +399,10 @@ public final class InternalSqlScriptUtils {
         }
 
         return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static OffsetTime asTime(String time) {
+        return OffsetTime.parse(time);
     }
 
     //

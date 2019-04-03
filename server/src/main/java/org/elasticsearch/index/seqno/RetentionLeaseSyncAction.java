@@ -88,7 +88,7 @@ public class RetentionLeaseSyncAction extends
                 indexNameExpressionResolver,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT);
+                ThreadPool.Names.MANAGEMENT, false);
     }
 
     /**

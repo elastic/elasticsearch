@@ -57,7 +57,7 @@ public class TransportBulkShardOperationsAction
                 indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE);
+                ThreadPool.Names.WRITE, false);
     }
 
     @Override

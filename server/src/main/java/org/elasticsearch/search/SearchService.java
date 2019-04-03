@@ -109,6 +109,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1004,8 +1005,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
-        return indicesService.buildAliasFilter(state, index, expressions);
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+        return indicesService.buildAliasFilter(state, index, resolvedExpressions);
     }
 
     /**

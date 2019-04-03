@@ -1126,6 +1126,7 @@ public final class TokenService {
             }
         }, listener::onFailure));
     }
+
     private void findActiveTokensForRealm(String realmName, SecurityIndexManager tokensIndex, Instant now,
                                           @Nullable Predicate<Map<String, Object>> filter,
                                           ActionListener<Collection<Tuple<UserToken, String>>> listener) {
@@ -1231,7 +1232,8 @@ public final class TokenService {
 
     private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
                                                @Nullable Authentication originatingClientAuth) {
-        assert refreshToken == null || originatingClientAuth != null;
+        assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
+                + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
@@ -1349,6 +1351,7 @@ public final class TokenService {
     private void checkIfTokenIsValid(UserToken userToken, ActionListener<UserToken> listener) {
         if (clock.instant().isAfter(userToken.getExpirationTime())) {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
+            return;
         }
         final SecurityIndexManager tokensIndex = getSecurityIndexManagerForVersion(userToken.getVersion());
         if (tokensIndex.indexExists() == false) {

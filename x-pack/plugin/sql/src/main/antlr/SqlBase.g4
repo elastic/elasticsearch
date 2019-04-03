@@ -226,8 +226,9 @@ primaryExpression
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    | name=CURRENT_DATE ('(' ')')?
+    | name=CURRENT_TIME ('(' precision=INTEGER_VALUE? ')')?
     ;
 
 castExpression
@@ -373,6 +374,7 @@ CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
 CURRENT_DATE : 'CURRENT_DATE';
+CURRENT_TIME : 'CURRENT_TIME';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';

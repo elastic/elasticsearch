@@ -449,9 +449,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String functionName = ctx.name.getText();
 
         switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
             case SqlBaseLexer.CURRENT_DATE:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
-            case SqlBaseLexer.CURRENT_TIMESTAMP:
+            case SqlBaseLexer.CURRENT_TIME:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);

@@ -139,6 +139,63 @@ is used for relative date filtering:
 include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
 --------------------------------------------------
 
+[[sql-functions-current-time]]
+==== `CURRENT_TIME/CURTIME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_TIME
+CURRENT_TIME([precision <1>])
+CURTIME
+--------------------------------------------------
+
+*Input*:
+
+<1> fractional digits; optional
+
+*Output*: time
+
+.Description:
+
+Returns the time when the current query reached the server.
+As a function, `CURRENT_TIME()` accepts _precision_ as an optional
+parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
+meaning a milliseconds precision current time will be returned.
+
+This method always returns the same value for its every occurrence within the same query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTime]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunction]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTimeFunction]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunctionPrecision]
+--------------------------------------------------
+
+Typically, this function is used for relative date/time filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterCurrentTime]
+--------------------------------------------------
+
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
 [[sql-functions-current-timestamp]]
 ==== `CURRENT_TIMESTAMP`
 

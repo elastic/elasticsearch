@@ -29,7 +29,7 @@ allprojects { all ->
                 distribution = 'DEFAULT'
                 version = System.getProperty("test.version_under_test")
                 javaHome = file(System.getProperty('java.home'))
-                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${version}.zip")
+                plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${System.getProperty("test.version_under_test")}.zip")
             }
         }
 
@@ -51,11 +51,27 @@ allprojects { all ->
     }
 }
 
+testClusters {
+    multiNode {
+        version = System.getProperty("test.version_under_test")
+        distribution = 'DEFAULT'
+        javaHome = file(System.getProperty('java.home'))
+        numberOfNodes = 3
+    }
+}
+
+task multiNode {
+    useCluster testClusters.multiNode
+    doFirst {
+        println "$path: Cluster running @ ${testClusters.multiNode.httpSocketURI}"
+    }
+}
+
 task printLog {
     useCluster testClusters.myTestCluster
     doFirst {
         println "$path: Cluster running @ ${testClusters.myTestCluster.httpSocketURI}"
-        testClusters.myTestCluster.logLines().each {
+        testClusters.myTestCluster.singleNode().logLines().each {
             println it
         }
     }

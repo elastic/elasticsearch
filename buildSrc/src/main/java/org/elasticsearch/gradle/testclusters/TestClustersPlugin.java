@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
-import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
@@ -66,9 +65,9 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     // this is static because we need a single mapping across multi project builds, as some of the listeners we use,
     // like task graph are singletons across multi project builds.
-    private static final Map<Task, List<ElasticsearchNode>> usedClusters = new ConcurrentHashMap<>();
-    private static final Map<ElasticsearchNode, Integer> claimsInventory = new ConcurrentHashMap<>();
-    private static final Set<ElasticsearchNode> runningClusters = Collections.synchronizedSet(new HashSet<>());
+    private static final Map<Task, List<ElasticsearchCluster>> usedClusters = new ConcurrentHashMap<>();
+    private static final Map<ElasticsearchCluster, Integer> claimsInventory = new ConcurrentHashMap<>();
+    private static final Set<ElasticsearchCluster> runningClusters = Collections.synchronizedSet(new HashSet<>());
     private static volatile  ExecutorService executorService;
 
     @Override
@@ -76,7 +75,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         Project rootProject = project.getRootProject();
 
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<ElasticsearchNode> container = createTestClustersContainerExtension(project);
+        NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -151,14 +150,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
     }
 
-    private NamedDomainObjectContainer<ElasticsearchNode> createTestClustersContainerExtension(Project project) {
+    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchNode> container = project.container(
-            ElasticsearchNode.class,
-            name -> new ElasticsearchNode(
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
+            ElasticsearchCluster.class,
+            name -> new ElasticsearchCluster(
                 project.getPath(),
                 name,
-                GradleServicesAdapter.getInstance(project),
+                project,
                 getTestClustersConfigurationExtractDir(project),
                 new File(project.getBuildDir(), "testclusters")
             )
@@ -168,13 +167,13 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
 
-    private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchNode> container) {
+    private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
         listTask.doLast((Task task) ->
             container.forEach(cluster ->
-                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
+                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes())
             )
         );
     }
@@ -187,13 +186,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                 .set(
                     "useCluster",
                     new Closure<Void>(project, task) {
-                        public void doCall(ElasticsearchNode node) {
+                        public void doCall(ElasticsearchCluster cluster) {
                             Object thisObject = this.getThisObject();
                             if (thisObject instanceof Task == false) {
                                 throw new AssertionError("Expected " + thisObject + " to be an instance of " +
                                     "Task, but got: " + thisObject.getClass());
                             }
-                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(node);
+                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(cluster);
                             ((Task) thisObject).dependsOn(
                                 project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
                             );
@@ -222,14 +221,14 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    final List<ElasticsearchNode> clustersToStart;
+                    final List<ElasticsearchCluster> clustersToStart;
                     synchronized (runningClusters) {
                         clustersToStart = usedClusters.getOrDefault(task,Collections.emptyList()).stream()
                             .filter(each -> runningClusters.contains(each) == false)
                             .collect(Collectors.toList());
                         runningClusters.addAll(clustersToStart);
                     }
-                    clustersToStart.forEach(ElasticsearchNode::start);
+                    clustersToStart.forEach(ElasticsearchCluster::start);
 
                 }
                 @Override
@@ -245,7 +244,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void afterExecute(Task task, TaskState state) {
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
-                    List<ElasticsearchNode> clustersUsedByTask = usedClusters.getOrDefault(
+                    List<ElasticsearchCluster> clustersUsedByTask = usedClusters.getOrDefault(
                         task,
                         Collections.emptyList()
                     );
@@ -261,7 +260,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 claimsInventory.put(each, claimsInventory.get(each) - 1);
                             }
                         });
-                        final List<ElasticsearchNode> stoppable;
+                        final List<ElasticsearchCluster> stoppable;
                         synchronized (runningClusters) {
                             stoppable = claimsInventory.entrySet().stream()
                                 .filter(entry -> entry.getValue() == 0)
@@ -289,70 +288,70 @@ public class TestClustersPlugin implements Plugin<Project> {
      * Equivalent to project.testClusters in the DSL
      */
     @SuppressWarnings("unchecked")
-    public static NamedDomainObjectContainer<ElasticsearchNode> getNodeExtension(Project project) {
-        return (NamedDomainObjectContainer<ElasticsearchNode>)
+    public static NamedDomainObjectContainer<ElasticsearchCluster> getNodeExtension(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchCluster>)
             project.getExtensions().getByName(NODE_EXTENSION_NAME);
     }
 
     private static void autoConfigureClusterDependencies(
         Project project,
         Project rootProject,
-        NamedDomainObjectContainer<ElasticsearchNode> container
+        NamedDomainObjectContainer<ElasticsearchCluster> container
     ) {
         // When the project evaluated we know of all tasks that use clusters.
         // Each of these have to depend on the artifacts being synced.
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
-        project.afterEvaluate(ip -> container.forEach(esNode -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo;
-            final List<Version> unreleased;
-            {
-                ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-                if (extraProperties.has("bwcVersions")) {
-                    Object bwcVersionsObj = extraProperties.get("bwcVersions");
-                    if (bwcVersionsObj instanceof BwcVersions == false) {
-                        throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
-                            "but instead it was " + bwcVersionsObj.getClass());
+        project.afterEvaluate(ip -> container.forEach(esCluster ->
+            esCluster.eachVersionedDistribution((version, distribution) -> {
+                BwcVersions.UnreleasedVersionInfo unreleasedInfo;
+                final List<Version> unreleased;
+                {
+                    ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
+                    if (extraProperties.has("bwcVersions")) {
+                        Object bwcVersionsObj = extraProperties.get("bwcVersions");
+                        if (bwcVersionsObj instanceof BwcVersions == false) {
+                            throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
+                                "but instead it was " + bwcVersionsObj.getClass());
+                        }
+                        final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
+                        unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
+                        unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(version));
+                    } else {
+                        logger.info("No version information available, assuming all versions used are released");
+                        unreleased = Collections.emptyList();
+                        unreleasedInfo = null;
                     }
-                    final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
-                    unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
-                    unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(esNode.getVersion()));
-                } else {
-                    logger.info("No version information available, assuming all versions used are released");
-                    unreleased = Collections.emptyList();
-                    unreleasedInfo = null;
                 }
-            }
-            if (unreleased.contains(Version.fromString(esNode.getVersion()))) {
-                Map<String, Object> projectNotation = new HashMap<>();
-                projectNotation.put("path", unreleasedInfo.gradleProjectPath);
-                projectNotation.put("configuration", esNode.getDistribution().getLiveConfiguration());
-                rootProject.getDependencies().add(
-                    HELPER_CONFIGURATION_NAME,
-                    project.getDependencies().project(projectNotation)
-                );
-            } else {
-                if (esNode.getDistribution().equals(Distribution.INTEG_TEST)) {
+                if (unreleased.contains(Version.fromString(version))) {
+                    Map<String, Object> projectNotation = new HashMap<>();
+                    projectNotation.put("path", unreleasedInfo.gradleProjectPath);
+                    projectNotation.put("configuration", distribution.getLiveConfiguration());
                     rootProject.getDependencies().add(
-                        HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + esNode.getVersion()
+                        HELPER_CONFIGURATION_NAME,
+                        project.getDependencies().project(projectNotation)
                     );
                 } else {
-                    // declare dependencies to be downloaded from the download service.
-                    // The BuildPlugin sets up the right repo for this to work
-                    // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
-                    String dependency = String.format(
-                        "%s:%s:%s:%s@%s",
-                        esNode.getDistribution().getGroup(),
-                        esNode.getDistribution().getArtifactName(),
-                        esNode.getVersion(),
-                        esNode.getDistribution().getClassifier(),
-                        esNode.getDistribution().getFileExtension()
-                    );
-                    logger.info("Cluster {} depends on {}", esNode.getName(), dependency);
-                    rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+                    if (distribution.equals(Distribution.INTEG_TEST)) {
+                        rootProject.getDependencies().add(
+                            HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + version
+                        );
+                    } else {
+                        // declare dependencies to be downloaded from the download service.
+                        // The BuildPlugin sets up the right repo for this to work
+                        // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
+                        String dependency = String.format(
+                            "%s:%s:%s:%s@%s",
+                            distribution.getGroup(),
+                            distribution.getArtifactName(),
+                            version,
+                            distribution.getClassifier(),
+                            distribution.getFileExtension()
+                        );
+                        rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
+                    }
                 }
-            }
-        }));
+            })));
     }
 
     private static void configureCleanupHooks(Project project) {

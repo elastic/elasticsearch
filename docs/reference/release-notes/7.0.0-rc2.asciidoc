@@ -1,6 +1,218 @@
 [[release-notes-7.0.0-rc2]]
 == {es} version 7.0.0-rc2
 
-Also see <<breaking-changes-7.0,Breaking changes>>.
+Also see <<breaking-changes-7.0,Breaking changes in 7.0.0>>.
 
-coming[7.0.0-rc2]
+[[deprecation-7.0.0-rc2]]
+[float]
+=== Deprecations
+
+Analysis::
+* Remove `nGram` and  `edgeNGram` token filter names (#38911) {pull}39070[#39070] (issues: {issue}30209[#30209], {issue}38911[#38911])
+
+Graph::
+* Deprecate types in `_graph/explore` calls. {pull}40466[#40466]
+
+
+
+[[enhancement-7.0.0-rc2]]
+[float]
+=== Enhancements
+
+CCR::
+* Introduce forget follower API {pull}39718[#39718] (issue: {issue}37165[#37165])
+
+Cluster Coordination::
+* Remove timeout task after completing cluster state publication {pull}40411[#40411]
+* Use default discovery implementation for single-node discovery {pull}40036[#40036]
+* Do not log unsuccessful join attempt each time {pull}39756[#39756]
+
+Distributed::
+* Allow retention lease operations under blocks {pull}39089[#39089] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Remove retention leases when unfollowing {pull}39088[#39088] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Introduce retention lease state file {pull}39004[#39004] (issues: {issue}37165[#37165], {issue}38588[#38588], {issue}39032[#39032])
+* Enable soft-deletes by default for 7.0+ indices {pull}38929[#38929] (issue: {issue}36141[#36141])
+
+Engine::
+* Also mmap cfs files for hybridfs {pull}38940[#38940] (issue: {issue}36668[#36668])
+
+Infra/Core::
+* Enhancements to IndicesQueryCache. {pull}39099[#39099] (issue: {issue}37117[#37117])
+
+Infra/Packaging::
+* Add no-jdk distributions {pull}39882[#39882]
+
+Machine Learning::
+* [ML] Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
+
+Mapping::
+* Introduce a parameter suppress_types_warnings. {pull}38923[#38923]
+
+Recovery::
+* Do not wait for advancement of checkpoint in recovery {pull}39006[#39006] (issues: {issue}38949[#38949], {issue}39000[#39000])
+
+SQL::
+* SQL: add "fuzziness" option to QUERY and MATCH function predicates {pull}40529[#40529] (issue: {issue}40495[#40495])
+* SQL: add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
+
+Search::
+* Avoid BytesRef's copying in ScriptDocValues's Strings {pull}29581[#29581] (issue: {issue}29567[#29567])
+
+Security::
+* Types removal security index template {pull}39705[#39705] (issue: {issue}38637[#38637])
+* Types removal security index template {pull}39542[#39542] (issue: {issue}38637[#38637])
+
+Snapshot/Restore::
+* Mark Deleted Snapshot Directories with Tombstones {pull}40228[#40228] (issue: {issue}39852[#39852])
+
+Store::
+* Add option to force load term dict into memory {pull}39741[#39741]
+
+Features/Monitoring::
+* Remove types from internal monitoring templates and bump to api 7 {pull}39888[#39888] (issue: {issue}38637[#38637])
+
+Features/Watcher::
+* Remove the index type from internal watcher indexes {pull}39761[#39761] (issue: {issue}38637[#38637])
+
+Infra/Core::
+* Change zone formatting for all printers {pull}39568[#39568] (issue: {issue}38471[#38471])
+
+
+[[bug-7.0.0-rc2]]
+[float]
+=== Bug fixes
+
+Analysis::
+* Fix PreConfiguredTokenFilters getSynonymFilter() implementations {pull}38839[#38839] (issue: {issue}38793[#38793])
+
+Audit::
+* LoggingAuditTrail correctly handle ReplicatedWriteRequest {pull}39925[#39925] (issue: {issue}39555[#39555])
+
+Authentication::
+* Correct authenticate response for API key {pull}39684[#39684]
+* Fix security index auto-create and state recovery race {pull}39582[#39582]
+
+CCR::
+* Fix shard follow task startup error handling {pull}39053[#39053] (issue: {issue}38779[#38779])
+* Filter out upgraded version index settings when starting index following {pull}38838[#38838] (issue: {issue}38835[#38835])
+
+CRUD::
+* Store Pending Deletions Fix {pull}40345[#40345] (issue: {issue}40249[#40249])
+* ShardBulkAction ignore primary response on primary {pull}38901[#38901]
+
+Cluster Coordination::
+* Do not perform cleanup if Manifest write fails with dirty exception {pull}40519[#40519] (issue: {issue}39077[#39077])
+* Cache compressed cluster state size {pull}39827[#39827] (issue: {issue}39806[#39806])
+* Drop node if asymmetrically partitioned from master {pull}39598[#39598]
+* Fixing the custom object serialization bug in diffable utils. {pull}39544[#39544]
+* Clean GatewayAllocator when stepping down as master {pull}38885[#38885]
+
+Distributed::
+* Enforce retention leases require soft deletes {pull}39922[#39922] (issue: {issue}39914[#39914])
+* Treat TransportService stopped error as node is closing {pull}39800[#39800] (issue: {issue}39584[#39584])
+* Use cause to determine if node with primary is closing {pull}39723[#39723] (issue: {issue}39584[#39584])
+* Don’t ack if unable to remove failing replica {pull}39584[#39584] (issue: {issue}39467[#39467])
+* Fix NPE on Stale Index in IndicesService {pull}38891[#38891] (issue: {issue}38845[#38845])
+
+Engine::
+* Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
+
+Features/Features::
+* Deprecation check for indices with very large numbers of fields {pull}39869[#39869] (issue: {issue}39851[#39851])
+
+Features/ILM::
+* Correct ILM metadata minimum compatibility version {pull}40569[#40569] (issue: {issue}40565[#40565])
+* Handle null retention leases in WaitForNoFollowersStep {pull}40477[#40477]
+
+Features/Ingest::
+* Ingest ingest then create index {pull}39607[#39607] (issues: {issue}32758[#32758], {issue}32786[#32786], {issue}36545[#36545])
+
+Features/Monitoring::
+* Don't emit deprecation warnings on calls to the monitoring bulk API. {pull}39805[#39805] (issue: {issue}39336[#39336])
+
+Features/Watcher::
+* Fix Watcher stats class cast exception {pull}39821[#39821] (issue: {issue}39780[#39780])
+* Use any index specified by .watches for Watcher {pull}39541[#39541] (issue: {issue}39478[#39478])
+* Resolve concurrency with watcher trigger service {pull}39092[#39092] (issue: {issue}39087[#39087])
+
+Geo::
+* Geo Point parse error fix {pull}40447[#40447] (issue: {issue}17617[#17617])
+
+Highlighting::
+* Bug fix for AnnotatedTextHighlighter - port of 39525 {pull}39750[#39750] (issue: {issue}39525[#39525])
+
+Infra/Core::
+* Allow single digit milliseconds in strict date parsing {pull}40676[#40676] (issue: {issue}40403[#40403])
+* Parse composite patterns using ClassicFormat.parseObject {pull}40100[#40100] (issue: {issue}39916[#39916])
+* Bat scripts to work with JAVA_HOME with parantheses {pull}39712[#39712] (issues: {issue}30606[#30606], {issue}33405[#33405], {issue}38578[#38578], {issue}38624[#38624])
+* Change licence expiration date pattern {pull}39681[#39681] (issue: {issue}39136[#39136])
+* Fix DateFormatters.parseMillis when no timezone is given {pull}39100[#39100] (issue: {issue}39067[#39067])
+* Don't close caches while there might still be in-flight requests. {pull}38958[#38958] (issue: {issue}37117[#37117])
+
+Infra/Packaging::
+* Use TAR instead of DOCKER build type before 6.7.0 {pull}40723[#40723] (issues: {issue}39378[#39378], {issue}40511[#40511])
+
+Infra/REST API::
+* Update spec files that erroneously documented parts as optional  {pull}39122[#39122]
+* ilm.explain_lifecycle documents human again {pull}39113[#39113]
+* Index on rollup.rollup_search.json is a list {pull}39097[#39097]
+
+MULTIPLE AREA LABELS::
+* metric on watcher stats is a list not an enum {pull}39114[#39114]
+
+Machine Learning::
+* [ML] Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
+* [ML] refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
+* [ML] Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
+
+Mapping::
+* Optimise rejection of out-of-range `long` values {pull}40325[#40325] (issues: {issue}26137[#26137], {issue}40323[#40323])
+
+Recovery::
+* Recover peers from translog, ignoring soft deletes {pull}38904[#38904] (issue: {issue}37165[#37165])
+* Retain history for peer recovery using leases {pull}38855[#38855]
+
+Rollup::
+* Remove timezone validation on rollup range queries {pull}40647[#40647]
+
+SQL::
+* SQL: Fix display size for DATE/DATETIME {pull}40669[#40669]
+* SQL: have LIKE/RLIKE use wildcard and regexp queries {pull}40628[#40628] (issue: {issue}40557[#40557])
+* SQL: Fix getTime() methods in JDBC {pull}40484[#40484]
+* SQL: SYS TABLES: enumerate tables of requested types {pull}40535[#40535] (issue: {issue}40348[#40348])
+* SQL: passing an input to the CLI "freezes" the CLI after displaying an error message {pull}40164[#40164] (issue: {issue}40557[#40557])
+* SQL: Wrap ZonedDateTime parameters inside scripts {pull}39911[#39911] (issue: {issue}39877[#39877])
+* SQL: ConstantProcessor can now handle NamedWriteable {pull}39876[#39876] (issue: {issue}39875[#39875])
+* SQL: Extend the multi dot field notation extraction to lists of values {pull}39823[#39823] (issue: {issue}39738[#39738])
+* SQL: values in datetime script aggs should be treated as long {pull}39773[#39773] (issue: {issue}37042[#37042])
+* SQL: Don't allow inexact fields for MIN/MAX {pull}39563[#39563] (issue: {issue}39427[#39427])
+* SQL: Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
+* SQL: fix COUNT DISTINCT column name {pull}39537[#39537] (issue: {issue}39511[#39511])
+* SQL: Enable accurate hit tracking on demand {pull}39527[#39527] (issue: {issue}37971[#37971])
+* SQL: ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
+* SQL: enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
+* SQL: fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
+
+Search::
+* Fix Fuzziness#asDistance(String) {pull}39643[#39643] (issue: {issue}39614[#39614])
+
+Security::
+* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
+* Fix libs:ssl-config project setup {pull}39074[#39074]
+* Do not create the missing index when invoking getRole {pull}39039[#39039]
+
+Snapshot/Restore::
+* Blob store compression fix {pull}39073[#39073]
+
+
+
+[[upgrade-7.0.0-rc2]]
+[float]
+=== Upgrades
+
+Snapshot/Restore::
+* plugins/repository-gcs: Update google-cloud-storage/core to 1.59.0 {pull}39748[#39748] (issue: {issue}39366[#39366])
+
+Search::
+* Upgrade to Lucene 8.0.0 GA {pull}39992[#39992] (issue: {issue}39640[#39640])
+

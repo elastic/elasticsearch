@@ -77,7 +77,7 @@ public final class SchemaUtil {
                 aggregationSourceFieldNames.put(valueSourceAggregation.getName(), valueSourceAggregation.field());
                 aggregationTypes.put(valueSourceAggregation.getName(), valueSourceAggregation.getType());
             } else if(agg instanceof ScriptedMetricAggregationBuilder) {
-                // do nothing
+                aggregationTypes.put(agg.getName(), agg.getType());
             } else {
                 // execution should not reach this point
                 listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
@@ -130,11 +130,14 @@ public final class SchemaUtil {
 
         aggregationTypes.forEach((targetFieldName, aggregationName) -> {
             String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
-            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMappings.get(sourceFieldName));
+            String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
+            String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
             logger.debug(
                     "Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName + "] to [" + destinationMapping + "]");
-            if (destinationMapping != null) {
+            if (Aggregations.isDynamicMapping(destinationMapping)) {
+                logger.info("Dynamic target mapping set for field ["+ targetFieldName +"] and aggregation [" + aggregationName +"]");
+            } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
                 logger.warn("Failed to deduce mapping for [" + targetFieldName + "], fall back to dynamic mapping.");

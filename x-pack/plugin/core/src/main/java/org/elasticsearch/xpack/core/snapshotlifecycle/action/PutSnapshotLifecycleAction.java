@@ -80,7 +80,7 @@ public class PutSnapshotLifecycleAction extends Action<PutSnapshotLifecycleActio
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            return lifecycle.validate();
         }
 
         @Override

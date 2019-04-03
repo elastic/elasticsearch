@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -16,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,13 +25,17 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES;
 
 /**
  * A {@code SnapshotLifecyclePolicy} is a policy for the cluster including a schedule of when a
@@ -108,9 +113,64 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return this.configuration;
     }
 
-    public ValidationException validate() {
-        // TODO: implement validation
-        return null;
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException err = new ActionRequestValidationException();
+
+        // ID validation
+        if (id.contains(",")) {
+            err.addValidationError("invalid policy id [" + id + "]: must not contain ','");
+        }
+        if (id.contains(" ")) {
+            err.addValidationError("invalid policy id [" + id + "]: must not contain spaces");
+        }
+        if (id.charAt(0) == '_') {
+            err.addValidationError("invalid policy id [" + id + "]: must not start with '_'");
+        }
+        int byteCount = id.getBytes(StandardCharsets.UTF_8).length;
+        if (byteCount > MAX_INDEX_NAME_BYTES) {
+            err.addValidationError("invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " +
+                MAX_INDEX_NAME_BYTES + " bytes)");
+        }
+
+        // Snapshot name validation
+        // We generate a snapshot name here to make sure it validates after applying date math
+        final String snapshotName = generateSnapshotName(new ResolverContext());
+        if (Strings.hasText(name) == false) {
+            err.addValidationError("invalid snapshot name [" + name + "]: cannot be empty");
+        }
+        if (snapshotName.contains("#")) {
+            err.addValidationError("invalid snapshot name [" + name + "]: must not contain '#'");
+        }
+        if (snapshotName.charAt(0) == '_') {
+            err.addValidationError("invalid snapshot name [" + name + "]: must not start with '_'");
+        }
+        if (snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName) == false) {
+            err.addValidationError("invalid snapshot name [" + name + "]: must be lowercase");
+        }
+        if (Strings.validFileName(snapshotName) == false) {
+            err.addValidationError("invalid snapshot name [" + name + "]: must not contain contain the following characters " +
+                Strings.INVALID_FILENAME_CHARS);
+        }
+
+        // Schedule validation
+        if (Strings.hasText(schedule) == false) {
+            err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
+        } else {
+            try {
+                new Cron(schedule);
+            } catch (IllegalArgumentException e) {
+                err.addValidationError("invalid schedule: " +
+                    ExceptionsHelper.unwrapCause(e).getMessage());
+            }
+        }
+
+        // Repository validation, validation of whether the repository actually exists happens
+        // elsewhere as it requires cluster state
+        if (Strings.hasText(repository) == false) {
+            err.addValidationError("invalid repository name [" + repository + "]: cannot be empty");
+        }
+
+        return err.validationErrors().size() == 0 ? null : err;
     }
 
     /**

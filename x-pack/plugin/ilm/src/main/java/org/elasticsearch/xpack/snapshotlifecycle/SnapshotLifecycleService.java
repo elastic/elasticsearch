@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMet
 import java.io.Closeable;
 import java.time.Clock;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -174,6 +176,16 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
         logger.debug("cancelling snapshot lifecycle job [{}] as it no longer exists", lifecycleJobId);
         scheduledTasks.remove(lifecycleJobId);
         scheduler.remove(lifecycleJobId);
+    }
+
+    /**
+     * Validates that the {@code repository} exists as a registered snapshot repository
+     * @throws IllegalArgumentException if the repository does not exist
+     */
+    public static void validateRepositoryExists(final String repository, final ClusterState state) {
+        Optional.ofNullable((RepositoriesMetaData) state.metaData().custom(RepositoriesMetaData.TYPE))
+            .map(repoMeta -> repoMeta.repository(repository))
+            .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
     }
 
     @Override

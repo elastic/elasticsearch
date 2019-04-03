@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -65,6 +66,8 @@ public class TransportPutSnapshotLifecycleAction extends
     protected void masterOperation(final PutSnapshotLifecycleAction.Request request,
                                    final ClusterState state,
                                    final ActionListener<PutSnapshotLifecycleAction.Response> listener) {
+        SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
+
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the

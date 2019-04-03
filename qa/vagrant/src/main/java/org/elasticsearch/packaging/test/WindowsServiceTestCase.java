@@ -102,7 +102,7 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         }
     }
 
-    public void test10InstallArchive() {
+    public void test10InstallArchive() throws Exception {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
         serviceScript = installation.bin("elasticsearch-service.bat").toString();

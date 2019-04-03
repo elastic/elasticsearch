@@ -59,7 +59,7 @@ public class TransportShardRefreshAction
         ActionListener.completeWith(listener, () -> {
             primary.refresh("api");
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult(shardRequest, new ReplicationResponse());
+            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
     }
 

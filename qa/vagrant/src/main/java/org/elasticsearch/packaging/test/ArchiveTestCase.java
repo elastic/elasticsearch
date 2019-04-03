@@ -218,7 +218,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
             } finally {
                 //clean up sym link
-                sh.run("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
+                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
             }
         });
 

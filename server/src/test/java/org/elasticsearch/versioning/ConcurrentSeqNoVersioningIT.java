@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.versioning;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -199,15 +201,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             version = version.previousTerm();
                         }
 
+                        IndexRequest indexRequest = new IndexRequest("test", "type", partition.id)
+                            .source("value", random.nextInt())
+                            .setIfPrimaryTerm(version.primaryTerm)
+                            .setIfSeqNo(version.seqNo);
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts if we fix network disruptions to be
                             // realistic, i.e., not silently throw data out.
-                            IndexResponse indexResponse = client().prepareIndex("test", "type", partition.id)
-                                .setSource("value", random.nextInt())
-                                .setIfPrimaryTerm(version.primaryTerm)
-                                .setIfSeqNo(version.seqNo)
-                                .execute().actionGet(timeout, TimeUnit.SECONDS);
+                            IndexResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
                             IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
                             historyResponse.accept(historyOutput);
                             // validate version and seqNo strictly increasing for successful CAS to avoid that overhead during
@@ -222,7 +224,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             if (futureSeqNo == false && futureTerm == false) {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
-                            logger.info("Received failure: " + e.getMessage(), e);
+                            logger.info(
+                                new ParameterizedMessage("Received failure for request [{}], version [{}]", indexRequest, version),
+                                e);
                             if (stop) {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
                                 return;

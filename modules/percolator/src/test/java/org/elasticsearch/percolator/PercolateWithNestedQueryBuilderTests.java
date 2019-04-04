@@ -42,13 +42,13 @@ public class PercolateWithNestedQueryBuilderTests extends PercolateQueryBuilderT
     public void testDetectsNestedDocuments() throws IOException {
         QueryShardContext shardContext = createShardContext();
 
-        PercolateQueryBuilder builder = new PercolateQueryBuilder(queryField,
+        PercolateQueryBuilder builder = new PercolateQueryBuilder(queryField, "name1",
                 new BytesArray("{ \"foo\": \"bar\" }"), XContentType.JSON);
         QueryBuilder rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
         assertFalse(query.excludesNestedDocs());
 
-        builder = new PercolateQueryBuilder(queryField,
+        builder = new PercolateQueryBuilder(queryField, "name2",
                 new BytesArray("{ \"foo\": \"bar\", \"some_nested_object\": [ { \"baz\": 42 } ] }"), XContentType.JSON);
         rewrittenBuilder = rewriteAndFetch(builder, shardContext);
         query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);

@@ -91,7 +91,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute().actionGet();
         SearchResponse response = client().prepareSearch("index")
-            .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+            .setQuery(new PercolateQueryBuilder("query", "name1", BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
                 XContentType.JSON))
             .get();
         assertHitCount(response, 1);
@@ -120,6 +120,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
                 .setQuery(new PercolateQueryBuilder("query",
+                    "name1",
                     BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject().field("companyname", "stark")
                         .startArray("employee")
@@ -204,7 +205,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         doc.endObject();
         for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
+                .setQuery(new PercolateQueryBuilder("query", "name1", BytesReference.bytes(doc), XContentType.JSON))
                 .addSort("_doc", SortOrder.ASC)
                 .get();
             assertHitCount(response, 1);
@@ -224,7 +225,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new PercolateQueryBuilder("query",
+                .setQuery(new PercolateQueryBuilder("query", "name1",
                                 BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
                                 XContentType.JSON))
             .get();
@@ -266,7 +267,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .field("field1", "value")
                 .field("field2", currentTime[0])
                 .endObject());
-            QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
+            QueryBuilder queryBuilder = new PercolateQueryBuilder("query", "name1", source, XContentType.JSON);
             Query query = queryBuilder.toQuery(queryShardContext);
             assertThat(indexSearcher.count(query), equalTo(3));
 
@@ -275,7 +276,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .field("field1", "value")
                 .field("field2", currentTime[0])
                 .endObject());
-            queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
+            queryBuilder = new PercolateQueryBuilder("query", "name2", source, XContentType.JSON);
             query = queryBuilder.toQuery(queryShardContext);
             assertThat(indexSearcher.count(query), equalTo(3));
         }

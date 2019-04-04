@@ -130,12 +130,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     private final Supplier<BytesReference> documentSupplier;
 
     /**
-     * @deprecated use {@link #PercolateQueryBuilder(String, BytesReference, XContentType)} with the document content
+     * @deprecated use {@link #PercolateQueryBuilder(String, String, BytesReference, XContentType)} with the document content
      * type to avoid autodetection.
      */
     @Deprecated
-    public PercolateQueryBuilder(String field, String documentType, BytesReference document) {
-        this(field, documentType, Collections.singletonList(document), XContentHelper.xContentType(document));
+    public PercolateQueryBuilder(String field, String documentType, String name, BytesReference document) {
+        this(field, documentType, name, Collections.singletonList(document), XContentHelper.xContentType(document));
     }
 
     /**
@@ -145,8 +145,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      * @param document                  The binary blob containing document to percolate
      * @param documentXContentType      The content type of the binary blob containing the document to percolate
      */
-    public PercolateQueryBuilder(String field, BytesReference document, XContentType documentXContentType) {
-        this(field, null, Collections.singletonList(document), documentXContentType);
+    public PercolateQueryBuilder(String field, String name, BytesReference document, XContentType documentXContentType) {
+        this(field, null, name, Collections.singletonList(document), documentXContentType);
     }
 
     /**
@@ -156,12 +156,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
      * @param documents                  The binary blob containing document to percolate
      * @param documentXContentType      The content type of the binary blob containing the document to percolate
      */
-    public PercolateQueryBuilder(String field, List<BytesReference> documents, XContentType documentXContentType) {
-        this(field, null, documents, documentXContentType);
+    public PercolateQueryBuilder(String field, String name, List<BytesReference> documents, XContentType documentXContentType) {
+        this(field, null, name, documents, documentXContentType);
     }
 
     @Deprecated
-    public PercolateQueryBuilder(String field, String documentType, List<BytesReference> documents, XContentType documentXContentType) {
+    public PercolateQueryBuilder(String field, String documentType, String name, List<BytesReference> documents, XContentType documentXContentType) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -170,6 +170,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         this.field = field;
         this.documentType = documentType;
+        this.name = name;
         this.documents = documents;
         this.documentXContentType = Objects.requireNonNull(documentXContentType);
         indexedDocumentIndex = null;
@@ -181,12 +182,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.documentSupplier = null;
     }
 
-    private PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
+    private PercolateQueryBuilder(String field, String documentType, String name, Supplier<BytesReference> documentSupplier) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
         this.field = field;
         this.documentType = documentType;
+        this.name = name;
         this.documents = Collections.emptyList();
         this.documentXContentType = null;
         this.documentSupplier = documentSupplier;
@@ -473,7 +475,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         PercolateQueryBuilder queryBuilder;
         if (documents.isEmpty() == false) {
-            queryBuilder = new PercolateQueryBuilder(field, documentType, documents, XContentType.JSON);
+            queryBuilder = new PercolateQueryBuilder(field, documentType, name, documents, XContentType.JSON);
         } else if (indexedDocumentId != null) {
             queryBuilder = new PercolateQueryBuilder(field, documentType, indexedDocumentIndex, indexedDocumentType,
                     indexedDocumentId, indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
@@ -519,7 +521,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (source == null) {
                 return this; // not executed yet
             } else {
-                return new PercolateQueryBuilder(field, documentType, Collections.singletonList(source),
+                return new PercolateQueryBuilder(field, documentType, name, Collections.singletonList(source),
                     XContentHelper.xContentType(source));
             }
         }
@@ -555,7 +557,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 listener.onResponse(null);
             }, listener::onFailure));
         });
-        return new PercolateQueryBuilder(field, documentType, documentSupplier::get);
+
+
+        return new PercolateQueryBuilder(field, documentType, name, documentSupplier::get);
     }
 
     @Override

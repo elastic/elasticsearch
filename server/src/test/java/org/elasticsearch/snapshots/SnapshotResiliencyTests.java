@@ -148,6 +148,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -199,9 +200,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private Path tempDir;
 
+    /**
+     * Whether to use eventually consistent blob store in tests.
+     */
+    private boolean eventuallyConsistent;
+
+    private MockEventuallyConsistentRepository.Context blobStoreContext;
     @Before
     public void createServices() {
         tempDir = createTempDir();
+        eventuallyConsistent = randomBoolean();
+        if (eventuallyConsistent) {
+            blobStoreContext = new MockEventuallyConsistentRepository.Context();
+        }
         deterministicTaskQueue =
             new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
     }
@@ -892,19 +903,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
             repositoriesService = new RepositoriesService(
                 settings, clusterService, transportService,
-                Collections.singletonMap(FsRepository.TYPE, metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry()) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        };
-                        repository.start();
-                        return repository;
-                    }
-                ),
-                emptyMap(),
-                threadPool
+                Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
             );
             snapshotsService =
                 new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
@@ -1085,6 +1084,28 @@ public class SnapshotResiliencyTests extends ESTestCase {
             client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
+        private Repository.Factory getRepoFactory(final Environment environment) {
+            // Run half the tests with the eventually consistent repository
+            if (eventuallyConsistent) {
+                return metaData -> {
+                    final Repository repository = new MockEventuallyConsistentRepository(
+                        metaData, environment, xContentRegistry(), deterministicTaskQueue, blobStoreContext);
+                    repository.start();
+                    return repository;
+                };
+            } else {
+                return metaData -> {
+                    final Repository repository = new FsRepository(metaData, environment, xContentRegistry()) {
+                        @Override
+                        protected void assertSnapshotOrGenericThread() {
+                            // eliminate thread name check as we create repo in the test thread
+                        }
+                    };
+                    repository.start();
+                    return repository;
+                };
+            }
+        }
         public void restart() {
             testClusterNodes.disconnectNode(this);
             final ClusterState oldState = this.clusterService.state();

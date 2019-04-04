@@ -24,7 +24,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     private static final String NAME = "data_frame_transform_state_and_stats";
     public static final ParseField STATE_FIELD = new ParseField("state");
-    public static final ParseField CHECKPOINT_STATS_FIELD = new ParseField("checkpointing");
+    public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
 
     private final String id;
     private final DataFrameTransformState transformState;
@@ -44,7 +44,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerTransformStats.fromXContent(p),
                 DataFrameField.STATS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                                (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINT_STATS_FIELD);
+                                (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
@@ -80,7 +80,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState, params);
         builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
-        builder.field(CHECKPOINT_STATS_FIELD.getPreferredName(), checkpointingInfo, params);
+        builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
         builder.endObject();
         return builder;
     }

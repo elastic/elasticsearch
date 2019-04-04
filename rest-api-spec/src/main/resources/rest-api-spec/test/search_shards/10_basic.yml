@@ -13,6 +13,9 @@
 
 ---
 "Search shards aliases with and without filters":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix: https://github.com/elastic/elasticsearch/issues/40838"
   - do:
       indices.create:
         index: test_index

@@ -437,7 +437,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     /** Enum defining the type of range */
     public enum RangeType {
-        IP("ip_range") {
+        IP("ip_range", BinaryDocValuesRangeQuery.LengthType.FIXED_16) {
             @Override
             public Field getRangeField(String name, Range r) {
                 return new InetAddressRange(name, (InetAddress)r.from, (InetAddress)r.to);
@@ -537,7 +537,7 @@ public class RangeFieldMapper extends FieldMapper {
                     includeLower ? lower : nextUp(lower), includeUpper ? upper : nextDown(upper));
             }
         },
-        DATE("date_range", NumberType.LONG) {
+        DATE("date_range", BinaryDocValuesRangeQuery.LengthType.VARIABLE, NumberType.LONG) {
             @Override
             public Field getRangeField(String name, Range r) {
                 return new LongRange(name, new long[] {((Number)r.from).longValue()}, new long[] {((Number)r.to).longValue()});
@@ -617,7 +617,7 @@ public class RangeFieldMapper extends FieldMapper {
             }
         },
         // todo support half_float
-        FLOAT("float_range", NumberType.FLOAT) {
+        FLOAT("float_range", BinaryDocValuesRangeQuery.LengthType.FIXED_4, NumberType.FLOAT) {
             @Override
             public Float minValue() {
                 return Float.NEGATIVE_INFINITY;
@@ -679,7 +679,7 @@ public class RangeFieldMapper extends FieldMapper {
                     new float[] {includeTo ? (Float)to : Math.nextDown((Float)to)});
             }
         },
-        DOUBLE("double_range", NumberType.DOUBLE) {
+        DOUBLE("double_range", BinaryDocValuesRangeQuery.LengthType.FIXED_8, NumberType.DOUBLE) {
             @Override
             public Double minValue() {
                 return Double.NEGATIVE_INFINITY;
@@ -743,7 +743,7 @@ public class RangeFieldMapper extends FieldMapper {
         },
         // todo add BYTE support
         // todo add SHORT support
-        INTEGER("integer_range", NumberType.INTEGER) {
+        INTEGER("integer_range", BinaryDocValuesRangeQuery.LengthType.VARIABLE, NumberType.INTEGER) {
             @Override
             public Integer minValue() {
                 return Integer.MIN_VALUE;
@@ -791,7 +791,7 @@ public class RangeFieldMapper extends FieldMapper {
                     new int[] {(Integer)to - (includeTo ? 0 : 1)});
             }
         },
-        LONG("long_range", NumberType.LONG) {
+        LONG("long_range", BinaryDocValuesRangeQuery.LengthType.VARIABLE, NumberType.LONG) {
             @Override
             public Long minValue() {
                 return Long.MIN_VALUE;
@@ -852,14 +852,16 @@ public class RangeFieldMapper extends FieldMapper {
             }
         };
 
-        RangeType(String name) {
+        RangeType(String name, BinaryDocValuesRangeQuery.LengthType lengthType) {
             this.name = name;
             this.numberType = null;
+            this.lengthType = lengthType;
         }
 
-        RangeType(String name, NumberType type) {
+        RangeType(String name, BinaryDocValuesRangeQuery.LengthType lengthType, NumberType type) {
             this.name = name;
             this.numberType = type;
+            this.lengthType = lengthType;
         }
 
         /** Get the associated type name. */
@@ -948,9 +950,7 @@ public class RangeFieldMapper extends FieldMapper {
 
         public final String name;
         private final NumberType numberType;
-
-
-
+        public final BinaryDocValuesRangeQuery.LengthType lengthType;
     }
 
     /** Class defining a range */

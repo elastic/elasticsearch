@@ -55,7 +55,7 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.LONG, BinaryDocValuesRangeQuery.LengthType.VARIABLE,
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.LONG,
             BinaryRangeUtil::decodeLong);
     }
 
@@ -78,19 +78,19 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.DOUBLE, BinaryDocValuesRangeQuery.LengthType.FIXED_8,
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.DOUBLE,
             BinaryRangeUtil::decodeDouble);
     }
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.FLOAT, BinaryDocValuesRangeQuery.LengthType.FIXED_4,
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.FLOAT,
             BinaryRangeUtil::decodeFloat);
     }
 
     static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeFieldMapper.RangeType rangeType,
-                                                     BinaryDocValuesRangeQuery.LengthType lengthType,
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
+        BinaryDocValuesRangeQuery.LengthType lengthType = rangeType.lengthType;
         ByteArrayDataInput in = new ByteArrayDataInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
         int numRanges = in.readVInt();

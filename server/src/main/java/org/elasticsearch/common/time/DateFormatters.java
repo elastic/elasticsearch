@@ -1585,7 +1585,7 @@ public class DateFormatters {
             if (printer == null) {
                 printer = javaDateFormatter.getPrinter();
             }
-            dateTimeFormatters.add(javaDateFormatter.getParser());
+            dateTimeFormatters.addAll(javaDateFormatter.getParsers());
             roundupBuilder.appendOptional(javaDateFormatter.getRoundupParser());
         }
         DateTimeFormatter roundUpParser = roundupBuilder.toFormatter(Locale.ROOT);
@@ -1632,7 +1632,7 @@ public class DateFormatters {
         if (zoneId == null) {
             zoneId = ZoneOffset.UTC;
         }
-        
+
         LocalDate localDate = accessor.query(TemporalQueries.localDate());
         LocalTime localTime = accessor.query(TemporalQueries.localTime());
         boolean isLocalDateSet = localDate != null;

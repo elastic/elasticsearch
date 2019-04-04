@@ -61,7 +61,7 @@ public final class DurationProcessor extends AbstractStringProcessor<Long> {
         }
 
         @Override
-        protected AbstractStringProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
+        protected DurationProcessor newProcessor(String processorTag, Map<String, Object> config, String field,
                                                        boolean ignoreMissing, String targetField) {
             final String rawTimeUnit = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_unit", DEFAULT_UNIT);
             TimeUnit toUnit = parseTimeUnit(rawTimeUnit, "target_unit");

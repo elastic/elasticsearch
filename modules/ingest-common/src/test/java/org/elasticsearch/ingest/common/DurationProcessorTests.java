@@ -28,16 +28,16 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.hamcrest.CoreMatchers;
 
-public class DurationProcessorTests extends AbstractStringProcessorTestCase {
+public class DurationProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
     private String modifiedInput;
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+    protected AbstractStringProcessor<Long> newProcessor(String field, boolean ignoreMissing, String targetField) {
         return new DurationProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField, TimeUnit.MILLISECONDS);
     }
 
-    private AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField, TimeUnit targetUnit) {
+    private AbstractStringProcessor<Long> newProcessor(String field, boolean ignoreMissing, String targetField, TimeUnit targetUnit) {
         return new DurationProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField, targetUnit);
     }
 

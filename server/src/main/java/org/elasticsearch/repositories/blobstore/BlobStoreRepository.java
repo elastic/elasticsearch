@@ -456,7 +456,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .map(info -> info.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()))
                     .orElse(Collections.emptyList()),
                 snapshotId,
-                ActionListener.wrap(v -> {
+                ActionListener.map(listener, v -> {
                     try {
                         blobStore().blobContainer(basePath().add("indices")).deleteBlobsIgnoringIfNotExists(
                             unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
@@ -466,8 +466,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 "[{}] indices {} are no longer part of any snapshots in the repository, " +
                                     "but failed to clean up their index folders.", metadata.name(), unreferencedIndices), e);
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure)
+                    return null;
+                })
             );
         }
     }

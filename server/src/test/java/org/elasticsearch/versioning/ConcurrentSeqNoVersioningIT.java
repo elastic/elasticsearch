@@ -219,8 +219,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         } catch (RuntimeException e) {
                             // if we used a future seqNo, we cannot know if it will overwrite a future update when failing with
                             // unknown error, so have to assume a timeout instead wrt. linearizability.
-                            if (futureSeqNo == false && futureTerm == false)
+                            if (futureSeqNo == false && futureTerm == false) {
                                 historyResponse.accept(new FailureHistoryOutput());
+                            }
                             logger.info("Received failure: " + e.getMessage(), e);
                             if (stop) {
                                 // interrupt often comes as a RuntimeException so check to stop here too.
@@ -667,8 +668,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (safeVersion.compareTo(inputVersion) > 0 || safeVersion.compareTo(outputVersion) > 0)
+            if (safeVersion.compareTo(inputVersion) > 0 || safeVersion.compareTo(outputVersion) > 0) {
                 return Optional.empty();
+            }
 
             // the previous write could have been accepted or rejected so we cannot validate the version more precisely.
             // but we know that any previous writes cannot succeed, since they all use seqNo <= inputVersion.seqNo.

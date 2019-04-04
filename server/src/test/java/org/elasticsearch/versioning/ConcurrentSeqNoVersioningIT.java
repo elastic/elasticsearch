@@ -100,8 +100,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         ensureGreen();
 
-
-        int numberOfKeys = randomIntBetween(1,10);
+        int numberOfKeys = randomIntBetween(1, 10);
 
         logger.info("--> Indexing initial doc for {} keys", numberOfKeys);
         List<Partition> partitions =
@@ -116,7 +115,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         List<CASUpdateThread> threads =
             IntStream.range(0, threadCount)
-                .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions, disruptTimeSeconds+1))
+                .mapToObj(i -> new CASUpdateThread(i, roundBarrier, partitions, disruptTimeSeconds + 1))
                 .collect(Collectors.toList());
 
         logger.info("--> Starting {} threads", threadCount);
@@ -178,7 +177,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 try {
                     roundBarrier.await(70, TimeUnit.SECONDS);
 
-                    int numberOfUpdates = randomIntBetween(3*partitions.size(), 13*partitions.size());
+                    int numberOfUpdates = randomIntBetween(3 * partitions.size(), 13 * partitions.size());
                     for (int i = 0; i < numberOfUpdates; ++i) {
                         final int keyIndex = random.nextInt(partitions.size());
                         final Partition partition = partitions.get(keyIndex);
@@ -187,9 +186,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         final boolean futureSeqNo = seqNoChangePct < 10;
                         Version version = partition.latestKnownVersion();
                         if (futureSeqNo) {
-                            version = version.nextSeqNo(random.nextInt(4)+1);
+                            version = version.nextSeqNo(random.nextInt(4) + 1);
                         } else if (seqNoChangePct < 15) {
-                            version = version.previousSeqNo(random.nextInt(4)+1);
+                            version = version.previousSeqNo(random.nextInt(4) + 1);
                         }
 
                         final int termChangePct = random.nextInt(100);
@@ -387,7 +386,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             this.lastFailed = lastFailed;
         }
 
-
         public SimpleState failed() {
             return lastFailed ? this : new SimpleState(safeVersion, true);
         }
@@ -471,11 +469,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public Version previousTerm() {
-            return new Version(primaryTerm-1, seqNo);
+            return new Version(primaryTerm - 1, seqNo);
         }
 
         public Version nextTerm() {
-            return new Version(primaryTerm+1, seqNo);
+            return new Version(primaryTerm + 1, seqNo);
         }
     }
 

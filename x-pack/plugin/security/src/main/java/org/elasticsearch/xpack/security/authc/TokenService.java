@@ -286,6 +286,8 @@ public final class TokenService {
                                                 : null;
                                         listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
                                     } else {
+                                        // prior versions are not prepended, as nodes on those versions don't expect it. Such nodes
+                                        // might exist in a mixed cluster during a rolling upgrade.
                                         listener.onResponse(new Tuple<>(userToken, plainRefreshToken));
                                     }
                                 } else {
@@ -347,7 +349,7 @@ public final class TokenService {
             listener.onResponse(null);
         } else {
             tokensIndex.checkIndexVersionThenExecute(
-                ex -> listener.onFailure(traceLog("prepare security tokens index", userTokenId, ex)),
+                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
                 () -> {
                     final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
                         getTokenDocumentId(userTokenId)).request();
@@ -1305,9 +1307,14 @@ public final class TokenService {
             return null;
         }
         final UserToken userToken = UserToken.fromSourceMap(userTokenSource);
-        final String versionedRefreshToken = plainRefreshToken != null ?
-                prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
-        return new Tuple<>(userToken, versionedRefreshToken);
+        if (userToken.getVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            final String versionedRefreshToken = plainRefreshToken != null ?
+                    prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
+            return new Tuple<>(userToken, versionedRefreshToken);
+        } else {
+            // do not prepend version to refresh token as the audience node version cannot deal with it
+            return new Tuple<>(userToken, plainRefreshToken);
+        }
     }
 
     private static String getTokenDocumentId(UserToken userToken) {
@@ -1358,7 +1365,7 @@ public final class TokenService {
         final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(userToken.getVersion());
         if (tokensIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
-            logger.warn("failed to validate access token because the security index doesn't exist");
+            logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
             listener.onResponse(null);
         } else {
             tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {

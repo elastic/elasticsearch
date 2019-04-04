@@ -862,15 +862,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     @SuppressForbidden(reason = "system err is ok for a command line tool")
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         if (args.length < 3) {
             System.err.println("usage: <file> <primaryTerm> <seqNo>");
         } else {
-            try {
-                runLinearizabilityChecker(new FileInputStream(args[0]), Long.parseLong(args[1]), Long.parseLong(args[2]));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            runLinearizabilityChecker(new FileInputStream(args[0]), Long.parseLong(args[1]), Long.parseLong(args[2]));
         }
     }
 

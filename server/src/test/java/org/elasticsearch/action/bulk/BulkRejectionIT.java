@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -66,9 +65,8 @@ public class BulkRejectionIT extends ESIntegTestCase {
             request2.add(new IndexRequest(index).source(Collections.singletonMap("key", "valuea" + i)))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
-        final Client client = client();
-        final ActionFuture<BulkResponse> bulkFuture1 = client.bulk(request1);
-        final ActionFuture<BulkResponse> bulkFuture2 = client.bulk(request2);
+        final ActionFuture<BulkResponse> bulkFuture1 = client().bulk(request1);
+        final ActionFuture<BulkResponse> bulkFuture2 = client().bulk(request2);
         bulkFuture1.actionGet();
         bulkFuture2.actionGet();
         internalCluster().assertSeqNos();

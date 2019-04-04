@@ -22,8 +22,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-
-import java.util.function.Consumer;
+import org.elasticsearch.common.CheckedConsumer;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
@@ -38,17 +37,9 @@ public class ActionTestUtils {
         return future.actionGet();
     }
 
-    public static <T> ActionListener<T> assertNoFailureListener(Consumer<T> consumer) {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T t) {
-                consumer.accept(t);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+    public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
+        return ActionListener.wrap(consumer, e -> {
+            throw new AssertionError(e);
+        });
     }
 }

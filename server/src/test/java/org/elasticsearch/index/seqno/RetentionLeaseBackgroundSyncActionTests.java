@@ -127,11 +127,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         action.shardOperationOnPrimary(request, indexShard,
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
                 // the retention leases on the shard should be persisted
-                try {
-                    verify(indexShard).persistRetentionLeases();
-                } catch (WriteStateException e) {
-                    throw new AssertionError(e);
-                }
+                verify(indexShard).persistRetentionLeases();
                 // we should forward the request containing the current retention leases to the replica
                 assertThat(result.replicaRequest(), sameInstance(request));
             }), latch));

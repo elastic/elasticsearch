@@ -61,7 +61,6 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -140,13 +139,13 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
-        final CompletableFuture<Void> res = new CompletableFuture<>();
+        final PlainActionFuture res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
                 assertNotNull(r);
-                res.complete(null);
+                res.onResponse(null);
             },
-            res::completeExceptionally
+            res::onFailure
         ));
         try {
             res.get();

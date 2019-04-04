@@ -89,7 +89,7 @@ public class MappingUpdatedAction {
             });
     }
 
-    private static Exception unwrapException(Throwable cause) {
-        return cause instanceof ElasticsearchException ? FutureUtils.unwrapEsException((ElasticsearchException) cause) : (Exception) cause;
+    private static Exception unwrapException(Exception cause) {
+        return cause instanceof ElasticsearchException ? FutureUtils.unwrapEsException((ElasticsearchException) cause) : cause;
     }
 }

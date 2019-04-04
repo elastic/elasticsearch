@@ -207,7 +207,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return null;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34950")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {
@@ -244,11 +243,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
                 // return true even though shards haven't moved to the new node yet (allocation was throttled).
                 assertBusy(() -> {
-                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/" + index)));
-                    @SuppressWarnings("unchecked")
-                    List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(
-                        "routing_table.indices." + index + "shards.0.node", state);
-                    assertThat(newNode, isIn(assignedNodes));
+                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+                    String xpath = "routing_table.indices." + index + ".shards.0.node";
+                    @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+                    assertNotNull(state.toString(), assignedNodes);
+                    assertThat(state.toString(), newNode, isIn(assignedNodes));
                 }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));

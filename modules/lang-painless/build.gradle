@@ -22,8 +22,8 @@ esplugin {
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
-integTestCluster {
-  module project.project(':modules:mapper-extras')
+testClusters.integTest {
+  module file(project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile)
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 

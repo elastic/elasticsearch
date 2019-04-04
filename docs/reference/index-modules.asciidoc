@@ -83,6 +83,11 @@ WARNING: Expert only. Checking shards may take a lot of time on large indices.
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
 
+[[load-fixed-bitset-filters-eagerly]] `index.load_fixed_bitset_filters_eagerly`::
+
+    Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
+    nested queries. Possible values are `true` (default) and `false`.
+
 [float]
 [[dynamic-index-settings]]
 === Dynamic index settings

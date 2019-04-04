@@ -37,6 +37,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -141,5 +142,29 @@ public class TestTranslog {
             ops.sort(Comparator.comparing(Translog.Operation::seqNo));
         }
         return ops;
+    }
+
+    public static Translog.Snapshot newSnapshotFromOperations(List<Translog.Operation> operations) {
+        final Iterator<Translog.Operation> iterator = operations.iterator();
+        return new Translog.Snapshot() {
+            @Override
+            public int totalOperations() {
+                return operations.size();
+            }
+
+            @Override
+            public Translog.Operation next() {
+                if (iterator.hasNext()) {
+                    return iterator.next();
+                } else {
+                    return null;
+                }
+            }
+
+            @Override
+            public void close() {
+
+            }
+        };
     }
 }

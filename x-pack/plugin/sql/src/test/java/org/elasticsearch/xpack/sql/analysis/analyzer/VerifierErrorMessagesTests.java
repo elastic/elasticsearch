@@ -203,10 +203,42 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testValidDateTimeFunctionsOnTime() {
+        accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
+        accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");
+        accept("SELECT MINUTE_OF_DAY(CAST(date AS TIME)) FROM test");
+        accept("SELECT SECOND_OF_MINUTE(CAST(date AS TIME)) FROM test");
+    }
+
+    public void testInvalidDateTimeFunctionsOnTime() {
+        assertEquals("1:8: argument of [DAY_OF_YEAR(CAST(date AS TIME))] must be [date or datetime], " +
+                "found value [CAST(date AS TIME)] type [time]",
+            error("SELECT DAY_OF_YEAR(CAST(date AS TIME)) FROM test"));
+    }
+
+    public void testGroupByOnTimeNotAllowed() {
+        assertEquals("1:36: Function [CAST(date AS TIME)] with data type [time] cannot be used for grouping",
+            error("SELECT count(*) FROM test GROUP BY CAST(date AS TIME)"));
+    }
+
+    public void testGroupByOnTimeWrappedWithScalar() {
+        accept("SELECT count(*) FROM test GROUP BY MINUTE(CAST(date AS TIME))");
+    }
+
+    public void testHistogramOnTimeNotAllowed() {
+        assertEquals("1:8: first argument of [HISTOGRAM] must be [date, datetime or numeric], " +
+                "found value [CAST(date AS TIME)] type [time]",
+            error("SELECT HISTOGRAM(CAST(date AS TIME), INTERVAL 1 MONTH), COUNT(*) FROM test GROUP BY 1"));
+    }
+
     public void testSubtractFromInterval() {
         assertEquals("1:8: Cannot subtract a datetime[CAST('2000-01-01' AS DATETIME)] " +
                 "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
             error("SELECT INTERVAL 1 MONTH - CAST('2000-01-01' AS DATETIME)"));
+
+        assertEquals("1:8: Cannot subtract a time[CAST('12:23:56.789' AS TIME)] " +
+                "from an interval[INTERVAL 1 MONTH]; do you mean the reverse?",
+            error("SELECT INTERVAL 1 MONTH - CAST('12:23:56.789' AS TIME)"));
     }
 
     public void testMultipleColumns() {
@@ -293,7 +325,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGroupByOnInexact() {
-        assertEquals("1:36: Field of data type [text] cannot be used for grouping; " +
+        assertEquals("1:36: Field [text] of data type [text] cannot be used for grouping; " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT COUNT(*) FROM test GROUP BY text"));
     }
@@ -479,7 +511,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInvalidTypeForNumericFunction_WithTwoArgs() {
         assertEquals("1:8: first argument of [TRUNCATE('foo', 2)] must be [numeric], found value ['foo'] type [keyword]",
             error("SELECT TRUNCATE('foo', 2)"));
-        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [numeric], found value ['bar'] type [keyword]",
+        assertEquals("1:8: second argument of [TRUNCATE(1.2, 'bar')] must be [integer], found value ['bar'] type [keyword]",
             error("SELECT TRUNCATE(1.2, 'bar')"));
     }
 
@@ -535,10 +567,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INSERT('text', 1, 2, 3)"));
     }
 
-    public void testInvalidTypeForRegexMatch() {
+    public void testInvalidTypeForLikeMatch() {
         assertEquals("1:26: [text LIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text LIKE 'foo'"));
+    }
+    
+    public void testInvalidTypeForRLikeMatch() {
+        assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text RLIKE 'foo'"));
     }
     
     public void testAllowCorrectFieldsInIncompatibleMappings() {

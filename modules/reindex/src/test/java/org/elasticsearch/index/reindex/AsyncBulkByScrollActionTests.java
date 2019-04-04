@@ -276,7 +276,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     versionConflicts++;
                     responses[i] = new BulkItemResponse(i, randomFrom(DocWriteRequest.OpType.values()),
                         new Failure(shardId.getIndexName(), "type", "id" + i,
-                            new VersionConflictEngineException(shardId, "type", "id", "test")));
+                            new VersionConflictEngineException(shardId, "id", "test")));
                     continue;
                 }
                 boolean createdResponse;

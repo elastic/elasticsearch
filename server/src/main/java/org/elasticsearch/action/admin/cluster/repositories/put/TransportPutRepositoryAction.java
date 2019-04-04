@@ -68,13 +68,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     @Override
     protected void masterOperation(final PutRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-
-        repositoriesService.registerRepository(
-                new RepositoriesService.RegisterRepositoryRequest("put_repository [" + request.name() + "]",
-                        request.name(), request.type(), request.verify())
-                .settings(request.settings())
-                .masterNodeTimeout(request.masterNodeTimeout())
-                .ackTimeout(request.timeout()), new ActionListener<ClusterStateUpdateResponse>() {
+        repositoriesService.registerRepository(request, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {
@@ -87,5 +81,4 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
             }
         });
     }
-
 }

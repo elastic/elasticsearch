@@ -71,7 +71,7 @@ setup:
       data_frame.preview_data_frame_transform:
         body: >
           {
-            "source": "airline-data",
+            "source": { "index": "airline-data" },
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
@@ -96,7 +96,7 @@ setup:
       data_frame.preview_data_frame_transform:
         body: >
           {
-            "source": "airline-data",
+            "source": { "index": "airline-data" },
             "pivot": {
               "group_by": {"airline": {"terms": {"not_a_terms_param": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}

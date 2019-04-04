@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -78,8 +79,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(),
-            request.request().index());
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {

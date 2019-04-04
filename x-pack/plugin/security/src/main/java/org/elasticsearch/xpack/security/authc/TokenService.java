@@ -824,55 +824,7 @@ public final class TokenService {
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
                     tokenDocId, refreshTokenStatus.getSupersedingDocId());
-            getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
-                private final Consumer<Exception> maybeRetryOnFailure = ex -> {
-                    if (backoff.hasNext()) {
-                        final TimeValue backofTimeValue = backoff.next();
-                        logger.debug("retrying after [" + backofTimeValue + "] back off");
-                        final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                .preserveContext(() -> getSupersedingTokenDocAsync(refreshTokenStatus, this));
-                        client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
-                    } else {
-                        logger.warn("back off retries exhausted");
-                        onFailure.accept(ex);
-                    }
-                };
-
-                @Override
-                public void onResponse(GetResponse response) {
-                    if (response.isExists()) {
-                        logger.debug("found superseding token document [{}] for token document [{}]",
-                                refreshTokenStatus.getSupersedingDocId(), tokenDocId);
-                        final Tuple<UserToken, String> parsedTokens;
-                        try {
-                            parsedTokens = parseTokensFromDocument(response.getSource(), null);
-                        } catch (IllegalStateException | DateTimeException e) {
-                            logger.error("unable to decode existing user token", e);
-                            listener.onFailure(new ElasticsearchSecurityException("could not refresh the requested token", e));
-                            return;
-                        }
-                        listener.onResponse(parsedTokens);
-                    } else {
-                        // We retry this since the creation of the superseding token document might already be in flight but not
-                        // yet completed, triggered by a refresh request that came a few milliseconds ago
-                        logger.info("could not find superseding token document [{}] for token document [{}], retrying",
-                                refreshTokenStatus.getSupersedingDocId(), tokenDocId);
-                        maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (isShardNotAvailableException(e)) {
-                        logger.info("could not find superseding token document [{}] for refresh, retrying",
-                                refreshTokenStatus.getSupersedingDocId());
-                        maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                    } else {
-                        logger.warn("could not find superseding token document [{}] for refresh", refreshTokenStatus.getSupersedingDocId());
-                        onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                    }
-                }
-            });
+            getSupersedingTokenDocAsyncWithRetry(refreshTokenStatus, backoff, listener);
         } else {
             final String newUserTokenId = UUIDs.randomBase64UUID();
             final Version newTokenVersion = getVersionCompatibility();
@@ -965,6 +917,61 @@ public final class TokenService {
                         }
                     }), client::update);
         }
+    }
+
+    private void getSupersedingTokenDocAsyncWithRetry(RefreshTokenStatus refreshTokenStatus, Iterator<TimeValue> backoff,
+            ActionListener<Tuple<UserToken, String>> listener) {
+        final Consumer<Exception> onFailure = ex -> listener
+                .onFailure(traceLog("get superseding token", refreshTokenStatus.getSupersedingDocId(), ex));
+        getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
+            private final Consumer<Exception> maybeRetryOnFailure = ex -> {
+                if (backoff.hasNext()) {
+                    final TimeValue backofTimeValue = backoff.next();
+                    logger.debug("retrying after [" + backofTimeValue + "] back off");
+                    final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
+                            .preserveContext(() -> getSupersedingTokenDocAsync(refreshTokenStatus, this));
+                    client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
+                } else {
+                    logger.warn("back off retries exhausted");
+                    onFailure.accept(ex);
+                }
+            };
+
+            @Override
+            public void onResponse(GetResponse response) {
+                if (response.isExists()) {
+                    logger.debug("found superseding token document [{}] in index [{}] by following the [{}] reference", response.getId(),
+                            response.getIndex(), refreshTokenStatus.getSupersedingDocId());
+                    final Tuple<UserToken, String> parsedTokens;
+                    try {
+                        parsedTokens = parseTokensFromDocument(response.getSource(), null);
+                    } catch (IllegalStateException | DateTimeException e) {
+                        logger.error("unable to decode existing user token", e);
+                        listener.onFailure(new ElasticsearchSecurityException("could not refresh the requested token", e));
+                        return;
+                    }
+                    listener.onResponse(parsedTokens);
+                } else {
+                    // We retry this since the creation of the superseding token document might already be in flight but not
+                    // yet completed, triggered by a refresh request that came a few milliseconds ago
+                    logger.info("could not find superseding token document from [{}] reference, retrying",
+                            refreshTokenStatus.getSupersedingDocId());
+                    maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (isShardNotAvailableException(e)) {
+                    logger.info("could not find superseding token document from reference [{}], retrying",
+                            refreshTokenStatus.getSupersedingDocId());
+                    maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
+                } else {
+                    logger.warn("could not find superseding token document from reference [{}]", refreshTokenStatus.getSupersedingDocId());
+                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                }
+            }
+        });
     }
 
     private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {

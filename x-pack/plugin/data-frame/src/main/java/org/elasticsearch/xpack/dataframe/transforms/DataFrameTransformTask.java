@@ -238,6 +238,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     @Override
     public synchronized void triggered(Event event) {
+        //  for now no rerun, so only trigger if checkpoint == 0
         if (currentCheckpoint.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
             logger.debug("Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
@@ -429,6 +430,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
+            // temporary solution till https://github.com/elastic/elasticsearch/pull/40855 has been fixed
+            // to be moved to onFinish()
+            if(indexerState.equals(IndexerState.STARTED) && getStats().getNumDocuments() > 0) {
+                currentCheckpoint.incrementAndGet();
+            }
+
             final DataFrameTransformState state = new DataFrameTransformState(
                 taskState.get(),
                 indexerState,
@@ -485,7 +492,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onFinish() {
-            long checkpoint = currentCheckpoint.incrementAndGet();
+            long checkpoint = currentCheckpoint.get();
             auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
             logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");
         }

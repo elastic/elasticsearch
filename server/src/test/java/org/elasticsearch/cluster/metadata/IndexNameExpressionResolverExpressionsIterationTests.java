@@ -16,19 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.painless;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+package org.elasticsearch.cluster.metadata;
 
-public class PainlessExecuteResponseTests extends AbstractStreamableTestCase<PainlessExecuteAction.Response> {
+public class IndexNameExpressionResolverExpressionsIterationTests extends IndexNameExpressionResolverTests {
 
-    @Override
-    protected PainlessExecuteAction.Response createBlankInstance() {
-        return new PainlessExecuteAction.Response();
+    protected IndexNameExpressionResolver getIndexNameExpressionResolver() {
+        return new IndexNameExpressionResolver() {
+            @Override
+            boolean iterateIndexAliases(int indexAliasesSize, int resolvedExpressionsSize) {
+                return false;
+            }
+        };
     }
 
-    @Override
-    protected PainlessExecuteAction.Response createTestInstance() {
-        return new PainlessExecuteAction.Response(randomAlphaOfLength(10));
-    }
 }

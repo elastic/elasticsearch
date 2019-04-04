@@ -32,6 +32,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
@@ -61,8 +62,8 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         BuildPlugin.configureTestTasks(project)
 
         // only setup tests to build
-        def sourceSets = project.extensions.getByType(SourceSetContainer)
-        def testSourceSet = sourceSets.create('test')
+        SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
+        SourceSet testSourceSet = sourceSets.create('test')
 
         project.tasks.withType(Test) { Test test ->
             test.testClassesDirs = testSourceSet.output.classesDirs
@@ -73,11 +74,11 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.configurations.create("compileOnly")
         project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
 
-        def eclipse = project.extensions.getByType(EclipseModel)
+        EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]
         eclipse.classpath.plusConfigurations = [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]
 
-        def idea = project.extensions.getByType(IdeaModel)
+        IdeaModel idea = project.extensions.getByType(IdeaModel)
         idea.module.testSourceDirs += testSourceSet.java.srcDirs
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 

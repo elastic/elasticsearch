@@ -37,11 +37,9 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -125,7 +123,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return future;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40731")
     public void testRecoveryWithConcurrentIndexing() throws Exception {
         final String index = "recovery_with_concurrent_indexing";
         Response response = client().performRequest(new Request("GET", "_nodes"));
@@ -210,6 +207,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return null;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34950")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {
@@ -243,7 +241,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
                 updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
-                assertBusy(() -> assertIndexAllocatedToNode(index, newNode), 60, TimeUnit.SECONDS);
+                // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
+                // return true even though shards haven't moved to the new node yet (allocation was throttled).
+                assertBusy(() -> {
+                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/" + index)));
+                    @SuppressWarnings("unchecked")
+                    List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(
+                        "routing_table.indices." + index + "shards.0.node", state);
+                    assertThat(newNode, isIn(assignedNodes));
+                }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 assertCount(index, "_only_nodes:" + newNode, 60);
@@ -473,23 +479,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertIndexAllocatedToNode(String index, String nodeId) throws IOException {
-        Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-        Map<String, ?> metadata = (Map<String, Object>) XContentMapValues.extractValue("metadata.indices." + index, state);
-        Map<String, ?> routingTable = (Map<String, Object>) XContentMapValues.extractValue("routing_table.indices." + index, state);
-        Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
-        int numberOfShards = Integer.parseInt((String) XContentMapValues.extractValue("index.number_of_shards", settings));
-        for (int i = 0; i < numberOfShards; i++) {
-            Collection<Map<String, ?>> shards = (Collection<Map<String, ?>>) XContentMapValues.extractValue("shards." + i, routingTable);
-            Set<String> assignedNodes = new HashSet<>();
-            for (Map<String, ?> shard : shards) {
-                assignedNodes.add((String) XContentMapValues.extractValue("node", shard));
-            }
-            assertThat(nodeId, isIn(assignedNodes));
         }
     }
 }

@@ -25,6 +25,7 @@ dependencies {
         // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
         exclude group: "com.google.guava", module: "guava"
     }
+    testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -70,13 +71,8 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     return tmpFile.exists()
 }
 
-String coreFullClusterRestartPath = project(':qa:full-cluster-restart').projectDir.toPath().resolve('src/test/java').toString()
-sourceSets {
-    test {
-        java {
-            srcDirs += [coreFullClusterRestartPath]
-        }
-    }
+sourceSets.test {
+    //compileClasspath += project(':qa:full-cluster-restart').sourceSets.test.output
 }
 
 licenseHeaders {

@@ -41,6 +41,8 @@ public interface TestClusterConfiguration {
 
     void plugin(File plugin);
 
+    void module(File module);
+
     void keystore(String key, String value);
 
     void keystore(String key, Supplier<CharSequence> valueSupplier);
@@ -62,6 +64,8 @@ public interface TestClusterConfiguration {
     void setJavaHome(File javaHome);
 
     void start();
+
+    void extraConfigFile(String destination, File from);
 
     String getHttpSocketURI();
 

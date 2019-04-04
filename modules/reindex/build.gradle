@@ -29,10 +29,10 @@ esplugin {
   hasClientJar = true
 }
 
-integTestCluster {
+testClusters.integTest {
   // Modules who's integration is explicitly tested in integration tests
-  module project(':modules:parent-join')
-  module project(':modules:lang-painless')
+  module file(project(':modules:parent-join').tasks.bundlePlugin.archiveFile)
+  module file(project(':modules:lang-painless').tasks.bundlePlugin.archiveFile)
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
@@ -97,12 +97,15 @@ dependencies {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  integTestRunner.systemProperty "tests.fromOld", "false"
+  integTest.runner {
+    systemProperty "tests.fromOld", "false"
+  }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  integTestRunner.systemProperty "tests.fromOld", "false"
+  integTest.runner {
+    systemProperty "tests.fromOld", "false"
+  }
 } else {
-  integTestRunner.systemProperty "tests.fromOld", "true"
   /* Set up tasks to unzip and run the old versions of ES before running the
    * integration tests. */
   for (String version : ['2', '1', '090']) {
@@ -116,8 +119,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
       into temporaryDir
     }
-    Task fixture = task("oldEs${version}Fixture",
-          type: org.elasticsearch.gradle.test.AntFixture) {
+
+    Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
       dependsOn project.configurations.oldesFixture
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
@@ -133,12 +136,16 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         return fixture.portsFile.exists()
       }
     }
-    integTest.dependsOn fixture
-    integTestRunner {
-      /* Use a closure on the string to delay evaluation until right before we
-       * run the integration tests so that we can be sure that the file is
-       * ready. */
-      systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+
+    integTest {
+      dependsOn fixture
+      runner {
+        systemProperty "tests.fromOld", "true"
+        /* Use a closure on the string to delay evaluation until right before we
+         * run the integration tests so that we can be sure that the file is
+         * ready. */
+        systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+      }
     }
   }
 }

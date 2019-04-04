@@ -129,6 +129,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void module(File module) {
+        nodes.all(each -> each.module(module));
+    }
+
+    @Override
     public void keystore(String key, String value) {
         nodes.all(each -> each.keystore(key, value));
     }
@@ -196,6 +201,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             }
             node.start();
         }
+    }
+
+    @Override
+    public void extraConfigFile(String destination, File from) {
+        nodes.all(node -> node.extraConfigFile(destination, from));
     }
 
     private void writeUnicastHostsFiles() {

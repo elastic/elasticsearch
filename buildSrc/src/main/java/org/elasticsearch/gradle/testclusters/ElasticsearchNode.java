@@ -34,6 +34,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -61,6 +62,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit ES_DESTROY_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final int NODE_UP_TIMEOUT = 60;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
+    private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
+        "path.repo"
+    );
 
     private final String path;
     private final String name;
@@ -72,10 +76,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final List<URI> plugins = new ArrayList<>();
+    private final List<File> modules = new ArrayList<>();
     private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
+    private final Map<String, File> extraConfigFiles = new HashMap<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
@@ -148,6 +154,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void plugin(File plugin) {
         plugin(plugin.toURI());
+    }
+
+    @Override
+    public void module(File module) {
+        this.modules.add(module);
     }
 
     @Override
@@ -278,7 +289,64 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             });
         }
 
+        installModules();
+
+        copyExtraConfigFiles();
+
         startElasticsearchProcess();
+    }
+
+    private void copyExtraConfigFiles() {
+        extraConfigFiles.forEach((destination, from) -> {
+                if (Files.exists(from.toPath()) == false) {
+                    throw new TestClustersException("Can't create extra config file from " + from + " for " + this +
+                        " as it does not exist");
+                }
+                Path dst = configFile.getParent().resolve(destination);
+                try {
+                    Files.createDirectories(dst);
+                    Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
+                    LOGGER.info("Added extra config file {} for {}", destination, this);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't create extra config file for", e);
+                }
+            });
+    }
+
+    private void installModules() {
+        if (distribution == Distribution.INTEG_TEST) {
+            modules.forEach(module -> services.copy(spec -> {
+                if (module.getName().toLowerCase().endsWith(".zip")) {
+                    spec.from(services.zipTree(module));
+                } else if (module.isDirectory()) {
+                    spec.from(module);
+                } else {
+                    throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                }
+                spec.into(
+                    workingDir
+                        .resolve("modules")
+                        .resolve(
+                            module.getName()
+                                .replace(".zip", "")
+                                .replace("-" + version, "")
+                        )
+                        .toFile()
+                );
+            }));
+        } else {
+            LOGGER.info("Not installing " + modules.size() + "(s) since the " + distribution + " distribution already " +
+                "has them");
+        }
+    }
+
+    @Override
+    public void extraConfigFile(String destination, File from) {
+        if (destination.contains("..")) {
+            throw new IllegalArgumentException("extra config file destination can't be relative, was " + destination +
+                " for " + this);
+        }
+        extraConfigFiles.put(destination, from);
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
@@ -560,11 +628,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get().toString()));
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(userConfig.keySet());
+        overriden.removeAll(OVERRIDABLE_SETTINGS);
         if (overriden.isEmpty() ==false) {
             throw new IllegalArgumentException(
                 "Testclusters does not allow the following settings to be changed:" + overriden + " for " + this
             );
         }
+        // Make sure no duplicate config keys
+        userConfig.keySet().stream()
+            .filter(OVERRIDABLE_SETTINGS::contains)
+            .forEach(defaultConfig::remove);
 
         try {
             // We create hard links  for the distribution, so we need to remove the config file before writing it

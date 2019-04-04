@@ -391,10 +391,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             boolean linearizable =
                 new LinearizabilityChecker().isLinearizable(spec, history,
                     missingResponseGenerator());
+            // implicitly test that we can serialize all histories.
+            String serializedHistory = base64Serialize(history);
             if (linearizable == false) {
                 // we dump base64 encoded data, since the nature of this test is that it does not reproduce even with same seed.
                 logger.error("Linearizability check failed. Spec: {}, initial version: {}, serialized history: {}", spec, initialVersion,
-                    base64Serialize(history));
+                    serializedHistory);
             }
             return linearizable;
         }
@@ -829,7 +831,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         return input -> new FailureHistoryOutput();
     }
 
-    @SuppressForbidden(reason = "we only serialize data in the test case to be able to deserialize it for debugging")
     private String base64Serialize(LinearizabilityChecker.History history) {
         BytesStreamOutput output = new BytesStreamOutput();
         try {
@@ -840,10 +841,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             }
             output.close();
             return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
-        } catch (IOException e) {
+        } catch (IOException | ClassCastException e) {
             throw new RuntimeException(e);
-        } catch (ClassCastException e) {
-            return "Unable to produce base64 serialized version of history: " + history +"\n  Message: " + e.getMessage();
         }
     }
 

@@ -19,8 +19,14 @@
 
 package org.elasticsearch.painless;
 
-public class StaticTest {
-    public static int staticAddIntsTest(int x, int y) {
-        return x + y;
+public class FeatureTestAugmentationObject {
+    public static int getTotal(FeatureTestObject ft) {
+        return ft.getX() + ft.getY();
     }
+
+    public static int addToTotal(FeatureTestObject ft, int add) {
+        return getTotal(ft) + add;
+    }
+
+    private FeatureTestAugmentationObject() {}
 }

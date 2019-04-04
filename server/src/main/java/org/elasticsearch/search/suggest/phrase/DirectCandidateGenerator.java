@@ -143,7 +143,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                 // the threshold is the max possible frequency so we can skip the search
                 return set;
             }
-            spellchecker.setThresholdFrequency(threshold);
+            // don't override the threshold if the provided min_doc_freq is greater
+            // than the original term frequency.
+            if (spellchecker.getThresholdFrequency() < threshold) {
+                spellchecker.setThresholdFrequency(threshold);
+            }
         }
 
         SuggestWord[] suggestSimilar = spellchecker.suggestSimilar(new Term(field, term), numCandidates, reader, this.suggestMode);

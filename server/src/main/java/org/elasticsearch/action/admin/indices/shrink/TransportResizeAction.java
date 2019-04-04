@@ -97,14 +97,14 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         final String sourceIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getSourceIndex());
         final String targetIndex = indexNameExpressionResolver.resolveDateMathExpression(resizeRequest.getTargetIndexRequest().index());
         client.admin().indices().prepareStats(sourceIndex).clear().setDocs(true).execute(
-            ActionListener.delegateFailure(listener, (l, r) -> {
+            ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state,
                     i -> {
-                        IndexShardStats shard = r.getIndex(sourceIndex).getIndexShards().get(i);
+                        IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, sourceIndex, targetIndex);
                 createIndexService.createIndex(
-                    updateRequest, ActionListener.map(l,
+                    updateRequest, ActionListener.map(delegatedListener,
                         response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index()))
                 );
             }));

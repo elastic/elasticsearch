@@ -658,13 +658,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return ActionListener.map(actionListener,
                     response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
-                return ActionListener.delegateFailure(actionListener, (l, r) -> {
-                    BulkItemResponse[] items = r.getItems();
+                return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
+                    BulkItemResponse[] items = response.getItems();
                     for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots[i], r.getItems()[i]);
+                        itemResponses.add(originalSlots[i], response.getItems()[i]);
                     }
-                    l.onResponse(
-                        new BulkResponse(itemResponses.toArray(new BulkItemResponse[0]), r.getTook().getMillis(), ingestTookInMillis));
+                    delegatedListener.onResponse(
+                        new BulkResponse(
+                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis));
                 });
             }
         }

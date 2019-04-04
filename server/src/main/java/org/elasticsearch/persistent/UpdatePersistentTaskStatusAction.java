@@ -180,7 +180,8 @@ public class UpdatePersistentTaskStatusAction extends Action<PersistentTaskRespo
                                              final ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.updatePersistentTaskState(request.taskId, request.allocationId, request.state,
-                ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new PersistentTaskResponse(r))));
+                ActionListener.delegateFailure(listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
         }
     }
 }

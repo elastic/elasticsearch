@@ -148,7 +148,8 @@ public final class TransportPutFollowAction
             @Override
             protected void doRun() {
                 restoreService.restoreSnapshot(restoreRequest,
-                    ActionListener.delegateFailure(listener, (l, r) -> afterRestoreStarted(clientWithHeaders, request, l, r)));
+                    ActionListener.delegateFailure(listener,
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)));
             }
         });
     }
@@ -176,17 +177,17 @@ public final class TransportPutFollowAction
         }
 
         RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
-            ActionListener.delegateFailure(listener, (l, r) -> {
-                RestoreInfo restoreInfo = r.getRestoreInfo();
+            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
+                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore.
-                    l.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, l);
+                    initiateFollowing(clientWithHeaders, request, delegatedListener);
                 } else {
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
-                    l.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
             }));
     }

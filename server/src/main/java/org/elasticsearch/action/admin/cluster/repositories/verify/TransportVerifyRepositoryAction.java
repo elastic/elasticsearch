@@ -69,6 +69,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
                                    final ActionListener<VerifyRepositoryResponse> listener) {
         repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener,
-            (l, r) -> l.onResponse(new VerifyRepositoryResponse(r.toArray(new DiscoveryNode[0])))));
+            (delegatedListener, verifyResponse) ->
+                delegatedListener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))));
     }
 }

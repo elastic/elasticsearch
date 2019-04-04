@@ -2688,29 +2688,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired, (l, r) -> {
-            if (opPrimaryTerm < getOperationPrimaryTerm()) {
-                r.close();
-                final String message = String.format(
-                    Locale.ROOT,
-                    "%s operation primary term [%d] is too old (current [%d])",
-                    shardId,
-                    opPrimaryTerm,
-                    getOperationPrimaryTerm());
-                l.onFailure(new IllegalStateException(message));
-            } else {
-                assert assertReplicationTarget();
-                try {
-                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
-                    advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
-                } catch (Exception e) {
-                    r.close();
-                    l.onFailure(e);
-                    return;
+        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired,
+            (delegatedListener, releasable) -> {
+                if (opPrimaryTerm < getOperationPrimaryTerm()) {
+                    releasable.close();
+                    final String message = String.format(
+                        Locale.ROOT,
+                        "%s operation primary term [%d] is too old (current [%d])",
+                        shardId,
+                        opPrimaryTerm,
+                        getOperationPrimaryTerm());
+                    delegatedListener.onFailure(new IllegalStateException(message));
+                } else {
+                    assert assertReplicationTarget();
+                    try {
+                        updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
+                        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
+                    } catch (Exception e) {
+                        releasable.close();
+                        delegatedListener.onFailure(e);
+                        return;
+                    }
+                    delegatedListener.onResponse(releasable);
                 }
-                l.onResponse(r);
-            }
-        });
+            });
 
         if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {

@@ -97,12 +97,13 @@ public class RepositoriesService implements ClusterStateApplier {
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
-            registrationListener = ActionListener.delegateFailure(listener, (l, r) -> {
-                if (r.isAcknowledged()) {
+            registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
+                if (clusterStateUpdateResponse.isAcknowledged()) {
                     // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), ActionListener.delegateFailure(l, (lis, resp) -> lis.onResponse(r)));
+                    verifyRepository(request.name(), ActionListener.delegateFailure(delegatedListener,
+                        (innerDelegatedListener, discoveryNodes) -> innerDelegatedListener.onResponse(clusterStateUpdateResponse)));
                 } else {
-                    l.onResponse(r);
+                    delegatedListener.onResponse(clusterStateUpdateResponse);
                 }
             });
         } else {
@@ -237,16 +238,16 @@ public class RepositoriesService implements ClusterStateApplier {
                     if (verificationToken != null) {
                         try {
                             verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
-                                (l, r) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                                (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                     try {
                                         repository.endVerification(verificationToken);
                                     } catch (Exception e) {
                                         logger.warn(() -> new ParameterizedMessage(
                                             "[{}] failed to finish repository verification", repositoryName), e);
-                                        l.onFailure(e);
+                                        delegatedListener.onFailure(e);
                                         return;
                                     }
-                                    l.onResponse(r);
+                                    delegatedListener.onResponse(verifyResponse);
                                 })));
                         } catch (Exception e) {
                             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {

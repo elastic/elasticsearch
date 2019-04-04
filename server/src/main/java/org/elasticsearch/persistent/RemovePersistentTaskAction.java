@@ -149,7 +149,8 @@ public class RemovePersistentTaskAction extends Action<PersistentTaskResponse> {
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.removePersistentTask(
-                request.taskId, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new PersistentTaskResponse(r))));
+                request.taskId, ActionListener.delegateFailure(listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
         }
     }
 }

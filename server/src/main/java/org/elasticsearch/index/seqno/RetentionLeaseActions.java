@@ -102,9 +102,9 @@ public class RetentionLeaseActions {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.acquirePrimaryOperationPermit(
-                ActionListener.delegateFailure(listener, (l, r) -> {
-                    try (Releasable ignore = r) {
-                        doRetentionLeaseAction(indexShard, request, l);
+                ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
+                    try (Releasable ignore = releasable) {
+                        doRetentionLeaseAction(indexShard, request, delegatedListener);
                     }
                 }),
                 ThreadPool.Names.SAME,

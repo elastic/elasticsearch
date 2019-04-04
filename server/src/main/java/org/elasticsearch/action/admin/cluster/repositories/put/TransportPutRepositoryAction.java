@@ -67,7 +67,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     @Override
     protected void masterOperation(final PutRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.registerRepository(
-            request, ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new AcknowledgedResponse(r.isAcknowledged()))));
+        repositoriesService.registerRepository(request, ActionListener.delegateFailure(listener,
+            (delegatedListener, response) -> delegatedListener.onResponse(new AcknowledgedResponse(response.isAcknowledged()))));
     }
 }

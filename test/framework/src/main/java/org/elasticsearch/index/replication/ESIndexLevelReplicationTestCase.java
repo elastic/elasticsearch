@@ -611,7 +611,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         public void execute() {
             try {
                 new ReplicationOperation<>(request, new PrimaryRef(),
-                    ActionListener.delegateFailure(listener, (l, r) -> r.respond(l)), new ReplicasRef(), logger, opType).execute();
+                    ActionListener.delegateFailure(listener,
+                        (delegatedListener, result) -> result.respond(delegatedListener)), new ReplicasRef(), logger, opType).execute();
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -688,14 +689,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     getPrimaryShard().getPendingPrimaryTerm(),
                     globalCheckpoint,
                     maxSeqNoOfUpdatesOrDeletes,
-                    ActionListener.delegateFailure(listener, (l, r) -> {
+                    ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
                         try {
                             performOnReplica(request, replica);
-                            r.close();
-                            l.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
+                            releasable.close();
+                            delegatedListener.onResponse(new ReplicaResponse(replica.getLocalCheckpoint(), replica.getGlobalCheckpoint()));
                         } catch (final Exception e) {
-                            Releasables.closeWhileHandlingException(r);
-                            l.onFailure(e);
+                            Releasables.closeWhileHandlingException(releasable);
+                            delegatedListener.onFailure(e);
                         }
                     }),
                     ThreadPool.Names.WRITE, request);

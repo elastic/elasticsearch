@@ -216,7 +216,8 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.createPersistentTask(request.taskId, request.taskName, request.params,
-                ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(new PersistentTaskResponse(r))));
+                ActionListener.delegateFailure(listener,
+                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
         }
     }
 }

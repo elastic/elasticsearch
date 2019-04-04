@@ -208,7 +208,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest,
-            ActionListener.delegateFailure(listener, (l, r) -> l.onResponse(upgradeResponse)));
+        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, ActionListener.delegateFailure(
+            listener, (delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
     }
 }

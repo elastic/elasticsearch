@@ -463,13 +463,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             ? new GetRequest(termsLookup.index(), termsLookup.id())
             : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, ActionListener.delegateFailure(actionListener, (l, r) -> {
+        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
             List<Object> terms = new ArrayList<>();
-            if (r.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), r.getSourceAsMap());
+            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
                 terms.addAll(extractedValues);
             }
-            l.onResponse(terms);
+            delegatedListener.onResponse(terms);
         }));
     }
 

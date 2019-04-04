@@ -118,9 +118,9 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             .masterNodeTimeout(request.masterNodeTimeout())
             .waitForActiveShards(request.waitForActiveShards())
             .indices(concreteIndices);
-        indexStateService.closeIndices(closeRequest, ActionListener.delegateResponse(listener, (l, t) -> {
+        indexStateService.closeIndices(closeRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
-            listener.onFailure(t);
+            delegatedListener.onFailure(t);
         }));
     }
 }

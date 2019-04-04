@@ -59,7 +59,7 @@ set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 set ES_BUNDLED_JDK=${es.bundled_jdk}
 
 if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory""`) do set ES_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )
 
 cd /d "%ES_HOME%"

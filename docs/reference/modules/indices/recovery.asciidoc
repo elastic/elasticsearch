@@ -1,7 +1,7 @@
 [[recovery]]
 === Indices Recovery
 
-<<cat-recovery, Peer recovery>> syncs data from a primary shard to a new or
+Peer recovery syncs data from a primary shard to a new or
 existing shard copy.
 
 Peer recovery automatically occurs when {es}:
@@ -9,15 +9,14 @@ Peer recovery automatically occurs when {es}:
 * Recreates a shard lost during node failure
 * Relocates a shard to another node due to a cluster rebalance or changes to the
 <<modules-cluster, shard allocation settings>>
-* Restores a <<modules-snapshots, snapshot>>
+
+You can view a list of in-progress and completed recoveries using the
+<<cat-recovery, cat recovery API>>.
 
 [float]
 ==== Peer recovery settings
-You can use the following _expert_ settings to manage resources for peer
-recoveries. These settings apply to all peer recoveries, including
-those related to shard relocation or snapshot restoration.
 
-`indices.recovery.max_bytes_per_sec`::
+`indices.recovery.max_bytes_per_sec` (<<cluster-update-settings,Dynamic>>)::
 Limits total inbound and outbound recovery traffic for each node.
 Defaults to `40mb`.
 +
@@ -28,12 +27,14 @@ this limit.
 If this limit is too high, ongoing recoveries may consume an excess
 of bandwidth and other resources, which can destabilize the cluster.
 
-`indices.recovery.max_concurrent_file_chunks`::
+[float]
+==== Expert peer recovery settings
+You can use the following _expert_ setting to manage resources for peer
+recoveries.
+
+`indices.recovery.max_concurrent_file_chunks` (<<cluster-update-settings,Dynamic>>, Expert)::
 Number of file chunk requests sent in parallel for each recovery. Defaults to
 `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
 is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
-
-You can use the <<cluster-update-settings, Cluster Update Settings>> API to
-view and change these settings for a live cluster.

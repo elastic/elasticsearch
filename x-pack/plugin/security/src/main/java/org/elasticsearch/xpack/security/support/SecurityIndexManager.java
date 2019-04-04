@@ -159,6 +159,10 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.indexState.indexAvailable;
     }
 
+    public boolean indexExistsButUnavailable() {
+        return indexExists() && false == isAvailable();
+    }
+
     public boolean isMappingUpToDate() {
         return this.indexState.mappingUpToDate;
     }

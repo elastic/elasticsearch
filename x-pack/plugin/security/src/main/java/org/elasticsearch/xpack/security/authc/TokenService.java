@@ -1108,63 +1108,39 @@ public final class TokenService {
                                          ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(realmName)) {
-            listener.onFailure(new IllegalArgumentException("Realm name is required"));
+            listener.onFailure(new IllegalArgumentException("realm name is required"));
             return;
         }
-        final Instant now = clock.instant();
-        findActiveTokensForRealm(realmName, securityTokensIndex, now, filter, ActionListener.wrap(tokens -> {
-            if (false == securityTokensIndex.indexExists()
-                    || Instant.now().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS)
-                            .isBefore(securityTokensIndex.getCreationTime())) {
-                findActiveTokensForRealm(realmName, securityMainIndex, now, filter, ActionListener.wrap(tokensInSecurityMain -> {
-                    if (false == tokensInSecurityMain.isEmpty()) {
-                        final List<Tuple<UserToken, String>> allTokens = new ArrayList<>();
-                        allTokens.addAll(tokens);
-                        allTokens.addAll(tokensInSecurityMain);
-                        listener.onResponse(Collections.unmodifiableList(allTokens));
-                    } else {
-                        listener.onResponse(tokens);
-                    }
-                }, listener::onFailure));
+        sourceTokenIndicesStateAndRun(ActionListener.wrap(indicesWithTokens -> {
+            if (indicesWithTokens.isEmpty()) {
+                listener.onResponse(Collections.emptyList());
             } else {
-                listener.onResponse(tokens);
+                final Instant now = clock.instant();
+                final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
+                        .filter(QueryBuilders.termQuery("access_token.realm", realmName))
+                        .filter(QueryBuilders.boolQuery()
+                                .should(QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery("access_token.invalidated", false))
+                                        .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
+                                        )
+                                .should(QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
+                                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
+                                        )
+                                );
+                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                        .setQuery(boolQuery)
+                        .setVersion(false)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
+                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter));
             }
         }, listener::onFailure));
-    }
 
-    private void findActiveTokensForRealm(String realmName, SecurityIndexManager tokensIndex, Instant now,
-                                          @Nullable Predicate<Map<String, Object>> filter,
-                                          ActionListener<Collection<Tuple<UserToken, String>>> listener) {
-        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
-        if (frozenTokensIndex.indexExists() == false) {
-            listener.onResponse(Collections.emptyList());
-        } else if (frozenTokensIndex.isAvailable() == false) {
-            listener.onFailure(frozenTokensIndex.getUnavailableReason());
-        } else {
-            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
-                .filter(QueryBuilders.termQuery("access_token.realm", realmName))
-                .filter(QueryBuilders.boolQuery()
-                    .should(QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("access_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
-                    )
-                    .should(QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
-                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
-                    )
-                );
-            final SearchRequest request = client.prepareSearch(tokensIndex.aliasName())
-                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                .setQuery(boolQuery)
-                .setVersion(false)
-                .setSize(1000)
-                .setFetchSource(true)
-                .request();
-            tokensIndex.checkIndexVersionThenExecute(listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter)));
-        }
     }
 
     /**
@@ -1180,59 +1156,66 @@ public final class TokenService {
             listener.onFailure(new IllegalArgumentException("username is required"));
             return;
         }
-        final Instant now = clock.instant();
-        findActiveTokensForUser(username, securityTokensIndex, now, ActionListener.wrap(tokens -> {
-            if (false == securityTokensIndex.indexExists()
-                    || Instant.now().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS)
-                            .isBefore(securityTokensIndex.getCreationTime())) {
-                findActiveTokensForUser(username, securityMainIndex, now, ActionListener.wrap(tokensInSecurityMain -> {
-                    if (false == tokensInSecurityMain.isEmpty()) {
-                        final List<Tuple<UserToken, String>> allTokens = new ArrayList<>();
-                        allTokens.addAll(tokens);
-                        allTokens.addAll(tokensInSecurityMain);
-                        listener.onResponse(Collections.unmodifiableList(allTokens));
-                    } else {
-                        listener.onResponse(tokens);
-                    }
-                }, listener::onFailure));
+        sourceTokenIndicesStateAndRun(ActionListener.wrap(indicesWithTokens -> {
+            if (indicesWithTokens.isEmpty()) {
+                listener.onResponse(Collections.emptyList());
             } else {
-                listener.onResponse(tokens);
+                final Instant now = clock.instant();
+                final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
+                        .filter(QueryBuilders.boolQuery()
+                                .should(QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery("access_token.invalidated", false))
+                                        .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
+                                        )
+                                .should(QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
+                                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
+                                        )
+                                );
+                final SearchRequest request = client.prepareSearch(indicesWithTokens.toArray(new String[0]))
+                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                        .setQuery(boolQuery)
+                        .setVersion(false)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
+                ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username)));
             }
         }, listener::onFailure));
     }
 
-    private void findActiveTokensForUser(String username, SecurityIndexManager tokensIndex, Instant now,
-                                         ActionListener<Collection<Tuple<UserToken, String>>> listener) {
-        final SecurityIndexManager frozenTokensIndex = tokensIndex.freeze();
-        if (frozenTokensIndex.indexExists() == false) {
-            listener.onResponse(Collections.emptyList());
-        } else if (frozenTokensIndex.isAvailable() == false) {
-            listener.onFailure(frozenTokensIndex.getUnavailableReason());
-        } else {
-            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
-                .filter(QueryBuilders.boolQuery()
-                    .should(QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("access_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
-                    )
-                    .should(QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("refresh_token.invalidated", false))
-                        .must(QueryBuilders.rangeQuery("creation_time").gte(now.toEpochMilli()
-                                - TimeValue.timeValueHours(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS).millis()))
-                    )
-                );
-            final SearchRequest request = client.prepareSearch(tokensIndex.aliasName())
-                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                .setQuery(boolQuery)
-                .setVersion(false)
-                .setSize(1000)
-                .setFetchSource(true)
-                .request();
-            tokensIndex.checkIndexVersionThenExecute(listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, listener,
-                    (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))));
+    private void sourceTokenIndicesStateAndRun(ActionListener<List<String>> listener) {
+        final List<String> indicesWithTokens = new ArrayList<>(2);
+        final SecurityIndexManager frozenTokensIndex = securityTokensIndex.freeze();
+        if (frozenTokensIndex.indexExists()) {
+            if (false == frozenTokensIndex.isAvailable()) {
+                listener.onFailure(frozenTokensIndex.getUnavailableReason());
+                return;
+            } else if (false == frozenTokensIndex.isIndexUpToDate()) {
+                listener.onFailure(new IllegalStateException(
+                        "Index [" + frozenTokensIndex.aliasName() + "] is not on the current version. Features relying on the index"
+                                + " will not be available until the upgrade API is run on the index"));
+            } else {
+                indicesWithTokens.add(frozenTokensIndex.aliasName());
+            }
         }
+        final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
+        if (frozenMainIndex.indexExists()) {
+            if (false == frozenMainIndex.isAvailable()) {
+                listener.onFailure(frozenMainIndex.getUnavailableReason());
+                return;
+            } else if (false == frozenMainIndex.isIndexUpToDate()) {
+                listener.onFailure(new IllegalStateException(
+                        "Index [" + frozenMainIndex.aliasName() + "] is not on the current version. Features relying on the index"
+                                + " will not be available until the upgrade API is run on the index"));
+            } else if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
+                    .isBefore(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
+                indicesWithTokens.add(frozenMainIndex.aliasName());
+            }
+        }
+        listener.onResponse(indicesWithTokens);
     }
 
     private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,

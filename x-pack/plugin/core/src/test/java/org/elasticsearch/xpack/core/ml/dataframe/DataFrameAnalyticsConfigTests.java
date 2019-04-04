@@ -24,15 +24,12 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -79,23 +76,14 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
-        String source = randomAlphaOfLength(10);
-        String dest = randomAlphaOfLength(10);
+        DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
+        DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
         List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
             .setAnalyses(analyses)
             .setSource(source)
             .setDest(dest);
-        if (randomBoolean()) {
-            try {
-                builder.setQueryProvider(
-                    QueryProvider.fromParsedQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10))));
-            } catch (IOException e) {
-                // Should never happen
-                throw new UncheckedIOException(e);
-            }
-        }
         if (randomBoolean()) {
             builder.setAnalysesFields(new FetchSourceContext(true,
                 generateRandomStringArray(10, 10, false, false),
@@ -114,20 +102,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
         "    \"id\": \"old-data-frame\",\n" +
-        "    \"source\": \"my-index\",\n" +
-        "    \"dest\": \"dest-index\",\n" +
-        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}},\n" +
         //query:match:type stopped being supported in 6.x
-        "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}\n" +
+        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n" +
+        "    \"dest\": {\"index\":\"dest-index\"},\n" +
+        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}}\n" +
         "}";
 
     private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
         "    \"id\": \"data-frame\",\n" +
-        "    \"source\": \"my-index\",\n" +
-        "    \"dest\": \"dest-index\",\n" +
-        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}},\n" +
         // match_all if parsed, adds default values in the options
-        "    \"query\": {\"match_all\" : {}}\n" +
+        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" +
+        "    \"dest\": {\"index\":\"dest-index\"},\n" +
+        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}}\n" +
         "}";
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {
@@ -137,7 +123,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-            assertThat(config.getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
+            assertThat(config.getSource().getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
         }
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -146,7 +132,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build();
-            assertThat(config.getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
+            assertThat(config.getSource().getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
         }
     }
 
@@ -157,7 +143,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
                 ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
-            ElasticsearchException e = expectThrows(ElasticsearchException.class, config::getParsedQuery);
+            ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getSource().getParsedQuery());
             assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
         }
 
@@ -168,7 +154,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build());
-            assertEquals("[6:64] [data_frame_analytics_config] failed to parse field [query]", e.getMessage());
+            assertThat(e.getMessage(), containsString("[data_frame_analytics_config] failed to parse field [source]"));
         }
     }
 

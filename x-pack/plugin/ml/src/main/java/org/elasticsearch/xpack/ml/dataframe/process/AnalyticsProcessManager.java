@@ -162,7 +162,7 @@ public class AnalyticsProcessManager {
 
     private void refreshDest(DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-            () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest())).actionGet());
+            () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
     }
 
     static class ProcessContext {

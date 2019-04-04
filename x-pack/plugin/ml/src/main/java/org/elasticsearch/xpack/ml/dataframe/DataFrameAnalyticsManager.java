@@ -109,7 +109,7 @@ public class DataFrameAnalyticsManager {
                         ClientHelper.executeAsyncWithOrigin(client,
                             ML_ORIGIN,
                             DeleteIndexAction.INSTANCE,
-                            new DeleteIndexRequest(config.getDest()),
+                            new DeleteIndexRequest(config.getDest().getIndex()),
                             ActionListener.wrap(
                                 r-> reindexingStateListener.onResponse(config),
                                 e -> {
@@ -149,7 +149,7 @@ public class DataFrameAnalyticsManager {
                 ClientHelper.executeAsyncWithOrigin(client,
                     ClientHelper.ML_ORIGIN,
                     RefreshAction.INSTANCE,
-                    new RefreshRequest(config.getDest()),
+                    new RefreshRequest(config.getDest().getIndex()),
                     refreshListener),
             task::markAsFailed
         );
@@ -158,10 +158,9 @@ public class DataFrameAnalyticsManager {
         ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
             createIndexResponse -> {
                 ReindexRequest reindexRequest = new ReindexRequest();
-                reindexRequest.setSourceIndices(config.getSource());
-                // we default to match_all
-                reindexRequest.setSourceQuery(config.getParsedQuery());
-                reindexRequest.setDestIndex(config.getDest());
+                reindexRequest.setSourceIndices(config.getSource().getIndex());
+                reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
+                reindexRequest.setDestIndex(config.getDest().getIndex());
                 reindexRequest.setScript(new Script("ctx._source." + DataFrameAnalyticsFields.ID + " = ctx._id"));
 
                 final ThreadContext threadContext = client.threadPool().getThreadContext();
@@ -175,7 +174,7 @@ public class DataFrameAnalyticsManager {
             reindexCompletedListener::onFailure
         );
 
-        createDestinationIndex(config.getSource(), config.getDest(), config.getHeaders(), copyIndexCreatedListener);
+        createDestinationIndex(config.getSource().getIndex(), config.getDest().getIndex(), config.getHeaders(), copyIndexCreatedListener);
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

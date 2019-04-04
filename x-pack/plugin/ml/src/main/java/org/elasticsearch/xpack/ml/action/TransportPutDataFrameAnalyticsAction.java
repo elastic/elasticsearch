@@ -88,11 +88,11 @@ public class TransportPutDataFrameAnalyticsAction
         if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getSource())
+                .indices(memoryCappedConfig.getSource().getIndex())
                 .privileges("read")
                 .build();
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(memoryCappedConfig.getDest())
+                .indices(memoryCappedConfig.getDest().getIndex())
                 .privileges("read", "index", "create_index")
                 .build();
 
@@ -146,12 +146,6 @@ public class TransportPutDataFrameAnalyticsAction
         if (!MlStrings.hasValidLengthForId(config.getId())) {
             throw ExceptionsHelper.badRequestException("id [{}] is too long; must not contain more than {} characters", config.getId(),
                 MlStrings.ID_LENGTH_LIMIT);
-        }
-        if (config.getSource().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must be non-empty", DataFrameAnalyticsConfig.SOURCE);
-        }
-        if (config.getDest().isEmpty()) {
-            throw ExceptionsHelper.badRequestException("[{}] must be non-empty", DataFrameAnalyticsConfig.DEST);
         }
         DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
     }

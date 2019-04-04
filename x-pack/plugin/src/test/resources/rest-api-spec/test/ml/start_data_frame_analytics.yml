@@ -13,8 +13,12 @@
         id: "missing_index"
         body: >
           {
-            "source": "missing",
-            "dest": "missing-dest",
+            "source": {
+              "index": "missing"
+            },
+            "dest": {
+              "index": "missing-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 
@@ -35,8 +39,12 @@
         id: "foo"
         body: >
           {
-            "source": "empty-index",
-            "dest": "empty-index-dest",
+            "source": {
+              "index": "empty-index"
+            },
+            "dest": {
+              "index": "empty-index-dest"
+            },
             "analyses": [{"outlier_detection":{}}]
           }
 

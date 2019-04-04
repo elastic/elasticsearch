@@ -102,10 +102,10 @@ public class DataFrameDataExtractorFactory {
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
         Set<String> resultFields = resolveResultsFields(config);
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest(), config.getAnalysesFields(), resultFields,
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest().getIndex(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
-                extractedFields -> listener.onResponse(
-                    new DataFrameDataExtractorFactory(client, config.getId(), config.getDest(), extractedFields, config.getHeaders())),
+                extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(
+                    client, config.getId(), config.getDest().getIndex(), extractedFields, config.getHeaders())),
                 listener::onFailure
         ));
     }
@@ -121,10 +121,10 @@ public class DataFrameDataExtractorFactory {
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<DataFrameAnalyticsConfig> listener) {
         Set<String> resultFields = resolveResultsFields(config);
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource(), config.getAnalysesFields(), resultFields,
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource().getIndex(), config.getAnalysesFields(), resultFields,
             ActionListener.wrap(
                 fields -> {
-                    config.getParsedQuery(); // validate query is acceptable
+                    config.getSource().getParsedQuery(); // validate query is acceptable
                     listener.onResponse(config);
                 },
                 listener::onFailure

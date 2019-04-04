@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -392,10 +394,21 @@ public class ElasticsearchMappings {
             .field(TYPE, KEYWORD)
         .endObject()
         .startObject(DataFrameAnalyticsConfig.SOURCE.getPreferredName())
-            .field(TYPE, KEYWORD)
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsSource.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(DataFrameAnalyticsSource.QUERY.getPreferredName())
+                    .field(ENABLED, false)
+                .endObject()
+            .endObject()
         .endObject()
         .startObject(DataFrameAnalyticsConfig.DEST.getPreferredName())
-            .field(TYPE, KEYWORD)
+            .startObject(PROPERTIES)
+                .startObject(DataFrameAnalyticsDest.INDEX.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+            .endObject()
         .endObject()
         .startObject(DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName())
             .field(ENABLED, false)

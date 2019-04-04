@@ -81,3 +81,24 @@ SELECT HOUR(CAST('10:11:12.345' AS TIME) + INTERVAL '20' HOURS) AS h, SECOND(INT
 h:i       | m:i
 6         | 52
 ;
+
+orderByCurrentTime
+SELECT first_name FROM test_emp ORDER BY CURRENT_TIME(), first_name LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+;
+
+// Awaits Fix https://github.com/elastic/elasticsearch/issues/40639
+groupByCurrentTime-Ignore
+SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
+
+  MAX(salary)
+---------------
+74999
+;

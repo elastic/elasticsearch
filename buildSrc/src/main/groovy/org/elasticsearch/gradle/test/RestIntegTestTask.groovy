@@ -43,7 +43,7 @@ import java.util.stream.Stream
  */
 class RestIntegTestTask extends DefaultTask {
 
-    private static Logger LOGGER = Logging.getLogger(RestIntegTestTask)
+    private static final Logger LOGGER = Logging.getLogger(RestIntegTestTask)
 
     protected ClusterConfiguration clusterConfig
 

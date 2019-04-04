@@ -556,7 +556,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 // ignored. It cannot have made surviving interim writes, since if so, the final primaryTerm should be greater than or
                 // equal to safeVersion.primaryTerm
                 // So the last successful write is still the right representation for the state.
-                return Optional.of(new SuccessState(safeVersion));
+                return Optional.of(this);
             } else { //outputVersion.primaryTerm >= safeVersion.primaryTerm
                 // failed on own write (or regular CAS failure, cannot see the difference, but we assume own write for linearizability).
                 return Optional.of(new CASFailOwnWriteState(safeVersion, outputVersion));

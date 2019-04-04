@@ -201,12 +201,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
     public void testRequiredParameters() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new PercolateQueryBuilder(null, "name1", new BytesArray("{}"), XContentType.JSON);
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
         });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class,
-            () -> new PercolateQueryBuilder("_field", "_document_type", "name2", null, null));
+            () -> new PercolateQueryBuilder("_field", "_document_type", null, null));
         assertThat(e.getMessage(), equalTo("[document] is a required argument"));
 
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -322,7 +322,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQuery query = (PercolateQuery) rewrittenBuilder.toQuery(shardContext);
 
         PercolateQueryBuilder aliasBuilder = new PercolateQueryBuilder(aliasField,
-            "name1",
             builder.getDocuments(),
             builder.getXContentType());
         QueryBuilder rewrittenAliasBuilder = rewriteAndFetch(aliasBuilder, shardContext);

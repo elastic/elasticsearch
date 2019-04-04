@@ -37,9 +37,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -176,12 +174,18 @@ public class PivotTests extends ESTestCase {
     }
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
+        if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
+            return parseAggregations("{\"pivot_scripted_metric\": {\n" +
+                "\"scripted_metric\": {\n" +
+                "    \"init_script\" : \"state.transactions = []\",\n" +
+                "    \"map_script\" : \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n" +
+                "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n" +
+                "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n" +
+                "  }\n" +
+                "}}");
+        }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
-    }
-
-    private Map<String, String> getFieldMappings() {
-        return Collections.singletonMap("values", "double");
     }
 
     private AggregationConfig parseAggregations(String json) throws IOException {

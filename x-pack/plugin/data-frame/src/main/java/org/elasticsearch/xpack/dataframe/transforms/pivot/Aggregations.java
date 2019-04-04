@@ -12,6 +12,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class Aggregations {
+
+    // the field mapping should not explicitly be set and allow ES to dynamically determine mapping via the data.
+    private static final String DYNAMIC = "_dynamic";
+    // the field mapping should be determined explicitly from the source field mapping if possible.
+    private static final String SOURCE = "_source";
     private Aggregations() {}
 
     /**
@@ -27,9 +32,10 @@ public final class Aggregations {
         AVG("avg", "double"),
         CARDINALITY("cardinality", "long"),
         VALUE_COUNT("value_count", "long"),
-        MAX("max", null),
-        MIN("min", null),
-        SUM("sum", null);
+        MAX("max", SOURCE),
+        MIN("min", SOURCE),
+        SUM("sum", SOURCE),
+        SCRIPTED_METRIC("scripted_metric", DYNAMIC);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -55,8 +61,12 @@ public final class Aggregations {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
     }
 
+    public static boolean isDynamicMapping(String targetMapping) {
+        return DYNAMIC.equals(targetMapping);
+    }
+
     public static String resolveTargetMapping(String aggregationType, String sourceType) {
         AggregationType agg = AggregationType.valueOf(aggregationType.toUpperCase(Locale.ROOT));
-        return agg.getTargetMapping() == null ? sourceType : agg.getTargetMapping();
+        return agg.getTargetMapping().equals(SOURCE) ? sourceType : agg.getTargetMapping();
     }
 }

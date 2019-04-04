@@ -15,9 +15,31 @@ public class AggregationsTests extends ESTestCase {
         assertEquals("double", Aggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("avg", "double"));
 
+        // cardinality
+        assertEquals("long", Aggregations.resolveTargetMapping("cardinality", "int"));
+        assertEquals("long", Aggregations.resolveTargetMapping("cardinality", "double"));
+
+        // value_count
+        assertEquals("long", Aggregations.resolveTargetMapping("value_count", "int"));
+        assertEquals("long", Aggregations.resolveTargetMapping("value_count", "double"));
+
         // max
         assertEquals("int", Aggregations.resolveTargetMapping("max", "int"));
         assertEquals("double", Aggregations.resolveTargetMapping("max", "double"));
         assertEquals("half_float", Aggregations.resolveTargetMapping("max", "half_float"));
+
+        // min
+        assertEquals("int", Aggregations.resolveTargetMapping("min", "int"));
+        assertEquals("double", Aggregations.resolveTargetMapping("min", "double"));
+        assertEquals("half_float", Aggregations.resolveTargetMapping("min", "half_float"));
+
+        // sum
+        assertEquals("int", Aggregations.resolveTargetMapping("sum", "int"));
+        assertEquals("double", Aggregations.resolveTargetMapping("sum", "double"));
+        assertEquals("half_float", Aggregations.resolveTargetMapping("sum", "half_float"));
+
+        // scripted_metric
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", "int"));
     }
 }

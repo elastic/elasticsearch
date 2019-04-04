@@ -274,6 +274,34 @@
     - match:  { tokens.3.position: 2 }
 
 ---
+"synonym_without_index":
+  - do:
+      indices.analyze:
+        body:
+          text: wibble
+          tokenizer: standard
+          filter: [ { type: synonym, synonyms: [ "wibble, quack" ]}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: wibble }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: quack }
+  - match:  { tokens.1.position: 0 }
+
+---
+"synonym_graph_without_index":
+  - do:
+      indices.analyze:
+        body:
+          text: wibble
+          tokenizer: standard
+          filter: [ { type: synonym_graph, synonyms: [ "wibble, quack" ]}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: quack }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: wibble }
+  - match:  { tokens.1.position: 0 }
+
+---
 "synonym_graph":
     - do:
         indices.create:

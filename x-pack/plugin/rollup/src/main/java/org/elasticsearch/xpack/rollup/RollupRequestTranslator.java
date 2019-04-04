@@ -224,6 +224,9 @@ public class RollupRequestTranslator {
             filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source,
                 DateHistogramGroupConfig.TIME_ZONE), timezone));
 
+            if (source.timeZone() != null) {
+                rolledDateHisto.timeZone(source.timeZone());
+            }
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {
                 rolledDateHisto.extendedBounds(source.extendedBounds());

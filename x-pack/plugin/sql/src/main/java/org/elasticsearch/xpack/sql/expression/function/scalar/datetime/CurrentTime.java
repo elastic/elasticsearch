@@ -13,14 +13,15 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.time.ZonedDateTime;
+import java.time.OffsetTime;
 
-public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
+public class CurrentTime extends CurrentFunction<OffsetTime> {
 
     private final Expression precision;
 
-    public CurrentDateTime(Source source, Expression precision, Configuration configuration) {
-        super(source, configuration, nanoPrecision(configuration.now(), precision), DataType.DATETIME);
+    public CurrentTime(Source source, Expression precision, Configuration configuration) {
+        super(source, configuration, nanoPrecision(configuration.now().toOffsetDateTime().toOffsetTime(), precision),
+            DataType.TIME);
         this.precision = precision;
     }
 
@@ -29,18 +30,18 @@ public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
     }
 
     @Override
-    protected NodeInfo<CurrentDateTime> info() {
-        return NodeInfo.create(this, CurrentDateTime::new, precision, configuration());
+    protected NodeInfo<CurrentTime> info() {
+        return NodeInfo.create(this, CurrentTime::new, precision, configuration());
     }
 
-    static ZonedDateTime nanoPrecision(ZonedDateTime zdt, Expression precisionExpression) {
+    static OffsetTime nanoPrecision(OffsetTime ot, Expression precisionExpression) {
         int precision = precisionExpression != null ? Foldables.intValueOf(precisionExpression) : 3;
-        int nano = zdt.getNano();
+        int nano = ot.getNano();
         if (precision >= 0 && precision < 10) {
             // remove the remainder
             nano = nano - nano % (int) Math.pow(10, (9 - precision));
-            return zdt.withNano(nano);
+            return ot.withNano(nano);
         }
-        return zdt;
+        return ot;
     }
 }

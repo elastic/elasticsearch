@@ -78,10 +78,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
     // Following issues are accepted for now:
-    // 1. Under certain circumstances (network partitions and other failures) we can end up giving a false negative response, ie. report
+    // 1. Under certain circumstances (network partitions and other failures) we can end up giving a false negative response, i.e., report
     // back that a CAS failed due to version conflict even though it actually succeeded.
     // 2. If we end up reporting back any other failure, it is unknown if the write succeeded or not (or will succeed in the future).
-    // 3. If you read data out, you may see dirty writes, ie. writes that will end up being discarded due to node failure/network
+    // 3. If you read data out, you may see dirty writes, i.e., writes that will end up being discarded due to node failure/network
     // disruption.
     // 4. Likewise, the CAS check can be done against a dirty write and thus fail even if it ought to succeed.
     // 5. A CAS check can be done against a stale primary and fail due to that.
@@ -202,7 +202,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
                             // we should be able to remove timeout or fail hard on timeouts if we fix network disruptions to be
-                            // realistic, ie. not silently throw data out.
+                            // realistic, i.e., not silently throw data out.
                             IndexResponse indexResponse = client().prepareIndex("test", "type", partition.id)
                                 .setSource("value", random.nextInt())
                                 .setIfPrimaryTerm(version.primaryTerm)
@@ -550,7 +550,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             }
 
             if (outputVersion.primaryTerm < safeVersion.primaryTerm) {
-                // A stale read against an old primary, but we know then that the safe state did not change, ie. this write should be
+                // A stale read against an old primary, but we know then that the safe state did not change, i.e., this write should be
                 // ignored. It cannot have made surviving interim writes, since if so, the final primaryTerm should be greater than or
                 // equal to safeVersion.primaryTerm
                 // So the last successful write is still the right representation for the state.

@@ -275,7 +275,8 @@ public final class TokenService {
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            tokensIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security tokens index", documentId, ex)),
+            tokensIndex.prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
                                 if (indexResponse.getResult() == Result.CREATED) {

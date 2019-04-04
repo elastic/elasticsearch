@@ -24,9 +24,6 @@ esplugin {
     hasClientJar = true
 }
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-
 dependencies {
     compile "org.elasticsearch:elasticsearch-nio:${version}"
 

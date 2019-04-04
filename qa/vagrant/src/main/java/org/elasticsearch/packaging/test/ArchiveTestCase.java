@@ -203,7 +203,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
+                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
@@ -218,7 +218,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
             } finally {
                 //clean up sym link
-                sh.run("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
+                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
             }
         });
 

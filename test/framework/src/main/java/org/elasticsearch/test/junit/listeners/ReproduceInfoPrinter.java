@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.junit.listeners;
 
-import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,7 +37,7 @@ import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
-import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_RANDOM_SEED;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
@@ -104,7 +103,6 @@ public class ReproduceInfoPrinter extends RunListener {
     }
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
-        private static final Logger logger = LogManager.getLogger(GradleMessageBuilder.class);
 
         public GradleMessageBuilder(StringBuilder b) {
             super(b);
@@ -112,17 +110,7 @@ public class ReproduceInfoPrinter extends RunListener {
 
         @Override
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
-            RandomizedContext ctx = null;
-            try {
-                ctx = RandomizedContext.current();
-                appendOpt(SYSPROP_RANDOM_SEED(), ctx.getRunnerSeedAsString());
-            } catch (IllegalStateException e) {
-                logger.warn("No context available when dumping reproduce options?");
-            }
-
-            appendRunnerProperties();
-            appendTestGroupOptions(ctx);
-            appendEnvironmentSettings();
+            super.appendAllOpts(description);
 
             return appendESProperties();
         }
@@ -141,6 +129,11 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals(SYSPROP_ITERATIONS())) { // we don't want the iters to be in there!
                 return this;
             }
+            if (sysPropName.equals(SYSPROP_TESTCLASS())) {
+                //don't print out the test class, we print it ourselves in appendAllOpts
+                //without filtering out the parameters (needed for REST tests)
+                return this;
+            }
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
                 //don't print out the test method, we print it ourselves in appendAllOpts
                 //without filtering out the parameters (needed for REST tests)
@@ -156,7 +149,7 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
-        public ReproduceErrorMessageBuilder appendESProperties() {
+        private ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests

@@ -13,6 +13,9 @@ subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {
     test {
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+      }
       runtimeClasspath += mainProject.sourceSets.test.output
     }
   }

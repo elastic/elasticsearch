@@ -448,40 +448,6 @@ public class ThreadPool implements Scheduler, Closeable {
         return ((availableProcessors * 3) / 2) + 1;
     }
 
-    class LoggingRunnable implements Runnable {
-
-        private final Runnable runnable;
-
-        LoggingRunnable(Runnable runnable) {
-            this.runnable = runnable;
-        }
-
-        @Override
-        public void run() {
-            try {
-                runnable.run();
-            } catch (Exception e) {
-                logger.warn(() -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
-                throw e;
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return runnable.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return runnable.equals(obj);
-        }
-
-        @Override
-        public String toString() {
-            return "[threaded] " + runnable.toString();
-        }
-    }
-
     class ThreadedRunnable implements Runnable {
 
         private final Runnable runnable;

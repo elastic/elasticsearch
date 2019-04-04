@@ -8,14 +8,11 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex')
 }
 
 forbiddenPatterns {
     exclude '**/*.key'
-    exclude '**/*.pem'
     exclude '**/*.p12'
-    exclude '**/*.jks'
 }
 
 File caFile = project.file('src/test/resources/ssl/ca.crt')

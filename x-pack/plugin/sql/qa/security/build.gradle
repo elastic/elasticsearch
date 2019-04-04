@@ -20,6 +20,10 @@ subprojects {
     }
   }
 
+  processTestResources {
+    from mainProject.file('src/test/resources')
+  }
+
   dependencies {
     testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   }

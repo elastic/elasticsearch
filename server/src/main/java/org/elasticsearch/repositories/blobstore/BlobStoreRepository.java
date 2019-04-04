@@ -166,8 +166,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final RepositoryMetaData metadata;
 
-    protected final NamedXContentRegistry namedXContentRegistry;
-
     private final ThreadPool threadPool;
 
     private static final int BUFFER_SIZE = 4096;
@@ -248,7 +246,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.settings = settings;
         this.metadata = metadata;
         this.threadPool = threadPool;
-        this.namedXContentRegistry = namedXContentRegistry;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));

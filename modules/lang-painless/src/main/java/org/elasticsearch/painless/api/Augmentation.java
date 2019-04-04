@@ -505,16 +505,51 @@ public class Augmentation {
     }
 
     /**
-     * Expose String.split(string) with regex disabled
+     * Split 'receiver' by 'token' as many times as possible..
      */
     public static String[] splitOnToken(String receiver, String token) {
-        return receiver.split(Pattern.quote(token));
+        return splitOnToken(receiver, token, -1);
     }
 
     /**
-     * Expose String.split(string, limit) with regex disabled
+     * Split 'receiver' by 'token' up to 'limit' times.  Any limit less than 1 is ignored.
      */
     public static String[] splitOnToken(String receiver, String token, int limit) {
-        return receiver.split(Pattern.quote(token), limit);
+        // Check if it's even possible to perform a split
+        if (receiver == null || token == null || receiver.length() < token.length()) {
+            return new String[] { receiver };
+        }
+
+        // List of string segments we have found
+        ArrayList<String> result = new ArrayList<String>();
+
+        // Keep track of where we are in the string
+        // indexOf(tok, startPos) is faster than creating a new search context ever loop with substring(start, end)
+        int pos = 0;
+
+        // Loop until we hit the limit or forever if we are passed in less than one (signifying no limit)
+        // If Integer.MIN_VALUE is passed in, it will still continue to loop down to 1 from MAX_VALUE
+        // This edge case should be fine as we are limited by receiver length (Integer.MAX_VALUE) even if we split at every char
+        for(;limit != 1; limit--) {
+
+            // Find the next occurrence of token after current pos
+            int idx = receiver.indexOf(token, pos);
+
+            // Reached the end of the string without another match
+            if (idx == -1) {
+                break;
+            }
+
+            // Add the found segment to the result list
+            result.add(receiver.substring(pos, idx));
+
+            // Move our search position to the next possible location
+            pos = idx + token.length();
+        }
+        // Add the remaining string to the result list
+        result.add(receiver.substring(pos));
+
+        // O(N) or faster depending on implementation
+        return result.toArray(new String[0]);
     }
 }

@@ -95,6 +95,5 @@ public class TransportPreviewDataFrameTransformAction extends
             },
             listener::onFailure
         ));
-
     }
 }

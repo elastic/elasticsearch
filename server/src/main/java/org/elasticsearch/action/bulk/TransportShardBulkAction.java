@@ -71,7 +71,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /** Performs shard-level bulk (index, delete or update) operations */
@@ -174,11 +173,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // Fail all operations after a bulk rejection hit an action that waited for a mapping update and finish the request
                 while (context.hasMoreOperationsToExecute()) {
                     context.setRequestToExecute(context.getCurrent());
-                    final long version = context.getRequestToExecute().version();
-                    final Engine.Result result = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE
-                        ? primary.getFailedDeleteResult(e, version)
-                        : primary.getFailedIndexResult(e, version);
-                    onComplete(result, context, null);
+                    final DocWriteRequest<?> docWriteRequest = context.getRequestToExecute();
+                    onComplete(
+                        exceptionToResult(
+                            e, primary, docWriteRequest.opType() == DocWriteRequest.OpType.DELETE, docWriteRequest.version()),
+                        context, null);
                 }
                 finishRequest();
             }
@@ -248,8 +247,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final IndexShard primary = context.getPrimary();
             final long version = context.getRequestToExecute().version();
             final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
-            final Function<Exception, Engine.Result> exceptionToResult =
-                isDelete ? e -> primary.getFailedDeleteResult(e, version) : e -> primary.getFailedIndexResult(e, version);
             try {
                 final Engine.Result result;
                 if (isDelete) {
@@ -287,7 +284,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
                             @Override
                             public void onFailure(Exception e) {
-                                onComplete(exceptionToResult.apply(e), context, updateResult);
+                                onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
                                 // Requesting mapping update failed, so we don't have to wait for a cluster state update
                                 assert context.isInitial();
                                 itemDoneListener.onResponse(null);
@@ -296,16 +293,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     return false;
                 } else {
                     onComplete(result, context, updateResult);
-                    return true;
                 }
             } catch (Exception e) {
-                onComplete(exceptionToResult.apply(e), context, updateResult);
-                return true;
+                onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
             }
         } catch (Exception e) {
             itemDoneListener.onFailure(e);
-            return true;
         }
+        return true;
+    }
+
+    private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version) {
+        return isDelete ? primary.getFailedDeleteResult(e, version) : primary.getFailedIndexResult(e, version);
     }
 
     private static void onComplete(Engine.Result r, BulkPrimaryExecutionContext context, UpdateHelper.Result updateResult) {

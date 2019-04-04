@@ -632,8 +632,11 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             // We use the max cas fail version, which is correct due to the checking in casSuccess.
             // for 4, we ignore the stale read (does not affect state).
 
-            Version newCASFailVersion = outputVersion.compareTo(casFailVersion) > 0 ? outputVersion : casFailVersion;
-            return Optional.of(new CASFailOwnWriteState(safeVersion, newCASFailVersion));
+            if (outputVersion.compareTo(casFailVersion) > 0) {
+                return Optional.of(new CASFailOwnWriteState(safeVersion, outputVersion));
+            } else {
+                return Optional.of(this);
+            }
         }
 
         @Override

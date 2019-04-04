@@ -250,7 +250,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .setTerminateAfter(2 * max).get();
 
         assertHitCount(searchResponse, max);
-        assertNull(searchResponse.isTerminatedEarly());
+        assertFalse(searchResponse.isTerminatedEarly());
     }
 
     public void testSimpleIndexSortEarlyTerminate() throws Exception {

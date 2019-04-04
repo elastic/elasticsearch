@@ -28,7 +28,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class WatcherFeatureSet implements XPackFeatureSet {
 
@@ -72,7 +71,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled) {
             try (ThreadContext.StoredContext ignore =
-                         stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+                    client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherClient watcherClient = new WatcherClient(client);
                 WatcherStatsRequest request = new WatcherStatsRequest();
                 request.includeStats(true);

@@ -258,6 +258,78 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
+    /**
+     * Our version, which is primaryTerm,seqNo.
+     */
+    private static final class Version implements NamedWriteable, Comparable<Version> {
+        public final long primaryTerm;
+        public final long seqNo;
+
+        Version(long primaryTerm, long seqNo) {
+            this.primaryTerm = primaryTerm;
+            this.seqNo = seqNo;
+        }
+
+        Version(StreamInput input) throws IOException {
+            this.primaryTerm = input.readLong();
+            this.seqNo = input.readLong();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Version version = (Version) o;
+            return primaryTerm == version.primaryTerm &&
+                seqNo == version.seqNo;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(primaryTerm, seqNo);
+        }
+
+        @Override
+        public int compareTo(Version other) {
+            int termCompare = Long.compare(primaryTerm, other.primaryTerm);
+            if (termCompare != 0)
+                return termCompare;
+            return Long.compare(seqNo, other.seqNo);
+
+        }
+
+        @Override
+        public String toString() {
+            return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
+        }
+
+        public Version nextSeqNo(int increment) {
+            return new Version(primaryTerm, seqNo + increment);
+        }
+
+        public Version previousSeqNo(int decrement) {
+            return new Version(primaryTerm, Math.max(seqNo - decrement, 0));
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "version";
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(primaryTerm);
+            out.writeLong(seqNo);
+        }
+
+        public Version previousTerm() {
+            return new Version(primaryTerm - 1, seqNo);
+        }
+
+        public Version nextTerm() {
+            return new Version(primaryTerm + 1, seqNo);
+        }
+    }
+
     private static class AtomicVersion {
         private final AtomicReference<Version> current;
 
@@ -333,26 +405,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     }
 
-    private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
-
-        private final Version initialVersion;
-
-        private CASSequentialSpec(Version initialVersion) {
-            this.initialVersion = initialVersion;
-        }
-
-        @Override
-        public Object initialState() {
-            return new SuccessState(initialVersion);
-        }
-
-        @Override
-        public Optional<Object> nextState(Object currentState, Object input, Object output) {
-            return ((HistoryOutput) output).nextState((State) currentState, (Version) input).map(i -> i); // Optional<?> to Optional<Object>
-        }
-    }
-
-
     private static class CASSimpleSequentialSpec implements LinearizabilityChecker.SequentialSpec {
         private final Version initialVersion;
 
@@ -409,75 +461,22 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    /**
-     * Our version, which is primaryTerm,seqNo.
-     */
-    private static final class Version implements NamedWriteable, Comparable<Version> {
-        public final long primaryTerm;
-        public final long seqNo;
+    private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
 
-        Version(long primaryTerm, long seqNo) {
-            this.primaryTerm = primaryTerm;
-            this.seqNo = seqNo;
-        }
+        private final Version initialVersion;
 
-        Version(StreamInput input) throws IOException {
-            this.primaryTerm = input.readLong();
-            this.seqNo = input.readLong();
+        private CASSequentialSpec(Version initialVersion) {
+            this.initialVersion = initialVersion;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Version version = (Version) o;
-            return primaryTerm == version.primaryTerm &&
-                seqNo == version.seqNo;
+        public Object initialState() {
+            return new SuccessState(initialVersion);
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hash(primaryTerm, seqNo);
-        }
-
-        @Override
-        public int compareTo(Version other) {
-            int termCompare = Long.compare(primaryTerm, other.primaryTerm);
-            if (termCompare != 0)
-                return termCompare;
-            return Long.compare(seqNo, other.seqNo);
-
-        }
-
-        @Override
-        public String toString() {
-            return "{" + "primaryTerm=" + primaryTerm + ", seqNo=" + seqNo + '}';
-        }
-
-        public Version nextSeqNo(int increment) {
-            return new Version(primaryTerm, seqNo + increment);
-        }
-
-        public Version previousSeqNo(int decrement) {
-            return new Version(primaryTerm, Math.max(seqNo - decrement, 0));
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "version";
-        }
-
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(primaryTerm);
-            out.writeLong(seqNo);
-        }
-
-        public Version previousTerm() {
-            return new Version(primaryTerm - 1, seqNo);
-        }
-
-        public Version nextTerm() {
-            return new Version(primaryTerm + 1, seqNo);
+        public Optional<Object> nextState(Object currentState, Object input, Object output) {
+            return ((HistoryOutput) output).nextState((State) currentState, (Version) input).map(i -> i); // Optional<?> to Optional<Object>
         }
     }
 

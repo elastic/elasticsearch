@@ -91,8 +91,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // the next request. It is contained in the message (and we parse it out in the test), but notice that the numbers given here could be
     // dirty, ie., end up being discarded.
     public void testSeqNoCASLinearizability() {
-        // 1-8 seconds, bias towards shorter.
-        final int disruptTimeSeconds = 1 << randomInt(3);
+        final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()

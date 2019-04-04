@@ -124,7 +124,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {}
+        protected void beforeFinish() {}
     }
 
     private static class DelayedEmptyRollupIndexer extends EmptyRollupIndexer {
@@ -214,7 +214,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {}
+        protected void beforeFinish() {}
     }
 
     public void testStarted() throws Exception {
@@ -248,8 +248,8 @@ public class RollupIndexerStateTests extends ESTestCase {
             AtomicBoolean isFinished = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
                 @Override
-                protected void onFinish() {
-                    super.onFinish();
+                protected void beforeFinish() {
+                    super.beforeFinish();
                     isFinished.set(true);
                 }
             };
@@ -289,8 +289,8 @@ public class RollupIndexerStateTests extends ESTestCase {
             AtomicBoolean isFinished = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
                 @Override
-                protected void onFinish() {
-                    super.onFinish();
+                protected void beforeFinish() {
+                    super.beforeFinish();
                     isFinished.set(true);
                 }
             };
@@ -318,7 +318,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         try {
             EmptyRollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null) {
                 @Override
-                protected void onFinish() {
+                protected void beforeFinish() {
                     fail("Should not have called onFinish");
                 }
 

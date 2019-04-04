@@ -581,7 +581,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         }
 
         @Override
-        protected void onFinish() {
+        protected void beforeFinish() {
             latch.countDown();
         }
 

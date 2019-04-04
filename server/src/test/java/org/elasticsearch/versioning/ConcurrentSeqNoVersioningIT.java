@@ -178,7 +178,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 try {
                     roundBarrier.await(70, TimeUnit.SECONDS);
 
-                    int numberOfUpdates = randomIntBetween(3 * partitions.size(), 13 * partitions.size());
+                    int numberOfUpdates = randomIntBetween(3, 13)  * partitions.size();
                     for (int i = 0; i < numberOfUpdates; ++i) {
                         final int keyIndex = random.nextInt(partitions.size());
                         final Partition partition = partitions.get(keyIndex);

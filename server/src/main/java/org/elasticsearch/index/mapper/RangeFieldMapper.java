@@ -500,6 +500,12 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                // TODO: Implement this.
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
                 if (includeFrom == false) {
                     from = nextUp(from);
@@ -581,6 +587,11 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                return LONG.decodeRanges(bytes);
+            }
+
+            @Override
             public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
                 return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
             }
@@ -638,6 +649,11 @@ public class RangeFieldMapper extends FieldMapper {
             @Override
             public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
                 return BinaryRangeUtil.encodeFloatRanges(ranges);
+            }
+
+            @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                return BinaryRangeUtil.decodeFloatRanges(bytes);
             }
 
             @Override
@@ -700,6 +716,11 @@ public class RangeFieldMapper extends FieldMapper {
             @Override
             public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
                 return BinaryRangeUtil.encodeDoubleRanges(ranges);
+            }
+
+            @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                return BinaryRangeUtil.decodeDoubleRanges(bytes);
             }
 
             @Override
@@ -767,6 +788,11 @@ public class RangeFieldMapper extends FieldMapper {
             }
 
             @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                return LONG.decodeRanges(bytes);
+            }
+
+            @Override
             public Query dvRangeQuery(String field, QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
                 return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
             }
@@ -812,6 +838,11 @@ public class RangeFieldMapper extends FieldMapper {
             @Override
             public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
                 return BinaryRangeUtil.encodeLongRanges(ranges);
+            }
+
+            @Override
+            public List<Range> decodeRanges(BytesRef bytes) {
+                return BinaryRangeUtil.decodeLongRanges(bytes);
             }
 
             @Override
@@ -944,6 +975,7 @@ public class RangeFieldMapper extends FieldMapper {
         // No need to take into account Range#includeFrom or Range#includeTo, because from and to have already been
         // rounded up via parseFrom and parseTo methods.
         public abstract BytesRef encodeRanges(Set<Range> ranges) throws IOException;
+        public abstract List<Range> decodeRanges(BytesRef bytes);
 
         public abstract Query dvRangeQuery(String field, QueryType queryType, Object from, Object to,
                 boolean includeFrom, boolean includeTo);

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * The document gets deleted if it was created more than 24 hours which is the maximum
  * lifetime of a refresh token
  */
-final class ExpiredTokenRemover {
+final class ExpiredTokenRemover extends AbstractRunnable {
     private static final Logger logger = LogManager.getLogger(ExpiredTokenRemover.class);
 
     public static final long MAXIMUM_TOKEN_LIFETIME_HOURS = 24L;
@@ -48,6 +49,7 @@ final class ExpiredTokenRemover {
     private final SecurityIndexManager securityTokensIndex;
     private final AtomicBoolean inProgress;
     private final TimeValue timeout;
+    private boolean mainIndexMightContainTokens;
 
     ExpiredTokenRemover(Settings settings, Client client, SecurityIndexManager securityMainIndex,
                         SecurityIndexManager securityTokensIndex) {
@@ -56,10 +58,22 @@ final class ExpiredTokenRemover {
         this.securityTokensIndex = securityTokensIndex;
         this.inProgress = new AtomicBoolean(false);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
+        this.mainIndexMightContainTokens = true;
     }
 
-    public void doRun(String... tokensIndexNames) {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(tokensIndexNames);
+    @Override
+    public void doRun() {
+        final List<String> indicesWithTokens = new ArrayList<>();
+        if (securityTokensIndex.isAvailable()) {
+            indicesWithTokens.add(securityTokensIndex.aliasName());
+        }
+        if (securityMainIndex.isAvailable() && mainIndexMightContainTokens) {
+            indicesWithTokens.add(securityMainIndex.aliasName());
+        }
+        if (indicesWithTokens.isEmpty()) {
+            return;
+        }
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(indicesWithTokens.toArray(new String[0]));
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);
@@ -74,27 +88,21 @@ final class ExpiredTokenRemover {
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
                 ActionListener.wrap(r -> {
                     debugDbqResponse(r);
+                    // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created,
+                    // because when tokens index has been created all nodes will store tokens there and not on the main security index
+                    if (mainIndexMightContainTokens && securityTokensIndex.indexExists()
+                            && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
+                            && r.getBulkFailures().isEmpty() && r.getSearchFailures().isEmpty()) {
+                        mainIndexMightContainTokens = false;
+                    }
                     markComplete();
                 }, this::onFailure));
     }
 
-    boolean submit(ThreadPool threadPool) {
-        final List<String> indicesWithTokens = new ArrayList<>();
-        if (securityTokensIndex.isAvailable()) {
-            indicesWithTokens.add(securityTokensIndex.aliasName());
-        }
-        if (securityMainIndex.isAvailable() && (false == securityTokensIndex.indexExists()
-                || Instant.now().minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS).isBefore(securityTokensIndex.getCreationTime()))) {
-            indicesWithTokens.add(securityMainIndex.aliasName());
-        }
-        if (indicesWithTokens.isEmpty()) {
-            return false;
-        }
+    void submit(ThreadPool threadPool) {
         if (inProgress.compareAndSet(false, true)) {
-            threadPool.executor(Names.GENERIC).submit(() -> doRun(indicesWithTokens.toArray(new String[0])));
-            return true;
+            threadPool.executor(Names.GENERIC).submit(() -> doRun());
         }
-        return false;
     }
 
     private void debugDbqResponse(BulkByScrollResponse response) {
@@ -116,6 +124,7 @@ final class ExpiredTokenRemover {
         return inProgress.get();
     }
 
+    @Override
     public void onFailure(Exception e) {
         if (isShardNotAvailableException(e)) {
             logger.debug("failed to delete expired tokens", e);

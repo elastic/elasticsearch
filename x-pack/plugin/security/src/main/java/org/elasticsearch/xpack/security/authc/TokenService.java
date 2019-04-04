@@ -1422,9 +1422,8 @@ public final class TokenService {
 
     private void maybeStartTokenRemover() {
         if (client.threadPool().relativeTimeInMillis() - lastExpirationRunMs > deleteInterval.getMillis()) {
-            if (expiredTokenRemover.submit(client.threadPool())) {
-                lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
-            }
+            expiredTokenRemover.submit(client.threadPool());
+            lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         }
     }
 

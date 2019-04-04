@@ -55,7 +55,8 @@ enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
-        return null;
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.LONG, BinaryDocValuesRangeQuery.LengthType.VARIABLE,
+            BinaryRangeUtil::decodeLong);
     }
 
     static BytesRef encodeDoubleRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
@@ -164,6 +165,23 @@ enum BinaryRangeUtil {
             sign = 0;
         }
         return encode(number, sign);
+    }
+
+    static long decodeLong(byte[] bytes, int offset, int length) {
+        boolean isNegative = (bytes[offset] & 128) == 0;
+        // Start by masking off the last three bits of the first byte - that's the start of our number
+        long decoded;
+        if (isNegative) {
+            decoded = -8 | bytes[offset];
+        } else {
+            decoded = bytes[offset] & 7;
+        }
+        for (int i = 1; i < length; i++) {
+            decoded <<= 8;
+            decoded += Byte.toUnsignedInt(bytes[offset + i]);
+        }
+
+        return decoded;
     }
 
     private static byte[] encode(long l, int sign) {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
@@ -145,12 +146,22 @@ public class BinaryRangeUtilTests extends ESTestCase {
         }
     }
 
+    public void testDecodeLong() {
+        long[] cases = new long[] { Long.MIN_VALUE, -1, -128, -3, 0, 3, 125, 2048, 2049, Long.MAX_VALUE};
+        for (long expected : cases) {
+            byte[] encoded = BinaryRangeUtil.encodeLong(expected);
+            int offset = 0;
+            int length = BinaryDocValuesRangeQuery.LengthType.VARIABLE.readLength(encoded, offset);
+            assertEquals(expected, BinaryRangeUtil.decodeLong(encoded, offset,  length));
+        }
+    }
+
     public void testDecodeLongRanges() throws IOException {
         // TODO: Apply randomized testing here
-        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.LONG, -10, 42, true, true);
+        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.LONG, -10L, 42L, true, true);
         List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeLongRanges(BinaryRangeUtil.encodeLongRanges(singleton(expected)));
         assertEquals(1, decoded.size());
-        RangeFieldMapper.Range actual = decoded.get(1);
+        RangeFieldMapper.Range actual = decoded.get(0);
         assertEquals(expected, actual);
     }
 

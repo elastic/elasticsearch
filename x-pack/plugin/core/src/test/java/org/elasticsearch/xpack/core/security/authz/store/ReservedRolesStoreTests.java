@@ -849,10 +849,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
+
+        final String index = ".monitoring-beats-" + randomIntBetween(0, 5);;
+        logger.info("index name [{}]", index);
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
 
         assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }

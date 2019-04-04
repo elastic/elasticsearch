@@ -9,17 +9,17 @@ include::install_remove.asciidoc[]
 [[discovery-gce-usage]]
 ==== GCE Virtual Machine Discovery
 
-Google Compute Engine VM discovery allows to use the google APIs to perform automatic discovery (similar to multicast
+Google Compute Engine VM discovery uses the google APIs to perform automatic discovery (similar to multicast
 in non hostile multicast environments). Here is a simple sample configuration:
 
 [source,yaml]
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: <your-zone>
+    project_id: <your-google-project-id>
+    zone: <your-zone>
 discovery:
-      zen.hosts_provider: gce
+  zen.hosts_provider: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -142,8 +142,8 @@ authorize access to the Google Cloud SDK.
 [source,sh]
 --------------------------------------------------
 gcloud compute instances create myesnode1 \
-       --zone <your-zone> \
-       --scopes compute-rw
+ --zone=<your-zone> \
+ --scopes=compute-rw
 --------------------------------------------------
 
 When done, a report like this one should appears:
@@ -160,7 +160,7 @@ You can now connect to your instance:
 [source,sh]
 --------------------------------------------------
 # Connect using google cloud SDK
-gcloud compute ssh myesnode1 --zone europe-west1-a
+gcloud compute ssh myesnode1 --zone=europe-west1-a
 
 # Or using SSH with external IP address
 ssh -i ~/.ssh/google_compute_engine 192.158.29.199
@@ -181,28 +181,43 @@ Failing to set this will result in unauthorized messages when starting Elasticse
 See <<discovery-gce-usage-tips-permissions>>.
 ==============================================
 
-
-Once connected, install Elasticsearch:
+Once connected, install Java and Elasticsearch:
 
 [source,sh]
 --------------------------------------------------
-sudo apt-get update
-
-# Download Elasticsearch
-wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-2.0.0.deb
-
 # Prepare Java installation (Oracle)
-sudo echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee /etc/apt/sources.list.d/webupd8team-java.list
-sudo echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list.d/webupd8team-java.list
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
+sudo apt-get update
+sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
 sudo apt-get install oracle-java8-installer
 
-# Prepare Java installation (or OpenJDK)
-# sudo apt-get install java8-runtime-headless
+# Verify Java version
+java -version
+--------------------------------------------------
 
-# Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-2.0.0.deb
+We recommend installing Java version *1.8.0_131 or a later version in the Java 8 release series*.  We recommend using a
+link:/support/matrix[supported]
+http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java]. To install Java version 11:
+
+[source,sh]
+--------------------------------------------------
+# Prepare Java installation (Oracle)
+sudo apt-get update
+sudo add-apt-repository ppa:linuxuprising/java
+sudo apt-get update
+sudo apt install oracle-java11-installer
+
+# Verify Java version
+java -version
+--------------------------------------------------
+
+We are ready to {ref}/deb.html[install Elasticsearch].
+
+[source,sh]
+--------------------------------------------------
+sudo apt-get install apt-transport-https
+echo "deb https://artifacts.elastic.co/packages/6.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-6.x.list
+sudo apt-get update && sudo apt-get install elasticsearch
 --------------------------------------------------
 
 [[discovery-gce-usage-long-install-plugin]]
@@ -227,20 +242,29 @@ And add the following lines:
 
 [source,yaml]
 --------------------------------------------------
+# By default, the cluster name is elasticsearch
+cluster.name: myelasticsearch
+
+# Use ${HOSTNAME} to set the node name dynamically
+node.name: ${HOSTNAME}
+
+# Using GCE internal hostname to bind the network services
+network.host: _gce:hostname_
+
+# GCE discovery plugin settings
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+    zen.hosts_provider: gce
 --------------------------------------------------
-
 
 Start Elasticsearch:
 
 [source,sh]
 --------------------------------------------------
-sudo /etc/init.d/elasticsearch start
+sudo systemclt start elasticsearch.service
 --------------------------------------------------
 
 If anything goes wrong, you should check logs:
@@ -271,47 +295,46 @@ logger.discovery_gce.level = trace
 [[discovery-gce-usage-cloning]]
 ==== Cloning your existing machine
 
-In order to build a cluster on many nodes, you can clone your configured instance to new nodes.
+In order to build a cluster on many nodes, you can clone your configured instance to create new nodes.
 You won't have to reinstall everything!
 
-First create an image of your running instance and upload it to Google Cloud Storage:
+First clean up your running instance.
 
 [source,sh]
 --------------------------------------------------
-# Create an image of your current instance
-sudo /usr/bin/gcimagebundle -d /dev/sda -o /tmp/
+# Stop Elasticsearch service
+sudo systemclt stop elasticsearch.service
 
-# An image has been created in `/tmp` directory:
-ls /tmp
-e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
+# Remove data directory to clear the node id
+cd /var/lib/elasticsearch
+sudo rm -rf nodes/
 
-# Upload your image to Google Cloud Storage:
-# Create a bucket to hold your image, let's say `esimage`:
-gsutil mb gs://esimage
+# Terminate the running instance before creating an image
+shutdown -h now
+--------------------------------------------------
 
-# Copy your image to this bucket:
-gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
+Create an image from the stopped instance.
 
-# Then add your image to images collection:
-gcloud compute images create elasticsearch-2-0-0 --source-uri gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
-
-# If the previous command did not work for you, logout from your instance
-# and launch the same command from your local machine.
+[source,sh]
+--------------------------------------------------
+gcloud compute images create elasticsearch-gce-image \
+ --source-disk=myesnode1 --source-disk-zone=europe-west1-a
 --------------------------------------------------
 
 [[discovery-gce-usage-start-new-instances]]
 ===== Start new instances
 
-As you have now an image, you can create as many instances as you need:
+As you have an image now, you can create as many instances as you need:
 
 [source,sh]
 --------------------------------------------------
 # Just change node name (here myesnode2)
-gcloud compute instances create myesnode2 --image elasticsearch-2-0-0 --zone europe-west1-a
+gcloud compute instances create myesnode2 --image=elasticsearch-gce-image \
+ --zone=europe-west1-a
 
 # If you want to provide all details directly, you can use:
-gcloud compute instances create myesnode2 --image=elasticsearch-2-0-0 \
-       --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw
+gcloud compute instances create myesnode2 --image=elasticsearch-gce-image \
+ --zone=europe-west1-a --machine-type=f1-micro --scopes=compute-rw
 --------------------------------------------------
 
 [[discovery-gce-usage-remove-instance]]
@@ -323,11 +346,11 @@ You can use https://cloud.google.com/console[Google Cloud Console] or CLI to man
 --------------------------------------------------
 # Stopping and removing instances
 gcloud compute instances delete myesnode1 myesnode2 \
-       --zone=europe-west1-a
+ --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
 gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
-       --zone=europe-west1-a
+ --zone=europe-west1-a
 --------------------------------------------------
 
 [[discovery-gce-usage-zones]]
@@ -337,16 +360,16 @@ gcloud compute disks deleted boot-myesnode1 boot-myesnode2  \
 https://developers.google.com/compute/docs/zones#available[GCE supported zones].
 
 The GCE discovery can support multi zones although you need to be aware of network latency between zones.
-To enable discovery across more than one zone, just enter add your zone list to `cloud.gce.zone` setting:
+To enable discovery across more than one zone, just add your zone list to `cloud.gce.zone` setting:
 
 [source,yaml]
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: ["<your-zone1>", "<your-zone2>"]
+    project_id: <your-google-project-id>
+    zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      zen.hosts_provider: gce
+    zen.hosts_provider: gce
 --------------------------------------------------
 
 
@@ -369,8 +392,8 @@ Add your tag when building the new instance:
 [source,sh]
 --------------------------------------------------
 gcloud compute instances create myesnode1 --project=es-cloud \
-       --scopes=compute-rw \
-       --tags=elasticsearch,dev
+ --scopes=compute-rw \
+ --tags=elasticsearch,dev
 --------------------------------------------------
 
 Then, define it in `elasticsearch.yml`:
@@ -379,12 +402,12 @@ Then, define it in `elasticsearch.yml`:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
-      gce:
-            tags: elasticsearch, dev
+    zen.hosts_provider: gce
+    gce:
+      tags: elasticsearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]
@@ -402,13 +425,13 @@ Add `--metadata es_port=9301` option:
 --------------------------------------------------
 # when creating first instance
 gcloud compute instances create myesnode1 \
-       --scopes=compute-rw,storage-full \
-       --metadata es_port=9301
+  --scopes=compute-rw,storage-full \
+  --metadata es_port=9301
 
 # when creating an instance from an image
-gcloud compute instances create myesnode2 --image=elasticsearch-1-0-0-RC1 \
-       --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw \
-       --metadata es_port=9301
+gcloud compute instances create myesnode2 --image=elasticsearch-gce-image \
+  --zone europe-west1-a --machine-type f1-micro --scopes=compute-rw \
+  --metadata es_port=9301
 --------------------------------------------------
 
 [[discovery-gce-usage-port-run]]
@@ -417,8 +440,8 @@ gcloud compute instances create myesnode2 --image=elasticsearch-1-0-0-RC1 \
 [source,sh]
 --------------------------------------------------
 gcloud compute instances add-metadata myesnode1 \
-       --zone europe-west1-a \
-       --metadata es_port=9301
+  --zone europe-west1-a \
+  --metadata es_port=9301
 --------------------------------------------------
 
 
@@ -494,10 +517,10 @@ elasticsearch.yml with the following content:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      zen.hosts_provider: gce
+  zen.hosts_provider: gce
 --------------------------------------------------
 
 Replaces `project_id` and `zone` with your settings.

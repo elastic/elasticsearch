@@ -601,8 +601,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
-            long triggeredCount = schedulers.stream().map(scheduler -> scheduler.trigger(watchId, times, timeValue))
-                .filter(b -> b)
+            long triggeredCount = schedulers.stream()
+                .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
                 .count();
             String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
             if (triggeredCount > 1) {

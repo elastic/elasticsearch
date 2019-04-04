@@ -88,8 +88,8 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
                 ActionListener.wrap(r -> {
                     debugDbqResponse(r);
-                    // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created,
-                    // because when tokens index has been created all nodes will store tokens there and not on the main security index
+                    // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
+                    // only after the tokens index has been created all nodes will store tokens there and not on the main security index
                     if (mainIndexMightContainTokens && securityTokensIndex.indexExists()
                             && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
                             && r.getBulkFailures().isEmpty() && r.getSearchFailures().isEmpty()) {

@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Represents a request for authentication using OpenID Connect
@@ -43,7 +46,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         super.readFrom(in);
         redirectUri = in.readString();
         state = in.readString();
-        nonce = in.readOptionalString();
+        nonce = in.readString();
     }
 
     public String getRedirectUri() {
@@ -72,7 +75,17 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (Strings.isNullOrEmpty(state)) {
+            validationException = addValidationError("state parameter is missing", validationException);
+        }
+        if (Strings.isNullOrEmpty(nonce)) {
+            validationException = addValidationError("nonce parameter is missing", validationException);
+        }
+        if (Strings.isNullOrEmpty(redirectUri)) {
+            validationException = addValidationError("redirect_uri parameter is missing", validationException);
+        }
+        return validationException;
     }
 
     @Override
@@ -80,7 +93,7 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         super.writeTo(out);
         out.writeString(redirectUri);
         out.writeString(state);
-        out.writeOptionalString(nonce);
+        out.writeString(nonce);
     }
 
     @Override

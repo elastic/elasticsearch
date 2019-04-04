@@ -7,6 +7,8 @@ This section discusses the changes that you need to be aware of to migrate
 your application to {version}. For more information about what's new in this
 release, see the <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking-changes-7.0,Breaking changes in 7.0>>
+
 For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
 --

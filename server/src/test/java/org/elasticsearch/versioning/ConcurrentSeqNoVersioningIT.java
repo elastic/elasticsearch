@@ -279,18 +279,18 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private class Partition {
         private final String id;
-        private final AtomicVersion atomicVersion;
+        private final AtomicVersion lastKnownVersion;
         private final Version initialVersion;
         private final LinearizabilityChecker.History history = new LinearizabilityChecker.History();
 
         private Partition(String id, Version initialVersion) {
             this.id = id;
-            this.atomicVersion = new AtomicVersion(initialVersion);
+            this.lastKnownVersion = new AtomicVersion(initialVersion);
             this.initialVersion = initialVersion;
         }
 
         public Version latestKnownVersion() {
-            return atomicVersion.get();
+            return lastKnownVersion.get();
         }
 
         public Consumer<HistoryOutput> invoke(Version version) {
@@ -306,7 +306,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             // causes us to stick to errors for the rest of the run. But if we have a dirty read/CAS failure, it must be on an old primary
             // and the new primary will have a larger primaryTerm and a subsequent CAS failure will ensure we notice the new primaryTerm
             // and seqNo
-            atomicVersion.consume(output.getVersion());
+            lastKnownVersion.consume(output.getVersion());
         }
 
         public boolean isLinearizable() {

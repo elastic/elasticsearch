@@ -202,7 +202,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
+                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
@@ -228,7 +228,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
             String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
             try {
-                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                final String systemJavaHome = sh.run("echo $JAVA_HOME").stdout.trim();
                 final String java = systemJavaHome + "/bin/java";
 
                 sh.run("mkdir -p \"" + test_java_home + "/bin\"");

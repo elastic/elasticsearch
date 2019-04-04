@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +30,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     private final DataFrameIndexerTransformStats transformStats;
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
+            NAME, true,
             a -> new DataFrameTransformStateAndStats((String) a[0], (DataFrameTransformState) a[1], (DataFrameIndexerTransformStats) a[2]));
 
     static {
@@ -36,6 +38,16 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), DataFrameTransformState.PARSER::apply, STATE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DataFrameIndexerTransformStats.fromXContent(p),
                 DataFrameField.STATS_FIELD);
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
+        return initialStateAndStats(id, new DataFrameIndexerTransformStats(id));
+    }
+
+    public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
+        return new DataFrameTransformStateAndStats(id,
+            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
+            indexerTransformStats);
     }
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats) {
@@ -55,7 +67,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), id);
         builder.field(STATE_FIELD.getPreferredName(), transformState);
-        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats);
+        builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.endObject();
         return builder;
     }
@@ -98,5 +110,10 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public DataFrameTransformState getTransformState() {
         return transformState;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

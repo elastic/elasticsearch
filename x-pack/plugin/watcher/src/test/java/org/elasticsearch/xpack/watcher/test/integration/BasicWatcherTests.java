@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -62,6 +63,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @TestLogging("org.elasticsearch.xpack.watcher:DEBUG," +
              "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35503")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexWatch() throws Exception {
@@ -160,7 +162,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_name")
+            client().prepareIndex().setIndex(Watch.INDEX).setId("_name")
                     .setSource(watchSource)
                     .get();
             fail();
@@ -177,7 +179,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(searchRequest))
-                .addAction("_id", indexAction("idx", "action"));
+                .addAction("_id", indexAction("idx"));
 
         watcherClient().preparePutWatch("_name")
                 .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
@@ -216,7 +218,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         testConditionSearch(templateRequest(searchSourceBuilder, "events"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39306")
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()

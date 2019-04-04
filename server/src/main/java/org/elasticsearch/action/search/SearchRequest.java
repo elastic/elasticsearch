@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -198,26 +197,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
         preFilterShardSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            localClusterAlias = in.readOptionalString();
-            if (localClusterAlias != null) {
-                absoluteStartMillis = in.readVLong();
-                finalReduce = in.readBoolean();
-            } else {
-                absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
-                finalReduce = true;
-            }
+        allowPartialSearchResults = in.readOptionalBoolean();
+        localClusterAlias = in.readOptionalString();
+        if (localClusterAlias != null) {
+            absoluteStartMillis = in.readVLong();
+            finalReduce = in.readBoolean();
         } else {
-            localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        ccsMinimizeRoundtrips = in.readBoolean();
     }
 
     @Override
@@ -235,19 +224,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
         out.writeVInt(preFilterShardSize);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalString(localClusterAlias);
+        if (localClusterAlias != null) {
+            out.writeVLong(absoluteStartMillis);
+            out.writeBoolean(finalReduce);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeOptionalString(localClusterAlias);
-            if (localClusterAlias != null) {
-                out.writeVLong(absoluteStartMillis);
-                out.writeBoolean(finalReduce);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
+
     }
 
     @Override

@@ -7,15 +7,12 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.tasks.BaseTasksRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -39,11 +36,14 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
-        private String id;
+    public static class Request extends AcknowledgedRequest<Request> {
 
-        public Request(String id) {
+        private String id;
+        private boolean force;
+
+        public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.force = force;
         }
 
         public Request() {
@@ -58,6 +58,10 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
             return id;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -67,12 +71,6 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
         }
 
         @Override
@@ -93,13 +91,6 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
         private boolean started;
 
@@ -108,7 +99,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         }
 
         public Response(StreamInput in) throws IOException {
-            super(Collections.emptyList(), Collections.emptyList());
+            super(in);
             readFrom(in);
         }
 
@@ -136,6 +127,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            toXContentCommon(builder, params);
             builder.field("started", started);
             builder.endObject();
             return builder;

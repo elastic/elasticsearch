@@ -500,10 +500,10 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(null, null, null, config);
     }
 
-    private InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
-                                        @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-                                        @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
-                                        EngineConfig config) throws IOException {
+    protected InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory,
+                                          @Nullable BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
+                                          @Nullable ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
+                                          EngineConfig config) throws IOException {
         final Store store = config.getStore();
         final Directory directory = store.directory();
         if (Lucene.indexExists(directory) == false) {
@@ -514,7 +514,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        internalEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
@@ -695,6 +695,21 @@ public abstract class EngineTestCase extends ESTestCase {
                 retentionLeasesSupplier,
                 primaryTerm,
                 tombstoneDocSupplier());
+    }
+
+    protected EngineConfig config(EngineConfig config, Store store, Path translogPath,
+                                  EngineConfig.TombstoneDocSupplier tombstoneDocSupplier) {
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test",
+            Settings.builder().put(config.getIndexSettings().getSettings())
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        return new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+            indexSettings, config.getWarmer(), store, config.getMergePolicy(), config.getAnalyzer(), config.getSimilarity(),
+            new CodecService(null, logger), config.getEventListener(), config.getQueryCache(), config.getQueryCachingPolicy(),
+            translogConfig, config.getFlushMergesAfter(), config.getExternalRefreshListener(),
+            config.getInternalRefreshListener(), config.getIndexSort(), config.getCircuitBreakerService(),
+            config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+            config.getPrimaryTermSupplier(), tombstoneDocSupplier);
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -1037,7 +1052,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+        if (mapper == null || mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
             || (engine instanceof InternalEngine) == false) {
             return;
         }

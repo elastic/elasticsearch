@@ -31,6 +31,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NoRouteToHostException;
@@ -322,7 +324,13 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             try {
                 final boolean allSocketsOpened = awaitBusy(() -> {
                     try {
-                        final List<InetAddress> inetAddressesToBind = Arrays.stream(InetAddressHelper.getAllAddresses())
+                        InetAddress[] allAddresses = InetAddressHelper.getAllAddresses();
+                        if (serverAddress instanceof Inet4Address) {
+                            allAddresses = InetAddressHelper.filterIPV4(allAddresses);
+                        } else {
+                            allAddresses = InetAddressHelper.filterIPV6(allAddresses);
+                        }
+                        final List<InetAddress> inetAddressesToBind = Arrays.stream(allAddresses)
                             .filter(addr -> openedSockets.stream().noneMatch(s -> addr.equals(s.getLocalAddress())))
                             .filter(addr -> blacklistedAddress.contains(addr) == false)
                             .collect(Collectors.toList());
@@ -334,7 +342,14 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                             } catch (NoRouteToHostException e) {
                                 logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
                                 blacklistedAddress.add(localAddress);
+                            } catch (ConnectException e) {
+                                logger.debug(new ParameterizedMessage("blacklisting address [{}] due to:", localAddress), e);
+                                blacklistedAddress.add(localAddress);
                             }
+                        }
+                        if (openedSockets.size() == 0) {
+                            logger.debug("Could not open any sockets from the available addresses");
+                            return false;
                         }
                         return true;
                     } catch (IOException e) {

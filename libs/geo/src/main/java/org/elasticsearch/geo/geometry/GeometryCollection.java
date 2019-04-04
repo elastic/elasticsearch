@@ -21,6 +21,7 @@ package org.elasticsearch.geo.geometry;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -31,6 +32,8 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     private final List<G> shapes;
 
+    private boolean hasAlt;
+
     public GeometryCollection() {
         shapes = Collections.emptyList();
     }
@@ -38,6 +41,12 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
     public GeometryCollection(List<G> shapes) {
         if (shapes == null || shapes.isEmpty()) {
             throw new IllegalArgumentException("the list of shapes cannot be null or empty");
+        }
+        hasAlt = shapes.get(0).hasAlt();
+        for (G shape : shapes) {
+            if (shape.hasAlt() != hasAlt) {
+                throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
+            }
         }
         this.shapes = shapes;
     }
@@ -81,5 +90,19 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
     @Override
     public Iterator<G> iterator() {
         return shapes.iterator();
+    }
+
+    @Override
+    public boolean hasAlt() {
+        return hasAlt;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(type().name().toLowerCase(Locale.ROOT)).append("(shapes=");
+        sb.append(shapes);
+        sb.append(")");
+        return sb.toString();
     }
 }

@@ -6,99 +6,84 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
-import org.elasticsearch.xpack.dataframe.persistence.DataFramePersistentTaskUtils;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.io.IOException;
 
-public class TransportGetDataFrameTransformsAction extends
-        TransportTasksAction<DataFrameTransformTask,
-        GetDataFrameTransformsAction.Request,
-        GetDataFrameTransformsAction.Response,
-        GetDataFrameTransformsAction.Response> {
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 
-    private final DataFrameTransformsConfigManager transformsConfigManager;
+
+public class TransportGetDataFrameTransformsAction extends AbstractTransportGetResourcesAction<DataFrameTransformConfig,
+                                                                                               Request,
+                                                                                               Response> {
 
     @Inject
     public TransportGetDataFrameTransformsAction(TransportService transportService, ActionFilters actionFilters,
-            ClusterService clusterService, DataFrameTransformsConfigManager transformsConfigManager) {
-        super(GetDataFrameTransformsAction.NAME, clusterService, transportService, actionFilters, GetDataFrameTransformsAction.Request::new,
-                GetDataFrameTransformsAction.Response::new, GetDataFrameTransformsAction.Response::new, ThreadPool.Names.SAME);
-        this.transformsConfigManager = transformsConfigManager;
-    }
-
-    @Override
-    protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
-            List<FailedNodeException> failedNodeExceptions) {
-        List<DataFrameTransformConfig> configs = tasks.stream()
-            .flatMap(r -> r.getTransformConfigurations().stream())
-            .sorted(Comparator.comparing(DataFrameTransformConfig::getId))
-            .collect(Collectors.toList());
-        return new Response(configs, taskOperationFailures, failedNodeExceptions);
-    }
-
-    @Override
-    protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
-        assert task.getTransformId().equals(request.getId()) || request.getId().equals(MetaData.ALL);
-        // Little extra insurance, make sure we only return transforms that aren't cancelled
-        if (task.isCancelled() == false) {
-            transformsConfigManager.getTransformConfiguration(task.getTransformId(), ActionListener.wrap(config -> {
-                listener.onResponse(new Response(Collections.singletonList(config)));
-            }, e -> {
-                listener.onFailure(new RuntimeException("failed to retrieve...", e));
-            }));
-        } else {
-            listener.onResponse(new Response(Collections.emptyList()));
-        }
+                                                 Client client, NamedXContentRegistry xContentRegistry) {
+        super(GetDataFrameTransformsAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final ClusterState state = clusterService.state();
-        final DiscoveryNodes nodes = state.nodes();
+        searchResources(request, ActionListener.wrap(
+            r -> listener.onResponse(new Response(r.results())),
+            listener::onFailure
+        ));
+    }
 
-        if (nodes.isLocalNodeElectedMaster()) {
-            if (DataFramePersistentTaskUtils.stateHasDataFrameTransforms(request.getId(), state)) {
-                super.doExecute(task, request, listener);
-            } else {
-                // If we couldn't find the transform in the persistent task CS, it means it was deleted prior to this GET
-                // and we can just send an empty response, no need to go looking for the allocated task
-                listener.onResponse(new Response(Collections.emptyList()));
-            }
+    @Override
+    protected ParseField getResultsField() {
+        return DataFrameField.TRANSFORMS;
+    }
 
-        } else {
-            // Delegates GetTransforms to elected master node, so it becomes the coordinating node.
-            // Non-master nodes may have a stale cluster state that shows transforms which are cancelled
-            // on the master, which makes testing difficult.
-            if (nodes.getMasterNode() == null) {
-                listener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
-            } else {
-                transportService.sendRequest(nodes.getMasterNode(), actionName, request,
-                        new ActionListenerResponseHandler<>(listener, Response::new));
-            }
-        }
+    @Override
+    protected String[] getIndices() {
+        return new String[]{DataFrameInternalIndex.INDEX_NAME};
+    }
+
+    @Override
+    protected DataFrameTransformConfig parse(XContentParser parser) throws IOException {
+        return DataFrameTransformConfig.fromXContent(parser, null, true);
+    }
+
+    @Override
+    protected ResourceNotFoundException notFoundException(String resourceId) {
+        return new ResourceNotFoundException(
+            DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, resourceId));
+    }
+
+    @Override
+    protected String executionOrigin() {
+        return ClientHelper.DATA_FRAME_ORIGIN;
+    }
+
+    @Override
+    protected String extractIdFromResource(DataFrameTransformConfig transformConfig) {
+        return transformConfig.getId();
+    }
+
+    @Override
+    protected QueryBuilder additionalQuery() {
+        return QueryBuilders.termQuery(INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME);
     }
 }

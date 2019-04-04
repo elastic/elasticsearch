@@ -108,7 +108,7 @@ public class Netty4Transport extends TcpTransport {
     public Netty4Transport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService) {
-        super("netty", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
 
@@ -243,7 +243,7 @@ public class Netty4Transport extends TcpTransport {
     @Override
     protected Netty4TcpServerChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-        Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel, name);
+        Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel);
         channel.attr(SERVER_CHANNEL_KEY).set(esChannel);
         return esChannel;
     }

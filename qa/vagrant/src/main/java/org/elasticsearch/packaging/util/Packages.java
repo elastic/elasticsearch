@@ -22,9 +22,11 @@ package org.elasticsearch.packaging.util;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -52,14 +54,14 @@ public class Packages {
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
 
-    public static void assertInstalled(Distribution distribution) {
+    public static void assertInstalled(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
         assertThat(status.exitCode, is(0));
 
         Platforms.onDPKG(() -> assertFalse(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find()));
     }
 
-    public static void assertRemoved(Distribution distribution) {
+    public static void assertRemoved(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
 
         Platforms.onRPM(() -> assertThat(status.exitCode, is(1)));
@@ -88,25 +90,31 @@ public class Packages {
         return result;
     }
 
-    public static Installation install(Distribution distribution) {
+    public static Installation install(Distribution distribution) throws IOException {
         return install(distribution, getCurrentVersion());
     }
 
-    public static Installation install(Distribution distribution, String version) {
-        final Result result = runInstallCommand(distribution, version);
+    public static Installation install(Distribution distribution, String version) throws IOException {
+        Shell sh = new Shell();
+        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        if (distribution.hasJdk == false) {
+            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+        }
+        final Result result = runInstallCommand(distribution, version, sh);
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " version " + version + " failed: " + result);
         }
 
-        return Installation.ofPackage(distribution.packaging);
+        Installation installation = Installation.ofPackage(distribution.packaging);
+
+        if (distribution.hasJdk == false) {
+            Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.APPEND);
+        }
+        return installation;
     }
 
-    public static Result runInstallCommand(Distribution distribution) {
-        return runInstallCommand(distribution, getCurrentVersion());
-    }
-
-    public static Result runInstallCommand(Distribution distribution, String version) {
-        final Shell sh = new Shell();
+    public static Result runInstallCommand(Distribution distribution, String version, Shell sh) {
         final Path distributionFile = getDistributionFile(distribution, version);
 
         if (Platforms.isRPM()) {
@@ -125,7 +133,7 @@ public class Packages {
         }
     }
 
-    public static void remove(Distribution distribution) {
+    public static void remove(Distribution distribution) throws Exception {
         final Shell sh = new Shell();
 
         Platforms.onRPM(() -> {
@@ -142,16 +150,15 @@ public class Packages {
         });
     }
 
-    public static void verifyPackageInstallation(Installation installation, Distribution distribution) {
-        verifyOssInstallation(installation, distribution);
+    public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
+        verifyOssInstallation(installation, distribution, sh);
         if (distribution.flavor == Distribution.Flavor.DEFAULT) {
             verifyDefaultInstallation(installation);
         }
     }
 
 
-    private static void verifyOssInstallation(Installation es, Distribution distribution) {
-        final Shell sh = new Shell();
+    private static void verifyOssInstallation(Installation es, Distribution distribution, Shell sh) {
 
         sh.run("id elasticsearch");
         sh.run("getent group elasticsearch");
@@ -263,8 +270,7 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static void startElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void startElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
@@ -274,6 +280,10 @@ public class Packages {
             sh.run("service elasticsearch start");
         }
 
+        assertElasticsearchStarted(sh);
+    }
+
+    public static void assertElasticsearchStarted(Shell sh) throws IOException {
         waitForElasticsearch();
 
         if (isSystemd()) {
@@ -284,12 +294,21 @@ public class Packages {
         }
     }
 
-    public static void stopElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void stopElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl stop elasticsearch.service");
         } else {
             sh.run("service elasticsearch stop");
         }
+    }
+
+    public static void restartElasticsearch(Shell sh) throws IOException {
+        if (isSystemd()) {
+            sh.run("systemctl restart elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch restart");
+        }
+
+        waitForElasticsearch();
     }
 }

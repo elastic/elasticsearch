@@ -200,8 +200,6 @@ public final class TokenService {
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
-    // for testing only
-    private final AtomicReference<Version> versionCompatibilityOverride = new AtomicReference<>();
 
     /**
      * Creates a new token service
@@ -231,10 +229,6 @@ public final class TokenService {
     }
 
     private Version getVersionCompatibility() {
-        final Version versionOverride = versionCompatibilityOverride.get();
-        if (versionOverride != null) {
-            return versionOverride;
-        }
         return clusterService.state().nodes().getMinNodeVersion();
     }
 

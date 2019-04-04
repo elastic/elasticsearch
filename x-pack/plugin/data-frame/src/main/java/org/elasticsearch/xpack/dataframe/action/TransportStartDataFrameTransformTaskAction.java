@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTask
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Internal only transport class to change an allocated persistent task's state to started
@@ -42,27 +41,6 @@ public class TransportStartDataFrameTransformTaskAction extends
             StartDataFrameTransformTaskAction.Request::new, StartDataFrameTransformTaskAction.Response::new,
             StartDataFrameTransformTaskAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
-    }
-
-    @Override
-    protected void processTasks(StartDataFrameTransformTaskAction.Request request, Consumer<DataFrameTransformTask> operation) {
-        DataFrameTransformTask matchingTask = null;
-
-        // todo: re-factor, see rollup TransportTaskHelper
-        for (Task task : taskManager.getTasks().values()) {
-            if (task instanceof DataFrameTransformTask
-                && ((DataFrameTransformTask) task).getTransformId().equals(request.getId())) {
-                if (matchingTask != null) {
-                    throw new IllegalArgumentException("Found more than one matching task for data frame transform [" + request.getId()
-                        + "] when " + "there should only be one.");
-                }
-                matchingTask = (DataFrameTransformTask) task;
-            }
-        }
-
-        if (matchingTask != null) {
-            operation.accept(matchingTask);
-        }
     }
 
     @Override

@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.geo.utils.Geohash.addNeighbors;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**

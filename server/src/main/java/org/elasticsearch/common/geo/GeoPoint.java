@@ -208,11 +208,6 @@ public final class GeoPoint implements ToXContentFragment {
         return lat + ", " + lon;
     }
 
-    public static GeoPoint parseFromLatLon(String latLon) {
-        GeoPoint point = new GeoPoint(latLon);
-        return point;
-    }
-
     public static GeoPoint fromGeohash(String geohash) {
         return new GeoPoint().resetFromGeoHash(geohash);
     }

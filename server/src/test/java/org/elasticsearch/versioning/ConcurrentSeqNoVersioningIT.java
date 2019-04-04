@@ -886,7 +886,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             new LinearizabilityChecker().isLinearizable(new CASSequentialSpec(initialVersion), history,
                 missingResponseGenerator());
 
-        System.out.println(new LinearizabilityChecker().visualize(new CASSequentialSpec(initialVersion), history,
+        System.out.println(LinearizabilityChecker.visualize(new CASSequentialSpec(initialVersion), history,
             missingResponseGenerator()));
 
         System.out.println("Linearizable?: " + result);

@@ -301,7 +301,7 @@ public class LinearizabilityChecker {
     /**
      * Return a visual representation of the history
      */
-    public String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+    public static String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         history = history.clone();
         history.complete(missingResponseGenerator);
         final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
@@ -318,7 +318,7 @@ public class LinearizabilityChecker {
         return builder.toString();
     }
 
-    private String visualizePartition(List<Event> events) {
+    private static String visualizePartition(List<Event> events) {
         StringBuilder builder = new StringBuilder();
         Entry entry = createLinkedEntries(events).next;
         Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
@@ -334,7 +334,7 @@ public class LinearizabilityChecker {
         return builder.toString();
     }
 
-    private String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+    private static String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
         String input = String.valueOf(entry.event.value);
         String output = String.valueOf(entry.match.event.value);
         int id = entry.event.id;

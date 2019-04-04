@@ -54,12 +54,6 @@ public class LinearizabilityChecker {
     private static final Logger logger = LogManager.getLogger(LinearizabilityChecker.class);
 
     /**
-     * Return this object from the missing object generator to remove the entry from the linearizability checker. This is useful to avoid
-     * events that neither affect the state nor can be validated.
-     */
-    public static final Object REMOVE = new Object();
-
-    /**
      * Sequential specification of a datatype. Used as input for the linearizability checker.
      * All parameter and return values should be immutable and have proper equals / hashCode implementations
      */
@@ -194,8 +188,7 @@ public class LinearizabilityChecker {
         /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
-         * @param missingResponseGenerator a function from invocation input to response output, used to generate the corresponding
-         *                                 response. Return {@link #REMOVE} to remove the event
+         * @param missingResponseGenerator a function from invocation input to response output, used to generate the corresponding response
          */
         public void complete(Function<Object, Object> missingResponseGenerator) {
             final Map<Integer, Event> uncompletedInvocations = new HashMap<>();
@@ -210,12 +203,7 @@ public class LinearizabilityChecker {
                 }
             }
             for (Map.Entry<Integer, Event> entry : uncompletedInvocations.entrySet()) {
-                Object response = missingResponseGenerator.apply(entry.getValue().value);
-                if (response != REMOVE) {
-                    events.add(new Event(EventType.RESPONSE, response, entry.getKey()));
-                } else {
-                    remove(entry.getValue().id);
-                }
+                events.add(new Event(EventType.RESPONSE, missingResponseGenerator.apply(entry.getValue().value), entry.getKey()));
             }
         }
 
@@ -246,8 +234,7 @@ public class LinearizabilityChecker {
      *
      * @param spec the sequential specification of the datatype
      * @param history the history of events to check for linearizability
-     * @param missingResponseGenerator used to complete the history with missing responses, return {@link #REMOVE} to remove the history
-     *                                 event
+     * @param missingResponseGenerator used to complete the history with missing responses
      * @return true iff the history is linearizable w.r.t. the given spec
      */
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
@@ -310,32 +297,6 @@ public class LinearizabilityChecker {
             throw new IllegalArgumentException("history is not complete");
         });
     }
-
-    /**
-     * If it is often so, that timed out requests did not modify state in the test, this method can be preferable to make the check
-     * complete faster. Notice that the missingResponseGenerator here runs after partitioning, ie. input values will be the partitioned
-     * values
-     */
-    public boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, History history,
-                                                         Function<Object, Object> missingResponseGenerator) {
-        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        return partitions.stream().allMatch(h -> isLinearizableWithTimeoutOptimization(spec, h, missingResponseGenerator));
-    }
-
-    private boolean isLinearizableWithTimeoutOptimization(SequentialSpec spec, List<Event> events,
-                                                          Function<Object, Object> missingResponseGenerator) {
-        History history = new History(events);
-        History historyWithNoTimedOutOperations = history.clone();
-        historyWithNoTimedOutOperations.complete(i -> REMOVE);
-        if (isLinearizable(spec, historyWithNoTimedOutOperations.copyEvents())) {
-            return true;
-        }
-
-        history.complete(missingResponseGenerator);
-
-        return isLinearizable(spec, history.copyEvents());
-    }
-
 
     /**
      * Return a visual representation of the history

@@ -724,21 +724,14 @@ public final class TokenService {
      * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy.
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
-        final Version refreshTokenVersion;
-        final String unencodedRefreshToken;
-        try {
-            final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-            refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-            unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-        } catch (IOException e) {
-            // could be an old format refresh token
-            logger.debug("refresh token could be one of the old unversioned format");
-            findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
-            return;
-        }
-        if (refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+        final Optional<Tuple<Version, String>> versionAndRefreshTokenTuple = tryUnpackVersionAndPayload(refreshToken);
+        if (versionAndRefreshTokenTuple.isPresent()) {
+            final Version refreshTokenVersion = versionAndRefreshTokenTuple.get().v1();
+            assert refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED);
+            final String unencodedRefreshToken = versionAndRefreshTokenTuple.get().v2();
             findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
         } else {
+            logger.debug("Could not decode as a versioned refresh token. Assuming unversioned but valid refresh token.");
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         }
     }
@@ -975,16 +968,17 @@ public final class TokenService {
     }
 
     private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {
-        Tuple<Version, String> versionAndSupersedingTokenDocId;
-        try {
-            versionAndSupersedingTokenDocId = unpackVersionAndPayload(refreshTokenStatus.getSupersedingDocId());
-        } catch (IOException e) {
-            // could be an old format refresh token
-            logger.debug("superseding token-doc-id in old unversioned format");
-            versionAndSupersedingTokenDocId = new Tuple<Version, String>(Version.V_7_0_0, refreshTokenStatus.getSupersedingDocId());
+        final Optional<Tuple<Version, String>> versionAndSupersedingTokenDocId = tryUnpackVersionAndPayload(
+                refreshTokenStatus.getSupersedingDocId());
+        if (versionAndSupersedingTokenDocId.isPresent()) {
+            final Version supersedingTokenVersion = versionAndSupersedingTokenDocId.get().v1();
+            assert supersedingTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED);
+            final String supersedingTokenDocId = versionAndSupersedingTokenDocId.get().v2();
+            getTokenDocAsync(supersedingTokenDocId, securityTokensIndex, listener);
+        } else {
+            logger.debug("superseding token-doc-id is not versioned. Assuming the unversioned format.");
+            getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), securityMainIndex, listener);
         }
-        final SecurityIndexManager securityIndexManager = getTokensIndexManagerForVersion(versionAndSupersedingTokenDocId.v1());
-        getTokenDocAsync(versionAndSupersedingTokenDocId.v2(), securityIndexManager, listener);
     }
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
@@ -1312,7 +1306,7 @@ public final class TokenService {
                     prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
             return new Tuple<>(userToken, versionedRefreshToken);
         } else {
-            // do not prepend version to refresh token as the audience node version cannot deal with it
+            // do not prepend version to refresh token as the audience node version cannot deal with itqq
             return new Tuple<>(userToken, plainRefreshToken);
         }
     }
@@ -1492,13 +1486,17 @@ public final class TokenService {
         }
     }
 
-    private static Tuple<Version, String> unpackVersionAndPayload(String encodedPack) throws IOException {
+    private static Optional<Tuple<Version, String>> tryUnpackVersionAndPayload(String encodedPack) {
         final byte[] bytes = encodedPack.getBytes(StandardCharsets.UTF_8);
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final String payload = in.readString();
-            return new Tuple<Version, String>(version, payload);
+            return Optional.of(new Tuple<Version, String>(version, payload));
+        } catch (IOException | IllegalArgumentException e) {
+            logger.trace("Error decoding versioned String value."
+                    + " Probably the version is prior to the expected format, but might still be compatible.", e);
+            return Optional.empty();
         }
     }
 

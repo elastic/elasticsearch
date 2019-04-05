@@ -102,6 +102,7 @@ final class WatcherIndexingListener extends AbstractComponent implements Indexin
             try {
                 Watch watch = parser.parseWithSecrets(operation.id(), true, operation.source(), now, XContentType.JSON,
                     operation.getIfSeqNo(), operation.getIfPrimaryTerm());
+                watch.version(operation.version());
                 ShardAllocationConfiguration shardAllocationConfiguration = configuration.localShards.get(shardId);
                 if (shardAllocationConfiguration == null) {
                     logger.debug("no distributed watch execution info found for watch [{}] on shard [{}], got configuration for {}",

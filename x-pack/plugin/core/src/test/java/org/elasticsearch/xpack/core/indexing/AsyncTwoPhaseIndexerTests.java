@@ -173,14 +173,12 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            assertThat(step, equalTo(2));
-            ++step;
-            next.run();
+            fail("should not be called");
         }
 
         @Override
         protected void onFailure(Exception exc) {
-            assertThat(step, equalTo(3));
+            assertThat(step, equalTo(2));
             ++step;
             isFinished.set(true);
         }
@@ -243,8 +241,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get()));
-            assertThat(indexer.getStep(), equalTo(4));
+            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get(), 10000, TimeUnit.SECONDS));
+            assertThat(indexer.getStep(), equalTo(3));
 
         } finally {
             executor.shutdownNow();

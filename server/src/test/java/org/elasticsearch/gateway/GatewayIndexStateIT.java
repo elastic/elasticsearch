@@ -340,6 +340,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * allocated in our metadata that we recover. In that case we now have the ability to check the index on local recovery from disk
      * if it is sane and if we can successfully create an IndexService. This also includes plugins etc.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40867")
     public void testRecoverBrokenIndexMetadata() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();

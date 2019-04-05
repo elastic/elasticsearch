@@ -440,12 +440,8 @@ public class ReplicationOperationTests extends ESTestCase {
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public Set<ShardRouting> processedOnReplicas = ConcurrentCollections.newConcurrentSet();
 
-        public Request() {
-        }
-
         Request(ShardId shardId) {
-            this();
-            this.shardId = shardId;
+            super(shardId);
             this.index = shardId.getIndexName();
             this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple

@@ -20,32 +20,25 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,37 +53,14 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
     public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
                           NamedXContentRegistry namedXContentRegistry, DeterministicTaskQueue deterministicTaskQueue, Context context) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, deterministicTaskQueue.getThreadPool());
+        super(metadata, environment, namedXContentRegistry, deterministicTaskQueue.getThreadPool());
         this.deterministicTaskQueue = deterministicTaskQueue;
         this.context = context;
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        super.initializeSnapshot(snapshotId, indices, clusterMetadata);
-    }
-
-    @Override
     protected void assertSnapshotOrGenericThread() {
         // eliminate thread name check as we create repo in the test thread
-    }
-
-    private static RepositoryMetaData overrideSettings(RepositoryMetaData metadata, Environment environment) {
-        // TODO: use another method of testing not being able to read the test file written by the master...
-        // this is super duper hacky
-        if (metadata.settings().getAsBoolean("localize_location", false)) {
-            Path location = PathUtils.get(metadata.settings().get("location"));
-            location = location.resolve(Integer.toString(environment.hashCode()));
-            return new RepositoryMetaData(metadata.name(), metadata.type(),
-                Settings.builder().put(metadata.settings()).put("location", location.toAbsolutePath()).build());
-        } else {
-            return metadata;
-        }
-    }
-
-    @Override
-    protected void doStop() {
-        super.doStop();
     }
 
     @Override
@@ -154,23 +124,16 @@ public class MockEventuallyConsistentRepository extends FsRepository {
             }
 
             @Override
-            public void deleteBlob(String blobName) throws IOException {
-                super.deleteBlob(blobName);
-            }
-
-            @Override
-            public void deleteBlobIgnoringIfNotExists(String blobName) throws IOException {
-                super.deleteBlobIgnoringIfNotExists(blobName);
-            }
-
-            @Override
-            public Map<String, BlobMetaData> listBlobs() throws IOException {
-                return super.listBlobs();
-            }
-
-            @Override
-            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-                return super.listBlobsByPrefix(blobNamePrefix);
+            public void deleteBlob(String blobName) {
+                deterministicTaskQueue.scheduleNow(() -> {
+                    try {
+                        super.deleteBlob(blobName);
+                    } catch (DirectoryNotEmptyException | NoSuchFileException e) {
+                        // ignored
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                });
             }
 
             @Override

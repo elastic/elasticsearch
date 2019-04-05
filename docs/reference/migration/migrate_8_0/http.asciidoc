@@ -1,0 +1,9 @@
+[float]
+[[breaking_80_http_changes]]
+=== HTTP changes
+
+[float]
+==== Removal of old HTTP settings
+
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. It has been replaced by
+`http.tcp.no_delay`.

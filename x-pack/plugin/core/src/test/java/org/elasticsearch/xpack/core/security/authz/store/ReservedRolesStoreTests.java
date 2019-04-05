@@ -453,6 +453,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
 
+        final String kibaanaApplicataion = "kibana-.kibana";
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-foo", "foo"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(monitoringUserRole.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
@@ -970,6 +976,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 
+        final String kibaanaApplicataion = "kibana-.kibana";
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
@@ -1052,6 +1064,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        final String kibaanaApplicataion = "kibana-.kibana";
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibaanaApplicataion, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(

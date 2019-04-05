@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,7 +52,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
 
             final XContent xContent = XContentFactory.xContent(xContentType);
             final XContentParser parser = xContent.createParser(
-                new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
+                NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE,
                 bytes.streamInput());
             final C clientInstance = doParseToClientInstance(parser);

@@ -256,10 +256,6 @@ Other index settings are available in index modules:
     Settings to define analyzers, tokenizers, token filters and character
     filters.
 
-[xpack]#<<ilm-settings,{ilm-cap}>>#::
-
-    Specify the lifecycle policy and rollover alias for an index.
-
 <<index-modules-allocation,Index shard allocation>>::
 
     Control over where, when, and how shards are allocated to nodes.
@@ -289,6 +285,12 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+[float]
+=== [xpack]#{xpack} index settings#
+
+<<ilm-settings,{ilm-cap}>>::
+
+    Specify the lifecycle policy and rollover alias for an index.
 --
 
 include::index-modules/analysis.asciidoc[]

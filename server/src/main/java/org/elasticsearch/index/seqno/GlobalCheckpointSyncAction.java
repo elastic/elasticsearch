@@ -22,16 +22,13 @@ package org.elasticsearch.index.seqno;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -101,19 +98,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     @Override
     protected ReplicationResponse newResponseInstance() {
         return new ReplicationResponse();
-    }
-
-    @Override
-    protected void sendReplicaRequest(
-            final ConcreteReplicaRequest<Request> replicaRequest,
-            final DiscoveryNode node,
-            final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            super.sendReplicaRequest(replicaRequest, node, listener);
-        } else {
-            final long pre60NodeCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            listener.onResponse(new ReplicaResponse(pre60NodeCheckpoint, pre60NodeCheckpoint));
-        }
     }
 
     @Override

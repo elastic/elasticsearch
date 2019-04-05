@@ -439,4 +439,33 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
     }
 
+    public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = newShell();
+        // Run the cli tools from the tmp dir
+        sh.setWorkingDirectory(getTempDir());
+
+        Platforms.PlatformAction action = () -> {
+            Result result = sh.run(bin.elasticsearchCertutil+ " -h");
+            assertThat(result.stdout,
+                containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            result = sh.run(bin.elasticsearchSyskeygen+ " -h");
+            assertThat(result.stdout,
+                containsString("system key tool"));
+            result = sh.run(bin.elasticsearchSetupPasswords+ " -h");
+            assertThat(result.stdout,
+                containsString("Sets the passwords for reserved users"));
+            result = sh.run(bin.elasticsearchUsers+ " -h");
+            assertThat(result.stdout,
+                containsString("Manages elasticsearch file users"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
+    }
+
 }

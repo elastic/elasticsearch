@@ -1,4 +1,4 @@
-/*
+ /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -23,7 +23,6 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.standalone-test'
 
 integTestCluster {
-    autoSetHostsProvider = false
     /**
      * Provide a custom log4j configuration where layout is an old style pattern and confirm that Elasticsearch 
      * can successfully startup.

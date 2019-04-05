@@ -42,13 +42,12 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
-import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -615,8 +614,8 @@ public class DerivativeIT extends ESIntegTestCase {
         }
     }
 
-    public void testAvgMovavgDerivNPE() throws Exception {
-        createIndex("movavg_npe");
+    public void testDerivDerivNPE() throws Exception {
+        createIndex("deriv_npe");
 
         for (int i = 0; i < 10; i++) {
             Integer value = i;
@@ -629,18 +628,18 @@ public class DerivativeIT extends ESIntegTestCase {
                     .field("tick", i)
                     .field("value", value)
                     .endObject();
-            client().prepareIndex("movavg_npe", "type").setSource(doc).get();
+            client().prepareIndex("deriv_npe", "type").setSource(doc).get();
         }
 
         refresh();
 
         SearchResponse response = client()
-                .prepareSearch("movavg_npe")
+                .prepareSearch("deriv_npe")
                 .addAggregation(
                         histogram("histo").field("tick").interval(1)
                                 .subAggregation(avg("avg").field("value"))
-                                .subAggregation(movingAvg("movavg", "avg").modelBuilder(new SimpleModel.SimpleModelBuilder()).window(3))
-                                .subAggregation(derivative("deriv", "movavg"))).get();
+                                .subAggregation(derivative("deriv1", "avg"))
+                                .subAggregation(derivative("deriv2", "deriv1"))).get();
 
         assertSearchResponse(response);
     }

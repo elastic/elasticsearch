@@ -82,8 +82,7 @@ public class SysTypes extends Command {
                 .sorted(Comparator.comparing((DataType t) -> t.sqlType.getVendorTypeNumber()).thenComparing(DataType::sqlName))
                 .map(t -> asList(t.toString(),
                         t.sqlType.getVendorTypeNumber(),
-                        //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size?view=sql-server-2017
-                        t.defaultPrecision,
+                        DataTypes.precision(t),
                         "'",
                         "'",
                         null,

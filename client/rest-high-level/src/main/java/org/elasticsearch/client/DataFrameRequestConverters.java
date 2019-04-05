@@ -20,12 +20,17 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
@@ -43,6 +48,21 @@ final class DataFrameRequestConverters {
                 .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDataFrameTransform(GetDataFrameTransformRequest getRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms")
+                .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
+                .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        if (getRequest.getFrom() != null) {
+            request.addParameter("from", getRequest.getFrom().toString());
+        }
+        if (getRequest.getSize() != null) {
+            request.addParameter("size", getRequest.getSize().toString());
+        }
         return request;
     }
 
@@ -83,5 +103,23 @@ final class DataFrameRequestConverters {
                 params.withTimeout(stopRequest.getTimeout());
             }
             return request;
+    }
+
+    static Request previewDataFrameTransform(PreviewDataFrameTransformRequest previewRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms", "_preview")
+                .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDataFrameTransformStats(GetDataFrameTransformStatsRequest statsRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_data_frame", "transforms")
+                .addPathPart(statsRequest.getId())
+                .addPathPartAsIs("_stats")
+                .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 }

@@ -114,7 +114,7 @@ public final class DateUtils {
     }
 
     public static String toTimeString(OffsetTime time) {
-        return time.format(ISO_LOCAL_TIME);
+        return StringUtils.toString(time);
     }
 
     public static long minDayInterval(long l) {

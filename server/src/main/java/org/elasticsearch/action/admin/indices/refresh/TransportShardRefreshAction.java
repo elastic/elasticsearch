@@ -53,10 +53,11 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected PrimaryResult shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary) {
+    protected PrimaryResult<BasicReplicationRequest, ReplicationResponse> shardOperationOnPrimary(
+            BasicReplicationRequest shardRequest, IndexShard primary) {
         primary.refresh("api");
         logger.trace("{} refresh request executed on primary", primary.shardId());
-        return new PrimaryResult(shardRequest, new ReplicationResponse());
+        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
     }
 
     @Override

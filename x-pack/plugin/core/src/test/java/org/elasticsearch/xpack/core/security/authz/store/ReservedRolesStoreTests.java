@@ -980,7 +980,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+            new ApplicationPrivilege(kibanaApplication, "app-reserved_ml", "reserved_ml"), "*"), is(true));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(role.application().grants(
@@ -1069,7 +1069,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplication, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+            new ApplicationPrivilege(kibanaApplication, "app-reserved_ml", "reserved_ml"), "*"), is(true));
 
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);

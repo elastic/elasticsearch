@@ -580,8 +580,12 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                 // So the last successful write is still the right representation for the state.
                 return Optional.of(this);
             } else { //outputVersion.primaryTerm >= knownVersion.primaryTerm
-                // failed on own write (or regular CAS failure, cannot see the difference, but we assume own write for linearizability).
-                return Optional.of(new BoundedUncertaintyState(knownVersion, outputVersion));
+                if (isIllegalStaleRead(outputVersion, knownVersion)) {
+                    return Optional.empty();
+                } else {
+                    // failed on own write (or regular CAS failure, cannot see the difference, but we assume own write for linearizability).
+                    return Optional.of(new BoundedUncertaintyState(knownVersion, outputVersion));
+                }
             }
         }
 
@@ -619,9 +623,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         private final Version upperBound;
 
         private BoundedUncertaintyState(Version lowerBound, Version upperBound) {
-            assert upperBound.primaryTerm >= lowerBound.primaryTerm;
-            // todo: this assertion seems desirable, but does not pass currently. Seems we need a small refinement in SuccessState.casFail.
-//            assert upperBound.compareTo(lowerBound) >= 0 : upperBound.toString() + " < " + lowerBound.toString();
+            assert upperBound.compareTo(lowerBound) >= 0 : upperBound.toString() + " < " + lowerBound.toString();
             this.lowerBound = lowerBound;
             this.upperBound = upperBound;
         }
@@ -666,6 +668,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         public Optional<State> casFail(Version inputVersion, Version outputVersion) {
+            if (isIllegalStaleRead(outputVersion, lowerBound)) {
+                return Optional.empty();
+            }
+
             // we can fail against one of:
             // 1. our own write (outputVersion > upperBound)
             // 2. any of the previous interim/ghost writes (lowerBound < outputVersion <= upperBound.primaryTerm)
@@ -741,6 +747,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         @Override
         public Optional<State> casFail(Version inputVersion, Version outputVersion) {
+            if (isIllegalStaleRead(outputVersion, lastSuccessVersion)) {
+                return Optional.empty();
+            }
             // we still do not know if the failed write could sneak in so have to stay in FailState.
             return Optional.of(this);
         }
@@ -767,6 +776,16 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public String toString() {
             return getClass().getSimpleName() + "{version=" + lastSuccessVersion + "}";
         }
+    }
+
+    /**
+     * Stale reads can happen when requests hit a primary that still thinks it is primary (isolated/delayed info). But if we see a response
+     * using the same primary term as the last successful CAS we know that the primary that delivered this response must also have the
+     * last successful CAS. It is therefore illegal to see a smaller seqNo.
+     */
+    private static boolean isIllegalStaleRead(Version observedVersion, Version lastSuccessVersion) {
+        return observedVersion.primaryTerm == lastSuccessVersion.primaryTerm
+            && observedVersion.compareTo(lastSuccessVersion) < 0;
     }
 
     /**
@@ -984,7 +1003,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     public void testSimpleSequentialSpec() {
         // Generate 3 increasing versions
-        Version version1 = new Version(randomIntBetween(1,5), randomIntBetween(0,100));
+        Version version1 = new Version(randomIntBetween(1, 5), randomIntBetween(0, 100));
         Version version2 = futureVersion(version1);
         Version version3 = futureVersion(version2);
 
@@ -1010,7 +1029,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     public void testComplexSequentialSpec() {
         // Generate 4 increasing versions
-        Version version1 = new Version(randomIntBetween(1,5), randomIntBetween(0,100));
+        Version version1 = new Version(randomIntBetween(1, 5), randomIntBetween(0, 100));
         Version version2 = futureVersion(version1);
         Version version3 = futureVersion(version2);
         Version version4 = futureVersion(version3);
@@ -1033,8 +1052,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         // stale primary CAS failure
         assertSuccessState(new SuccessState(version2.nextTerm()).casFail(version2.nextTerm(), version2), version2.nextTerm());
 
-        // todo: assertNotPresent(new SuccessState(version2.nextSeqNo(1)).casFail(version2, version2));
-
         assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version4), version4);
         assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version2), version2);
         assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version2, version4), version4);
@@ -1045,10 +1062,13 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         // cannot succeed on input version higher than upper bound.
         assertNotPresent(new BoundedUncertaintyState(version1, version2).casSuccess(version3, version4));
 
-        // expand upper bound only.
+        // expand upper bound only and accept legal stale reads.
         assertBoundedUncertaintyState(new BoundedUncertaintyState(version1, version2).casFail(version1, version3), version1, version3);
-        assertBoundedUncertaintyState(new BoundedUncertaintyState(version2, version3).casFail(version2, version1), version2, version3);
-        assertBoundedUncertaintyState(new BoundedUncertaintyState(version3, version4).casFail(version2, version1), version3, version4);
+        assertBoundedUncertaintyState(
+            new BoundedUncertaintyState(version2.nextTerm(), version3.nextTerm()).casFail(version2.nextTerm(), version1),
+            version2.nextTerm(), version3.nextTerm());
+        assertBoundedUncertaintyState(new BoundedUncertaintyState(version3.nextTerm(), version4.nextTerm()).casFail(version2, version1),
+            version3.nextTerm(), version4.nextTerm());
 
         assertFailState(new SuccessState(version1).fail(), version1);
         assertFailState(new BoundedUncertaintyState(version1, version2).fail(), version1);
@@ -1061,6 +1081,13 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         assertFailState(new FailState(version1).casFail(version1, version2), version1);
         assertFailState(new FailState(version1).casFail(version2, version3), version1);
+        // Legal stale read
+        assertFailState(new FailState(version1.nextTerm()).casFail(version1, version1), version1.nextTerm());
+
+        // Illegal to observe stale read from same primaryTerm.
+        assertNotPresent(new SuccessState(version2.nextSeqNo(1)).casFail(version2, version2));
+        assertNotPresent(new BoundedUncertaintyState(version2.nextSeqNo(1), version3).casFail(version2, version2));
+        assertNotPresent(new FailState(version2.nextSeqNo(1)).casFail(version2, version2));
     }
 
     private Version futureVersion(Version version) {

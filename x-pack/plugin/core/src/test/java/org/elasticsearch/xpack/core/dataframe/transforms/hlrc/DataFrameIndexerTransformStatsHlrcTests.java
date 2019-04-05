@@ -20,8 +20,9 @@ public class DataFrameIndexerTransformStatsHlrcTests extends AbstractHlrcXConten
     public static DataFrameIndexerTransformStats fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats instance) {
         return DataFrameIndexerTransformStats.withDefaultTransformId(instance.getNumPages(), instance.getNumDocuments(),
-                instance.getOutputDocuments(), instance.getNumInvocations(), instance.getIndexTime(), instance.getSearchTime(),
-                instance.getIndexTotal(), instance.getSearchTotal(), instance.getIndexFailures(), instance.getSearchFailures());
+            instance.getOutputDocuments(), instance.getNumInvocations(), instance.getIndexTime(), instance.getSearchTime(),
+            instance.getIndexTotal(), instance.getSearchTotal(), instance.getIndexFailures(), instance.getSearchFailures(),
+            instance.getCurrentRunDocsProcessed(), instance.getCurrentRunTotalDocsToProcess());
     }
 
     @Override

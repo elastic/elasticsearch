@@ -26,6 +26,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     public static final String DEFAULT_TRANSFORM_ID = "_all";
 
     public static final String NAME = "data_frame_indexer_transform_stats";
+    public static final String DOCUMENTS_PROCESSED_PERCENTAGE = "documents_processed_percentage";
+
     public static ParseField NUM_PAGES = new ParseField("pages_processed");
     public static ParseField NUM_INPUT_DOCUMENTS = new ParseField("documents_processed");
     public static ParseField NUM_OUTPUT_DOCUMENTS = new ParseField("documents_indexed");
@@ -36,12 +38,13 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     public static ParseField SEARCH_TOTAL = new ParseField("search_total");
     public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     public static ParseField INDEX_FAILURES = new ParseField("index_failures");
-
+    public static ParseField CURRENT_RUN_DOCUMENTS_PROCESSED = new ParseField("current_run_documents_processed");
+    public static ParseField CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS = new ParseField("current_run_total_documents_to_process");
     private static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             NAME, true,
             args -> new DataFrameIndexerTransformStats(args[0] != null ? (String) args[0] : DEFAULT_TRANSFORM_ID,
                     (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7],
-                    (long) args[8], (long) args[9], (long) args[10]));
+                    (long) args[8], (long) args[9], (long) args[10], (long) args[11], (long) args[12]));
 
     static {
         LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
@@ -55,10 +58,14 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
         LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
         LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
+        LENIENT_PARSER.declareLong(constructorArg(), CURRENT_RUN_DOCUMENTS_PROCESSED);
+        LENIENT_PARSER.declareLong(constructorArg(), CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS);
         LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
     }
 
     private final String transformId;
+    private long currentRunDocsProcessed;
+    private long currentRunTotalDocsToProcess;
 
     /**
      * Certain situations call for a default transform ID, e.g. when merging many different transforms for statistics gather.
@@ -74,39 +81,50 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     public static DataFrameIndexerTransformStats withDefaultTransformId(long numPages, long numInputDocuments, long numOutputDocuments,
                                                                         long numInvocations, long indexTime, long searchTime,
                                                                         long indexTotal, long searchTotal, long indexFailures,
-                                                                        long searchFailures) {
+                                                                        long searchFailures, long currentRunDocsProcessed,
+                                                                        long currentRunTotalDocsToProcess) {
         return new DataFrameIndexerTransformStats(DEFAULT_TRANSFORM_ID, numPages, numInputDocuments,
             numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
-            indexFailures, searchFailures);
+            indexFailures, searchFailures, currentRunDocsProcessed, currentRunTotalDocsToProcess);
     }
 
     public DataFrameIndexerTransformStats(String transformId) {
         super();
         this.transformId = Objects.requireNonNull(transformId, "parameter transformId must not be null");
+        this.currentRunDocsProcessed = 0;
+        this.currentRunTotalDocsToProcess = 0;
     }
 
     public DataFrameIndexerTransformStats(String transformId, long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
-                                          long indexFailures, long searchFailures) {
+                                          long indexFailures, long searchFailures, long currentRunDocsProcessed,
+                                          long currentRunTotalDocsToProcess) {
         super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
             indexFailures, searchFailures);
         this.transformId = Objects.requireNonNull(transformId, "parameter transformId must not be null");
+        this.currentRunDocsProcessed = currentRunDocsProcessed;
+        this.currentRunTotalDocsToProcess = currentRunTotalDocsToProcess;
     }
 
     public DataFrameIndexerTransformStats(DataFrameIndexerTransformStats other) {
         this(other.transformId, other.numPages, other.numInputDocuments, other.numOuputDocuments, other.numInvocations,
-            other.indexTime, other.searchTime, other.indexTotal, other.searchTotal, other.indexFailures, other.searchFailures);
+            other.indexTime, other.searchTime, other.indexTotal, other.searchTotal, other.indexFailures, other.searchFailures,
+            other.currentRunDocsProcessed, other.currentRunTotalDocsToProcess);
     }
 
     public DataFrameIndexerTransformStats(StreamInput in) throws IOException {
         super(in);
         transformId = in.readString();
+        currentRunDocsProcessed = in.readLong();
+        currentRunTotalDocsToProcess = in.readLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(transformId);
+        out.writeLong(currentRunDocsProcessed);
+        out.writeLong(currentRunTotalDocsToProcess);
     }
 
     /**
@@ -123,6 +141,35 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         return transformId;
     }
 
+    public long getCurrentRunDocsProcessed() {
+        return currentRunDocsProcessed;
+    }
+
+    public double getCurrentPercentageComplete() {
+        if (currentRunTotalDocsToProcess == 0) {
+            return 1.0;
+        } else if(currentRunDocsProcessed >= currentRunTotalDocsToProcess) {
+            return 1.0;
+        }
+        return (double)currentRunDocsProcessed/currentRunTotalDocsToProcess;
+    }
+
+    public long getCurrentRunTotalDocsToProcess() {
+        return currentRunTotalDocsToProcess;
+    }
+
+    public void setCurrentRunTotalDocumentsToProcess(long documentsToProcess) {
+        this.currentRunTotalDocsToProcess = documentsToProcess;
+    }
+
+    public void resetCurrentRunDocsProcessed() {
+        this.currentRunDocsProcessed = 0;
+    }
+
+    public void incrementCurrentRunDocsProcessed(long currentRunDocsProcessed) {
+        this.currentRunDocsProcessed += currentRunDocsProcessed;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -136,6 +183,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         builder.field(SEARCH_TIME_IN_MS.getPreferredName(), searchTime);
         builder.field(SEARCH_TOTAL.getPreferredName(), searchTotal);
         builder.field(SEARCH_FAILURES.getPreferredName(), searchFailures);
+        builder.field(CURRENT_RUN_DOCUMENTS_PROCESSED.getPreferredName(), currentRunDocsProcessed);
+        builder.field(CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS.getPreferredName(), currentRunTotalDocsToProcess);
         if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
             // If we are storing something, it should have a valid transform ID.
             if (transformId.equals(DEFAULT_TRANSFORM_ID)) {
@@ -143,6 +192,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
             }
             builder.field(DataFrameField.ID.getPreferredName(), transformId);
             builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+        } else {
+            builder.field(DOCUMENTS_PROCESSED_PERCENTAGE, getCurrentPercentageComplete());
         }
         builder.endObject();
         return builder;
@@ -162,7 +213,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         searchTotal += other.searchTotal;
         indexFailures += other.indexFailures;
         searchFailures += other.searchFailures;
-
+        currentRunTotalDocsToProcess += other.currentRunTotalDocsToProcess;
+        currentRunDocsProcessed += other.currentRunDocsProcessed;
         return this;
     }
 

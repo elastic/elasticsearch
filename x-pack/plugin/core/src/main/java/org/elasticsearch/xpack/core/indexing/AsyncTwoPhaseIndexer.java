@@ -154,8 +154,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     try {
-                        stats.markStartSearch();
-                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        beforeFirstSearch(()-> {
+                            stats.markStartSearch();
+                            doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        });
                     } catch (Exception e) {
                         finishWithSearchFailure(e);
                     }
@@ -171,6 +173,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
             throw new IllegalStateException("Job encountered an illegal state [" + currentState + "]");
         }
+    }
+
+    protected void beforeFirstSearch(Runnable firstSearch) {
+        firstSearch.run();
     }
 
     /**

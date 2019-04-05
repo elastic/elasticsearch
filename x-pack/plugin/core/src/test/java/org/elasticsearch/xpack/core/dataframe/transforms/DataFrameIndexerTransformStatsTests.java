@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
+
 public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTestCase<DataFrameIndexerTransformStats> {
 
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
@@ -43,7 +46,7 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
         return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L));
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L));
     }
 
     @Override
@@ -62,10 +65,36 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
         DataFrameIndexerTransformStats randomStatsClone = copyInstance(randomStats);
 
         DataFrameIndexerTransformStats trippleRandomStats = new DataFrameIndexerTransformStats(transformId, 3 * randomStats.getNumPages(),
-                3 * randomStats.getNumDocuments(), 3 * randomStats.getOutputDocuments(), 3 * randomStats.getNumInvocations(),
-                3 * randomStats.getIndexTime(), 3 * randomStats.getSearchTime(), 3 * randomStats.getIndexTotal(),
-                3 * randomStats.getSearchTotal(), 3 * randomStats.getIndexFailures(), 3 * randomStats.getSearchFailures());
+            3 * randomStats.getNumDocuments(), 3 * randomStats.getOutputDocuments(), 3 * randomStats.getNumInvocations(),
+            3 * randomStats.getIndexTime(), 3 * randomStats.getSearchTime(), 3 * randomStats.getIndexTotal(),
+            3 * randomStats.getSearchTotal(), 3 * randomStats.getIndexFailures(), 3 * randomStats.getSearchFailures(),
+            3 * randomStats.getCurrentRunDocsProcessed(), 3 * randomStats.getCurrentRunTotalDocsToProcess());
 
         assertEquals(trippleRandomStats, randomStats.merge(randomStatsClone).merge(randomStatsClone));
+    }
+
+    public void testGetCurrentPercentageComplete() {
+        DataFrameIndexerTransformStats stats = randomStats();
+
+        stats.resetCurrentRunDocsProcessed();
+        stats.setCurrentRunTotalDocumentsToProcess(0L);
+
+        assertThat(stats.getCurrentRunDocsProcessed(), equalTo(0L));
+        assertThat(stats.getCurrentPercentageComplete(), equalTo(1.0));
+
+        stats.setCurrentRunTotalDocumentsToProcess(10L);
+
+        assertThat(stats.getCurrentPercentageComplete(), equalTo(0.0));
+
+        stats.incrementCurrentRunDocsProcessed(5);
+
+
+        assertThat(stats.getCurrentPercentageComplete(), closeTo(0.5, 0.00001));
+
+        stats.incrementCurrentRunDocsProcessed(5);
+        assertThat(stats.getCurrentPercentageComplete(), equalTo(1.0));
+
+        stats.incrementCurrentRunDocsProcessed(5);
+        assertThat(stats.getCurrentPercentageComplete(), equalTo(1.0));
     }
 }

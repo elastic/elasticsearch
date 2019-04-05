@@ -46,6 +46,7 @@ final class AggregationResultUtils {
                                                                                  DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
+            stats.incrementCurrentRunDocsProcessed(bucket.getDocCount());
             Map<String, Object> document = new HashMap<>();
             // generator to create unique but deterministic document ids, so we
             // - do not create duplicates if we re-run after failure

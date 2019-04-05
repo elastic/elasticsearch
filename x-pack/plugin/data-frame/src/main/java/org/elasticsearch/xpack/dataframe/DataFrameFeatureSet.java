@@ -191,7 +191,10 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             statisticsList.get(6),  // indexTotal
             statisticsList.get(7),  // searchTotal
             statisticsList.get(8),  // indexFailures
-            statisticsList.get(9)); // searchFailures
+            statisticsList.get(9),  // searchFailures
+            // Both of these are zero and not aggregated as they pertain to individual transforms, not all transforms
+            0L, // currentRunDocsProcessed
+            0L);  // currentRunTotalDocsToProcess
     }
 
     static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {

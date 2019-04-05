@@ -50,6 +50,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
 
@@ -329,6 +332,29 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
+        protected void beforeFirstSearch(Runnable firstSearch) {
+            DataFrameIndexerTransformStats stats = this.getStats();
+            SearchRequest request = client.prepareSearch(getConfig().getSource().getIndex())
+                .setQuery(getConfig().getSource().getQueryConfig().getQuery())
+                .setSize(0)
+                .setTrackTotalHits(true)
+                .request();
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request, ActionListener.<SearchResponse>wrap(
+                searchResponse -> {
+                    stats.setCurrentRunTotalDocumentsToProcess(searchResponse.getHits().getTotalHits().value);
+                    stats.resetCurrentRunDocsProcessed();
+                    firstSearch.run();
+                },
+                error -> {
+                    stats.setCurrentRunTotalDocumentsToProcess(0L);
+                    stats.resetCurrentRunDocsProcessed();
+                    logger.error("Failed getting total doc count for transform [" + transformId + "]", error);
+                    firstSearch.run();
+                }
+            ), client::search);
+        }
+
+        @Override
         protected Map<String, String> getFieldMappings() {
             return fieldMappings;
         }
@@ -395,13 +421,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client,
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), DATA_FRAME_ORIGIN, client,
                     SearchAction.INSTANCE, request, nextPhase);
         }
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
                     request, nextPhase);
         }
 

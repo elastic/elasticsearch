@@ -76,9 +76,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, Runnable next) {
             assertThat(step, equalTo(0));
             ++step;
+            next.run();
         }
 
         @Override
@@ -109,10 +110,11 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void beforeFinish() {
+        protected void onFinish(Runnable finishAndSetState) {
             assertThat(step, equalTo(4));
             ++step;
             isFinished.set(true);
+            finishAndSetState.run();
         }
 
         @Override
@@ -153,9 +155,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, Runnable next) {
             assertThat(step, equalTo(0));
             ++step;
+            next.run();
         }
 
         @Override
@@ -183,7 +186,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void beforeFinish() {
+        protected void onFinish(Runnable finishAndSetState) {
             fail("should not be called");
         }
 

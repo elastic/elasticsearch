@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
  * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position).
- * Only one background job can run simultaneously and {@link #beforeFinish()} is called when the job
+ * Only one background job can run simultaneously and {@link #onFinish()} is called when the job
  * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
  * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
  * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
@@ -145,16 +145,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         case STARTED:
             logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
             stats.incrementNumInvocations(1);
-            onStartJob(now);
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     try {
-                        stats.markStartSearch();
-                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        onStart(now, () -> {
+                            stats.markStartSearch();
+                            doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        });
                     } catch (Exception e) {
-                        finishWithSearchFailure(e);
+                        logger.error("Indexer failed on start", e);
+                        doSaveState(finishAndSetState(), position.get(), () -> onFailure(e));
                     }
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
@@ -196,9 +198,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
      * internal state is {@link IndexerState#STARTED}.
      *
+     * Implementors MUST ensure that next.run() gets called.
+     *
      * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
+     * @param next Runnable for the next phase
      */
-    protected abstract void onStartJob(long now);
+    protected abstract void onStart(long now, Runnable next);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
@@ -246,9 +251,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Called when a background job finishes before the internal state changes from {@link IndexerState#INDEXING} back to
-     * {@link IndexerState#STARTED}
+     * {@link IndexerState#STARTED}. The passed runnable trigger persisting and changing the state and can be wrapped to
+     * execute code after the state has changed.
+     *
+     * @param finishAndSetState Runnable for finishing and setting state
      */
-    protected abstract void beforeFinish();
+    protected abstract void onFinish(Runnable finishAndSetState);
 
     /**
      * Called when a background job detects that the indexer is aborted causing the
@@ -314,12 +322,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
                 // execute finishing tasks
-                beforeFinish();
+                try {
+                    onFinish(() -> {
+                        // Change state first, then try to persist. This prevents in-progress
+                        // STOPPING/ABORTING from
+                        // being persisted as STARTED but then stop the job
+                        doSaveState(finishAndSetState(), position.get(), () -> {});
+                    });
+                } catch (Exception e) {
+                    logger.error("Indexer failed on finish", e);
+                    doSaveState(finishAndSetState(), position.get(), () -> onFailure(e));
+                }
 
-                // Change state first, then try to persist. This prevents in-progress
-                // STOPPING/ABORTING from
-                // being persisted as STARTED but then stop the job
-                doSaveState(finishAndSetState(), position.get(), () -> {});
                 return;
             }
 

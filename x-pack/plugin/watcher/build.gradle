@@ -14,8 +14,8 @@ archivesBaseName = 'x-pack-watcher'
 
 ext.compactProfile = 'full'
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 dependencyLicenses {
     mapping from: /owasp-java-html-sanitizer.*/, to: 'owasp-java-html-sanitizer'

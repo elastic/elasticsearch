@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -71,14 +70,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Override
     protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
         return new ResyncActionReplicasProxy(primaryTerm);
-    }
-
-    @Override
-    protected void sendReplicaRequest(
-        final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
-        final DiscoveryNode node,
-        final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        super.sendReplicaRequest(replicaRequest, node, listener);
     }
 
     @Override

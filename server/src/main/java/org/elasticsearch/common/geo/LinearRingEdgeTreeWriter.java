@@ -90,7 +90,7 @@ public class LinearRingEdgeTreeWriter {
         } else if (edge.right == null){
             output.writeInt(-1);
         } else {
-            output.writeInt(1);
+            output.writeInt(0);
         }
         writeTree(edge.left, output);
         writeTree(edge.right, output);

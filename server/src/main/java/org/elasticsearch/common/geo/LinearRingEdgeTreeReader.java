@@ -35,11 +35,12 @@ public class LinearRingEdgeTreeReader {
         this.bytesRef = bytesRef;
     }
 
-    /**
-     * even partially
-     */
+    public boolean containedInOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
+        return this.containedIn(minX, minY, maxX, maxY) || this.crosses(minX, minY, maxX, maxY);
+    }
+
     public boolean containedIn(int minX, int minY, int maxX, int maxY) throws IOException {
-        StreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
         int[] extent = readExtent(input);
         int thisMinX = extent[0];
         int thisMinY = extent[1];
@@ -54,11 +55,29 @@ public class LinearRingEdgeTreeReader {
             return true; // bbox-query fully contains tree's extent.
         }
 
-        Edge root = readRoot(input);
-        return root.insideOrCrosses(minX, minY, maxX, maxY);
+        return readRoot(input, input.position()).contains(minX, minY, maxX, maxY);
     }
 
-    public int[] readExtent(StreamInput input) throws IOException {
+    public boolean crosses(int minX, int minY, int maxX, int maxY) throws IOException {
+        ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        int[] extent = readExtent(input);
+        int thisMinX = extent[0];
+        int thisMinY = extent[1];
+        int thisMaxX = extent[2];
+        int thisMaxY = extent[3];
+
+        if (thisMinY > maxY || thisMaxX < minX || thisMaxY < minY || thisMinX > maxX) {
+            return false; // tree and bbox-query are disjoint
+        }
+
+        if (minX <= thisMinX && minY <= thisMinY && maxX >= thisMaxX && maxY >= thisMaxY) {
+            return true; // bbox-query fully contains tree's extent.
+        }
+
+        return readRoot(input, input.position()).crosses(minX, minY, maxX, maxY);
+    }
+
+    public int[] readExtent(ByteBufferStreamInput input) throws IOException {
         int minX = input.readInt();
         int minY = input.readInt();
         int maxX = input.readInt();
@@ -66,12 +85,13 @@ public class LinearRingEdgeTreeReader {
         return new int[] { minX, minY, maxX, maxY };
     }
 
-    public Edge readRoot(StreamInput input) throws IOException {
-        return Edge.readEdge(input);
+    public Edge readRoot(ByteBufferStreamInput input, int position) throws IOException {
+        return Edge.readEdge(input, position);
     }
 
     private static class Edge {
-        StreamInput input;
+        ByteBufferStreamInput input;
+        int streamOffset;
         int x1;
         int y1;
         int x2;
@@ -80,8 +100,9 @@ public class LinearRingEdgeTreeReader {
         int maxY;
         int rightOffset;
 
-        Edge(StreamInput input, int x1, int y1, int x2, int y2, int minY, int maxY, int rightOffset) {
+        Edge(ByteBufferStreamInput input, int streamOffset, int x1, int y1, int x2, int y2, int minY, int maxY, int rightOffset) {
             this.input = input;
+            this.streamOffset = streamOffset;
             this.x1 = x1;
             this.y1 = y1;
             this.x2 = x2;
@@ -92,24 +113,44 @@ public class LinearRingEdgeTreeReader {
         }
 
         Edge readLeft() throws IOException {
-            return readEdge(input);
+            return readEdge(input, streamOffset);
         }
 
         Edge readRight() throws IOException {
-            input.skip(rightOffset);
-            return readEdge(input);
+            return readEdge(input, streamOffset + rightOffset);
         }
 
-        /** Returns true if the box crosses any edge in this edge subtree */
-        private boolean insideOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
-            // we just have to cross one edge to answer the question, so we descend the tree and return when we do.
+        private boolean contains(int minX, int minY, int maxX, int maxY) throws IOException {
+            boolean res = false;
             if (this.maxY >= minY) {
                 // is bbox-query contained within linearRing
                 // cast infinite ray to the right from bottom-left and top-right of bbox-query to see if it intersects edge
+
+//                boolean collinear = lineRelateLine(x1, y1, x2, y2, minX, minY, Integer.MAX_VALUE, minY) == PointValues.Relation.CELL_INSIDE_QUERY
+//                    || lineRelateLine(x1, y1, x2, y2, maxX, maxY, Integer.MAX_VALUE, maxY) == PointValues.Relation.CELL_INSIDE_QUERY;
+//                boolean crosses = lineRelateLine(x1, y1, x2, y2, minX, minY, Integer.MAX_VALUE, minY) == PointValues.Relation.CELL_CROSSES_QUERY
+//                    || lineRelateLine(x1, y1, x2, y2, maxX, maxY, Integer.MAX_VALUE, maxY) == PointValues.Relation.CELL_CROSSES_QUERY;
+
                 if (lineRelateLine(x1, y1, x2, y2, minX, minY, Integer.MAX_VALUE, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY ||
                     lineRelateLine(x1, y1, x2, y2, maxX, maxY, Integer.MAX_VALUE, maxY) != PointValues.Relation.CELL_OUTSIDE_QUERY) {
-                    return true;
+                    res = true;
                 }
+                if (rightOffset > 0) { /* has left node */
+                    res ^= readLeft().contains(minX, minY, maxX, maxY);
+                }
+
+                if (rightOffset > 0 && maxY >= this.minY) { /* no right node if rightOffset == -1 */
+                    res ^= readRight().contains(minX, minY, maxX, maxY);
+                }
+            }
+            return res;
+        }
+
+        /** Returns true if the box crosses any edge in this edge subtree */
+        private boolean crosses(int minX, int minY, int maxX, int maxY) throws IOException {
+            boolean res = false;
+            // we just have to cross one edge to answer the question, so we descend the tree and return when we do.
+            if (this.maxY >= minY) {
 
                 // does rectangle's edges intersect or reside inside polygon's edge
                 if (lineRelateLine(x1, y1, x2, y2, minX, minY, maxX, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY ||
@@ -119,14 +160,14 @@ public class LinearRingEdgeTreeReader {
                     return true;
                 }
 
-                if (rightOffset > 1) { /* has left node */
-                    if (readLeft().insideOrCrosses(minX, minY, maxX, maxY)) {
+                if (rightOffset > 0) { /* has left node */
+                    if (readLeft().crosses(minX, minY, maxX, maxY)) {
                         return true;
                     }
                 }
 
                 if (rightOffset > 0 && maxY >= this.minY) { /* no right node if rightOffset == -1 */
-                    if (readRight().insideOrCrosses(minX, minY, maxX, maxY)) {
+                    if (readRight().crosses(minX, minY, maxX, maxY)) {
                         return true;
                     }
                 }
@@ -134,7 +175,8 @@ public class LinearRingEdgeTreeReader {
             return false;
         }
 
-        private static Edge readEdge(StreamInput input) throws IOException {
+        private static Edge readEdge(ByteBufferStreamInput input, int position) throws IOException {
+            input.position(position);
             int minY = input.readInt();
             int maxY = input.readInt();
             int x1 = input.readInt();
@@ -142,7 +184,7 @@ public class LinearRingEdgeTreeReader {
             int x2 = input.readInt();
             int y2 = input.readInt();
             int rightOffset = input.readInt();
-            return new Edge(input, x1, y1, x2, y2, minY, maxY, rightOffset);
+            return new Edge(input, input.position(), x1, y1, x2, y2, minY, maxY, rightOffset);
         }
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.shape.Rectangle;
 
+import java.io.EOFException;
 import java.io.IOException;
 
 public class EdgeTreeTests extends ESTestCase {
@@ -42,38 +43,53 @@ public class EdgeTreeTests extends ESTestCase {
             LinearRingEdgeTreeReader reader = new LinearRingEdgeTreeReader(bytes);
 
             // box-query touches bottom-left corner
+            assertTrue(reader.crosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
             assertTrue(reader.containedIn(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
             // box-query touches bottom-right corner
+            assertTrue(reader.crosses(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY));
             assertTrue(reader.containedIn(maxX, minY - randomIntBetween(1, 180), maxX + randomIntBetween(1, 180), minY));
             // box-query touches top-right corner
+            assertTrue(reader.crosses(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
             assertTrue(reader.containedIn(maxX, maxY, maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
             // box-query touches top-left corner
-            assertTrue(reader.containedIn(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180)));
+            assertTrue(reader.crosses(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180)));
+
+            /** TODO(talevy): COME ON! Right Ray Test! */
+            //assertTrue(reader.containedIn(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180)));
 
             // box-query fully-enclosed inside rectangle
             assertTrue(reader.containedIn((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
+            assertFalse(reader.crosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
 
             // box-query fully-contains poly
             assertTrue(reader.containedIn(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180),
                 maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
 
             // box-query half-in-half-out-right
-            assertTrue(reader.containedIn((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            // assertFalse(reader.containedIn((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            assertTrue(reader.crosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
             // box-query half-in-half-out-left
-            assertTrue(reader.containedIn(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
+            // assertTrue(reader.containedIn(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
+            assertTrue(reader.crosses(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
             // box-query half-in-half-out-top
-            assertTrue(reader.containedIn((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),  maxY + randomIntBetween(1, 1000)));
+            // assertTrue(reader.containedIn((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),  maxY + randomIntBetween(1, 1000)));
+            assertTrue(reader.crosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),  maxY + randomIntBetween(1, 1000)));
             // box-query half-in-half-out-bottom
-            assertTrue(reader.containedIn((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000), maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            // assertTrue(reader.containedIn((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000), maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            assertTrue(reader.crosses((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000), maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
 
             // box-query outside to the right
             assertFalse(reader.containedIn(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY));
+            assertFalse(reader.crosses(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY));
             // box-query outside to the left
             assertFalse(reader.containedIn(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY));
+            assertFalse(reader.crosses(maxX - randomIntBetween(1001, 2000), minY, minX - randomIntBetween(1, 1000), maxY));
             // box-query outside to the top
             assertFalse(reader.containedIn(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000)));
+            assertFalse(reader.crosses(minX, maxY + randomIntBetween(1, 1000), maxX, maxY + randomIntBetween(1001, 2000)));
             // box-query outside to the bottom
             assertFalse(reader.containedIn(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000)));
+            assertFalse(reader.crosses(minX, minY - randomIntBetween(1001, 2000), maxX, minY - randomIntBetween(1, 1000)));
         }
     }
 

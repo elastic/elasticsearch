@@ -453,13 +453,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
 
-        final String kibanaApplication = "kibana-.kibana";
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
-
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(monitoringUserRole.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(monitoringUserRole.application().grants(
@@ -976,13 +970,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 
-        final String kibanaApplication = "kibana-.kibana";
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-reserved_ml", "reserved_ml"), "*"), is(true));
-
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(
@@ -1065,14 +1053,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 
-        final String kibanaApplication = "kibana-.kibana";
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplication, "app-reserved_ml", "reserved_ml"), "*"), is(true));
 
-
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         assertThat(role.application().grants(
             new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
         assertThat(role.application().grants(

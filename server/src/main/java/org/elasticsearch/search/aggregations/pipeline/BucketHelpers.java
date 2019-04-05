@@ -157,7 +157,6 @@ public class BucketHelpers {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
 
-
             if (propertyValue == null) {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");

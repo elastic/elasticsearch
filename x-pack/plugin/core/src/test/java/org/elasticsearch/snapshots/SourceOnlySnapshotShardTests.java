@@ -328,7 +328,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     private Repository createRepository() throws IOException {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry());
+        return new FsRepository(repositoryMetaData, createEnvironment(), xContentRegistry(), threadPool);
     }
 
     private static void runAsSnapshot(ThreadPool pool, Runnable runnable) {

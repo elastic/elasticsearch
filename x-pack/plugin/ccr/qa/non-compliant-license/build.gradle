@@ -33,9 +33,9 @@ followClusterTestCluster {
 
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
 check.dependsOn followClusterTest
-test.enabled = false
+unitTest.enabled = false

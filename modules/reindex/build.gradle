@@ -45,7 +45,7 @@ run {
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }
 
-test {
+unitTest {
   /*
    * We have to disable setting the number of available processors as tests in the
    * same JVM randomize processors and will step on each other if we allow them to
@@ -143,8 +143,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
-         * ready. */ 
-        nonInputProperties.systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
+         * ready. */
+        systemProperty "es${version}.port", "${ -> fixture.addressAndPort }"
       }
     }
   }

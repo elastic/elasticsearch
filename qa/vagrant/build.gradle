@@ -71,7 +71,7 @@ forbiddenApisMain {
 }
 
 // we don't have additional tests for the tests themselves
-tasks.test.enabled = false
+tasks.unitTest.enabled = false
 // Tests are destructive and meant to run in a VM, they don't adhere to general conventions
 testingConventions.enabled = false
 

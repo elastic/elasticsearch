@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.gradle
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
@@ -40,8 +40,8 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.credentials.HttpHeaderCredentials
-import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -51,7 +51,6 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
-import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
@@ -84,6 +83,7 @@ class BuildPlugin implements Plugin<Project> {
             )
         }
         project.pluginManager.apply('java')
+        project.pluginManager.apply('carrotsearch.randomized-testing')
         configureConfigurations(project)
         configureJars(project) // jar config must be added before info broker
         // these plugins add lots of info to our jars
@@ -93,12 +93,8 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
-        // apply global test task failure listener
-        project.rootProject.pluginManager.apply(TestFailureReportingPlugin)
-
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
-        setupSeed(project)
         globalBuildInfo(project)
         configureRepositories(project)
         project.ext.versions = VersionProperties.versions
@@ -107,7 +103,9 @@ class BuildPlugin implements Plugin<Project> {
         configureJavadoc(project)
         configureSourcesJar(project)
         configurePomGeneration(project)
-        configureTestTasks(project)
+
+        applyCommonTestConfig(project)
+        configureTest(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
@@ -906,108 +904,128 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void configureTestTasks(Project project) {
-        // Default test task should run only unit tests
-        project.tasks.withType(Test).matching { it.name == 'test' }.all {
-            include '**/*Tests.class'
-        }
+    static void applyCommonTestConfig(Project project) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
+            jvm "${project.runtimeJavaHome}/bin/java"
+            parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
+            onNonEmptyWorkDirectory 'wipe'
+            leaveTemporary true
+            project.sourceSets.matching { it.name == "test" }.all { test ->
+                task.testClassesDirs = test.output.classesDirs
+                task.classpath = test.runtimeClasspath
+            }
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            dependsOn 'testClasses'
 
-        // none of this stuff is applicable to the `:buildSrc` project tests
-        if (project.path != ':build-tools') {
+            // Make sure all test tasks are configured properly
+            if (name != "test") {
+                project.tasks.matching { it.name == "test"}.all { testTask ->
+                    task.shouldRunAfter testTask
+                }
+            }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
+            }
+
+            // TODO: why are we not passing maxmemory to junit4?
+            jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
+            jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
+            jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
             File heapdumpDir = new File(project.buildDir, 'heapdump')
+            heapdumpDir.mkdirs()
+            jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
+                jvmArg '--illegal-access=warn'
+            }
+            argLine System.getProperty('tests.jvm.argline')
 
-            project.tasks.withType(Test) { Test test ->
-                doFirst {
-                    heapdumpDir.mkdirs()
-                    workingDir.mkdirs()
-                }
-
-                doLast {
-                    println "Task $test ended"
-                }
-
-                def listener = new ErrorReportingTestListener(test.testLogging)
-                test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
-                addTestOutputListener(listener)
-                addTestListener(listener)
-
-                executable = "${project.runtimeJavaHome}/bin/java"
-                workingDir = project.file("${project.buildDir}/testrun/${test.name}")
-                maxParallelForks = project.rootProject.ext.defaultParallel
-
-                exclude '**/*$*.class'
-
-                jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
-                        "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir"
-
-                if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                    jvmArgs '--illegal-access=warn'
-                }
-
-                if (System.getProperty('tests.jvm.argline')) {
-                    jvmArgs System.getProperty('tests.jvm.argline').split(" ")
-                }
-
-                if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-                    jvmArgs '-ea', '-esa'
-                }
-
-                // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'gradle.worker.jar': "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar",
-                        'gradle.user.home': project.gradle.getGradleUserHomeDir(),
-                        'java.io.tmpdir': './temp',
-                        'java.awt.headless': 'true',
-                        'tests.gradle': 'true',
-                        'tests.artifact': project.name,
-                        'tests.task': path,
-                        'tests.security.manager': 'true',
-                        'tests.seed': project.testSeed,
-                        'jna.nosys': 'true',
-                        'compiler.java': project.ext.compilerJavaVersion.getMajorVersion()
-
-                if (project.ext.inFipsJvm) {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
-                } else {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
-                }
-                // TODO: remove setting logging level via system property
-                systemProperty 'tests.logger.level', 'WARN'
-                System.getProperties().each { key, value ->
-                    if ((key.startsWith('tests.') || key.startsWith('es.'))) {
-                        systemProperty key, value
+            // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
+            systemProperty 'java.io.tmpdir', './temp'
+            systemProperty 'java.awt.headless', 'true'
+            systemProperty 'tests.gradle', 'true'
+            systemProperty 'tests.artifact', project.name
+            systemProperty 'tests.task', path
+            systemProperty 'tests.security.manager', 'true'
+            systemProperty 'jna.nosys', 'true'
+            systemProperty 'compiler.java', project.ext.compilerJavaVersion.getMajorVersion()
+            if (project.ext.inFipsJvm) {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
+            } else {
+                systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+            }
+            // TODO: remove setting logging level via system property
+            systemProperty 'tests.logger.level', 'WARN'
+            for (Map.Entry<String, String> property : System.properties.entrySet()) {
+                if (property.getKey().startsWith('tests.') ||
+                        property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
+                        continue;
                     }
+                    systemProperty property.getKey(), property.getValue()
                 }
+            }
 
-                // TODO: remove this once ctx isn't added to update script params in 7.0
-                systemProperty 'es.scripting.update.ctx_in_params', 'false'
+            // TODO: remove this once ctx isn't added to update script params in 7.0
+            systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
-                // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
-                if (project.inFipsJvm) {
-                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
+            if (project.inFipsJvm) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            }
+
+            boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
+            enableSystemAssertions assertionsEnabled
+            enableAssertions assertionsEnabled
+
+            testLogging {
+                showNumFailuresAtEnd 25
+                slowTests {
+                    heartbeat 10
+                    summarySize 5
                 }
-
-                testLogging {
-                    showExceptions = true
-                    showCauses = true
-                    exceptionFormat = 'full'
+                stackTraceFilters {
+                    // custom filters: we carefully only omit test infra noise here
+                    contains '.SlaveMain.'
+                    regex(/^(\s+at )(org\.junit\.)/)
+                    // also includes anonymous classes inside these two:
+                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.RandomizedRunner)/)
+                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.ThreadLeakControl)/)
+                    regex(/^(\s+at )(com\.carrotsearch\.randomizedtesting\.rules\.)/)
+                    regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
+                    regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
                 }
-
-                project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                    // Test against a shadow jar if we made one
-                    classpath -= project.tasks.compileJava.outputs.files
-                    classpath += project.tasks.shadowJar.outputs.files
-
-                    dependsOn project.tasks.shadowJar
+                if (System.getProperty('tests.class') != null && System.getProperty('tests.output') == null) {
+                    // if you are debugging, you want to see the output!
+                    outputMode 'always'
+                } else {
+                    outputMode System.getProperty('tests.output', 'onerror')
                 }
+            }
+
+            balancers {
+                executionTime cacheFilename: ".local-${project.version}-${name}-execution-times.log"
+            }
+
+            listeners {
+                junitReport()
+            }
+
+            exclude '**/*$*.class'
+
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                // Test against a shadow jar if we made one
+                classpath -= project.tasks.compileJava.outputs.files
+                classpath += project.tasks.shadowJar.outputs.files
+                dependsOn project.tasks.shadowJar
             }
         }
     }
 
-    private static int findDefaultParallel(Project project) {
+    private static String findDefaultParallel(Project project) {
         if (project.file("/proc/cpuinfo").exists()) {
             // Count physical cores on any Linux distro ( don't count hyper-threading )
             Map<String, Integer> socketToCore = [:]
@@ -1028,7 +1046,7 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
-            return socketToCore.values().sum()
+            return socketToCore.values().sum().toString();
         } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
             // Ask macOS to count physical CPUs for us
             ByteArrayOutputStream stdout = new ByteArrayOutputStream()
@@ -1037,9 +1055,16 @@ class BuildPlugin implements Plugin<Project> {
                 args '-n', 'hw.physicalcpu'
                 standardOutput = stdout
             }
-            return Integer.parseInt(stdout.toString('UTF-8').trim())
+            return stdout.toString('UTF-8').trim();
         }
-        return Runtime.getRuntime().availableProcessors() / 2
+        return 'auto';
+    }
+
+    /** Configures the test task */
+    static Task configureTest(Project project) {
+        project.tasks.getByName('test') {
+            include '**/*Tests.class'
+        }
     }
 
     private static configurePrecommit(Project project) {
@@ -1067,60 +1092,6 @@ class BuildPlugin implements Plugin<Project> {
         deps.compileOnlyConfiguration = project.configurations.compileOnly
         project.afterEvaluate {
             deps.mappings = project.dependencyLicenses.mappings
-        }
-    }
-
-    /**
-     * Pins the test seed at configuration time so it isn't different on every
-     * {@link Test} execution. This is useful if random
-     * decisions in one run of {@linkplain Test} influence the
-     * outcome of subsequent runs. Pinning the seed up front like this makes
-     * the reproduction line from one run be useful on another run.
-     */
-    static String setupSeed(Project project) {
-        if (project.rootProject.ext.has('testSeed')) {
-            /* Skip this if we've already pinned the testSeed. It is important
-             * that this checks the rootProject so that we know we've only ever
-             * initialized one time. */
-            return project.rootProject.ext.testSeed
-        }
-
-        String testSeed = System.getProperty('tests.seed')
-        if (testSeed == null) {
-            long seed = new Random(System.currentTimeMillis()).nextLong()
-            testSeed = Long.toUnsignedString(seed, 16).toUpperCase(Locale.ROOT)
-        }
-
-        project.rootProject.ext.testSeed = testSeed
-        return testSeed
-    }
-
-    private static class TestFailureReportingPlugin implements Plugin<Project> {
-        @Override
-        void apply(Project project) {
-            if (project != project.rootProject) {
-                throw new IllegalStateException("${this.class.getName()} can only be applied to the root project.")
-            }
-
-            project.gradle.addListener(new TaskActionListener() {
-                @Override
-                void beforeActions(Task task) {
-
-                }
-
-                @Override
-                void afterActions(Task task) {
-                    if (task instanceof Test) {
-                        ErrorReportingTestListener listener = task.extensions.findByType(ErrorReportingTestListener)
-                        if (listener != null && listener.getFailedTests().size() > 0) {
-                            task.logger.lifecycle("\nTests with failures:")
-                            listener.getFailedTests().each {
-                                task.logger.lifecycle(" - ${it.getFullName()}")
-                            }
-                        }
-                    }
-                }
-            })
         }
     }
 }

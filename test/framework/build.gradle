@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 dependencies {
   compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
@@ -63,12 +64,12 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.jmock.core.Constraint'
 )
 
-test {
+unitTest {
   systemProperty 'tests.gradle_index_compat_versions', bwcVersions.indexCompatible.join(',')
   systemProperty 'tests.gradle_wire_compat_versions', bwcVersions.wireCompatible.join(',')
   systemProperty 'tests.gradle_unreleased_versions', bwcVersions.unreleased.join(',')
 }
 
-task integTest(type: Test) {
+task integTest(type: RandomizedTestingTask) {
   include "**/*IT.class"
 }

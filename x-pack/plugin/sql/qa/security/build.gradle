@@ -42,9 +42,9 @@ subprojects {
 
   integTestRunner {
     def today = new Date().format('yyyy-MM-dd')
-    nonInputProperties.systemProperty 'tests.audit.logfile',
+    systemProperty 'tests.audit.logfile',
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.json"
-    nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
+    systemProperty 'tests.audit.yesterday.logfile',
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit-${today}.json"
   }
 

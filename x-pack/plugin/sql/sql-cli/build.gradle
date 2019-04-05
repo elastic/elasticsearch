@@ -106,7 +106,7 @@ task runcli {
 }
 
 // Use the jar for testing so we can get the proper version information
-test {
+unitTest {
     classpath -= compileJava.outputs.files
     classpath -= configurations.compile
     classpath -= configurations.runtime

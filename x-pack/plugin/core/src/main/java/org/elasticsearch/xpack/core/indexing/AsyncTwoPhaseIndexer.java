@@ -319,7 +319,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
                         r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> onFailure(e))));
+                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
 
                 return;
             }

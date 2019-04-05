@@ -44,7 +44,6 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;

@@ -131,7 +131,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      *            complete buckets)
      * @return true if a job has been triggered, false otherwise
      */
-    public synchronized boolean maybeTriggerAsyncJob(long now) {
+    public final synchronized boolean maybeTriggerAsyncJob(long now) {
         final IndexerState currentState = state.get();
         switch (currentState) {
         case INDEXING:
@@ -148,20 +148,18 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         case STARTED:
             logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
             stats.incrementNumInvocations(1);
-            onStartJob(now);
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
-                executor.execute(() -> {
-                    try {
-                        beforeFirstSearch(()-> {
-                            stats.markStartSearch();
-                            doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
-                        });
-                    } catch (Exception e) {
-                        finishWithSearchFailure(e);
-                    }
-                });
+                executor.execute(() ->
+                    onStart(now, ActionListener.wrap(r -> {
+                        stats.markStartSearch();
+                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                    }, e -> {
+                        finishAndSetState();
+                        onFailure(e);
+                    }))
+                );
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
             } else {
@@ -175,9 +173,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         }
     }
 
-    protected void beforeFirstSearch(Runnable firstSearch) {
-        firstSearch.run();
-    }
+    protected abstract void onStart(long now, ActionListener<Void> listener);
 
     /**
      * Called to get the Id of the job, used for logging.
@@ -200,14 +196,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * @return SearchRequest to be passed to the search phase.
      */
     protected abstract SearchRequest buildSearchRequest();
-
-    /**
-     * Called at startup after job has been triggered using {@link #maybeTriggerAsyncJob(long)} and the
-     * internal state is {@link IndexerState#STARTED}.
-     *
-     * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
-     */
-    protected abstract void onStartJob(long now);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the

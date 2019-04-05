@@ -76,9 +76,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, ActionListener<Void> listener) {
             assertThat(step, equalTo(0));
             ++step;
+            listener.onResponse(null);
         }
 
         @Override
@@ -153,9 +154,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, ActionListener<Void> listener) {
             assertThat(step, equalTo(0));
             ++step;
+            listener.onResponse(null);
         }
 
         @Override

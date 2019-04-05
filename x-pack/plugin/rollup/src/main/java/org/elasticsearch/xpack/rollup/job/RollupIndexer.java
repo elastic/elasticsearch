@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -94,7 +95,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     }
 
     @Override
-    protected void onStartJob(long now) {
+    protected void onStart(long now, ActionListener<Void> listener) {
         // this is needed to exclude buckets that can still receive new documents.
         DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
         long rounded = dateHisto.createRounding().round(now);
@@ -104,6 +105,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         } else {
             maxBoundary = rounded;
         }
+        listener.onResponse(null);
     }
 
     @Override

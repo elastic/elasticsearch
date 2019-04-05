@@ -8,8 +8,8 @@
 By default, monitoring is enabled but data collection is disabled. To enable
 data collection, use the `xpack.monitoring.collection.enabled` setting.
 
-You can configure these monitoring settings in the `elasticsearch.yml` file.
-Some of them can also be set across the cluster by using the
+You can configure these monitoring settings in the `elasticsearch.yml` file. You
+can also dynamically set some of these settings using the
 <<cluster-update-settings,cluster update settings API>>.
 
 TIP: Cluster settings take precedence over settings in the `elasticsearch.yml`
@@ -28,6 +28,7 @@ For more information, see
 [float]
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
+
 `xpack.monitoring.enabled`::
 Set to `true` (default) to enable {es} {monitoring} for {es} on the node. 
 +
@@ -41,7 +42,8 @@ to `true`. Its default value is `false`.
 ==== Monitoring Collection Settings
 
 The `xpack.monitoring.collection` settings control how data is collected from
-your Elasticsearch nodes.
+your Elasticsearch nodes. You can dynamically change all monitoring collection
+settings using the <<cluster-update-settings,cluster update settings API>>.
 
 `xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
@@ -68,11 +70,11 @@ all monitoring collection. However, this setting simply disables the collection 
 data while still allowing other data (e.g., Kibana, Logstash, Beats, or APM Server monitoring data)
 to pass through this cluster.
 
-`xpack.monitoring.collection.cluster.stats.timeout`::
+`xpack.monitoring.collection.cluster.stats.timeout` (<<cluster-update-settings,Dynamic>>)::
 
 (<<time-units,time value>>) Timeout for collecting the cluster statistics. Defaults to `10s`.
 
-`xpack.monitoring.collection.node.stats.timeout`::
+`xpack.monitoring.collection.node.stats.timeout` (<<cluster-update-settings,Dynamic>>)::
 
 (<<time-units,time value>>) Timeout for collecting the node statistics. Defaults to `10s`.
 
@@ -85,20 +87,20 @@ monitor all indexes that start with `test` except for `test3`. System indices li
 always start with a `.`, and generally should be monitored. Consider adding `.*` to the list of indices
 ensure monitoring of system indices. For example `.*,test*,-test3`
 
-`xpack.monitoring.collection.index.stats.timeout`::
+`xpack.monitoring.collection.index.stats.timeout` (<<cluster-update-settings,Dynamic>>)::
 
 (<<time-units,time value>>) Timeout for collecting index statistics. Defaults to `10s`.
 
-`xpack.monitoring.collection.index.recovery.active_only`::
+`xpack.monitoring.collection.index.recovery.active_only` (<<cluster-update-settings,Dynamic>>)::
 
 Controls whether or not all recoveries are collected. Set to `true` to
 collect only active recoveries. Defaults to `false`.
 
-`xpack.monitoring.collection.index.recovery.timeout`::
+`xpack.monitoring.collection.index.recovery.timeout` (<<cluster-update-settings,Dynamic>>)::
 
 (<<time-units,time value>>) Timeout for collecting the recovery information. Defaults to `10s`.
 
-`xpack.monitoring.history.duration`::
+`xpack.monitoring.history.duration` (<<cluster-update-settings,Dynamic>>)::
 
 (<<time-units,time value>>) Retention duration beyond which the indices created by a Monitoring
 exporter are automatically deleted. Defaults to `7d` (7 days).

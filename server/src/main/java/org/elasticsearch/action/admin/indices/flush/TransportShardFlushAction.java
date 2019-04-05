@@ -55,7 +55,7 @@ public class TransportShardFlushAction
             IndexShard primary) {
         primary.flush(shardRequest.getRequest());
         logger.trace("{} flush request executed on primary", primary.shardId());
-        return new PrimaryResult<ShardFlushRequest, ReplicationResponse>(shardRequest, new ReplicationResponse());
+        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
     }
 
     @Override

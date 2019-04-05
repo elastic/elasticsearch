@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -122,8 +123,8 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
 
     public static final class Request extends ReplicationRequest<Request> {
 
-        private Request() {
-            super();
+        private Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Request(final ShardId shardId) {

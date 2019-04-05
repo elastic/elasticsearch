@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
  * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position).
- * Only one background job can run simultaneously and {@link #onFinish()} is called when the job
+ * Only one background job can run simultaneously and {@link #onFinish(Runnable)} is called when the job
  * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
  * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
  * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.

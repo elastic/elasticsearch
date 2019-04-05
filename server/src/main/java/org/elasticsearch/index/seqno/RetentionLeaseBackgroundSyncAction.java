@@ -114,11 +114,7 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     ActionListener.wrap(
                             r -> {},
                             e -> {
-                                final TransportException maybeTransport =
-                                        (TransportException) ExceptionsHelper.unwrap(e, TransportException.class);
-                                if (maybeTransport != null
-                                        && (maybeTransport.getMessage().equals("TransportService is closed stopped can't send request")
-                                        || maybeTransport.getMessage().equals("transport stopped, action: " + ACTION_NAME + "[p]"))) {
+                                if (ExceptionsHelper.isTransportStoppedForAction(e, ACTION_NAME + "[p]")) {
                                     // we are likely shutting down
                                     return;
                                 }

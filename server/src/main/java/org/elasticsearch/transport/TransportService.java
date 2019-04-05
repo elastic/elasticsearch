@@ -274,6 +274,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                     }
                     @Override
                     public void doRun() {
+                        // cf. ExceptionsHelper#isTransportStoppedForAction
                         TransportException ex = new TransportException("transport stopped, action: " + holderToNotify.action());
                         holderToNotify.handler().handleException(ex);
                     }
@@ -632,7 +633,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                  *
                  * Do not edit this exception message, it is currently relied upon in production code!
                  */
-                // TODO: make a dedicated exception for a stopped transport service?
+                // TODO: make a dedicated exception for a stopped transport service? cf. ExceptionsHelper#isTransportStoppedForAction
                 throw new TransportException("TransportService is closed stopped can't send request");
             }
             if (timeoutHandler != null) {

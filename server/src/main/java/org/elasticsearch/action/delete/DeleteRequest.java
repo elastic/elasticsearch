@@ -53,6 +53,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
+    private static final ShardId NO_SHARD_ID = null;
+
     // Set to null initially so we can know to override in bulk requests that have a default type.
     private String type;
     private String id;
@@ -63,7 +65,27 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    public DeleteRequest(StreamInput in) throws IOException {
+        super(in);
+        type = in.readString();
+        id = in.readString();
+        routing = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0)) {
+            in.readOptionalString(); // _parent
+        }
+        version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            ifSeqNo = in.readZLong();
+            ifPrimaryTerm = in.readVLong();
+        } else {
+            ifSeqNo = UNASSIGNED_SEQ_NO;
+            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+        }
+    }
+
     public DeleteRequest() {
+        super(NO_SHARD_ID);
     }
 
     /**
@@ -71,6 +93,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * must be set.
      */
     public DeleteRequest(String index) {
+        super(NO_SHARD_ID);
         this.index = index;
     }
 
@@ -85,6 +108,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      */
     @Deprecated
     public DeleteRequest(String index, String type, String id) {
+        super(NO_SHARD_ID);
         this.index = index;
         this.type = type;
         this.id = id;
@@ -97,6 +121,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param id    The id of the document
      */
     public DeleteRequest(String index, String id) {
+        super(NO_SHARD_ID);
         this.index = index;
         this.id = id;
     }
@@ -274,23 +299,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalString(); // _parent
-        }
-        version = in.readLong();
-        versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            ifSeqNo = in.readZLong();
-            ifPrimaryTerm = in.readVLong();
-        } else {
-            ifSeqNo = UNASSIGNED_SEQ_NO;
-            ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -320,15 +330,5 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public String toString() {
         return "delete {[" + index + "][" + type() + "][" + id + "]}";
-    }
-
-    /**
-     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
-     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
-     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
-     */
-    @Override
-    public DeleteRequest setShardId(ShardId shardId) {
-        throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
     }
 }

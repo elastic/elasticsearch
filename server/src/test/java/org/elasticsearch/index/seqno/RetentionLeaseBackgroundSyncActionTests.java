@@ -208,12 +208,10 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                             new TransportException(randomFrom(
                                     "failed",
                                     "TransportService is closed stopped can't send request",
-                                    "transport stopped, action: indices:admin/seq_no/retention_lease_background_sync[p]"
-                            )),
+                                    "transport stopped, action: indices:admin/seq_no/retention_lease_background_sync[p]")),
                             new RuntimeException("failed"));
                     listener.onFailure(e);
-                    if (e instanceof AlreadyClosedException == false && e instanceof IndexShardClosedException == false &&
-                            (e instanceof TransportException && e.getMessage().equals("failed"))) {
+                    if (e.getMessage().equals("failed")) {
                         final ArgumentCaptor<ParameterizedMessage> captor = ArgumentCaptor.forClass(ParameterizedMessage.class);
                         verify(retentionLeaseSyncActionLogger).warn(captor.capture(), same(e));
                         final ParameterizedMessage message = captor.getValue();

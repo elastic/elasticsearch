@@ -65,6 +65,54 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.greaterThan;
 
 
+/**
+ * This test stress tests CAS updates using sequence number based versioning (ifPrimaryTerm/ifSeqNo).
+ * <p/>
+ * The following is a summary of the expected CAS write behaviour of the system:
+ *
+ * <ul>
+ *     <li>acknowledged CAS writes are guaranteed to have taken place between invocation and response and cannot be lost. It is
+ *     guaranteed that the previous value had the specified primaryTerm and seqNo</li>
+ *     <li>CAS writes resulting in a VersionConflictEngineException might or might not have taken place. If they have taken place, then it
+ *     must have been between invocation and response. Such writes are not necessarily fully replicated and can be lost. There is no
+ *     guarantee that the previous value did not have the specified primaryTerm and seqNo</li>
+ *     <li>CAS writes with other exceptions might or might not have taken place. If they have taken place, then after invocation but not
+ *     necessarily before response. Such writes are not necessarily fully replicated and can be lost.
+ *     </li>
+ * </ul>
+ *
+ * A deeper technical explanation of the behaviour is given here:
+ *
+ * <ul>
+ *     <li>A CAS can fail on its own write in at least two ways. In both cases, the write might have taken place even though we get a
+ *     version conflict response. Even though we might observe the write (by reading (not done in this test) or another CAS write), the
+ *     write could be lost since it is not fully replicated. Details:
+ *     <ul>
+ *         <li>A write is successfully stored on primary and one replica (r1). Replication to second replica fails, primary is demoted
+ *         and r1 is promoted to primary. The request is repeated on r1, but this time the request fails due to its own write.</li>
+ *         <li>A coordinator sends write to primary, which stores write successfully (and replicates it). Connection is lost before
+ *         response is sent back. Once connection is back, coordinator will retry against either same or new primary, but this time the
+ *         request will fail due to its own write.
+ *         </li>
+ *     </ul>
+ *     </li>
+ *     <li>A CAS can fail on stale reads. A CAS failure is only checked on the supposedly primary node. However, the primary might not be
+ *     the newest primary (could be isolated or just not have been told yet). So a CAS check is suspect to dirty reads (like any read) and
+ *     can thus fail due to reading stale data. Notice that a CAS success is fully replicated and thus guaranteed to not suffer from
+ *     stale reads.
+ *     </li>
+ *     <li>A CAS can fail on a dirty write, i.e., a non-replicated write that ends up being discarded.</li>
+ *     <li>For any other failure, we do not know if the write will succeed after the failure. However, we do know that if we
+ *     subsequently get back a CAS success with seqNo s, any previous failures with ifSeqNo &lt; s will not be able to succeed (but could
+ *     produce dirty writes on a stale primary).
+ *     .</li>
+ *     <li>A CAS failure throws a VersionConflictEngineException which does not directly contain the current seqno/primary-term to use for
+ *     the next request. It is contained in the message (and we parse it out in the test), but notice that the numbers given here could be
+ *     dirty, i.e., belong to a write that ends up being discarded.</li>
+ *
+ * </ul>
+ *
+ */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
     transportClientRatio = 0)
 @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
@@ -79,17 +127,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     // multiple threads doing CAS updates.
     // Wait up to 1 minute (+10s in thread to ensure it does not time out) for threads to complete previous round before initiating next
     // round.
-    // Following issues are accepted for now:
-    // 1. Under certain circumstances (network partitions and other failures) we can end up giving a false negative response, i.e., report
-    // back that a CAS failed due to version conflict even though it actually succeeded.
-    // 2. If we end up reporting back any other failure, it is unknown if the write succeeded or not (or will succeed in the future).
-    // 3. If you read data out, you may see dirty writes, i.e., writes that will end up being discarded due to node failure/network
-    // disruption.
-    // 4. Likewise, the CAS check can be done against a dirty write and thus fail even if it ought to succeed.
-    // 5. A CAS check can be done against a stale primary and fail due to that.
-    // 6. A CAS failure throws a VersionConflictEngineException which does not directly contain the current seqno/primary-term to use for
-    // the next request. It is contained in the message (and we parse it out in the test), but notice that the numbers given here could be
-    // dirty, ie., end up being discarded.
     public void testSeqNoCASLinearizability() {
         final int disruptTimeSeconds = scaledRandomIntBetween(1, 8);
 

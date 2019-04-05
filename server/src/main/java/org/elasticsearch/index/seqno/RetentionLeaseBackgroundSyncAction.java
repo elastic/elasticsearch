@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -113,9 +114,19 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     ActionListener.wrap(
                             r -> {},
                             e -> {
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                                final TransportException maybeTransport =
+                                        (TransportException) ExceptionsHelper.unwrap(e, TransportException.class);
+                                if (maybeTransport != null
+                                        && (maybeTransport.getMessage().equals("TransportService is closed stopped can't send request")
+                                        || maybeTransport.getMessage().equals("transport stopped, action: " + ACTION_NAME + "[p]"))) {
+                                    // we are likely shutting down
+                                    return;
                                 }
+                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                                    // the shard is closed
+                                    return;
+                                }
+                                getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                             }));
         }
     }

@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -781,11 +782,15 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         private final Version outputVersion;
 
         private IndexResponseHistoryOutput(IndexResponse response) {
-            this.outputVersion = new Version(response.getPrimaryTerm(), response.getSeqNo());
+            this(new Version(response.getPrimaryTerm(), response.getSeqNo()));
         }
 
         private IndexResponseHistoryOutput(StreamInput input) throws IOException {
-            this.outputVersion = new Version(input);
+            this(new Version(input));
+        }
+
+        private IndexResponseHistoryOutput(Version outputVersion) {
+            this.outputVersion = outputVersion;
         }
 
         @Override
@@ -817,14 +822,18 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     private static class CASFailureHistoryOutput implements HistoryOutput {
         private Version outputVersion;
         private CASFailureHistoryOutput(VersionConflictEngineException exception) {
-            this.outputVersion = parseException(exception.getMessage());
+            this(parseException(exception.getMessage()));
         }
 
         private CASFailureHistoryOutput(StreamInput input) throws IOException {
-            this.outputVersion = new Version(input);
+            this(new Version(input));
         }
 
-        private Version parseException(String message) {
+        private CASFailureHistoryOutput(Version outputVersion) {
+            this.outputVersion = outputVersion;
+        }
+
+        private static Version parseException(String message) {
             // ugly, but having these observed versions available improves the linearizability checking. Additionally, this ensures
             // progress since if we did not parse this out, no writes would succeed after a fail on own write failure (unless we were
             // lucky enough to guess the seqNo/primaryTerm with the random futureTerm/futureSeqNo handling in CASUpdateThread).
@@ -971,6 +980,32 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             new NamedWriteableRegistry.Entry(NamedWriteable.class, "casfail", CASFailureHistoryOutput::new),
             new NamedWriteableRegistry.Entry(NamedWriteable.class, "fail", FailureHistoryOutput::new)
         ));
+    }
+
+    public void testSimpleSequentialSpec() {
+        // Generate 3 increasing versions
+        Version version1 = new Version(randomIntBetween(1,5), randomIntBetween(0,100));
+        Version version2 = futureVersion(version1);
+        Version version3 = futureVersion(version2);
+
+        LinearizabilityChecker.SequentialSpec spec = new CASSimpleSequentialSpec(version1);
+
+        assertThat(spec.initialState(), equalTo(new SimpleState(version1, false)));
+
+        assertThat(spec.nextState(new SimpleState(version1, false),version1, new IndexResponseHistoryOutput(version2)),
+            equalTo(Optional.of(new SimpleState(version2, false))));
+        assertThat(spec.nextState(new SimpleState(version1, true),version2, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.of(new SimpleState(version3, false))));
+        assertThat(spec.nextState(new SimpleState(version1, false),version2, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.empty()));
+        assertThat(spec.nextState(new SimpleState(version2, true),version1, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.empty()));
+
+        assertThat(spec.nextState(new SimpleState(version1, false),version1, new CASFailureHistoryOutput(version2)),
+            equalTo(Optional.of(new SimpleState(version1, true))));
+
+        assertThat(spec.nextState(new SimpleState(version1, false),version1, new FailureHistoryOutput()),
+            equalTo(Optional.of(new SimpleState(version1, true))));
     }
 
     public void testComplexSequentialSpec() {

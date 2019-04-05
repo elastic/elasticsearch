@@ -151,8 +151,8 @@ if (isEclipse) {
   }
 }
 
-compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 forbiddenPatterns {
   exclude '**/*.json'

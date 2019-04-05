@@ -68,7 +68,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
     return tmpFile.exists()
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 forbiddenPatterns {
   exclude '**/system_key'

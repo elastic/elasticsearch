@@ -23,11 +23,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTime;
 
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,8 +38,10 @@ public interface DateFormatter {
     /**
      * Try to parse input to a java time TemporalAccessor
      * @param input                   An arbitrary string resembling the string representation of a date or time
-     * @throws DateTimeParseException If parsing fails, this exception will be thrown.
+     * @throws IllegalArgumentException If parsing fails, this exception will be thrown.
      *                                Note that it can contained suppressed exceptions when several formatters failed parse this value
+     * @throws DateTimeException      if the parsing result exceeds the supported range of <code>ZoneDateTime</code>
+     *                                or if the parsed instant exceeds the maximum or minimum instant
      * @return                        The java time object containing the parsed input
      */
     TemporalAccessor parse(String input);

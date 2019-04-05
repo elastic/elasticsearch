@@ -309,7 +309,11 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
     }
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
-        final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
+        String endpoint = "/" + followIndex + "/_ccr/follow";
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_7_0)) {
+            endpoint += "?wait_for_active_shards=1";
+        }
+        final Request request = new Request("PUT", endpoint);
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));

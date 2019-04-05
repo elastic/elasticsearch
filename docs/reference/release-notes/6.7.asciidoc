@@ -1,7 +1,6 @@
 [[release-notes-6.7.1]]
 == {es} version 6.7.1
 
-coming[6.7.1]
 
 Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 
@@ -14,6 +13,8 @@ Infra/Core::
 
 SQL::
 * SQL: add "fuzziness" option to QUERY and MATCH function predicates {pull}40529[#40529] (issue: {issue}40495[#40495])
+
+
 
 [[bug-6.7.1]]
 [float]
@@ -38,10 +39,14 @@ Geo::
 Infra/Core::
 * Parse composite patterns using ClassicFormat.parseObject {pull}40100[#40100] (issue: {issue}39916[#39916])
 
+Infra/Packaging::
+* Use TAR instead of DOCKER build type before 6.7.0 {pull}40723[#40723] (issues: {issue}39378[#39378], {issue}40511[#40511])
+
 Machine Learning::
 * [ML] Addressing bug streaming DatafeedConfig aggs from (<= 6.5.4) -> 6.7.0 {pull}40610[#40610]
 
 SQL::
+* SQL: have LIKE/RLIKE use wildcard and regexp queries {pull}40628[#40628] (issue: {issue}40557[#40557])
 * SQL: Fix getTime() methods in JDBC {pull}40484[#40484]
 * SQL: Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
 * SQL: Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
@@ -58,6 +63,28 @@ SQL::
 == {es} version 6.7.0
 
 Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
+
+[float]
+=== Known issues
+
+A new `docker` `build_type` value was introduced in 6.7.0 for Docker images,
+which caused two problems:
+
+* If you perform a rolling upgrade to 6.7.0 on nodes that are running the
+official Docker container, they cannot rejoin the cluster. Upgrade to 6.7.1
+instead or perform a <<restart-upgrade,full cluster restart upgrade>>.
+(issue: {issue}/40784[#40784])
+* If you have a 6.6 or earlier Java High Level REST client, it cannot understand
+the new `build_type` value. For example, it cannot read main responses on `/`
+from a cluster that's running 6.7.0. Upgrade your client to 6.7.0 or later.
+(issue: {issue}/40511[#40511])
+
+Features/ILM::
+If an index is configured with an `index.lifecycle.name` that refers to a policy
+that does not exist, when <<start-stop-ilm, {ilm} is stopped>>, {ilm}'s status
+will remain as `STOPPING` until all policies that do not exist are removed from
+any indices by using the <<ilm-remove-policy,Remove Policy API>>.
+(issue: {issue}/40824[#40824])
 
 [[breaking-6.7.0]]
 [float]

@@ -152,7 +152,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     onStart(now, ActionListener.wrap(r -> {
                         stats.markStartSearch();
                         doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
-                    }, e -> doSaveState(finishAndSetState(), position.get(), () -> onFailure(e))));
+                    }, e -> {
+                        finishAndSetState();
+                        onFailure(e);
+                    }));
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
@@ -316,7 +319,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
                         r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                        e -> doSaveState(finishAndSetState(), position.get(), () -> onFailure(e))));
 
                 return;
             }

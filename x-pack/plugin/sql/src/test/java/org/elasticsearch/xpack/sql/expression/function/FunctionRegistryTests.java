@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -41,12 +40,12 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(DISTINCT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // Any children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects no arguments"));
     }
@@ -62,17 +61,17 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
             uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
@@ -90,12 +89,12 @@ public class FunctionRegistryTests extends ESTestCase {
         assertFalse(def.extractViable());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
@@ -115,17 +114,17 @@ public class FunctionRegistryTests extends ESTestCase {
         assertTrue(def.extractViable());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
@@ -142,22 +141,22 @@ public class FunctionRegistryTests extends ESTestCase {
         assertFalse(def.extractViable());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(DISTINCT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // Many children aren't supported
-        e = expectThrows(ParsingException.class, () ->
+        e = expectThrows(SqlIllegalArgumentException.class, () ->
                 uf(STANDARD, mock(Expression.class), mock(Expression.class), mock(Expression.class))
                     .buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
@@ -165,13 +164,13 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
                         def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
@@ -179,7 +178,7 @@ public class FunctionRegistryTests extends ESTestCase {
     
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+        SqlIllegalArgumentException iae = expectThrows(SqlIllegalArgumentException.class, () ->
                 r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }

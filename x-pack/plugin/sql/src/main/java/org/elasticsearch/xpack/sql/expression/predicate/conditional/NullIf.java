@@ -40,12 +40,6 @@ public class NullIf extends ConditionalFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        dataType = children().get(0).dataType();
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
     public Object fold() {
         return NullIfProcessor.apply(children().get(0).fold(), children().get(1).fold());
     }

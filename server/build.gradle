@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
@@ -331,14 +329,15 @@ dependencyLicenses {
 }
 
 if (isEclipse == false || project.path == ":server-tests") {
-  task integTest(type: RandomizedTestingTask,
-                 group: JavaBasePlugin.VERIFICATION_GROUP,
-                 description: 'Multi-node tests',
-                 dependsOn: unitTest.dependsOn) {
+  task integTest(type: Test) {
+    description = 'Multi-node tests'
+    mustRunAfter test
+
     include '**/*IT.class'
   }
+
   check.dependsOn integTest
-  integTest.mustRunAfter test
+
   task internalClusterTest {
      dependsOn integTest    
   }

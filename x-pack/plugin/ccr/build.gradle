@@ -1,5 +1,3 @@
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
@@ -21,28 +19,27 @@ compileTestJava.options.compilerArgs << "-Xlint:-try"
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = [ "**/CloseFollowerIndexIT.class" ]
 
-// Instead we create a separate task to run the
-// tests based on ESIntegTestCase
-task internalClusterTest(type: RandomizedTestingTask,
-        group: JavaBasePlugin.VERIFICATION_GROUP,
-        description: 'Java fantasy integration tests',
-        dependsOn: unitTest.dependsOn) {
-    include '**/*IT.class'
-    exclude noSecurityManagerITClasses
-    systemProperty 'es.set.netty.runtime.available.processors', 'false'
-}
-check.dependsOn internalClusterTest
-internalClusterTest.mustRunAfter test
-
-task internalClusterTestNoSecurityManager(type: RandomizedTestingTask,
-        group: JavaBasePlugin.VERIFICATION_GROUP,
-        description: 'Java fantasy integration tests with no security manager',
-        dependsOn: unitTest.dependsOn) {
+task internalClusterTestNoSecurityManager(type: Test) {
+    description = 'Java fantasy integration tests with no security manager'
+    
     include noSecurityManagerITClasses
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
     systemProperty 'tests.security.manager', 'false'
 }
-internalClusterTest.dependsOn internalClusterTestNoSecurityManager
+
+// Instead we create a separate task to run the
+// tests based on ESIntegTestCase
+task internalClusterTest(type: Test) {
+    description = 'Java fantasy integration tests'
+    dependsOn internalClusterTestNoSecurityManager
+    mustRunAfter test
+    
+    include '**/*IT.class'
+    exclude noSecurityManagerITClasses
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+check.dependsOn internalClusterTest
 
 // add all sub-projects of the qa sub-project
 gradle.projectsEvaluated {

@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+
 apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
@@ -150,9 +151,9 @@ project.afterEvaluate {
         Task restIntegTestTaskRunner = project.tasks.getByName("${integTestTaskName}Runner")
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-        restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
+        restIntegTestTaskRunner.jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
         if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-          restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+          restIntegTestTaskRunner.jvmArgs '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
         }
         restIntegTestTaskRunner.systemProperty (
                 "test.krb5.keytab.hdfs",
@@ -221,7 +222,7 @@ if (fixtureSupported) {
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
 
   // Only include the HA integration tests for the HA test task
-  integTestHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+  integTestHaRunner.setIncludes(['**/Ha*TestSuiteIT.class'])
 } else {
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
@@ -252,7 +253,7 @@ integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository
 // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
 integTestSecureRunner.exclude('**/Ha*TestSuiteIT.class')
 // Only include the HA integration tests for the HA test task
-integTestSecureHaRunner.patternSet.setIncludes(['**/Ha*TestSuiteIT.class'])
+integTestSecureHaRunner.setIncludes(['**/Ha*TestSuiteIT.class'])
 
 thirdPartyAudit {
     ignoreMissingClasses()

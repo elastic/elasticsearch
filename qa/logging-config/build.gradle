@@ -32,10 +32,10 @@ integTestCluster {
 }
 
 integTestRunner {
-    systemProperty 'tests.logfile',
+    nonInputProperties.systemProperty 'tests.logfile',
             "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.log"
 }
 
-unitTest {
+test {
     systemProperty 'tests.security.manager', 'false'
 }

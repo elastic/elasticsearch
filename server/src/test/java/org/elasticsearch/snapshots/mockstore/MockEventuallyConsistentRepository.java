@@ -43,7 +43,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Mock Repository that simulates the mechanics of an eventually consistent blobstore.
+ * Mock Repository that simulates the eventually consistent behaviour of AWS S3 as documented in the
+ * <a href="https://docs.aws.amazon.com/AmazonS3/latest/dev/Introduction.html#ConsistencyModel">AWS S3 docs</a>.
+ * Specifically this implementation simulates:
+ * <ul>
+ *     <li>First read after write is consistent for each blob. (see S3 docs for specifics)</li>
+ *     <li>Deletes and updates to a blob can become visible with a delay.</li>
+ *     <li>Blobs can become visible to list operations with a delay.</li>
+ * </ul>
  */
 public class MockEventuallyConsistentRepository extends FsRepository {
 
@@ -68,14 +75,20 @@ public class MockEventuallyConsistentRepository extends FsRepository {
         return new MockBlobStore(super.createBlobStore());
     }
 
+    /**
+     * Context that must be shared between all instances of {@link MockEventuallyConsistentRepository} in a test run.
+     */
     public static final class Context {
 
+        /**
+         * Map of blob path to a tuple of cached non-existent blobs in them and a map of child blob name to {@link Runnable} that when
+         * executed will create the blob.
+         */
         private final Map<BlobPath, Tuple<Set<String>, Map<String, Runnable>>> state = new HashMap<>();
 
         public Tuple<Set<String>, Map<String, Runnable>> getState(BlobPath path) {
             return state.computeIfAbsent(path, p -> new Tuple<>(new HashSet<>(), new HashMap<>()));
         }
-
     }
 
     private class MockBlobStore extends BlobStoreWrapper {
@@ -125,11 +138,12 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
             @Override
             public void deleteBlob(String blobName) {
+                // TODO: simulate longer delays here once the S3 blob store implementation can handle them
                 deterministicTaskQueue.scheduleNow(() -> {
                     try {
                         super.deleteBlob(blobName);
                     } catch (DirectoryNotEmptyException | NoSuchFileException e) {
-                        // ignored
+                        // ignored since neither of these exceptions would occur on S3
                     } catch (IOException e) {
                         throw new AssertionError(e);
                     }
@@ -154,6 +168,7 @@ public class MockEventuallyConsistentRepository extends FsRepository {
                         throw new AssertionError(e);
                     }
                 });
+                // TODO: simulate longer delays here once the S3 blob store implementation can handle them
                 deterministicTaskQueue.scheduleNow(() -> {
                     if (pendingWrites.containsKey(blobName)) {
                         pendingWrites.remove(blobName).run();

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -107,6 +106,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -193,7 +193,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
-@Repeat(iterations = 5000)
 public class SnapshotResiliencyTests extends ESTestCase {
 
     private DeterministicTaskQueue deterministicTaskQueue;
@@ -203,16 +202,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private Path tempDir;
 
     /**
-     * Whether to use eventually consistent blob store in tests.
+     * Context shared by all the node's {@link Repository} instances if the eventually consistent blobstore is to be used.
+     * {@code null} if not using the eventually consistent blobstore.
      */
-    private boolean eventuallyConsistent;
+    @Nullable private MockEventuallyConsistentRepository.Context blobStoreContext;
 
-    private MockEventuallyConsistentRepository.Context blobStoreContext;
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        eventuallyConsistent = randomBoolean();
-        if (eventuallyConsistent) {
+        if (randomBoolean()) {
             blobStoreContext = new MockEventuallyConsistentRepository.Context();
         }
         deterministicTaskQueue =
@@ -1086,16 +1084,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
             client.initialize(actions, () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
         }
 
-        private Repository.Factory getRepoFactory(final Environment environment) {
+        private Repository.Factory getRepoFactory(Environment environment) {
             // Run half the tests with the eventually consistent repository
-            if (eventuallyConsistent) {
-                return metaData -> {
-                    final Repository repository = new MockEventuallyConsistentRepository(
-                        metaData, environment, xContentRegistry(), deterministicTaskQueue, blobStoreContext);
-                    repository.start();
-                    return repository;
-                };
-            } else {
+            if (blobStoreContext == null) {
                 return metaData -> {
                     final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
                         @Override
@@ -1103,6 +1094,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             // eliminate thread name check as we create repo in the test thread
                         }
                     };
+                    repository.start();
+                    return repository;
+                };
+            } else {
+                return metaData -> {
+                    final Repository repository = new MockEventuallyConsistentRepository(
+                        metaData, environment, xContentRegistry(), deterministicTaskQueue, blobStoreContext);
                     repository.start();
                     return repository;
                 };

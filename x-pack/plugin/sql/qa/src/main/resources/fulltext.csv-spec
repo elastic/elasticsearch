@@ -31,7 +31,7 @@ SELECT emp_no, first_name, gender, last_name FROM test_emp WHERE QUERY('Man*', '
 ;
 
 matchWithFuzziness
-SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=6');
+SELECT first_name, SCORE() FROM test_emp WHERE MATCH(first_name, 'geo', 'fuzziness=2');
 
   first_name:s  |   SCORE():f
 ----------------+---------------
@@ -57,7 +57,7 @@ Shir            |McClurg          |8.210788
 ;
 
 multiMatchWithFuzziness
-SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=5;operator=or') ORDER BY first_name;
+SELECT first_name, last_name, SCORE() FROM test_emp WHERE MATCH('first_name^3,last_name^5', 'geo hir', 'fuzziness=2;operator=or') ORDER BY first_name;
 
   first_name:s  |   last_name:s   |    SCORE():f
 ----------------+-----------------+---------------
@@ -68,7 +68,7 @@ Uri             |Lenart           |4.105394
 ;
 
 queryWithFuzziness
-SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=5;default_field=first_name');
+SELECT first_name, SCORE() FROM test_emp WHERE QUERY('geo~', 'fuzziness=2;default_field=first_name');
 
   first_name:s  |    SCORE():f
 ----------------+---------------

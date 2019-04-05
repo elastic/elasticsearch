@@ -32,7 +32,7 @@ public class MatchQuery extends LeafQuery {
         appliers.put("analyzer", (qb, s) -> qb.analyzer(s));
         appliers.put("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s)));
         appliers.put("cutoff_frequency", (qb, s) -> qb.cutoffFrequency(Float.valueOf(s)));
-        appliers.put("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.build(s)));
+        appliers.put("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s)));
         appliers.put("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s)));
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));
         appliers.put("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s)));

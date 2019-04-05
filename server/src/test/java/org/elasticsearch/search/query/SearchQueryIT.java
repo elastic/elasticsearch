@@ -30,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -670,21 +671,22 @@ public class SearchQueryIT extends ESIntegTestCase {
         indexRandom(true, client().prepareIndex("test", "_doc", "1").setSource("text", "Unit"),
                 client().prepareIndex("test", "_doc", "2").setSource("text", "Unity"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("0")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.fromEdits(0)))
+                .get();
         assertHitCount(searchResponse, 0L);
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("1")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.fromEdits(1))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.fromString("AUTO"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "2");
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness("AUTO:5,7")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.fromString("AUTO:5,7"))).get();
         assertHitCount(searchResponse, 0L);
 
-        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness("AUTO:5,7")).get();
+        searchResponse = client().prepareSearch().setQuery(matchQuery("text", "unify").fuzziness(Fuzziness.fromString("AUTO:5,7"))).get();
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "2");
     }

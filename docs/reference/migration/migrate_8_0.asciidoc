@@ -16,6 +16,7 @@ coming[8.0.0]
 * <<breaking_80_mappings_changes>>
 * <<breaking_80_snapshots_changes>>
 * <<breaking_80_security_changes>>
+* <<breaking_80_java_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -43,3 +44,4 @@ include::migrate_8_0/discovery.asciidoc[]
 include::migrate_8_0/mappings.asciidoc[]
 include::migrate_8_0/snapshots.asciidoc[]
 include::migrate_8_0/security.asciidoc[]
+include::migrate_8_0/java.asciidoc[]

@@ -808,7 +808,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testFuzzyNumeric() throws Exception {
-        QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
+        QueryStringQueryBuilder query = queryStringQuery("12~1.0").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> query.toQuery(context));

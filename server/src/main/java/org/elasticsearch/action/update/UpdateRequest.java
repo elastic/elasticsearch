@@ -841,13 +841,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest();
-            doc.readFrom(in);
+            doc = new IndexRequest(in);
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest();
-            upsertRequest.readFrom(in);
+            upsertRequest = new IndexRequest(in);
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();

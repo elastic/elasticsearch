@@ -727,8 +727,9 @@ public final class TokenService {
     }
 
     /**
-     * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the listener with the
-     * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy.
+     * Tries to decode the {@code refreshToken} and then perform an asynchronous search request for the containing token document, then
+     * calls the listener with the resulting {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried
+     * using an exponential backoff policy.
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         if (refreshToken.length() == TOKEN_ID_LENGTH) {

@@ -1005,7 +1005,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "suggestion", "apple");
     }
 
-    public void testMinDocFreq() throws Exception {
+    public void testPhraseSuggestMinDocFreq() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("type")
@@ -1027,20 +1027,27 @@ public class SuggestSearchIT extends ESIntegTestCase {
         builders.add(client().prepareIndex("test", "type").setSource("text", "appfle"));
         indexRandom(true, false, builders);
 
-        TermSuggestionBuilder termSuggest = termSuggestion("text").text("appple");
+        PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("text").text("appple")
+            .size(2)
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular"));
 
-        Suggest searchSuggest = searchSuggest("suggestion", termSuggest);
-        assertSuggestion(searchSuggest, 0, "suggestion", 2, "appfle", "apple");
+        Suggest searchSuggest = searchSuggest("suggestion", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", 2, "apple", "appfle");
 
-        termSuggest = termSuggestion("text").text("appple")
-            .minDocFreq(2);
-        searchSuggest = searchSuggest("suggestion", termSuggest);
+        phraseSuggest = phraseSuggestion("text").text("appple")
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular")
+                .minDocFreq(2));
+
+        searchSuggest = searchSuggest("suggestion", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "suggestion", 1,"apple");
 
-        termSuggest = termSuggestion("text").text("appple")
-            .suggestMode(SuggestMode.POPULAR)
-            .minDocFreq(2);
-        searchSuggest = searchSuggest("suggestion", termSuggest);
+        phraseSuggest = phraseSuggestion("text").text("appple")
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular")
+                .minDocFreq(2));
+        searchSuggest = searchSuggest("suggestion", phraseSuggest);
         assertSuggestion(searchSuggest, 0, "suggestion", 1,"apple");
     }
 

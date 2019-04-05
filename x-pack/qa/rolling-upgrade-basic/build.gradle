@@ -120,7 +120,7 @@ for (Version version : bwcVersions.wireCompatible) {
     }
 }
 
-unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {

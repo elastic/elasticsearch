@@ -145,15 +145,13 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         return metaData.build();
     }
 
-    protected IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
-        final IndexRequest outRequest = new IndexRequest();
+    IndexRequest copyIndexRequest(IndexRequest inRequest) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             inRequest.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                outRequest.readFrom(in);
+                return new IndexRequest(in);
             }
         }
-        return outRequest;
     }
 
     protected DiscoveryNode getDiscoveryNode(String id) {

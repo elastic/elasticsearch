@@ -28,10 +28,9 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.function.Supplier;
 
 /** use transport bulk action directly */
 @Deprecated
@@ -43,8 +42,8 @@ public abstract class TransportSingleItemBulkWriteAction<
     private final TransportBulkAction bulkAction;
 
     protected TransportSingleItemBulkWriteAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                                                 Supplier<Request> request, TransportBulkAction bulkAction) {
-        super(actionName, transportService, actionFilters, request);
+                                                 Writeable.Reader<Request> requestReader, TransportBulkAction bulkAction) {
+        super(actionName, transportService, actionFilters, requestReader);
         this.bulkAction = bulkAction;
     }
 

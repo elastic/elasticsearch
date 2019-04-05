@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -47,7 +48,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -62,8 +62,8 @@ public abstract class TransportWriteAction<
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                   Supplier<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
+                                   IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
+                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
               indexNameExpressionResolver, request, replicaRequest, executor, true, forceExecutionOnPrimary);
     }

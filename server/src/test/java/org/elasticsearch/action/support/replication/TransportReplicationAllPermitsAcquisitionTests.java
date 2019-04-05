@@ -400,7 +400,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     private Request request() {
-        return new Request().setShardId(primary.shardId());
+        return new Request(primary.shardId());
     }
 
     /**
@@ -558,6 +558,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     static class Request extends ReplicationRequest<Request> {
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        Request(ShardId shardId) {
+            super(shardId);
+        }
+
         @Override
         public String toString() {
             return getTestClass().getName() + ".Request";

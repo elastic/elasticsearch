@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -108,17 +109,21 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     }
 
     @Override
-    protected void onStart(long now, Runnable next) {
-        // this is needed to exclude buckets that can still receive new documents.
-        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
-        long rounded = dateHisto.createRounding().round(now);
-        if (dateHisto.getDelay() != null) {
-            // if the job has a delay we filter all documents that appear before it.
-            maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
-        } else {
-            maxBoundary = rounded;
+    protected void onStart(long now, ActionListener<Void> listener) {
+        try {
+            // this is needed to exclude buckets that can still receive new documents.
+            DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
+            long rounded = dateHisto.createRounding().round(now);
+            if (dateHisto.getDelay() != null) {
+                // if the job has a delay we filter all documents that appear before it.
+                maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
+            } else {
+                maxBoundary = rounded;
+            }
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
-        next.run();
     }
 
     @Override

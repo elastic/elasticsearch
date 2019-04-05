@@ -478,10 +478,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void onFinish(Runnable finishAndSetState) {
-            auditor.info(transform.getId(), "Finished indexing for data frame transform");
-            logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
-            finishAndSetState.run();
+        protected void onFinish(ActionListener<Void> listener) {
+            try {
+                auditor.info(transform.getId(), "Finished indexing for data frame transform");
+                logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
+                listener.onResponse(null);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         @Override

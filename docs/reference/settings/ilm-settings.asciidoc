@@ -12,4 +12,4 @@ The name of the policy to use to manage the index.
 The index alias to update when the index rolls over. Required if the specified
 policy contains a rollover action. When the index rolls over, the alias is
 updated to reflect that the index is no longer the
-<<aliases-write-index, write index>>.
+write index. For more information about rollover, see <<using-policies-rollover>>.

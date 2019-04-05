@@ -157,7 +157,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             protected void doRun() {
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onFailure)) == false) {
+                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
                         return;

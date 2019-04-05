@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -45,6 +46,7 @@ import java.util.Set;
 /**
  * Mock Repository that simulates the mechanics of an eventually consistent blobstore.
  */
+@Repeat(iterations = 5000)
 public class MockEventuallyConsistentRepository extends FsRepository {
 
     private final DeterministicTaskQueue deterministicTaskQueue;

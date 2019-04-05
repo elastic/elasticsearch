@@ -30,6 +30,7 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
 
         stopWatcher();
         replaceWatcherIndexWithRandomlyNamedIndex(Watch.INDEX, newWatcherIndexName);
+        ensureGreen(newWatcherIndexName);
         startWatcher();
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("mywatch").setSource(watchBuilder()

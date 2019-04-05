@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.LongLongHashMap;
-import com.carrotsearch.hppc.cursors.LongLongCursor;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.CollectionUtil;
@@ -45,13 +43,9 @@ import static java.util.Collections.emptyList;
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
  */
-public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Numeric, IncludeExclude.LongFilter> {
+public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Numeric, IncludeExclude.LongFilter, Long> {
 
-    protected LongLongHashMap map;
     protected LongHash bucketOrds;
-
-    // Size of a key:value pair in the active map, used for CB accounting
-    private static final long MAP_SLOT_SIZE = Long.BYTES * 2;
 
     LongRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
                                    SearchContext aggregationContext, Aggregator parent, IncludeExclude.LongFilter longFilter,
@@ -59,7 +53,6 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                                    Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData, maxDocCount, precision,
             format, valuesSource, longFilter);
-        this.map = new LongLongHashMap();
         this.bucketOrds = new LongHash(1, aggregationContext.bigArrays());
     }
 
@@ -76,61 +69,16 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
         }
         return new LeafBucketCollectorBase(sub, values) {
 
-
             @Override
             public void collect(int docId, long owningBucketOrdinal) throws IOException {
                 if (values.advanceExact(docId)) {
                     final int valuesCount = values.docValueCount();
-
                     long previous = Long.MAX_VALUE;
                     for (int i = 0; i < valuesCount; ++i) {
                         final long val = values.nextValue();
                         if (previous != val || i == 0) {
                             if ((includeExclude == null) || (includeExclude.accept(val))) {
-                                if (filter.mightContain(val) == false) {
-                                    long termCount = map.get(val);
-                                    if (termCount == 0) {
-                                        // Brand new term, save into map
-                                        map.put(val, 1L);
-                                        addRequestCircuitBreakerBytes(MAP_SLOT_SIZE);// 8 bytes for key, 8 for value
-
-                                        long bucketOrdinal = bucketOrds.add(val);
-                                        if (bucketOrdinal < 0) { // already seen
-                                           throw new IllegalStateException("Term count is zero, but an ordinal for this " +
-                                               "term has already been recorded");
-                                        } else {
-                                            collectBucket(subCollectors, docId, bucketOrdinal);
-                                        }
-                                    } else {
-                                        // We've seen this term before, but less than the threshold
-                                        // so just increment its counter
-                                        if (termCount < maxDocCount) {
-                                            // TODO if we only need maxDocCount==1, we could specialize
-                                            // and use a bitset instead of a counter scheme
-                                            map.put(val, termCount + 1);
-                                            long bucketOrdinal = bucketOrds.add(val);
-                                            if (bucketOrdinal < 0) {
-                                                bucketOrdinal = - 1 - bucketOrdinal;
-                                                collectExistingBucket(subCollectors, docId, bucketOrdinal);
-                                            } else {
-                                                throw new IllegalStateException("Term has seen before, but we have not recorded " +
-                                                    "an ordinal yet.");
-                                            }
-                                        } else {
-                                            // Otherwise we've breached the threshold, remove from
-                                            // the map and add to the cuckoo filter
-                                            map.remove(val);
-                                            filter.add(val);
-                                            addRequestCircuitBreakerBytes(-MAP_SLOT_SIZE); // 8 bytes for key, 8 for value
-                                            numDeleted += 1;
-
-                                            if (numDeleted > GC_THRESHOLD) {
-                                                gcDeletedEntries(numDeleted);
-                                                numDeleted = 0;
-                                            }
-                                        }
-                                    }
-                                }
+                                doCollect(val, docId);
                             }
                             previous = val;
                         }
@@ -138,6 +86,26 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                 }
             }
         };
+    }
+
+    @Override
+    boolean filterMightContain(Long value) {
+        return filter.mightContain(value);
+    }
+
+    @Override
+    long findOrdinal(Long value) {
+        return bucketOrds.find(value);
+    }
+
+    @Override
+    long addValueToOrds(Long value) {
+        return bucketOrds.add(value);
+    }
+
+    @Override
+    void addValueToFilter(Long value) {
+        filter.add(value);
     }
 
     protected void gcDeletedEntries(long numDeleted) {
@@ -150,13 +118,15 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                 long oldKey = oldBucketOrds.get(i);
                 long newBucketOrd = -1;
 
-                // if the key still exists in our map, reinsert into the new ords
-                if (map.containsKey(oldKey)) {
+                long docCount = bucketDocCount(i);
+                // if the key is below threshold, reinsert into the new ords
+                if (docCount <= maxDocCount) {
                     newBucketOrd = newBucketOrds.add(oldKey);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;
                 }
+
                 mergeMap[i] = newBucketOrd;
             }
 
@@ -180,16 +150,15 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        List<LongRareTerms.Bucket> buckets = new ArrayList<>(map.size());
+        List<LongRareTerms.Bucket> buckets = new ArrayList<>();
 
-        for (LongLongCursor cursor : map) {
-            // The collection managed pruning unwanted terms, so any
+        for (long i = 0; i < bucketOrds.size(); i++) {
+            // The agg managed pruning unwanted terms at runtime, so any
             // terms that made it this far are "rare" and we want buckets
-            long bucketOrdinal = bucketOrds.find(cursor.key);
             LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(0, 0, null, format);
-            bucket.term = cursor.key;
-            bucket.docCount = cursor.value;
-            bucket.bucketOrd = bucketOrdinal;
+            bucket.term = bucketOrds.get(i);
+            bucket.docCount = bucketDocCount(i);
+            bucket.bucketOrd = i;
             buckets.add(bucket);
 
             consumeBucketsAndMaybeBreak(1);

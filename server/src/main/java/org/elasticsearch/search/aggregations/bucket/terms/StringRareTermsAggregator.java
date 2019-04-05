@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -47,19 +45,14 @@ import static java.util.Collections.emptyList;
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
  */
-public class StringRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Bytes, IncludeExclude.StringFilter> {
-    protected ObjectLongHashMap<BytesRef> map;
+public class StringRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Bytes, IncludeExclude.StringFilter, BytesRef> {
     protected BytesRefHash bucketOrds;
-
-    // Size of values in active map, used for CB accounting
-    private static final long MAP_VALUE_SIZE = Long.BYTES;
 
     StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,
                                      DocValueFormat format,  IncludeExclude.StringFilter stringFilter,
                                      SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                                      Map<String, Object> metaData, long maxDocCount, double precision) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData, maxDocCount, precision, format, valuesSource, stringFilter);
-        this.map = new ObjectLongHashMap<>();
         this.bucketOrds = new BytesRefHash(1, context.bigArrays());
     }
 
@@ -91,53 +84,32 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
                             continue;
                         }
 
-                        if (filter.mightContain(bytes) == false) {
-                            long valueCount = map.get(bytes);
-                            if (valueCount == 0) {
-                                // Brand new term, save into map
-                                map.put(BytesRef.deepCopyOf(bytes), 1L);
-                                addRequestCircuitBreakerBytes(bytes.length + MAP_VALUE_SIZE); // size of term + 8 for counter
-
-                                long bucketOrdinal = bucketOrds.add(bytes);
-                                if (bucketOrdinal < 0) { // already seen
-                                    throw new IllegalStateException("Term count is zero, but an ordinal for this " +
-                                        "term has already been recorded");
-                                } else {
-                                    collectBucket(subCollectors, docId, bucketOrdinal);
-                                }
-                            } else {
-                                // We've seen this term before, but less than the threshold
-                                // so just increment its counter
-                                if (valueCount < maxDocCount) {
-                                    map.put(bytes, valueCount + 1);
-                                    long bucketOrdinal = bucketOrds.add(bytes);
-                                    if (bucketOrdinal < 0) {
-                                        bucketOrdinal = - 1 - bucketOrdinal;
-                                        collectExistingBucket(subCollectors, docId, bucketOrdinal);
-                                    } else {
-                                        throw new IllegalStateException("Term has seen before, but we have not recorded " +
-                                            "an ordinal yet.");
-                                    }
-                                } else {
-                                    // Otherwise we've breached the threshold, remove from
-                                    // the map and add to the cuckoo filter
-                                    map.remove(bytes);
-                                    filter.add(bytes);
-                                    numDeleted += 1;
-                                    addRequestCircuitBreakerBytes(-(bytes.length + MAP_VALUE_SIZE)); // size of term + 8 for counter
-
-                                    if (numDeleted > GC_THRESHOLD) {
-                                        gcDeletedEntries(numDeleted);
-                                        numDeleted = 0;
-                                    }
-                                }
-                            }
-                        }
+                        doCollect(bytes, docId);
                         previous.copyBytes(bytes);
                     }
                 }
             }
         };
+    }
+
+    @Override
+    boolean filterMightContain(BytesRef value) {
+        return filter.mightContain(value);
+    }
+
+    @Override
+    long findOrdinal(BytesRef value) {
+        return bucketOrds.find(value);
+    }
+
+    @Override
+    long addValueToOrds(BytesRef value) {
+        return bucketOrds.add(value);
+    }
+
+    @Override
+    void addValueToFilter(BytesRef value) {
+        filter.add(value);
     }
 
     protected void gcDeletedEntries(long numDeleted) {
@@ -150,9 +122,9 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
             for (int i = 0; i < oldBucketOrds.size(); i++) {
                 BytesRef oldKey = oldBucketOrds.get(i, scratch);
                 long newBucketOrd = -1;
-
-                // if the key still exists in our map, reinsert into the new ords
-                if (map.containsKey(oldKey)) {
+                long docCount = bucketDocCount(i);
+                // if the key is below threshold, reinsert into the new ords
+                if (docCount <= maxDocCount) {
                     newBucketOrd = newBucketOrds.add(oldKey);
                 } else {
                     // Make a note when one of the ords has been deleted
@@ -181,17 +153,16 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        List<StringRareTerms.Bucket> buckets = new ArrayList<>(map.size());
+        List<StringRareTerms.Bucket> buckets = new ArrayList<>();
 
-        for (ObjectLongCursor<BytesRef> cursor : map) {
-            StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(new BytesRef(), 0, null, format);
-
-            // The collection managed pruning unwanted terms, so any
+        for (long i = 0; i < bucketOrds.size(); i++) {
+            // The agg managed pruning unwanted terms at runtime, so any
             // terms that made it this far are "rare" and we want buckets
-            long bucketOrdinal = bucketOrds.find(cursor.key);
-            bucket.termBytes = BytesRef.deepCopyOf(cursor.key);
-            bucket.docCount = cursor.value;
-            bucket.bucketOrd = bucketOrdinal;
+            StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(new BytesRef(), 0, null, format);
+            bucketOrds.get(i, bucket.termBytes );
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+            bucket.docCount = bucketDocCount(i);
+            bucket.bucketOrd = i;
             buckets.add(bucket);
 
             consumeBucketsAndMaybeBreak(1);

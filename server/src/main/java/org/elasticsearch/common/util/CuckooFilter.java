@@ -48,6 +48,13 @@ import java.util.Random;
  * fingerprints (e.g. when inserting, if the fingerprint is already present in the
  * candidate buckets, it is not inserted).  By not saving duplicates, the CuckooFilter
  * loses the ability to delete values.
+ *
+ * Based on the paper:
+ *
+ * Fan, Bin, et al. "Cuckoo filter: Practically better than bloom."
+ * Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
+ *
+ * https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf
  */
 public class CuckooFilter implements Writeable {
 

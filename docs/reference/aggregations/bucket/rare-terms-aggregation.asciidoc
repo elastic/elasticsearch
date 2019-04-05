@@ -189,7 +189,8 @@ Instead, the Rare Terms aggregation uses a different approximate algorithm:
 
 1. Values are placed in a map the first time they are seen.
 2. Each addition occurrence of the term increments a counter in the map
-3. If the counter > the `max_doc_count` threshold, the term is removed from the map and placed in a CuckooFilter
+3. If the counter > the `max_doc_count` threshold, the term is removed from the map and placed in a
+https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf[CuckooFilter]
 4. The CuckooFilter is consulted on each term.  If the value is inside the filter, it is known to be above the
 threshold already and skipped.
 
@@ -198,9 +199,14 @@ are then merged with all other shards.  If there are terms that are greater than
 a different shard's CuckooFilter) the term is removed from the merged list.  The final map of values is returned
 to the user as the "rare" terms.
 
-CuckooFilter have the possibility of returning false positives (they can say a value exists in their collection when
+CuckooFilters have the possibility of returning false positives (they can say a value exists in their collection when
 it does not actually).  Since the CuckooFilter is being used to see if a term is over threshold, this means a false positive
 from the CuckooFilter will mistakenly say a value is common when it is not (and thus exclude it from it final list of buckets).
+
+CuckooFilters are described in more detail in the paper:
+
+https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf[Fan, Bin, et al. "Cuckoo filter: Practically better than bloom."]
+Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
 
 ==== Precision
 
@@ -289,3 +295,13 @@ GET /_search
 // CONSOLE
 
 <1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
+
+==== Nested, RareTerms, and scoring sub-aggregations
+
+The RareTerms aggregation has to operate in `breadth_first` mode, since it needs to prune terms as doc count thresholds
+are breached.  This requirement means the RareTerms aggregation is incompatible with certain combinations of aggregations
+that require `depth_first`. In particular, scoring sub-aggregations that are inside a `nested` force the entire aggregation tree to run
+in `depth_first` mode.  This will throw an exception since RareTerms is unable to process `depth_first`.
+
+As a concrete example, if `rare_terms` aggregation is the child of a `nested` aggregation, and one of the child aggregations of `rare_terms`
+needs document scores (like a `top_hits` aggregation), this will throw an exception.

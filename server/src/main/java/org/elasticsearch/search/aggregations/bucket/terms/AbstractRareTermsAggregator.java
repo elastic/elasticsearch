@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -37,15 +36,16 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
-public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter>
+public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U extends IncludeExclude.Filter, V>
     extends DeferableBucketAggregator {
 
     /**
      Sets the number of "removed" values to accumulate before we purge ords
      via the MergingBucketCollector's mergeBuckets() method
      */
-    static final long GC_THRESHOLD = 1000000;
+    private static final long GC_THRESHOLD = 1000000;
     static final BucketOrder ORDER = BucketOrder.compound(BucketOrder.count(true), BucketOrder.key(true)); // sort by count ascending
 
     protected final long maxDocCount;
@@ -55,7 +55,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
     protected final U includeExclude;
 
     // Counter used during collection to track map entries that need GC'ing
-    long numDeleted = 0;
+    private long numDeleted = 0;
 
     MergingBucketsDeferringCollector deferringCollector;
     LeafBucketCollector subCollectors;
@@ -67,7 +67,8 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
                                 DocValueFormat format, T valuesSource, U includeExclude) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
 
-        this.filter = new SetBackedScalingCuckooFilter(10000, Randomness.get(), precision);
+        // We seed the rng with the ShardID so results are deterministic and don't change randomly
+        this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.indexShard().shardId().hashCode()), precision);
         this.filter.registerBreaker(this::addRequestCircuitBreakerBytes);
 
         this.maxDocCount = maxDocCount;
@@ -129,6 +130,43 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
         return null;
     }
 
+    protected void doCollect(V val, int docId) throws IOException {
+        if (filterMightContain(val) == false) {
+            long bucketOrdinal = findOrdinal(val);
+
+            if (bucketOrdinal == -1) {
+                // Brand new term, save into map
+                long ord = addValueToOrds(val);
+                assert ord >= 0;
+                collectBucket(subCollectors, docId, ord);
+
+            } else {
+                // we've seen this value before, see if it is below threshold
+                long termCount = bucketDocCount(bucketOrdinal);
+                if (termCount < maxDocCount) {
+                    // TODO if we only need maxDocCount==1, we could specialize
+                    // and use a bitset instead of a counter scheme
+
+                    collectExistingBucket(subCollectors, docId, bucketOrdinal);
+
+                } else {
+                    // Otherwise we've breached the threshold, add to the cuckoo filter
+                    addValueToFilter(val);
+                    numDeleted += 1;
+
+                    // This is a bit hacky, but we need to collect the value once more to
+                    // make sure the doc_count is over threshold (used later when gc'ing)
+                    collectExistingBucket(subCollectors, docId, bucketOrdinal);
+
+                    if (numDeleted > GC_THRESHOLD) {
+                        gcDeletedEntries(numDeleted);
+                        numDeleted = 0;
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Remove entries from the ordinal map which are no longer tracked in the active key's map.
      * Will internally call the merge function of {@link MergingBucketsDeferringCollector}, so this
@@ -138,4 +176,25 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource, U exte
      *                   Used to help verify correct functioning of GC
      */
     abstract void gcDeletedEntries(long numDeleted);
+
+    /**
+     * Returns true if the aggregator's approximate filter contains the value, false otherwise
+     */
+    abstract boolean filterMightContain(V value);
+
+    /**
+     * Returns the bucket ordinal associated with the value, -1 if the value was not found
+     */
+    abstract long findOrdinal(V value);
+
+    /**
+     * Add's the value to the ordinal map.  Return the newly allocated id if it wasn't in the ordinal map yet,
+     * or <code>-1-id</code> if it was already present
+     */
+    abstract long addValueToOrds(V value);
+
+    /**
+     * Adds the value to the aggregator's approximate filter.
+     */
+    abstract void addValueToFilter(V value);
 }

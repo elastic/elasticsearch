@@ -24,7 +24,7 @@ mainClassName = 'org.openjdk.jmh.Main'
 assemble.enabled = false
 archivesBaseName = 'elasticsearch-benchmarks'
 
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
     compile("org.elasticsearch:elasticsearch:${version}") {

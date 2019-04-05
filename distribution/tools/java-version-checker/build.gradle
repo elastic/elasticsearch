@@ -7,7 +7,7 @@ forbiddenApisMain {
     replaceSignatureFiles 'jdk-signatures'
 }
 
-test.enabled = false
+unitTest.enabled = false
 javadoc.enabled = false
 loggerUsageCheck.enabled = false
 jarHell.enabled = false

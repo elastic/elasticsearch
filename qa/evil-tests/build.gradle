@@ -31,7 +31,7 @@ dependencies {
 
 // TODO: give each evil test its own fresh JVM for more isolation.
 
-test {
+unitTest {
   systemProperty 'tests.security.manager', 'false'
 }
 

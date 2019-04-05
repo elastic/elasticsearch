@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.standalone-test'
 
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

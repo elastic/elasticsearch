@@ -1,4 +1,4 @@
-package org.elasticsearch.gradle
+package com.carrotsearch.gradle.junit4
 
 import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger

@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -64,14 +65,14 @@ bundlePlugin {
   }
 }
 
-task testRepositoryCreds(type: Test) {
+task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/RepositoryCredentialsTests.class'
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
 check.dependsOn(testRepositoryCreds)
 
-test {
+unitTest {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'

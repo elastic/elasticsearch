@@ -45,8 +45,8 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'none'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
     }
 
     // ============================================================================================
@@ -76,11 +76,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'none'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(0).transportUri()}"
     }
 
     // ============================================================================================
@@ -119,11 +119,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'one_third'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(1).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(1).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(1).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(1).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
 
         finalizedBy "${taskPrefix}#follower#clusterTestCluster#node1.stop"
     }
@@ -140,11 +140,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'two_third'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(2).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(2).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerClusterTest.nodes.get(2).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerClusterTest.nodes.get(2).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
 
         finalizedBy "${taskPrefix}#follower#clusterTestCluster#node2.stop"
     }
@@ -161,11 +161,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'all'
         systemProperty 'tests.rest.cluster_name', 'follower'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerOneThirdUpgradedTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerOneThirdUpgradedTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerOneThirdUpgradedTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerOneThirdUpgradedTest.nodes.get(0).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
 
         // This is needed, otherwise leader node 0 will stop after the leaderClusterTestRunner task has run.
         // Here it is ok to stop, because in the next task, the leader node 0 gets upgraded.
@@ -188,11 +188,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'one_third'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(2).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(2).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(2).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(2).transportUri()}"
 
         finalizedBy "${taskPrefix}#leader#clusterTestCluster#node1.stop"
     }
@@ -209,11 +209,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'two_third'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderOneThirdUpgradedTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderOneThirdUpgradedTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderOneThirdUpgradedTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderOneThirdUpgradedTest.nodes.get(0).transportUri()}"
 
         finalizedBy "${taskPrefix}#leader#clusterTestCluster#node2.stop"
     }
@@ -230,11 +230,11 @@ for (Version version : bwcVersions.wireCompatible) {
         systemProperty 'tests.rest.upgrade_state', 'all'
         systemProperty 'tests.rest.cluster_name', 'leader'
 
-        nonInputProperties.systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.follower_host', "${-> followerUpgradedClusterTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.follower_remote_cluster_seed', "${-> followerUpgradedClusterTest.nodes.get(0).transportUri()}"
 
-        nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderTwoThirdsUpgradedTest.nodes.get(0).httpUri()}"
-        nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderTwoThirdsUpgradedTest.nodes.get(0).transportUri()}"
+        systemProperty 'tests.leader_host', "${-> leaderTwoThirdsUpgradedTest.nodes.get(0).httpUri()}"
+        systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderTwoThirdsUpgradedTest.nodes.get(0).transportUri()}"
 
         /*
          * Force stopping all the upgraded nodes after the test runner
@@ -255,7 +255,7 @@ for (Version version : bwcVersions.wireCompatible) {
     }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {

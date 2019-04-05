@@ -25,16 +25,22 @@ allprojects {
             baseClasses = []
         }
     }
+
+    unitTest.enabled = false
 }
 
 project(':empty_test_task') {
     task emptyTest(type: Test) {
 
     }
+
+    task emptyTestRandomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
+
+    }
 }
 
 project(':all_classes_in_tasks') {
-   test {
+    task emptyTestRandomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
         include "**/Convention*"
     }
 }
@@ -48,14 +54,14 @@ project(':not_implementing_base') {
             baseClass 'org.elasticsearch.gradle.testkit.Integration'
         }
     }
-    test {
+    task randomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
         include "**/*IT.class"
         include "**/*Tests.class"
     }
 }
 
 project(':valid_setup_no_base') {
-    test {
+    task randomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
         include "**/*IT.class"
         include "**/*Tests.class"
     }
@@ -66,7 +72,7 @@ project(':tests_in_main') {
 }
 
 project (':valid_setup_with_base') {
-    test {
+    task randomized(type: com.carrotsearch.gradle.junit4.RandomizedTestingTask) {
         include "**/*IT.class"
         include "**/*Tests.class"
     }

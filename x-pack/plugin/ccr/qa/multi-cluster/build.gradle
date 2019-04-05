@@ -36,7 +36,7 @@ middleClusterTestCluster {
 
 middleClusterTestRunner {
     systemProperty 'tests.target_cluster', 'middle'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
 }
 
 task followClusterTest(type: RestIntegTestTask) {}
@@ -54,11 +54,11 @@ followClusterTestCluster {
 
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    nonInputProperties.systemProperty 'tests.middle_host', "${-> middleClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.middle_host', "${-> middleClusterTest.nodes.get(0).httpUri()}"
     finalizedBy 'leaderClusterTestCluster#stop'
     finalizedBy 'middleClusterTestCluster#stop'
 }
 
 check.dependsOn followClusterTest
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

@@ -384,7 +384,11 @@ class ClusterFormationTasks {
         ]
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
-        esConfig['transport.tcp.port'] =  node.config.transportPort
+        if (node.nodeVersion.onOrAfter('6.7.0')) {
+            esConfig['transport.port'] =  node.config.transportPort
+        } else {
+            esConfig['transport.tcp.port'] =  node.config.transportPort
+        }
         // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
@@ -693,10 +697,10 @@ class ClusterFormationTasks {
                 node.args.each { arg(value: it) }
                 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                     // Having no TMP on Windows defaults to C:\Windows and permission errors
-                    // Since we configure ant to run with a new  environment above, we need to set this to a dir we have access to
-                    File tmpDir = new File(node.baseDir, "tmp")
-                    tmpDir.mkdirs()
-                    env(key: "TMP", value: tmpDir.absolutePath)
+                    // Since we configure ant to run with a new  environment above, we need to explicitly pass this
+                    String tmp = System.getenv("TMP")
+                    assert tmp != null
+                    env(key: "TMP", value: tmp)
                 }
             }
         }

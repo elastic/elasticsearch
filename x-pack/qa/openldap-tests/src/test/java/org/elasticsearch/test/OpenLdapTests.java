@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class OpenLdapTests extends ESTestCase {
 
-    public static final String OPEN_LDAP_DNS_URL = "ldaps://localhost:60636";
-    public static final String OPEN_LDAP_IP_URL = "ldaps://127.0.0.1:60636";
+    public static final String OPEN_LDAP_DNS_URL = "ldaps://localhost:" + getFromProperty("636");
+    public static final String OPEN_LDAP_IP_URL = "ldaps://127.0.0.1:" + getFromProperty("636");
 
     public static final String PASSWORD = "NickFuryHeartsES";
     private static final String HAWKEYE_DN = "uid=hawkeye,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -285,5 +285,12 @@ public class OpenLdapTests extends ESTestCase {
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         resolver.resolve(connection, HAWKEYE_DN, TimeValue.timeValueSeconds(1), logger, null, future);
         return future.get();
+    }
+
+    private static String getFromProperty(String port) {
+        String key = "test.fixtures.openldap.tcp." + port;
+        final String value = System.getProperty(key);
+        assertNotNull("Expected the actual value for port " + port + " to be in system property " + key, value);
+        return value;
     }
 }

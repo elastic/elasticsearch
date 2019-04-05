@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testclusters.ElasticsearchNode
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
@@ -62,13 +62,13 @@ public class RestIntegTestTask extends DefaultTask {
             clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
         } else {
             project.testClusters {
-                integTestCluster {
+                "$name" {
                     distribution = 'INTEG_TEST'
                     version = project.version
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }
-            runner.useCluster project.testClusters.integTestCluster
+            runner.useCluster project.testClusters."$name"
         }
 
         // override/add more for rest tests
@@ -81,10 +81,10 @@ public class RestIntegTestTask extends DefaultTask {
                 throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
             }
             if (usesTestclusters == true) {
-                ElasticsearchNode node = project.testClusters.integTestCluster
-                runner.systemProperty('tests.rest.cluster', {node.allHttpSocketURI.join(",") })
-                runner.systemProperty('tests.config.dir', {node.getConfigDir()})
-                runner.systemProperty('tests.cluster', {node.transportPortURI})
+                ElasticsearchCluster cluster = project.testClusters."${name}"
+                runner.systemProperty('tests.rest.cluster', {cluster.allHttpSocketURI.join(",") })
+                runner.systemProperty('tests.config.dir', {cluster.singleNode().getConfigDir()})
+                runner.systemProperty('tests.cluster', {cluster.transportPortURI})
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node
@@ -185,6 +185,10 @@ public class RestIntegTestTask extends DefaultTask {
     @Override
     public Task mustRunAfter(Object... tasks) {
         clusterInit.mustRunAfter(tasks)
+    }
+
+    public void runner(Closure configure) {
+        project.tasks.getByName("${name}Runner").configure(configure)
     }
 
     /** Print out an excerpt of the log from the given node. */

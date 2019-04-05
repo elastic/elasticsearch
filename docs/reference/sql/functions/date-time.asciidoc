@@ -146,7 +146,7 @@ include-tagged::{sql-specs}/docs.csv-spec[filterToday]
 [source, sql]
 --------------------------------------------------
 CURRENT_TIMESTAMP
-CURRENT_TIMESTAMP(precision <1>)
+CURRENT_TIMESTAMP([precision <1>])
 --------------------------------------------------
 
 *Input*:
@@ -188,7 +188,7 @@ include-tagged::{sql-specs}/docs.csv-spec[filterNow]
 --------------------------------------------------
 
 [IMPORTANT]
-Currently, Using a _precision_ greater than 3 doesn't make any difference to the output of the
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
 [[sql-functions-datetime-day]]

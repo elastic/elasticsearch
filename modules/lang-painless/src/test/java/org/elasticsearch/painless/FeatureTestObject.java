@@ -23,7 +23,7 @@ import java.util.function.Function;
  */
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
-public class FeatureTest {
+public class FeatureTestObject {
     /** static method that returns true */
     public static boolean overloadedStatic() {
         return true;
@@ -51,11 +51,11 @@ public class FeatureTest {
     private Integer i;
 
     /** empty ctor */
-    public FeatureTest() {
+    public FeatureTestObject() {
     }
 
     /** ctor with params */
-    public FeatureTest(int x, int y) {
+    public FeatureTestObject(int x, int y) {
         this.x = x;
         this.y = y;
     }

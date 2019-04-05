@@ -157,7 +157,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             protected void doRun() {
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)) == false) {
+                        ActionListener.wrap(v -> executor.execute(this), this::onFailure)) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
                         return;
@@ -166,6 +166,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
                 // We're done, there's no more operations to execute so we resolve the wrapped listener
                 finishRequest();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : "All exceptions should be handled by #executeBulkItemRequest";
+                onRejection(e);
             }
 
             @Override
@@ -199,106 +205,102 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     static boolean executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
                                        MappingUpdatePerformer mappingUpdater, Consumer<ActionListener<Void>> waitForMappingUpdate,
                                        ActionListener<Void> itemDoneListener) {
-        try {
-            final DocWriteRequest.OpType opType = context.getCurrent().opType();
+        final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
-            final UpdateHelper.Result updateResult;
-            if (opType == DocWriteRequest.OpType.UPDATE) {
-                final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-                try {
-                    updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
-                } catch (Exception failure) {
-                    // we may fail translating a update to index or delete operation
-                    // we use index result to communicate failure while translating update request
-                    final Engine.Result result =
-                        new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
-                    context.setRequestToExecute(updateRequest);
-                    context.markOperationAsExecuted(result);
+        final UpdateHelper.Result updateResult;
+        if (opType == DocWriteRequest.OpType.UPDATE) {
+            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
+            try {
+                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+            } catch (Exception failure) {
+                // we may fail translating a update to index or delete operation
+                // we use index result to communicate failure while translating update request
+                final Engine.Result result =
+                    new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                context.setRequestToExecute(updateRequest);
+                context.markOperationAsExecuted(result);
+                context.markAsCompleted(context.getExecutionResult());
+                return true;
+            }
+            // execute translated update request
+            switch (updateResult.getResponseResult()) {
+                case CREATED:
+                case UPDATED:
+                    IndexRequest indexRequest = updateResult.action();
+                    IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
+                    MappingMetaData mappingMd = metaData.mappingOrDefault();
+                    indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
+                    context.setRequestToExecute(indexRequest);
+                    break;
+                case DELETED:
+                    context.setRequestToExecute(updateResult.action());
+                    break;
+                case NOOP:
+                    context.markOperationAsNoOp(updateResult.action());
                     context.markAsCompleted(context.getExecutionResult());
                     return true;
-                }
-                // execute translated update request
-                switch (updateResult.getResponseResult()) {
-                    case CREATED:
-                    case UPDATED:
-                        IndexRequest indexRequest = updateResult.action();
-                        IndexMetaData metaData = context.getPrimary().indexSettings().getIndexMetaData();
-                        MappingMetaData mappingMd = metaData.mappingOrDefault();
-                        indexRequest.process(metaData.getCreationVersion(), mappingMd, updateRequest.concreteIndex());
-                        context.setRequestToExecute(indexRequest);
-                        break;
-                    case DELETED:
-                        context.setRequestToExecute(updateResult.action());
-                        break;
-                    case NOOP:
-                        context.markOperationAsNoOp(updateResult.action());
-                        context.markAsCompleted(context.getExecutionResult());
-                        return true;
-                    default:
-                        throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
-                }
-            } else {
-                context.setRequestToExecute(context.getCurrent());
-                updateResult = null;
+                default:
+                    throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
             }
+        } else {
+            context.setRequestToExecute(context.getCurrent());
+            updateResult = null;
+        }
 
-            assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
+        assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
 
-            final IndexShard primary = context.getPrimary();
-            final long version = context.getRequestToExecute().version();
-            final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
-            try {
-                final Engine.Result result;
-                if (isDelete) {
-                    final DeleteRequest request = context.getRequestToExecute();
-                    result = primary.applyDeleteOperationOnPrimary(version, request.type(), request.id(), request.versionType(),
-                        request.ifSeqNo(), request.ifPrimaryTerm());
-                } else {
-                    final IndexRequest request = context.getRequestToExecute();
-                    result = primary.applyIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
-                            request.index(), request.type(), request.id(), request.source(), request.getContentType(), request.routing()),
-                        request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
-                }
-                if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                    mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(),
-                        context.getRequestToExecute().type(),
-                        new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void v) {
-                                context.markAsRequiringMappingUpdate();
-                                waitForMappingUpdate.accept(
-                                    ActionListener.runAfter(new ActionListener<Void>() {
-                                        @Override
-                                        public void onResponse(Void v) {
-                                            assert context.requiresWaitingForMappingUpdate();
-                                            context.resetForExecutionForRetry();
-                                        }
+        final IndexShard primary = context.getPrimary();
+        final long version = context.getRequestToExecute().version();
+        final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
+        try {
+            final Engine.Result result;
+            if (isDelete) {
+                final DeleteRequest request = context.getRequestToExecute();
+                result = primary.applyDeleteOperationOnPrimary(version, request.type(), request.id(), request.versionType(),
+                    request.ifSeqNo(), request.ifPrimaryTerm());
+            } else {
+                final IndexRequest request = context.getRequestToExecute();
+                result = primary.applyIndexOperationOnPrimary(version, request.versionType(), new SourceToParse(
+                        request.index(), request.type(), request.id(), request.source(), request.getContentType(), request.routing()),
+                    request.ifSeqNo(), request.ifPrimaryTerm(), request.getAutoGeneratedTimestamp(), request.isRetry());
+            }
+            if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                mappingUpdater.updateMappings(result.getRequiredMappingUpdate(), primary.shardId(),
+                    context.getRequestToExecute().type(),
+                    new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void v) {
+                            context.markAsRequiringMappingUpdate();
+                            waitForMappingUpdate.accept(
+                                ActionListener.runAfter(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void v) {
+                                        assert context.requiresWaitingForMappingUpdate();
+                                        context.resetForExecutionForRetry();
+                                    }
 
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            context.failOnMappingUpdate(e);
-                                        }
-                                    }, () -> itemDoneListener.onResponse(null))
-                                );
-                            }
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        context.failOnMappingUpdate(e);
+                                    }
+                                }, () -> itemDoneListener.onResponse(null))
+                            );
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
-                                // Requesting mapping update failed, so we don't have to wait for a cluster state update
-                                assert context.isInitial();
-                                itemDoneListener.onResponse(null);
-                            }
-                        });
-                    return false;
-                } else {
-                    onComplete(result, context, updateResult);
-                }
-            } catch (Exception e) {
-                onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                        @Override
+                        public void onFailure(Exception e) {
+                            onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
+                            // Requesting mapping update failed, so we don't have to wait for a cluster state update
+                            assert context.isInitial();
+                            itemDoneListener.onResponse(null);
+                        }
+                    });
+                return false;
+            } else {
+                onComplete(result, context, updateResult);
             }
         } catch (Exception e) {
-            itemDoneListener.onFailure(e);
+            onComplete(exceptionToResult(e, primary, isDelete, version), context, updateResult);
         }
         return true;
     }

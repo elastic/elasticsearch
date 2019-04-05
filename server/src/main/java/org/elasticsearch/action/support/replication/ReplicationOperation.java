@@ -102,17 +102,16 @@ public class ReplicationOperation<
 
         totalShards.incrementAndGet();
         pendingActions.incrementAndGet(); // increase by 1 until we finish all primary coordination
-        primary.perform(request, ActionListener.wrap(
-            primaryResult -> handlePrimaryResult(primaryRouting, primaryId, primaryResult), resultListener::onFailure));
+        primary.perform(request, ActionListener.wrap(this::handlePrimaryResult, resultListener::onFailure));
     }
 
-    private void handlePrimaryResult(final ShardRouting primaryRouting, final ShardId primaryId, final PrimaryResultT primaryResult) {
+    private void handlePrimaryResult(final PrimaryResultT primaryResult) {
         this.primaryResult = primaryResult;
-        primary.updateLocalCheckpointForShard(primaryRouting.allocationId().getId(), primary.localCheckpoint());
+        primary.updateLocalCheckpointForShard(primary.routingEntry().allocationId().getId(), primary.localCheckpoint());
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         if (replicaRequest != null) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
+                logger.trace("[{}] op [{}] completed on primary for request [{}]", primary.routingEntry().shardId(), opType, request);
             }
             // we have to get the replication group after successfully indexing into the primary in order to honour recovery semantics.
             // we have to make sure that every operation indexed into the primary after recovery start will also be replicated

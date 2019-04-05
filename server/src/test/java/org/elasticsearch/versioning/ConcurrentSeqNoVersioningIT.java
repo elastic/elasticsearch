@@ -570,11 +570,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Any CAS Failure that fails only due to its own write brings us here.
-     *
-     * Additionally following CAS failures on top of this state stays in this state, see #casFail method.
-     *
      * In this state we have a bounded uncertainty between the last known successful write and max(outputVersion) of CAS failures since.
+     *
+     * We go here after any CAS failure that we cannot rule out are incorrect, including CAS write on own failure (and subsequent failures
+     * on top of that) and legitimate CAS failures.
      */
     private static class BoundedUncertaintyState implements State {
         private final Version lowerBound;

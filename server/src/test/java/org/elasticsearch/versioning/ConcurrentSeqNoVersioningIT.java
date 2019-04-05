@@ -63,6 +63,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 
 /**
@@ -972,5 +973,90 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         ));
     }
 
+    public void testComplexSequentialSpec() {
+        // Generate 4 increasing versions
+        Version version1 = new Version(randomIntBetween(1,5), randomIntBetween(0,100));
+        Version version2 = futureVersion(version1);
+        Version version3 = futureVersion(version2);
+        Version version4 = futureVersion(version3);
+
+        LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(version1);
+        assertSuccessState(Optional.of(spec.initialState()), version1);
+
+        assertSuccessState(new SuccessState(version1).casSuccess(version1, version2), version2);
+        assertNotPresent(new SuccessState(version1).casSuccess(version2, version3));
+        assertNotPresent(new SuccessState(version2).casSuccess(version1, version3));
+
+        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version3), version1, version3);
+        assertBoundedUncertaintyState(new SuccessState(version2).casFail(version1, version3), version2, version3);
+        assertSuccessState(new SuccessState(version2).casFail(version1, version2), version2);
+
+        // own write CAS failure
+        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version2), version1, version2);
+        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version3), version1, version3);
+
+        // stale primary CAS failure
+        assertSuccessState(new SuccessState(version2.nextTerm()).casFail(version2.nextTerm(), version2), version2.nextTerm());
+
+        // todo: assertNotPresent(new SuccessState(version2.nextSeqNo(1)).casFail(version2, version2));
+
+        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version4), version4);
+        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version2), version2);
+        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version2, version4), version4);
+        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version3, version4), version4);
+
+        // cannot succeed on input version lower than lower bound.
+        assertNotPresent(new BoundedUncertaintyState(version2, version3).casSuccess(version1, version4));
+        // cannot succeed on input version higher than upper bound.
+        assertNotPresent(new BoundedUncertaintyState(version1, version2).casSuccess(version3, version4));
+
+        // expand upper bound only.
+        assertBoundedUncertaintyState(new BoundedUncertaintyState(version1, version2).casFail(version1, version3), version1, version3);
+        assertBoundedUncertaintyState(new BoundedUncertaintyState(version2, version3).casFail(version2, version1), version2, version3);
+        assertBoundedUncertaintyState(new BoundedUncertaintyState(version3, version4).casFail(version2, version1), version3, version4);
+
+        assertFailState(new SuccessState(version1).fail(), version1);
+        assertFailState(new BoundedUncertaintyState(version1, version2).fail(), version1);
+        assertFailState(new FailState(version1).fail(), version1);
+
+        assertSuccessState(new FailState(version1).casSuccess(version1, version2), version2);
+        assertSuccessState(new FailState(version1).casSuccess(version2, version3), version3);
+        assertNotPresent(new FailState(version2).casSuccess(version1, version3));
+        assertNotPresent(new FailState(version2).casSuccess(version2, version1));
+
+        assertFailState(new FailState(version1).casFail(version1, version2), version1);
+        assertFailState(new FailState(version1).casFail(version2, version3), version1);
+    }
+
+    private Version futureVersion(Version version) {
+        Version futureVersion = version.nextSeqNo(randomIntBetween(1,10));
+        if (randomBoolean())
+            futureVersion = futureVersion.nextTerm();
+        return futureVersion;
+    }
+
+    private void assertSuccessState(Optional<?> state, Version expectedKnownVersion) {
+        assertTrue(state.isPresent());
+        assertThat(state.get(), instanceOf(SuccessState.class));
+        assertEquals(((SuccessState) state.get()).knownVersion, expectedKnownVersion);
+    }
+
+    private void assertBoundedUncertaintyState(Optional<?> state, Version expectedLowerBound, Version expectedUpperBound) {
+        assertTrue(state.isPresent());
+        assertThat(state.get(), instanceOf(BoundedUncertaintyState.class));
+        BoundedUncertaintyState boundedUncertaintyState = (BoundedUncertaintyState) state.get();
+        assertEquals(boundedUncertaintyState.lowerBound, expectedLowerBound);
+        assertEquals(boundedUncertaintyState.upperBound, expectedUpperBound);
+    }
+
+    private void assertFailState(Optional<?> state, Version expectedLastSuccessVersion) {
+        assertTrue(state.isPresent());
+        assertThat(state.get(), instanceOf(FailState.class));
+        assertEquals(((FailState) state.get()).lastSuccessVersion, expectedLastSuccessVersion);
+    }
+
+    private void assertNotPresent(Optional<?> state) {
+        state.ifPresent(o -> fail("Expected no state, got: " + o));
+    }
 }
 

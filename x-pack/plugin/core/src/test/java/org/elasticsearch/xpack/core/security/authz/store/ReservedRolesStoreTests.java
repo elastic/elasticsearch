@@ -452,6 +452,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
 
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(false));
     }
 
     public void testRemoteMonitoringAgentRole() {
@@ -957,6 +969,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
     }
 
     public void testMachineLearningUserRole() {
@@ -1028,6 +1052,19 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
     }
 
     public void testDataFrameTransformsAdminRole() {

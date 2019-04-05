@@ -69,7 +69,12 @@ public class JobNodeSelector {
         this.taskName = Objects.requireNonNull(taskName);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
-        this.nodeFilter = nodeFilter;
+        this.nodeFilter = node -> {
+            if (MachineLearning.isMlNode(node)) {
+                return (nodeFilter != null) ? nodeFilter.apply(node) : null;
+            }
+            return "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node) + "], because this node isn't a ml node.";
+        };
     }
 
     public PersistentTasksCustomMetaData.Assignment selectNode(int dynamicMaxOpenJobs, int maxConcurrentJobAllocations,
@@ -92,23 +97,16 @@ public class JobNodeSelector {
         DiscoveryNode minLoadedNodeByMemory = null;
         PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
-            if (MachineLearning.isMlNode(node) == false) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameOrId(node)
-                        + "], because this node isn't a ml node.";
+
+            // First check conditions that would rule out the node regardless of what other tasks are assigned to it
+            String reason = nodeFilter.apply(node);
+            if (reason != null) {
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
             }
 
-            if (nodeFilter != null) {
-                String reason = nodeFilter.apply(node);
-                if (reason != null) {
-                    logger.trace(reason);
-                    reasons.add(reason);
-                    continue;
-                }
-            }
-
+            // Assuming the node is elligible at all, check loading
             Tuple<long[], Boolean> currentLoad = calculateCurrentLoadForNode(node, persistentTasks, allocateByMemory);
             long numberOfAssignedJobs = currentLoad.v1()[0];
             long numberOfAllocatingJobs = currentLoad.v1()[1];
@@ -116,9 +114,8 @@ public class JobNodeSelector {
             allocateByMemory = currentLoad.v2();
 
             if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
-                        + "], because node exceeds [" + numberOfAllocatingJobs +
-                        "] the maximum number of jobs [" + maxConcurrentJobAllocations + "] in opening state";
+                reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because node exceeds ["
+                    + numberOfAllocatingJobs + "] the maximum number of jobs [" + maxConcurrentJobAllocations + "] in opening state";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -132,7 +129,7 @@ public class JobNodeSelector {
                 try {
                     maxNumberOfOpenJobs = Integer.parseInt(maxNumberOfOpenJobsStr);
                 } catch (NumberFormatException e) {
-                    String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
+                    reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
                         MachineLearning.MAX_OPEN_JOBS_NODE_ATTR + " attribute [" + maxNumberOfOpenJobsStr + "] is not an integer";
                     logger.trace(reason);
                     reasons.add(reason);
@@ -141,9 +138,9 @@ public class JobNodeSelector {
             }
             long availableCount = maxNumberOfOpenJobs - numberOfAssignedJobs;
             if (availableCount == 0) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
-                        + "], because this node is full. Number of opened jobs [" + numberOfAssignedJobs
-                        + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
+                reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
+                    + "], because this node is full. Number of opened jobs [" + numberOfAssignedJobs
+                    + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -159,7 +156,7 @@ public class JobNodeSelector {
             try {
                 machineMemory = Long.parseLong(machineMemoryStr);
             } catch (NumberFormatException e) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
+                reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because " +
                     MachineLearning.MACHINE_MEMORY_NODE_ATTR + " attribute [" + machineMemoryStr + "] is not a long";
                 logger.trace(reason);
                 reasons.add(reason);
@@ -173,10 +170,10 @@ public class JobNodeSelector {
                     if (estimatedMemoryFootprint != null) {
                         long availableMemory = maxMlMemory - assignedJobMemory;
                         if (estimatedMemoryFootprint > availableMemory) {
-                            String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) +
-                                "], because this node has insufficient available memory. Available memory for ML [" + maxMlMemory +
-                                "], memory required by existing jobs [" + assignedJobMemory +
-                                "], estimated memory required for this job [" + estimatedMemoryFootprint + "]";
+                            reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
+                                + "], because this node has insufficient available memory. Available memory for ML [" + maxMlMemory
+                                + "], memory required by existing jobs [" + assignedJobMemory
+                                + "], estimated memory required for this job [" + estimatedMemoryFootprint + "]";
                             logger.trace(reason);
                             reasons.add(reason);
                             continue;
@@ -202,7 +199,10 @@ public class JobNodeSelector {
                 }
             }
         }
-        DiscoveryNode minLoadedNode = allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount;
+        return createAssignment(allocateByMemory ? minLoadedNodeByMemory : minLoadedNodeByCount, reasons);
+    }
+
+    private PersistentTasksCustomMetaData.Assignment createAssignment(DiscoveryNode minLoadedNode, List<String> reasons) {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
@@ -237,6 +237,7 @@ public class JobNodeSelector {
                         logger.debug("Falling back to allocating job [{}] by job counts because " +
                             "the memory requirement for job [{}] was not available", jobId, params.getJobId());
                     } else {
+                        logger.debug("adding " + jobMemoryRequirement);
                         assignedJobMemory += jobMemoryRequirement;
                     }
                 }

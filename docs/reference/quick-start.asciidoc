@@ -66,7 +66,7 @@ To index a document with a specific ID, use the PUT method with the
 This example command adds a document with an ID of `1` to the `customer` index.
 This command will also create the `customer` index if it doesn't already exist.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 PUT /customer/_doc/1
 {
@@ -77,11 +77,12 @@ PUT /customer/_doc/1
 }
 --------------------------------------------------
 // CONSOLE
+// TESTSETUP
 
 You can confirm {es} used your ID by checking the `\_id` field of the response.
 Here's an example response, formatted to be more readable.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -98,7 +99,7 @@ Here's an example response, formatted to be more readable.
   "_primary_term" : 1
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE
 
 [float]
 ==== Autogenerate a document ID
@@ -110,7 +111,7 @@ document.
 This example command adds a document to `customer` index. This command will
 also create the `customer` index if it doesn't already exist.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 POST /customer/_doc
 {
@@ -125,12 +126,12 @@ POST /customer/_doc
 {es} will provide the generated ID in `\_id` field of the response. Here's an
 example response, formatted to be more readable.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 {
   "_index" : "customer",
   "_type" : "_doc",
-  "_id" : "yDWh7WkBJ8uiWiWqEEaF"",
+  "_id" : "yDWh7WkBJ8uiWiWqEEaF",
   "_version" : 2,
   "result" : "updated",
   "_shards" : {
@@ -142,7 +143,7 @@ example response, formatted to be more readable.
   "_primary_term" : 1
 }
 --------------------------------------------------
-// NOTCONSOLE
+// TESTRESPONSE[s/yDWh7WkBJ8uiWiWqEEaF/$body._id/]
 
 [float]
 === Run a search
@@ -158,7 +159,7 @@ To get a document based on its ID, use the <<docs-get, get API>>.
 This example returns the document with an ID of `1` in the
 `customer` index.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 GET /customer/_doc/1
 --------------------------------------------------
@@ -172,7 +173,7 @@ with query-string parameters. This is also called <<search-uri-request>>.
 This example performs a URI search for documents with an employer of
 `Geekfarm` in the `customer` index.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 GET /customer/_search?q=employer:Geekfarm
 --------------------------------------------------
@@ -191,7 +192,7 @@ following criteria in the `customer` index:
 * Last name of `Adams`
 * Age greater than `30`
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 GET /customer/_search
 {
@@ -221,7 +222,7 @@ To update part of an existing document, use the <<docs-update, update API>>.
 This example updates the document with an ID of `1` in the
 `customer` index.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 POST /customer/_doc/1/_update
 {
@@ -241,7 +242,7 @@ method. Provide the ID of the document you'd like to replace.
 This example replaces the document with an ID of `1` in the
 `customer` index.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 PUT /customer/_doc/1
 {
@@ -261,12 +262,11 @@ To delete a document by ID, use the <<docs-delete, delete API>>.
 This example deletes the document with an ID of `1` in the `customer`
 index.
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 DELETE /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:customer]
 
 
 [float]
@@ -277,9 +277,8 @@ When you delete an index, all documents in that index are also deleted.
 
 This example deletes the `customer` index. 
 
-["source","sh",subs="attributes,callouts"]
+[source, js]
 --------------------------------------------------
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:customer]

@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -183,6 +184,8 @@ public final class TokenService {
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_8_0_0; // TODO change upon backport
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
+    // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
+    private static final int TOKEN_ID_LENGTH = 22;
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -244,18 +247,23 @@ public final class TokenService {
                                    ActionListener<Tuple<UserToken, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getVersionCompatibility();
+        // in newer versions tokens moved to a separate index
+        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
         final String userTokenId = UUIDs.randomBase64UUID();
-        createOAuth2Tokens(userTokenId, tokenVersion, authentication, originatingClientAuth, metadata, includeRefreshToken, listener);
+        createOAuth2Tokens(userTokenId, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, includeRefreshToken,
+                listener);
     }
 
     /**
      * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata, with the given
      * token document id. The created tokens are be stored in the security index.
      */
-    private void createOAuth2Tokens(String userTokenId, Version version, Authentication authentication,
-                                    Authentication originatingClientAuth, Map<String, Object> metadata,
-                                    boolean includeRefreshToken, ActionListener<Tuple<UserToken, String>> listener) {
+    private void createOAuth2Tokens(String userTokenId, Version version, SecurityIndexManager tokensIndex, Authentication authentication,
+                                    Authentication originatingClientAuth, Map<String, Object> metadata, boolean includeRefreshToken,
+                                    ActionListener<Tuple<UserToken, String>> listener) {
+        assert userTokenId.length() == TOKEN_ID_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
+                + " When changing this be careful that the inferences from token length still hold.";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -269,7 +277,6 @@ public final class TokenService {
             final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
             final BytesReference tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(userToken);
-            final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(version);
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
@@ -724,15 +731,25 @@ public final class TokenService {
      * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy.
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
-        final Optional<Tuple<Version, String>> versionAndRefreshTokenTuple = tryUnpackVersionAndPayload(refreshToken);
-        if (versionAndRefreshTokenTuple.isPresent()) {
-            final Version refreshTokenVersion = versionAndRefreshTokenTuple.get().v1();
-            assert refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED);
-            final String unencodedRefreshToken = versionAndRefreshTokenTuple.get().v2();
-            findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
-        } else {
-            logger.debug("Could not decode as a versioned refresh token. Assuming unversioned but valid refresh token.");
+        if (refreshToken.length() == TOKEN_ID_LENGTH) {
+            logger.debug("Assuming an unversioned refresh token [{}}, generated for node versions"
+                    + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
+        } else {
+            final Optional<Tuple<Version, String>> versionAndRefreshTokenTuple = tryUnpackVersionAndPayload(refreshToken);
+            if (versionAndRefreshTokenTuple.isPresent()) {
+                final Version refreshTokenVersion = versionAndRefreshTokenTuple.get().v1();
+                final String unencodedRefreshToken = versionAndRefreshTokenTuple.get().v2();
+                if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
+                        || unencodedRefreshToken.length() != TOKEN_ID_LENGTH) {
+                    listener.onFailure(new IllegalArgumentException("Decoded refresh token [" + unencodedRefreshToken + "] with version ["
+                            + refreshTokenVersion + "] is invalid."));
+                } else {
+                    findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                }
+            } else {
+                listener.onFailure(new IllegalArgumentException("Could not decode refresh token [" + refreshToken + "]."));
+            }
         }
     }
 
@@ -823,7 +840,7 @@ public final class TokenService {
         final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
         if (refreshTokenStatus.isRefreshed()) {
             logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
-                    tokenDocId, refreshTokenStatus.getSupersedingDocId());
+                    tokenDocId, refreshTokenStatus.getSupersededBy());
             getSupersedingTokenDocAsyncWithRetry(refreshTokenStatus, backoff, listener);
         } else {
             final String newUserTokenId = UUIDs.randomBase64UUID();
@@ -832,8 +849,12 @@ public final class TokenService {
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());
             if (newTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                updateMap.put("superseded_by", prependVersionAndEncode(newTokenVersion, getTokenDocumentId(newUserTokenId)));
+                // the superseding token document reference is formated as: "<alias>|<document_id>" ; the alias points to a single index
+                // containing the document with the said id
+                updateMap.put("superseded_by",
+                        getTokensIndexManagerForVersion(newTokenVersion).aliasName() + "|" + getTokenDocumentId(newUserTokenId));
             } else {
+                // preservers the format of the reference so that old nodes in a mixed cluster can still understand it
                 updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
@@ -853,8 +874,8 @@ public final class TokenService {
                                     updateResponse.getGetResult().sourceAsMap()));
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createOAuth2Tokens(newUserTokenId, newTokenVersion, toRefreshUserToken.getAuthentication(), clientAuth,
-                                    toRefreshUserToken.getMetadata(), true, listener);
+                            createOAuth2Tokens(newUserTokenId, newTokenVersion, getTokensIndexManagerForVersion(newTokenVersion),
+                                    toRefreshUserToken.getAuthentication(), clientAuth, toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
                             logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
@@ -922,7 +943,7 @@ public final class TokenService {
     private void getSupersedingTokenDocAsyncWithRetry(RefreshTokenStatus refreshTokenStatus, Iterator<TimeValue> backoff,
             ActionListener<Tuple<UserToken, String>> listener) {
         final Consumer<Exception> onFailure = ex -> listener
-                .onFailure(traceLog("get superseding token", refreshTokenStatus.getSupersedingDocId(), ex));
+                .onFailure(traceLog("get superseding token", refreshTokenStatus.getSupersededBy(), ex));
         getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
             private final Consumer<Exception> maybeRetryOnFailure = ex -> {
                 if (backoff.hasNext()) {
@@ -941,7 +962,7 @@ public final class TokenService {
             public void onResponse(GetResponse response) {
                 if (response.isExists()) {
                     logger.debug("found superseding token document [{}] in index [{}] by following the [{}] reference", response.getId(),
-                            response.getIndex(), refreshTokenStatus.getSupersedingDocId());
+                            response.getIndex(), refreshTokenStatus.getSupersededBy());
                     final Tuple<UserToken, String> parsedTokens;
                     try {
                         parsedTokens = parseTokensFromDocument(response.getSource(), null);
@@ -955,7 +976,7 @@ public final class TokenService {
                     // We retry this since the creation of the superseding token document might already be in flight but not
                     // yet completed, triggered by a refresh request that came a few milliseconds ago
                     logger.info("could not find superseding token document from [{}] reference, retrying",
-                            refreshTokenStatus.getSupersedingDocId());
+                            refreshTokenStatus.getSupersededBy());
                     maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                 }
             }
@@ -964,10 +985,10 @@ public final class TokenService {
             public void onFailure(Exception e) {
                 if (isShardNotAvailableException(e)) {
                     logger.info("could not find superseding token document from reference [{}], retrying",
-                            refreshTokenStatus.getSupersedingDocId());
+                            refreshTokenStatus.getSupersededBy());
                     maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
                 } else {
-                    logger.warn("could not find superseding token document from reference [{}]", refreshTokenStatus.getSupersedingDocId());
+                    logger.warn("could not find superseding token document from reference [{}]", refreshTokenStatus.getSupersededBy());
                     onFailure.accept(invalidGrantException("could not refresh the requested token"));
                 }
             }
@@ -975,16 +996,14 @@ public final class TokenService {
     }
 
     private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {
-        final Optional<Tuple<Version, String>> versionAndSupersedingTokenDocId = tryUnpackVersionAndPayload(
-                refreshTokenStatus.getSupersedingDocId());
-        if (versionAndSupersedingTokenDocId.isPresent()) {
-            final Version supersedingTokenVersion = versionAndSupersedingTokenDocId.get().v1();
-            assert supersedingTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED);
-            final String supersedingTokenDocId = versionAndSupersedingTokenDocId.get().v2();
-            getTokenDocAsync(supersedingTokenDocId, securityTokensIndex, listener);
+        final String supersedingDocReference = refreshTokenStatus.getSupersededBy();
+        if (supersedingDocReference.startsWith(securityTokensIndex.aliasName() + "|")) {
+            final String supersedingDocId = supersedingDocReference.substring(securityTokensIndex.aliasName().length() + 1);
+            getTokenDocAsync(supersedingDocId, securityTokensIndex, listener);
         } else {
-            logger.debug("superseding token-doc-id is not versioned. Assuming the unversioned format.");
-            getTokenDocAsync(refreshTokenStatus.getSupersedingDocId(), securityMainIndex, listener);
+            assert false == supersedingDocReference
+                    .contains("|") : "Superseding doc reference appears to contain an alias name but shouldn't";
+            getTokenDocAsync(supersedingDocReference, securityMainIndex, listener);
         }
     }
 
@@ -1296,7 +1315,7 @@ public final class TokenService {
                     prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
             return new Tuple<>(userToken, versionedRefreshToken);
         } else {
-            // do not prepend version to refresh token as the audience node version cannot deal with itqq
+            // do not prepend version to refresh token as the audience node version cannot deal with it
             return new Tuple<>(userToken, plainRefreshToken);
         }
     }
@@ -1483,8 +1502,7 @@ public final class TokenService {
             final String payload = in.readString();
             return Optional.of(new Tuple<Version, String>(version, payload));
         } catch (IOException | IllegalArgumentException e) {
-            logger.trace("Error decoding versioned String value."
-                    + " Probably the version is prior to the expected format, but might still be compatible.", e);
+            logger.trace("Error decoding versioned String value.", e);
             return Optional.empty();
         }
     }
@@ -2026,17 +2044,17 @@ public final class TokenService {
         private final String associatedRealm;
         private final boolean refreshed;
         @Nullable private final Instant refreshInstant;
-        @Nullable private final String supersededByDocId;
+        @Nullable private final String supersededBy;
         private Version version;
 
         private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
-                                   Instant refreshInstant, String supersededByDocId) {
+                                   Instant refreshInstant, String supersededBy) {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
-            this.supersededByDocId = supersededByDocId;
+            this.supersededBy = supersededBy;
         }
 
         boolean isInvalidated() {
@@ -2059,8 +2077,8 @@ public final class TokenService {
             return refreshInstant;
         }
 
-        @Nullable String getSupersedingDocId() {
-            return supersededByDocId;
+        @Nullable String getSupersededBy() {
+            return supersededBy;
         }
 
         Version getVersion() {

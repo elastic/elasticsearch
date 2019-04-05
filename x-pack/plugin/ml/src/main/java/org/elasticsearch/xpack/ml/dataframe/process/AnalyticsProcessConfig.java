@@ -20,19 +20,22 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private static final String MEMORY_LIMIT = "memory_limit";
     private static final String THREADS = "threads";
     private static final String ANALYSIS = "analysis";
+    private static final String RESULTS_FIELD = "results_field";
 
     private final long rows;
     private final int cols;
     private final ByteSizeValue memoryLimit;
     private final int threads;
     private final DataFrameAnalysis analysis;
+    private final String resultsField;
 
-
-    public AnalyticsProcessConfig(long rows, int cols, ByteSizeValue memoryLimit, int threads, DataFrameAnalysis analysis) {
+    public AnalyticsProcessConfig(long rows, int cols, ByteSizeValue memoryLimit, int threads, String resultsField,
+                                  DataFrameAnalysis analysis) {
         this.rows = rows;
         this.cols = cols;
         this.memoryLimit = Objects.requireNonNull(memoryLimit);
         this.threads = threads;
+        this.resultsField = Objects.requireNonNull(resultsField);
         this.analysis = Objects.requireNonNull(analysis);
     }
 
@@ -47,6 +50,7 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(COLS, cols);
         builder.field(MEMORY_LIMIT, memoryLimit.getBytes());
         builder.field(THREADS, threads);
+        builder.field(RESULTS_FIELD, resultsField);
         builder.field(ANALYSIS, analysis);
         builder.endObject();
         return builder;

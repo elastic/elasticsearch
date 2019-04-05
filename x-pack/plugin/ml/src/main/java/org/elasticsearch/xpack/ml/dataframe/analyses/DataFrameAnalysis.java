@@ -33,13 +33,6 @@ public interface DataFrameAnalysis extends ToXContentObject {
 
     Type getType();
 
-    /**
-     * The fields that will contain the results of the analysis
-     *
-     * @return Set of Strings representing the result fields for the constructed analysis
-     */
-    Set<String> getResultFields();
-
     interface Factory {
 
         /**

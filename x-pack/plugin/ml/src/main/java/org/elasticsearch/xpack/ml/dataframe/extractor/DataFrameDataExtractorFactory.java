@@ -20,13 +20,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysesUtils;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysis;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,9 +100,8 @@ public class DataFrameDataExtractorFactory {
     public static void create(Client client,
                               DataFrameAnalyticsConfig config,
                               ActionListener<DataFrameDataExtractorFactory> listener) {
-        Set<String> resultFields = resolveResultsFields(config);
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest().getIndex(), config.getAnalysesFields(), resultFields,
-            ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getDest().getIndex(), config.getDest().getResultsField(),
+            config.getAnalysesFields(), ActionListener.wrap(
                 extractedFields -> listener.onResponse(new DataFrameDataExtractorFactory(
                     client, config.getId(), config.getDest().getIndex(), extractedFields, config.getHeaders())),
                 listener::onFailure
@@ -120,9 +118,8 @@ public class DataFrameDataExtractorFactory {
     public static void validateConfigAndSourceIndex(Client client,
                                                     DataFrameAnalyticsConfig config,
                                                     ActionListener<DataFrameAnalyticsConfig> listener) {
-        Set<String> resultFields = resolveResultsFields(config);
-        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource().getIndex(), config.getAnalysesFields(), resultFields,
-            ActionListener.wrap(
+        validateIndexAndExtractFields(client, config.getHeaders(), config.getSource().getIndex(), config.getDest().getResultsField(),
+            config.getAnalysesFields(), ActionListener.wrap(
                 fields -> {
                     config.getSource().getParsedQuery(); // validate query is acceptable
                     listener.onResponse(config);
@@ -133,13 +130,19 @@ public class DataFrameDataExtractorFactory {
 
     // Visible for testing
     static ExtractedFields detectExtractedFields(String index,
+                                                 String resultsField,
                                                  FetchSourceContext desiredFields,
-                                                 Set<String> resultFields,
                                                  FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Set<String> fields = fieldCapabilitiesResponse.get().keySet();
         fields.removeAll(IGNORE_FIELDS);
-        // TODO a better solution may be to have some sort of known prefix and filtering that
-        fields.removeAll(resultFields);
+
+        if (fields.contains(resultsField)) {
+            throw ExceptionsHelper.badRequestException("Index [{}] already has a field that matches the {}.{} [{}];" +
+                " please set a different {}", index, DataFrameAnalyticsConfig.DEST.getPreferredName(),
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(), resultsField,
+                DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName());
+        }
+
         removeFieldsWithIncompatibleTypes(fields, fieldCapabilitiesResponse);
         includeAndExcludeFields(fields, desiredFields, index);
         List<String> sortedFields = new ArrayList<>(fields);
@@ -198,13 +201,13 @@ public class DataFrameDataExtractorFactory {
     private static void validateIndexAndExtractFields(Client client,
                                                       Map<String, String> headers,
                                                       String index,
+                                                      String resultsField,
                                                       FetchSourceContext desiredFields,
-                                                      Set<String> resultFields,
                                                       ActionListener<ExtractedFields> listener) {
         // Step 2. Extract fields (if possible) and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> listener.onResponse(
-                detectExtractedFields(index, desiredFields, resultFields, fieldCapabilitiesResponse)),
+                detectExtractedFields(index, resultsField, desiredFields, fieldCapabilitiesResponse)),
             e -> {
                 if (e instanceof IndexNotFoundException) {
                     listener.onFailure(new ResourceNotFoundException("cannot retrieve data because index "
@@ -224,10 +227,5 @@ public class DataFrameDataExtractorFactory {
             // This response gets discarded - the listener handles the real response
             return null;
         });
-    }
-
-    private static Set<String> resolveResultsFields(DataFrameAnalyticsConfig config) {
-        List<DataFrameAnalysis> analyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
-        return analyses.stream().flatMap(analysis -> analysis.getResultFields().stream()).collect(Collectors.toSet());
     }
 }

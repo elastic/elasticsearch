@@ -31,15 +31,11 @@ import java.io.IOException;
 
 public class RecoveryCleanFilesRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
-
-    private Store.MetadataSnapshot snapshotFiles;
-    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
-    private long globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-
-    public RecoveryCleanFilesRequest() {
-    }
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final Store.MetadataSnapshot snapshotFiles;
+    private final int totalTranslogOps;
+    private final long globalCheckpoint;
 
     RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles,
                               int totalTranslogOps, long globalCheckpoint) {
@@ -50,23 +46,16 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         this.globalCheckpoint = globalCheckpoint;
     }
 
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    RecoveryCleanFilesRequest(StreamInput in) throws IOException {
+        super(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         snapshotFiles = new Store.MetadataSnapshot(in);
         totalTranslogOps = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             globalCheckpoint = in.readZLong();
+        } else {
+            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 
@@ -86,11 +75,19 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         return snapshotFiles;
     }
 
+    public long recoveryId() {
+        return this.recoveryId;
+    }
+
+    public ShardId shardId() {
+        return shardId;
+    }
+
     public int totalTranslogOps() {
         return totalTranslogOps;
     }
 
-    public long globalCheckpoint() {
+    public long getGlobalCheckpoint() {
         return globalCheckpoint;
     }
 }

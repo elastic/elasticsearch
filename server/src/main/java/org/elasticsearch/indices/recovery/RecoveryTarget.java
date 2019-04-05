@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -287,6 +288,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
+            assert indexShard.getGlobalCheckpoint() >= indexShard.seqNoStats().getMaxSeqNo() ||
+                indexShard.indexSettings().getIndexVersionCreated().before(Version.V_8_0_0)
+                : "global checkpoint is not initialized [" + indexShard.seqNoStats() + "]";
             return null;
         });
     }
@@ -394,10 +398,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
                 store.ensureIndexHasHistoryUUID();
             }
-            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
+                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_8_0_0) :
+                "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId,
-                indexShard.getPendingPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
 
             if (indexShard.getRetentionLeases().leases().isEmpty()) {

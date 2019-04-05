@@ -896,7 +896,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 }
             }
         } catch (AlreadyClosedException ignored) {
-
         }
     }
 }

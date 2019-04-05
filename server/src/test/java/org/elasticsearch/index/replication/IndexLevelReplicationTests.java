@@ -120,18 +120,18 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             IndexShard replica = shards.addReplica();
             Future<Void> future = shards.asyncRecoverReplica(replica,
                 (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
-                @Override
-                public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
-                                       Store.MetadataSnapshot sourceMetaData) throws IOException {
-                    super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
-                    latch.countDown();
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                    @Override
+                    public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
+                                           Store.MetadataSnapshot sourceMetaData) throws IOException {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
+                        latch.countDown();
+                        try {
+                            latch.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
                     }
-                }
-            });
+                });
             future.get();
             thread.join();
             shards.assertAllEqual(numDocs);

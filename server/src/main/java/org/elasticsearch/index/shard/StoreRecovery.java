@@ -461,6 +461,7 @@ final class StoreRecovery {
      * Restores shard from {@link SnapshotRecoverySource} associated with this shard in routing table
      */
     private void restore(final IndexShard indexShard, final Repository repository, final SnapshotRecoverySource restoreSource) {
+        assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
         final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
         if (restoreSource == null) {
             throw new IndexShardRestoreFailedException(shardId, "empty restore source");
@@ -480,23 +481,22 @@ final class StoreRecovery {
                 restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState())) {
                 final Store store = indexShard.store();
                 store.bootstrapNewHistory();
-                final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
-                SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(segmentInfos.userData.entrySet());
+                final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+                    store.readLastCommittedSegmentsInfo().userData.entrySet());
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), commitInfo.maxSeqNo, shardId, indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
-                assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.openEngineAndSkipTranslogRecovery();
                 indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(commitInfo.maxSeqNo);
                 translogState.totalOperations(historySnapshot.totalOperations());
                 translogState.totalOperationsOnStart(historySnapshot.totalOperations());
-                Translog.Operation operation;
-                while ((operation = historySnapshot.next()) != null) {
-                    final Engine.Result result = indexShard.applyTranslogOperation(operation, Engine.Operation.Origin.SNAPSHOT_RECOVERY);
+                Translog.Operation op;
+                while ((op = historySnapshot.next()) != null) {
+                    final Engine.Result result = indexShard.applyTranslogOperation(op, Engine.Operation.Origin.SNAPSHOT_RECOVERY);
                     if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-                        assert false : "mapping is not ready for [" + operation + "]";
-                        throw new IndexShardRestoreFailedException(shardId, "mapping is not ready for [" + operation + "]");
+                        assert false : "mapping is not ready for [" + op + "]";
+                        throw new IndexShardRestoreFailedException(shardId, "mapping is not ready for [" + op + "]");
                     }
                     assert result.getFailure() == null : "unexpected failure while applying translog operation" + result.getFailure();
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
@@ -516,12 +516,13 @@ final class StoreRecovery {
                  * to the max_seq_no. Then we won't have a safe commit for the restoring commit is not safe (missing translog).
                  * To maintain the safe commit assumption, we have to forcefully flush a new commit here.
                  */
-                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+                if (commitInfo.localCheckpoint != commitInfo.maxSeqNo) {
+                    indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+                }
                 final SequenceNumbers.CommitInfo restoredCommitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                     store.readLastCommittedSegmentsInfo().userData.entrySet());
                 syncedGlobalCheckpoint = indexShard.getLastSyncedGlobalCheckpoint();
-                if (restoredCommitInfo.localCheckpoint != syncedGlobalCheckpoint
-                    || restoredCommitInfo.maxSeqNo != syncedGlobalCheckpoint) {
+                if (restoredCommitInfo.localCheckpoint != syncedGlobalCheckpoint) {
                     throw new IndexShardRestoreFailedException(shardId, "history is not fully restored " +
                         " restored_commit_info=" + restoredCommitInfo + " synced_global_checkpoint=" + syncedGlobalCheckpoint);
                 }

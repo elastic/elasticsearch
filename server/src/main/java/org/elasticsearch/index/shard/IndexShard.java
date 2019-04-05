@@ -1490,8 +1490,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private boolean assertSafeCommitExists() {
+        // we don't set the global checkpoint in peer recovery before 8.0
         if (indexSettings.getIndexVersionCreated().before(Version.V_8_0_0) && getLastSyncedGlobalCheckpoint() == UNASSIGNED_SEQ_NO) {
-            // we don't set the global checkpoint in peer recovery before 8.0
             return true;
         }
         try (Closeable ignored = acquireRetentionLock()) {
@@ -1500,7 +1500,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
             SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
             assert commitInfo.maxSeqNo <= globalCheckpoint :
-                routingEntry() + " safe_commit=" + commitInfo + " global_checkpoint=" + globalCheckpoint;
+                routingEntry() + " safe_commit[" + commitInfo + "] global_checkpoint [" + globalCheckpoint + "]";
             LocalCheckpointTracker checkpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint);
             try (Translog.Snapshot historySnapshot = getHistoryOperations("assert_safe_commit_exists", commitInfo.localCheckpoint + 1)) {
                 Translog.Operation op;
@@ -1508,8 +1508,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     checkpointTracker.markSeqNoAsCompleted(op.seqNo());
                 }
             }
-            assert checkpointTracker.getCheckpoint() >= globalCheckpoint : routingEntry() + " safe_commit=" + commitInfo
-                + " global_checkpoint=" + globalCheckpoint + " recovered_checkpoint=" + checkpointTracker.getCheckpoint();
+            assert checkpointTracker.getCheckpoint() >= globalCheckpoint : routingEntry() + " safe_commit[" + commitInfo + "]"
+                + " global_checkpoint[" + globalCheckpoint + "] recovered_checkpoint [" + checkpointTracker.getCheckpoint() + "]";
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

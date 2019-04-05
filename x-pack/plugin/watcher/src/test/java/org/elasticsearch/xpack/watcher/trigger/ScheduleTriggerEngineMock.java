@@ -52,7 +52,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void start(Collection<Watch> jobs) {
+    public synchronized void start(Collection<Watch> jobs) {
         Map<String, Watch> newWatches = new ConcurrentHashMap<>();
         jobs.forEach((watch) -> newWatches.put(watch.id(), watch));
         watches.set(newWatches);
@@ -65,7 +65,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void add(Watch watch) {
+    public synchronized void add(Watch watch) {
         logger.debug("adding watch [{}]", watch.id());
         watches.get().put(watch.id(), watch);
     }
@@ -76,7 +76,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public boolean remove(String jobId) {
+    public synchronized boolean remove(String jobId) {
         return watches.get().remove(jobId) != null;
     }
 

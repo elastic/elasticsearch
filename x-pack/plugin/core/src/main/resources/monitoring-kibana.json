@@ -50,6 +50,13 @@
         },
         "kibana_stats": {
           "properties": {
+            "usage": {
+              "properties": {
+                "index": {
+                  "type": "keyword"
+                }
+              }
+            },
             "kibana": {
               "properties": {
                 "uuid": {

@@ -91,7 +91,7 @@ For more information, see
 
 .. By default the module will collect {es} monitoring metrics from `http://localhost:9200`.
 If the local {es} node has a different address, you must specify it via the `hosts` setting
-in the `modules.d/elasticsearch.yml` file.
+in the `modules.d/elasticsearch-xpack.yml` file.
 
 .. If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully. 
@@ -104,7 +104,7 @@ Alternatively, use the {stack-ov}/built-in-users.html[`remote_monitoring_user` b
 file.
 +
 --
-For example, add the following settings in the `modules.d/elasticsearch.yml` file:
+For example, add the following settings in the `modules.d/elasticsearch-xpack.yml` file:
 
 [source,yaml]
 ----------------------------------
@@ -117,7 +117,7 @@ For example, add the following settings in the `modules.d/elasticsearch.yml` fil
 
 .. If you configured {es} to use <<configuring-tls,encrypted communications>>, 
 you must access it via HTTPS. For example, use a `hosts` setting like 
-`https://localhost:9200` in the `modules.d/elasticsearch.yml` file.
+`https://localhost:9200` in the `modules.d/elasticsearch-xpack.yml` file.
 
 .. Identify where to send the monitoring data. +
 +

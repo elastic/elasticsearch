@@ -35,9 +35,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Responsible for cleaning the invalidated and expired tokens from the security index.
- * The document gets deleted if it was created more than 24 hours which is the maximum
- * lifetime of a refresh token
+ * Responsible for cleaning the invalidated and expired tokens from the security indices (`main` and `tokens`).
+ * The document is deleted if it was created more than {@code #MAXIMUM_TOKEN_LIFETIME_HOURS} hours in the past.
  */
 final class ExpiredTokenRemover extends AbstractRunnable {
     private static final Logger logger = LogManager.getLogger(ExpiredTokenRemover.class);
@@ -86,13 +85,13 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                         .lte(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS).toEpochMilli())));
         logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq,
-                ActionListener.wrap(r -> {
-                    debugDbqResponse(r);
+                ActionListener.wrap(bulkResponse -> {
+                    debugDbqResponse(bulkResponse);
                     // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
                     // only after the tokens index has been created all nodes will store tokens there and not on the main security index
                     if (mainIndexMightContainTokens && securityTokensIndex.indexExists()
                             && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
-                            && r.getBulkFailures().isEmpty() && r.getSearchFailures().isEmpty()) {
+                            && bulkResponse.getBulkFailures().isEmpty() && bulkResponse.getSearchFailures().isEmpty()) {
                         mainIndexMightContainTokens = false;
                     }
                     markComplete();

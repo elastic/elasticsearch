@@ -67,8 +67,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test stress tests CAS updates using sequence number based versioning (ifPrimaryTerm/ifSeqNo).
- * <p/>
- * The following is a summary of the expected CAS write behaviour of the system:
+ *
+ * <p>The following is a summary of the expected CAS write behaviour of the system:</p>
  *
  * <ul>
  *     <li>acknowledged CAS writes are guaranteed to have taken place between invocation and response and cannot be lost. It is

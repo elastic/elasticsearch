@@ -1095,7 +1095,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 };
             } else {
                 return metaData -> {
-                    final Repository repository = new FsRepository(metaData, environment, xContentRegistry()) {
+                    final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
                         @Override
                         protected void assertSnapshotOrGenericThread() {
                             // eliminate thread name check as we create repo in the test thread

@@ -60,7 +60,7 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
     public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
                           NamedXContentRegistry namedXContentRegistry, DeterministicTaskQueue deterministicTaskQueue, Context context) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry);
+        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, deterministicTaskQueue.getThreadPool());
         this.deterministicTaskQueue = deterministicTaskQueue;
         this.context = context;
     }

@@ -42,6 +42,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,8 +70,9 @@ public class MockRepository extends FsRepository {
 
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env, namedXContentRegistry));
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                               ThreadPool threadPool) {
+            return Collections.singletonMap("mock", (metadata) -> new MockRepository(metadata, env, namedXContentRegistry, threadPool));
         }
 
         @Override
@@ -113,8 +115,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) throws IOException {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry);
+                          NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
+        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, threadPool);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);

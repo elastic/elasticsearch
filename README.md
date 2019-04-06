@@ -1,7 +1,7 @@
 
 ElasticMasterNode development tree
 
-ElasticMasterNode is a PoS-based cryptocurrency.
+ElasticMasterNode is a PoW/PoS/MasterNode-based cryptocurrency.
 
 Development process
 ===========================

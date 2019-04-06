@@ -194,7 +194,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         null, context.getPrimary(), logger));
             }
 
-        }.doRun();
+        }.run();
     }
 
     /**

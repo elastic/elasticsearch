@@ -316,9 +316,7 @@ thirdPartyAudit.ignoreMissingClasses (
   'com.google.common.geometry.S2LatLng'
 )
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-}
+thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
 
 dependencyLicenses {
   mapping from: /lucene-.*/, to: 'lucene'

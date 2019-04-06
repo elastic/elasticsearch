@@ -29,7 +29,7 @@ import java.io.IOException;
 
 public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
-    private FlushRequest request = new FlushRequest();
+    private final FlushRequest request;
 
     public ShardFlushRequest(FlushRequest request, ShardId shardId) {
         super(shardId);
@@ -37,7 +37,9 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
         this.waitForActiveShards = ActiveShardCount.NONE; // don't wait for any active shards before proceeding, by default
     }
 
-    public ShardFlushRequest() {
+    public ShardFlushRequest(StreamInput in) throws IOException {
+        super(in);
+        request = new FlushRequest(in);
     }
 
     FlushRequest getRequest() {
@@ -46,8 +48,7 @@ public class ShardFlushRequest extends ReplicationRequest<ShardFlushRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        request.readFrom(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

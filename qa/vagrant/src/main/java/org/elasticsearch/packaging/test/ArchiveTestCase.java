@@ -203,7 +203,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             final Shell sh = new Shell();
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
+                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
@@ -218,7 +218,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
             } finally {
                 //clean up sym link
-                sh.run("cmd /c del /F /Q 'C:\\Program Files (x86)\\java' ");
+                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
             }
         });
 
@@ -437,6 +437,35 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
+    }
+
+    public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = newShell();
+        // Run the cli tools from the tmp dir
+        sh.setWorkingDirectory(getTempDir());
+
+        Platforms.PlatformAction action = () -> {
+            Result result = sh.run(bin.elasticsearchCertutil+ " -h");
+            assertThat(result.stdout,
+                containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            result = sh.run(bin.elasticsearchSyskeygen+ " -h");
+            assertThat(result.stdout,
+                containsString("system key tool"));
+            result = sh.run(bin.elasticsearchSetupPasswords+ " -h");
+            assertThat(result.stdout,
+                containsString("Sets the passwords for reserved users"));
+            result = sh.run(bin.elasticsearchUsers+ " -h");
+            assertThat(result.stdout,
+                containsString("Manages elasticsearch file users"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_LINUX) || distribution().equals(Distribution.DEFAULT_WINDOWS)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
     }
 
 }

@@ -211,7 +211,9 @@ NULLIF           |CONDITIONAL
 NVL              |CONDITIONAL
 CURDATE          |SCALAR
 CURRENT_DATE     |SCALAR
+CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
+CURTIME          |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
 DAYOFMONTH       |SCALAR         
@@ -2411,6 +2413,63 @@ Mayumi
 Mingsen
 // end::filterToday
 ;
+
+
+currentTime-Ignore
+// tag::currentTime
+SELECT CURRENT_TIME AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTime
+;
+
+currentTimeFunction-Ignore
+// tag::currentTimeFunction
+SELECT CURRENT_TIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTimeFunction
+;
+
+curTimeFunction-Ignore
+// tag::curTimeFunction
+SELECT CURTIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::curTimeFunction
+;
+
+currentTimeFunctionPrecision-Ignore
+// tag::currentTimeFunctionPrecision
+SELECT CURRENT_TIME(1) AS result;
+
+         result
+------------------------
+12:31:27.2Z
+// end::currentTimeFunctionPrecision
+;
+
+
+filterCurrentTime-Ignore
+// tag::filterCurrentTime
+SELECT first_name FROM emp WHERE CAST(hire_date AS TIME) > CURRENT_TIME() - INTERVAL 20 MINUTES ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterCurrentTime
+;
+
 
 currentTimestamp-Ignore
 // tag::curTs

@@ -57,7 +57,7 @@ public class Build {
             return displayName;
         }
 
-        public static Flavor fromDisplayName(final String displayName) {
+        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
             switch (displayName) {
                 case "default":
                     return Flavor.DEFAULT;
@@ -66,7 +66,12 @@ public class Build {
                 case "unknown":
                     return Flavor.UNKNOWN;
                 default:
-                    throw new IllegalStateException("unexpected distribution flavor [" + displayName + "]; your distribution is broken");
+                    if (strict) {
+                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
+                        throw new IllegalStateException(message);
+                    } else {
+                        return Flavor.UNKNOWN;
+                    }
             }
         }
 
@@ -91,7 +96,7 @@ public class Build {
             this.displayName = displayName;
         }
 
-        public static Type fromDisplayName(final String displayName) {
+        public static Type fromDisplayName(final String displayName, final boolean strict) {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
@@ -106,9 +111,14 @@ public class Build {
                 case "unknown":
                     return Type.UNKNOWN;
                 default:
-                    throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    if (strict) {
+                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    } else {
+                        return Type.UNKNOWN;
+                    }
             }
         }
+
     }
 
     static {
@@ -119,8 +129,9 @@ public class Build {
         final boolean isSnapshot;
         final String version;
 
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
-        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"));
+        // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
+        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
+        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
@@ -214,12 +225,14 @@ public class Build {
         final Flavor flavor;
         final Type type;
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            flavor = Flavor.fromDisplayName(in.readString());
+            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+            flavor = Flavor.fromDisplayName(in.readString(), false);
         } else {
             flavor = Flavor.OSS;
         }
         if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            type = Type.fromDisplayName(in.readString());
+            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+            type = Type.fromDisplayName(in.readString(), false);
         } else {
             type = Type.UNKNOWN;
         }

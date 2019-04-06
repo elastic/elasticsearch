@@ -123,14 +123,15 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
-            final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+            ActionListener<PrimaryResult<Request, Response>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+        });
     }
 
     @Override

@@ -274,6 +274,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
                     }
                     @Override
                     public void doRun() {
+                        // cf. ExceptionsHelper#isTransportStoppedForAction
                         TransportException ex = new TransportException("transport stopped, action: " + holderToNotify.action());
                         holderToNotify.handler().handleException(ex);
                     }
@@ -626,8 +627,13 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
         try {
             if (lifecycle.stoppedOrClosed()) {
-                // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify
-                // the caller. It will only notify if the toStop code hasn't done the work yet.
+                /*
+                 * If we are not started the exception handling will remove the request holder again and calls the handler to notify the
+                 * caller. It will only notify if toStop hasn't done the work yet.
+                 *
+                 * Do not edit this exception message, it is currently relied upon in production code!
+                 */
+                // TODO: make a dedicated exception for a stopped transport service? cf. ExceptionsHelper#isTransportStoppedForAction
                 throw new TransportException("TransportService is closed stopped can't send request");
             }
             if (timeoutHandler != null) {

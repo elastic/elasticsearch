@@ -18,7 +18,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -114,7 +113,7 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             new IndexNameExpressionResolver());
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
-            action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
+            action.shardOperationOnPrimary(primaryRequest, indexShard);
         } else {
             action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
         }

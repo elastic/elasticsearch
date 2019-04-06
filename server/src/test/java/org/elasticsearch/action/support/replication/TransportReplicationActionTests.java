@@ -1230,11 +1230,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
-                ActionListener<PrimaryResult<Request, TestResponse>> listener) {
+        protected PrimaryResult<Request, TestResponse> shardOperationOnPrimary(Request shardRequest, IndexShard primary) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            listener.onResponse(new PrimaryResult<>(shardRequest, new TestResponse()));
+            return new PrimaryResult<>(shardRequest, new TestResponse());
         }
 
         @Override

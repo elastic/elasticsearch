@@ -22,7 +22,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -91,7 +90,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testRetentionLeaseSyncActionOnPrimary() {
+    public void testRetentionLeaseSyncActionOnPrimary() throws WriteStateException {
         final IndicesService indicesService = mock(IndicesService.class);
 
         final Index index = new Index("index", "uuid");
@@ -116,16 +115,15 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 new IndexNameExpressionResolver());
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.shardOperationOnPrimary(request, indexShard,
-            ActionTestUtils.assertNoFailureListener(result -> {
-                    // the retention leases on the shard should be persisted
-                    verify(indexShard).persistRetentionLeases();
-                    // we should forward the request containing the current retention leases to the replica
-                    assertThat(result.replicaRequest(), sameInstance(request));
-                    // we should start with an empty replication response
-                    assertNull(result.finalResponseIfSuccessful.getShardInfo());
-                }
-            ));
+
+        final TransportWriteAction.WritePrimaryResult<RetentionLeaseSyncAction.Request, RetentionLeaseSyncAction.Response> result =
+                action.shardOperationOnPrimary(request, indexShard);
+        // the retention leases on the shard should be persisted
+        verify(indexShard).persistRetentionLeases();
+        // we should forward the request containing the current retention leases to the replica
+        assertThat(result.replicaRequest(), sameInstance(request));
+        // we should start with an empty replication response
+        assertNull(result.finalResponseIfSuccessful.getShardInfo());
     }
 
     public void testRetentionLeaseSyncActionOnReplica() throws WriteStateException {

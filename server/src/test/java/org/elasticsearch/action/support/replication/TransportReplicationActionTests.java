@@ -27,6 +27,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
@@ -691,16 +692,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request(NO_SHARD_ID);
-        primary.perform(request);
+        primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
+            final ElasticsearchException exception = new ElasticsearchException("testing");
+            primary.failShard("test", exception);
 
-        final ElasticsearchException exception = new ElasticsearchException("testing");
-        primary.failShard("test", exception);
+            verify(shard).failShard("test", exception);
 
-        verify(shard).failShard("test", exception);
+            primary.close();
 
-        primary.close();
-
-        assertTrue(closed.get());
+            assertTrue(closed.get());
+        }));
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -1229,10 +1230,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected PrimaryResult<Request, TestResponse> shardOperationOnPrimary(Request shardRequest, IndexShard primary) {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            return new PrimaryResult<>(shardRequest, new TestResponse());
+            listener.onResponse(new PrimaryResult<>(shardRequest, new TestResponse()));
         }
 
         @Override

@@ -38,7 +38,6 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;

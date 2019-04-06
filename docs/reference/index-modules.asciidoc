@@ -184,8 +184,8 @@ specific index module:
 
 `index.blocks.write`::
 
-    Set to `true` to disable data write operations against the index. Unlike `read_only`, 
-    this setting does not affect metadata. For instance, you can close an index with a `write` 
+    Set to `true` to disable data write operations against the index. Unlike `read_only`,
+    this setting does not affect metadata. For instance, you can close an index with a `write`
     block, but not an index with a `read_only` block.
 
 `index.blocks.metadata`::
@@ -285,6 +285,12 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+[float]
+=== [xpack]#{xpack} index settings#
+
+<<ilm-settings,{ilm-cap}>>::
+
+    Specify the lifecycle policy and rollover alias for an index.
 --
 
 include::index-modules/analysis.asciidoc[]

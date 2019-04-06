@@ -350,7 +350,6 @@ if [ -z "\\\$JAVA_HOME" ]; then
 fi
 export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
 unset JAVA_HOME
-export PATH=/opt/jdk-11.0.2/bin:\\\$PATH
 JAVA
     ensure tar
     ensure curl

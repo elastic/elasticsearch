@@ -185,24 +185,13 @@ public abstract class TransportReplicationAction<
     }
 
     /**
-     * Primary operation on node with primary copy synchronously executed.
+     * Primary operation on node with primary copy.
      *
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
-    protected abstract PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-        Request shardRequest, IndexShard primary) throws Exception;
-
-    /**
-     * Primary operation on node with primary copy asynchronously executed.
-     *
-     * @param shardRequest the request to the primary shard
-     * @param primary      the primary shard to perform the operation on
-     */
-    protected void asyncShardOperationOnPrimary(Request shardRequest, IndexShard primary,
-        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(shardRequest, primary));
-    }
+    protected abstract void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
@@ -935,7 +924,7 @@ public abstract class TransportReplicationAction<
                     return result;
                 });
             }
-            asyncShardOperationOnPrimary(request, indexShard, listener);
+            shardOperationOnPrimary(request, indexShard, listener);
         }
 
         @Override

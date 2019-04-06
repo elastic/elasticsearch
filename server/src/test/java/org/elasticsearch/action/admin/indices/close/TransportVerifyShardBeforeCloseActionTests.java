@@ -61,6 +61,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -134,18 +135,28 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    private void executeOnPrimaryOrReplica() {
+    private void executeOnPrimaryOrReplica() throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
-        if (randomBoolean()) {
-            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
-        } else {
-            assertNotNull(action.shardOperationOnPrimary(request, indexShard));
+        final PlainActionFuture res = PlainActionFuture.newFuture();
+        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
+            r -> {
+                assertNotNull(r);
+                res.onResponse(null);
+            },
+            res::onFailure
+        ));
+        try {
+            res.get();
+        } catch (InterruptedException e) {
+            throw new AssertionError(e);
+        } catch (ExecutionException e) {
+            throw e.getCause();
         }
     }
 
-    public void testShardIsFlushed() {
+    public void testShardIsFlushed() throws Throwable {
         final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
         when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
 

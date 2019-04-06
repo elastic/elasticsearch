@@ -352,7 +352,7 @@ JAVA
     ensure unzip
     ensure rsync
 
-    installed bats || {e
+    installed bats || {
       # Bats lives in a git repository....
       ensure git
       echo "==> Installing bats"

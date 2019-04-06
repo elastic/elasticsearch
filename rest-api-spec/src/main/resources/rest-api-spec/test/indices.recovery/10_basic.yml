@@ -130,3 +130,25 @@
         index: [v*]
 
   - match: { $body: {} }
+---
+"Indices recovery test with detailed parameter":
+
+  - do:
+      indices.create:
+        index:  test_3
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [test_3]
+        human: true
+        detailed: true
+
+  - match: { test_3.shards.0.index.files.details: [] }

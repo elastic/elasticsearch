@@ -343,7 +343,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         static final String REUSED = "reused";
         static final String REUSED_IN_BYTES = "reused_in_bytes";
         static final String PERCENT = "percent";
-        static final String DETAILED = "detailed";
+        static final String DETAILS = "details";
         static final String SIZE = "size";
         static final String SOURCE_THROTTLE_TIME = "source_throttle_time";
         static final String SOURCE_THROTTLE_TIME_IN_MILLIS = "source_throttle_time_in_millis";
@@ -930,7 +930,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
             builder.field(Fields.RECOVERED, recoveredFileCount());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
             if (params.paramAsBoolean("detailed", false)) {
-                builder.startArray(Fields.DETAILED);
+                builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);
                 }

@@ -266,10 +266,8 @@ public class ExportersTests extends ESTestCase {
     public void testNoExporters() throws Exception {
         Settings.Builder settings =
             Settings.builder()
-                    .put("xpack.monitoring.exporters.explicitly_disabled.type", "record")
+                    .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
                     .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
-
-        factories.put("record", (s) -> new CountingExporter(s, threadContext));
 
         Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext);
         exporters.start();

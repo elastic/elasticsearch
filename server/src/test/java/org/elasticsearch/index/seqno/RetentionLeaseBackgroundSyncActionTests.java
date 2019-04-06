@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.mockito.ArgumentCaptor;
 
@@ -204,9 +205,13 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
                     final Exception e = randomFrom(
                             new AlreadyClosedException("closed"),
                             new IndexShardClosedException(indexShard.shardId()),
+                            new TransportException(randomFrom(
+                                    "failed",
+                                    "TransportService is closed stopped can't send request",
+                                    "transport stopped, action: indices:admin/seq_no/retention_lease_background_sync[p]")),
                             new RuntimeException("failed"));
                     listener.onFailure(e);
-                    if (e instanceof AlreadyClosedException == false && e instanceof IndexShardClosedException == false) {
+                    if (e.getMessage().equals("failed")) {
                         final ArgumentCaptor<ParameterizedMessage> captor = ArgumentCaptor.forClass(ParameterizedMessage.class);
                         verify(retentionLeaseSyncActionLogger).warn(captor.capture(), same(e));
                         final ParameterizedMessage message = captor.getValue();

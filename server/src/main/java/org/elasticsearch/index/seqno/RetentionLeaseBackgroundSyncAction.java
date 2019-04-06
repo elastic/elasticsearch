@@ -113,9 +113,15 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     ActionListener.wrap(
                             r -> {},
                             e -> {
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                                if (ExceptionsHelper.isTransportStoppedForAction(e, ACTION_NAME + "[p]")) {
+                                    // we are likely shutting down
+                                    return;
                                 }
+                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                                    // the shard is closed
+                                    return;
+                                }
+                                getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                             }));
         }
     }

@@ -22,7 +22,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.junit.Before;
-import org.mockito.AdditionalAnswers;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -221,7 +220,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
         verifyNoMoreInteractions(client);
         verify(dataExtractor).cancel();
-        verify(dataExtractor, times(3)).next();
+        verify(dataExtractor, times(2)).next();
     }
 
     private void givenProcessResults(List<RowResults> results) {
@@ -230,19 +229,10 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         }
     }
 
-    private void givenDataFrameBatches(List<DataFrameDataExtractor.Row>... batch) throws IOException {
-        List<Boolean> hasNextAnswers = new ArrayList<>();
-        hasNextAnswers.add(true);
-        List<Optional<List<DataFrameDataExtractor.Row>>> nextAnswers = new ArrayList<>();
-        for (int i = 0; i < batch.length; i++) {
-            hasNextAnswers.add(true);
-            nextAnswers.add(Optional.of(batch[i]));
-        }
-        hasNextAnswers.add(false);
-        nextAnswers.add(Optional.empty());
-
-        when(dataExtractor.hasNext()).thenAnswer(AdditionalAnswers.returnsElementsOf(hasNextAnswers));
-        when(dataExtractor.next()).thenAnswer(AdditionalAnswers.returnsElementsOf(nextAnswers));
+    private void givenDataFrameBatches(List<DataFrameDataExtractor.Row>... batches) throws IOException {
+        DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(Arrays.asList(batches));
+        when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
+        when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
     }
 
     private static SearchHit newHit(String json) {
@@ -268,5 +258,23 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         when(responseFuture.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
         when(client.execute(same(BulkAction.INSTANCE), bulkRequestCaptor.capture())).thenReturn(responseFuture);
         when(client.threadPool()).thenReturn(threadPool);
+    }
+
+    private static class DelegateStubDataExtractor {
+
+        private final List<List<DataFrameDataExtractor.Row>> batches;
+        private int batchIndex;
+
+        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> batches) {
+            this.batches = batches;
+        }
+
+        public boolean hasNext() {
+            return batchIndex < batches.size();
+        }
+
+        public Optional<List<DataFrameDataExtractor.Row>> next() {
+            return Optional.of(batches.get(batchIndex++));
+        }
     }
 }

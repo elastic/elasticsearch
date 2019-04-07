@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,8 +39,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private final String analyticsId;
     private final Client client;
     private final DataFrameDataExtractor dataExtractor;
-    private List<DataFrameDataExtractor.Row> currentDataFrameRows;
-    private int currentDataFrameRowsIndex;
+    private final Iterator<DataFrameDataExtractor.Row> dataFrameRowsIterator;
     private LinkedList<RowResults> currentResults;
     private boolean failed;
 
@@ -47,6 +47,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.client = Objects.requireNonNull(client);
         this.dataExtractor = Objects.requireNonNull(dataExtractor);
+        this.dataFrameRowsIterator = new ResultMatchingDataFrameRows();
         this.currentResults = new LinkedList<>();
     }
 
@@ -72,68 +73,18 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
-    private Optional<List<DataFrameDataExtractor.Row>> getNextDataRowsBatch() {
-        try {
-            return dataExtractor.next();
-        } catch (IOException e) {
-            // TODO Implement recovery strategy or better error reporting
-            LOGGER.error("Error reading next batch of data frame rows", e);
-            return Optional.empty();
-        }
-    }
-
     private void joinCurrentResults() {
         BulkRequest bulkRequest = new BulkRequest();
         while (currentResults.isEmpty() == false) {
-            Optional<DataFrameDataExtractor.Row> row = findNextUnskippedRow();
-            if (row.isPresent() == false) {
-                continue;
-            }
-
             RowResults result = currentResults.pop();
-            checkChecksumsMatch(row.get(), result);
-
-            SearchHit hit = row.get().getHit();
-            Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
-            source.putAll(result.getResults());
-            new IndexRequest(hit.getIndex());
-            IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-            indexRequest.id(hit.getId());
-            indexRequest.source(source);
-            indexRequest.opType(DocWriteRequest.OpType.INDEX);
-            bulkRequest.add(indexRequest);
+            DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
+            checkChecksumsMatch(row, result);
+            bulkRequest.add(createIndexRequest(result, row.getHit()));
         }
         if (bulkRequest.numberOfActions() > 0) {
-            BulkResponse bulkResponse =
-                ClientHelper.executeWithHeaders(dataExtractor.getHeaders(),
-                    ClientHelper.ML_ORIGIN,
-                    client,
-                    () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet());
-            if (bulkResponse.hasFailures()) {
-                LOGGER.error("Failures while writing data frame");
-                // TODO Better error handling
-            }
+            executeBulkRequest(bulkRequest);
         }
         currentResults = new LinkedList<>();
-    }
-
-    private Optional<DataFrameDataExtractor.Row> findNextUnskippedRow() {
-        advanceToNextBatchIfNecessary();
-        DataFrameDataExtractor.Row row = null;
-        while ((row == null || row.shouldSkip()) && currentDataFrameRowsIndex < currentDataFrameRows.size()) {
-            row = currentDataFrameRows.get(currentDataFrameRowsIndex++);
-        }
-        return (row == null || row.shouldSkip()) ? Optional.empty() : Optional.of(row);
-    }
-
-    private void advanceToNextBatchIfNecessary() {
-        if (currentDataFrameRows == null || currentDataFrameRowsIndex >= currentDataFrameRows.size()) {
-            currentDataFrameRows = getNextDataRowsBatch().orElse(Collections.emptyList());
-            if (currentDataFrameRows.isEmpty()) {
-                throw ExceptionsHelper.serverError("No more data frame rows could be found while joining results");
-            }
-            currentDataFrameRowsIndex = 0;
-        }
     }
 
     private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
@@ -144,6 +95,25 @@ class DataFrameRowsJoiner implements AutoCloseable {
             msg += "We rely on this index being immutable during a running analysis and so the results will be unreliable.";
             throw new RuntimeException(msg);
             // TODO Communicate this error to the user as effectively the analytics have failed (e.g. FAILED state, audit error, etc.)
+        }
+    }
+
+    private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
+        Map<String, Object> source = new LinkedHashMap(hit.getSourceAsMap());
+        source.putAll(result.getResults());
+        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
+        indexRequest.id(hit.getId());
+        indexRequest.source(source);
+        indexRequest.opType(DocWriteRequest.OpType.INDEX);
+        return indexRequest;
+    }
+
+    private void executeBulkRequest(BulkRequest bulkRequest) {
+        BulkResponse bulkResponse = ClientHelper.executeWithHeaders(dataExtractor.getHeaders(), ClientHelper.ML_ORIGIN, client,
+                () -> client.execute(BulkAction.INSTANCE, bulkRequest).actionGet());
+        if (bulkResponse.hasFailures()) {
+            LOGGER.error("Failures while writing data frame");
+            // TODO Better error handling
         }
     }
 
@@ -167,6 +137,48 @@ class DataFrameRowsJoiner implements AutoCloseable {
         dataExtractor.cancel();
         while (dataExtractor.hasNext()) {
             dataExtractor.next();
+        }
+    }
+
+    private class ResultMatchingDataFrameRows implements Iterator<DataFrameDataExtractor.Row> {
+
+        private List<DataFrameDataExtractor.Row> currentDataFrameRows = Collections.emptyList();
+        private int currentDataFrameRowsIndex;
+
+        @Override
+        public boolean hasNext() {
+            return dataExtractor.hasNext() || currentDataFrameRowsIndex < currentDataFrameRows.size();
+        }
+
+        @Override
+        public DataFrameDataExtractor.Row next() {
+            DataFrameDataExtractor.Row row = null;
+            while ((row == null || row.shouldSkip()) && hasNext()) {
+                advanceToNextBatchIfNecessary();
+                row = currentDataFrameRows.get(currentDataFrameRowsIndex++);
+            }
+
+            if (row == null || row.shouldSkip()) {
+                throw ExceptionsHelper.serverError("No more data frame rows could be found while joining results");
+            }
+            return row;
+        }
+
+        private void advanceToNextBatchIfNecessary() {
+            if (currentDataFrameRowsIndex >= currentDataFrameRows.size()) {
+                currentDataFrameRows = getNextDataRowsBatch().orElse(Collections.emptyList());
+                currentDataFrameRowsIndex = 0;
+            }
+        }
+
+        private Optional<List<DataFrameDataExtractor.Row>> getNextDataRowsBatch() {
+            try {
+                return dataExtractor.next();
+            } catch (IOException e) {
+                // TODO Implement recovery strategy or better error reporting
+                LOGGER.error("Error reading next batch of data frame rows", e);
+                return Optional.empty();
+            }
         }
     }
 }

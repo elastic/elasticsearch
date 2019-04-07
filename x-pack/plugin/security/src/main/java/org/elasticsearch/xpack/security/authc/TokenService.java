@@ -721,7 +721,7 @@ public final class TokenService {
 
     /**
      * Inferes the format and version of the passed in {@code refreshToken}. Delegates the actual search of the token document to
-     * {@code #findTokenFromRefreshToken(String, SecurityIndexManager, Iterator, ActionListener) .
+     * {@code #findTokenFromRefreshToken(String, SecurityIndexManager, Iterator, ActionListener)} .
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         if (refreshToken.length() == TOKEN_ID_LENGTH) {

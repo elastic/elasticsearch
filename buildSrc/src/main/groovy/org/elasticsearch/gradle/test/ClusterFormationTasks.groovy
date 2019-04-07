@@ -663,7 +663,6 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            // TODO: this must change to 7.0.0 after bundling java has been backported
             if (project.isRuntimeJavaHomeSet || node.nodeVersion.before(Version.fromString("7.0.0")) ||
                 node.config.distribution == 'integ-test-zip') {
                 exec.environment.put('JAVA_HOME', project.runtimeJavaHome)

@@ -81,7 +81,7 @@ public class PermissionsIT extends ESRestTestCase {
             .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
-        createNewSingletonPolicy(deletePolicy,"delete", new DeleteAction());
+        createNewSingletonPolicy(client(), deletePolicy,"delete", new DeleteAction());
     }
 
     /**
@@ -134,7 +134,7 @@ public class PermissionsIT extends ESRestTestCase {
     }
 
     public void testILMPolicyWithRolloverActionWhereUserRoleIsLimitedByAliasOfIndex() throws IOException, InterruptedException {
-        createNewSingletonPolicy("foo-policy", "hot", new RolloverAction(null, null, 2L));
+        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, 2L));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
@@ -172,7 +172,7 @@ public class PermissionsIT extends ESRestTestCase {
         });
     }
 
-    private void createNewSingletonPolicy(String policy, String phaseName, LifecycleAction action) throws IOException {
+    private void createNewSingletonPolicy(RestClient client, String policy, String phaseName, LifecycleAction action) throws IOException {
         Phase phase = new Phase(phaseName, TimeValue.ZERO, singletonMap(action.getWriteableName(), action));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
@@ -181,7 +181,7 @@ public class PermissionsIT extends ESRestTestCase {
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policy);
         request.setEntity(entity);
-        assertOK(adminClient().performRequest(request));
+        assertOK(client.performRequest(request));
     }
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {

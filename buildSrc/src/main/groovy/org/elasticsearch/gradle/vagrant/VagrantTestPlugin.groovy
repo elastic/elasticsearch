@@ -280,7 +280,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                      else
                        test_args=( "\$@" )
                      fi
-                     java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
+                     "\$SYSTEM_JAVA_HOME"/bin/java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
                      """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
@@ -294,7 +294,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                     "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }

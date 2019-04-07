@@ -722,11 +722,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-            project.ext.compactProfile = 'compact3'
-        } else {
-            project.ext.compactProfile = 'full'
-        }
+        project.ext.compactProfile = 'full'
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
@@ -737,13 +733,6 @@ class BuildPlugin implements Plugin<Project> {
                 } else {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
-                }
-                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
-                    // compile with compact 3 profile by default
-                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    if (project.compactProfile != 'full') {
-                        options.compilerArgs << '-profile' << project.compactProfile
-                    }
                 }
                 /*
                  * -path because gradle will send in paths that don't always exist.
@@ -935,9 +924,7 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
-            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                jvmArg '--illegal-access=warn'
-            }
+            jvmArg '--illegal-access=warn'
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD

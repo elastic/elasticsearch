@@ -131,8 +131,7 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
-                    project.runtimeJavaVersion.getMajorVersion() : project.runtimeJavaVersion
+            targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
             if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
                 doLast {
                     project.logger.info(

@@ -146,11 +146,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         Archives.runElasticsearch(installation, newShell());
 
-        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false
-            ? "gc.log.0.current"
-            : "gc.log";
-
-        assertTrue("gc logs exist", Files.exists(installation.logs.resolve(gcLogName)));
+        assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();
 
         Archives.stopElasticsearch(installation);
@@ -227,16 +223,16 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
             String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
-            String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
+            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 final String java = systemJavaHome + "/bin/java";
 
-                sh.run("mkdir -p \"" + test_java_home + "/bin\"");
-                sh.run("ln -s \"" + java + "\" \"" + test_java_home + "/bin/java\"");
-                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + test_java_home + "\"");
+                sh.run("mkdir -p \"" + testJavaHome + "/bin\"");
+                sh.run("ln -s \"" + java + "\" \"" + testJavaHome + "/bin/java\"");
+                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + testJavaHome + "\"");
 
-                sh.getEnv().put("JAVA_HOME", test_java_home);
+                sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 //verify ES can start, stop and run plugin list
                 Archives.runElasticsearch(installation, sh);
@@ -247,7 +243,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
             } finally {
-                FileUtils.rm(Paths.get("\"" + test_java_home + "\""));
+                FileUtils.rm(Paths.get("\"" + testJavaHome + "\""));
             }
         });
     }

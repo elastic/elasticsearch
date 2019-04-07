@@ -15,7 +15,6 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDatabaseMetaData.escapeString
 
 public class JdbcDatabaseMetaDataTests extends ESTestCase {
 
-    final char ESC = '\\';
     private JdbcDatabaseMetaData md = new JdbcDatabaseMetaData(null);
 
     public void testSeparators() throws Exception {

@@ -1245,37 +1245,31 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
             default:
                 // first detect if there's any escaping in the string, if so bail out
                 boolean escaped = false;
-                boolean hasEscaping = false;
 
                 for (int i = 0; i < pattern.length(); i++) {
                     char curr = pattern.charAt(i);
-                    if (escaped == false && (curr == esc) && esc != 0) {
+                    if (escaped == false && curr == esc) {
                         escaped = true;
                     } else {
                         if ((curr == '%' || curr == '_' || curr == esc) && (escaped == true)) {
-                            hasEscaping = true;
-                            break;
+                            // looks like the string is using escaping, bail out
+                            return pattern;
                         }
                         escaped = false;
                     }
                 }
 
-                // looks like the string is using escaping, bail out
-                if (hasEscaping) {
-                    return pattern;
-                }
-
+                escaped = false;
                 // escape _ only if not escaped (% is ignored for now)
                 StringBuilder wildcard = new StringBuilder(pattern.length());
 
                 for (int i = 0; i < pattern.length(); i++) {
                     char curr = pattern.charAt(i);
 
-                    if (escaped == false && (curr == esc) && esc != 0) {
+                    if (escaped == false && curr == esc) {
                         escaped = true;
                     } else {
-                        //
-                        if (curr == '_' && (escaped == false)) {
+                        if (curr == '_' && escaped == false) {
                             wildcard.append(esc);
                         }
                         escaped = false;

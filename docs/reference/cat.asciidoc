@@ -115,7 +115,7 @@ case is the eighth one.
 
 [source,sh]
 --------------------------------------------------
-% curl '192.168.56.10:9200/_cat/indices?bytes=b' | sort -rnk8
+% curl '192.168.56.10:9200/_cat/indices?v&bytes=b&s=store.size:desc'
 green wiki2 3 0 10000   0 105274918 105274918
 green wiki1 3 0 10000 413 103776272 103776272
 green foo   1 0   227   0   2065131   2065131

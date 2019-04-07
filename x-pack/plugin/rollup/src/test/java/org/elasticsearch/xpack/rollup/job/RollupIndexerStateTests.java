@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.mockito.stubbing.Answer;
@@ -44,11 +44,18 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.spy;
+
 
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
+        EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                Map<String, Object> initialPosition, boolean upgraded, RollupIndexerJobStats stats) {
+            super(executor, job, initialState, initialPosition, new AtomicBoolean(upgraded), stats);
+        }
+
         EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                            Map<String, Object> initialPosition, boolean upgraded) {
             super(executor, job, initialState, initialPosition, new AtomicBoolean(upgraded));
@@ -124,7 +131,9 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {}
+        protected void onFinish(ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     private static class DelayedEmptyRollupIndexer extends EmptyRollupIndexer {
@@ -138,6 +147,11 @@ public class RollupIndexerStateTests extends ESTestCase {
         DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                                   Map<String, Object> initialPosition) {
             super(executor, job, initialState, initialPosition, randomBoolean());
+        }
+
+        DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
+            super(executor, job, initialState, initialPosition, randomBoolean(), stats);
         }
 
         private CountDownLatch newLatch() {
@@ -214,7 +228,9 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {}
+        protected void onFinish(ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     public void testStarted() throws Exception {
@@ -248,9 +264,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             AtomicBoolean isFinished = new AtomicBoolean(false);
             DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
                 @Override
-                protected void onFinish() {
-                    super.onFinish();
-                    isFinished.set(true);
+                protected void onFinish(ActionListener<Void> listener) {
+                    super.onFinish(ActionListener.wrap(r -> {
+                        isFinished.set(true);
+                        listener.onResponse(r);
+                    }, listener::onFailure));
                 }
             };
             final CountDownLatch latch = indexer.newLatch();
@@ -274,24 +292,32 @@ public class RollupIndexerStateTests extends ESTestCase {
 
     public void testStateChangeMidTrigger() throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+
+        RollupIndexerJobStats stats = new RollupIndexerJobStats();
+        RollupIndexerJobStats spyStats = spy(stats);
         RollupJobConfig config = mock(RollupJobConfig.class);
 
-        // We pull the config before a final state check, so this allows us to flip the state
+        // We call stats before a final state check, so this allows us to flip the state
         // and make sure the appropriate error is thrown
-        when(config.getGroupConfig()).then((Answer<GroupConfig>) invocationOnMock -> {
+        Answer<?> forwardAndChangeState = invocation -> {
+            invocation.callRealMethod();
             state.set(IndexerState.STOPPED);
-            return ConfigTestHelpers.randomGroupConfig(random());
-        });
+            return null;
+        };
+
+        doAnswer(forwardAndChangeState).when(spyStats).incrementNumInvocations(1L);
         RollupJob job = new RollupJob(config, Collections.emptyMap());
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null, spyStats) {
                 @Override
-                protected void onFinish() {
-                    super.onFinish();
-                    isFinished.set(true);
+                protected void onFinish(ActionListener<Void> listener) {
+                    super.onFinish(ActionListener.wrap(r -> {
+                        isFinished.set(true);
+                        listener.onResponse(r);
+                    }, listener::onFailure));
                 }
             };
             final CountDownLatch latch = indexer.newLatch();
@@ -318,7 +344,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         try {
             EmptyRollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null) {
                 @Override
-                protected void onFinish() {
+                protected void onFinish(ActionListener<Void> listener) {
                     fail("Should not have called onFinish");
                 }
 

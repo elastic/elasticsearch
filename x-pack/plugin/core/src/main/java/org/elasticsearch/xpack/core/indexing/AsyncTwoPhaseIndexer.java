@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
  * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position).
- * Only one background job can run simultaneously and {@link #onFinish()} is called when the job
+ * Only one background job can run simultaneously and {@link #onFinish} is called when the job
  * finishes. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()} is called if the indexer is
  * aborted while a job is running. The indexer must be started ({@link #start()} to allow a background job to run when
  * {@link #maybeTriggerAsyncJob(long)} is called. {@link #stop()} can be used to stop the background job without aborting the indexer.
@@ -85,13 +85,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Sets the internal state to {@link IndexerState#STOPPING} if an async job is
-     * running in the background and in such case {@link #onFinish()} will be called
-     * as soon as the background job detects that the indexer is stopped. If there
-     * is no job running when this function is called, the state is directly set to
-     * {@link IndexerState#STOPPED} and {@link #onFinish()} will never be called.
+     * running in the background. If there is no job running when this function is
+     * called, the state is directly set to {@link IndexerState#STOPPED}.
      *
-     * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the
-     *         job was already aborted).
+     * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState stop() {
         IndexerState currentState = state.updateAndGet(previousState -> {
@@ -148,17 +145,17 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         case STARTED:
             logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
             stats.incrementNumInvocations(1);
-            onStartJob(now);
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
-                    try {
+                    onStart(now, ActionListener.wrap(r -> {
                         stats.markStartSearch();
                         doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
-                    } catch (Exception e) {
-                        finishWithSearchFailure(e);
-                    }
+                    }, e -> {
+                        finishAndSetState();
+                        onFailure(e);
+                    }));
                 });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
@@ -200,8 +197,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * internal state is {@link IndexerState#STARTED}.
      *
      * @param now The current time in milliseconds passed through from {@link #maybeTriggerAsyncJob(long)}
+     * @param listener listener to call after done
      */
-    protected abstract void onStartJob(long now);
+    protected abstract void onStart(long now, ActionListener<Void> listener);
 
     /**
      * Executes the {@link SearchRequest} and calls <code>nextPhase</code> with the
@@ -248,9 +246,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onFailure(Exception exc);
 
     /**
-     * Called when a background job finishes.
+     * Called when a background job finishes before the internal state changes from {@link IndexerState#INDEXING} back to
+     * {@link IndexerState#STARTED}.
+     *
+     * @param listener listener to call after done
      */
-    protected abstract void onFinish();
+    protected abstract void onFinish(ActionListener<Void> listener);
 
     /**
      * Called when a background job detects that the indexer is aborted causing the
@@ -315,10 +316,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (iterationResult.isDone()) {
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
-                // Change state first, then try to persist. This prevents in-progress
-                // STOPPING/ABORTING from
-                // being persisted as STARTED but then stop the job
-                doSaveState(finishAndSetState(), position.get(), this::onFinish);
+                // execute finishing tasks
+                onFinish(ActionListener.wrap(
+                        r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
+                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+
                 return;
             }
 
@@ -337,6 +339,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                     logger.warn("Error while attempting to bulk index documents: " + bulkResponse.buildFailureMessage());
                 }
                 stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
+
+                // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
                 if (checkState(getState()) == false) {
                     return;
                 }

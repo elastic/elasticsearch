@@ -238,7 +238,7 @@ public final class TokenService {
                                    ActionListener<Tuple<UserToken, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
-        // in newer versions tokens moved to a separate index
+        // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
         final String userTokenId = UUIDs.randomBase64UUID();
@@ -250,11 +250,11 @@ public final class TokenService {
      * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata, with the given
      * token document id. The created tokens are be stored in the security index.
      */
-    private void createOAuth2Tokens(String userTokenId, Version version, SecurityIndexManager tokensIndex, Authentication authentication,
-                                    Authentication originatingClientAuth, Map<String, Object> metadata, boolean includeRefreshToken,
-                                    ActionListener<Tuple<UserToken, String>> listener) {
+    private void createOAuth2Tokens(String userTokenId, Version tokenVersion, SecurityIndexManager tokensIndex,
+                                    Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
+                                    boolean includeRefreshToken, ActionListener<Tuple<UserToken, String>> listener) {
         assert userTokenId.length() == TOKEN_ID_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
-                + " When changing this be careful that the inferences from token length still hold.";
+                + " When changing the token length, be careful that the inferences about its length still hold.";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -263,8 +263,8 @@ public final class TokenService {
                 new IllegalArgumentException("originating client authentication must be provided")));
         } else {
             final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
-                authentication.getLookedUpBy(), version, AuthenticationType.TOKEN, authentication.getMetadata());
-            final UserToken userToken = new UserToken(userTokenId, version, tokenAuth, getExpirationTime(), metadata);
+                authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN, authentication.getMetadata());
+            final UserToken userToken = new UserToken(userTokenId, tokenVersion, tokenAuth, getExpirationTime(), metadata);
             final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
             final BytesReference tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
             final String documentId = getTokenDocumentId(userToken);
@@ -278,14 +278,14 @@ public final class TokenService {
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
                                 if (indexResponse.getResult() == Result.CREATED) {
-                                    if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+                                    if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                                         final String versionedRefreshToken = plainRefreshToken != null
-                                                ? prependVersionAndEncode(version, plainRefreshToken)
+                                                ? prependVersionAndEncode(tokenVersion, plainRefreshToken)
                                                 : null;
                                         listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
                                     } else {
-                                        // prior versions are not prepended, as nodes on those versions don't expect it. Such nodes
-                                        // might exist in a mixed cluster during a rolling upgrade.
+                                        // prior versions are not version-prepended, as nodes on those versions don't expect it.
+                                        // Such nodes might exist in a mixed cluster during a rolling upgrade.
                                         listener.onResponse(new Tuple<>(userToken, plainRefreshToken));
                                     }
                                 } else {
@@ -338,10 +338,11 @@ public final class TokenService {
     }
 
     /**
-     * Gets the UserToken with given id by fetching the the corresponding token document
+     * Gets the {@link UserToken} with the given {@code userTokenId} and {@code version} by fetching and parsing the corresponding token
+     * document.
      */
-    void getUserTokenFromId(String userTokenId, Version version, ActionListener<UserToken> listener) {
-        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(version);
+    private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
+        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
         if (tokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
@@ -390,7 +391,7 @@ public final class TokenService {
 
     /**
      * If needed, for tokens that were created in a pre {@code #VERSION_ACCESS_TOKENS_UUIDS} cluster, it asynchronously decodes the token to
-     * get the token document Id. The process for this is asynchronous as we may need to compute a key, which can be computationally
+     * get the token document id. The process for this is asynchronous as we may need to compute a key, which can be computationally
      * expensive so this should not block the current thread, which is typically a network thread. A second reason for being asynchronous is
      * that we can restrain the amount of resources consumed by the key computation to a single thread. For tokens created in an after
      * {@code #VERSION_ACCESS_TOKENS_UUIDS} cluster, the token is just the token document Id so this is used directly without decryption
@@ -629,7 +630,8 @@ public final class TokenService {
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            tokensIndexManager.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
+            tokensIndexManager.prepareIndexIfNeededThenExecute(
+                ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
@@ -718,37 +720,38 @@ public final class TokenService {
     }
 
     /**
-     * Tries to decode the {@code refreshToken} and then perform an asynchronous search request for the containing token document, then
-     * calls the listener with the resulting {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried
-     * using an exponential backoff policy.
+     * Inferes the format and version of the passed in {@code refreshToken}. Delegates the actual search of the token document to
+     * {@code #findTokenFromRefreshToken(String, SecurityIndexManager, Iterator, ActionListener) .
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         if (refreshToken.length() == TOKEN_ID_LENGTH) {
+            // first check if token has the old format before the new version-prepended one
             logger.debug("Assuming an unversioned refresh token [{}}, generated for node versions"
                     + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            final Optional<Tuple<Version, String>> versionAndRefreshTokenTuple = tryUnpackVersionAndPayload(refreshToken);
-            if (versionAndRefreshTokenTuple.isPresent()) {
-                final Version refreshTokenVersion = versionAndRefreshTokenTuple.get().v1();
-                final String unencodedRefreshToken = versionAndRefreshTokenTuple.get().v2();
+            try {
+                final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
                         || unencodedRefreshToken.length() != TOKEN_ID_LENGTH) {
-                    listener.onFailure(new IllegalArgumentException("Decoded refresh token [" + unencodedRefreshToken + "] with version ["
-                            + refreshTokenVersion + "] is invalid."));
+                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
+                    listener.onFailure(malformedTokenException());
                 } else {
                     findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
                 }
-            } else {
-                listener.onFailure(new IllegalArgumentException("Could not decode refresh token [" + refreshToken + "]."));
+            } catch (IOException e) {
+                logger.debug("Could not decode refresh token [" + refreshToken + "].", e);
+                listener.onFailure(malformedTokenException());
             }
         }
     }
 
     /**
-     * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the listener with the
-     * {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential backoff policy. This
-     * method requires the tokens index where the token document, pointed to by the refresh token, resides.
+     * Performs an asynchronous search request for the token document that contains the {@code refreshToken} and calls the {@code listener}
+     * with the resulting {@link SearchResponse}. In case of recoverable errors the {@code SearchRequest} is retried using an exponential
+     * backoff policy. This method requires the tokens index where the token document, pointed to by the refresh token, resides.
      */
     private void findTokenFromRefreshToken(String refreshToken, SecurityIndexManager tokensIndexManager, Iterator<TimeValue> backoff,
                                            ActionListener<SearchHit> listener) {
@@ -933,7 +936,7 @@ public final class TokenService {
     }
 
     private void getSupersedingTokenDocAsyncWithRetry(RefreshTokenStatus refreshTokenStatus, Iterator<TimeValue> backoff,
-            ActionListener<Tuple<UserToken, String>> listener) {
+                                                      ActionListener<Tuple<UserToken, String>> listener) {
         final Consumer<Exception> onFailure = ex -> listener
                 .onFailure(traceLog("get superseding token", refreshTokenStatus.getSupersededBy(), ex));
         getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
@@ -990,11 +993,12 @@ public final class TokenService {
     private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {
         final String supersedingDocReference = refreshTokenStatus.getSupersededBy();
         if (supersedingDocReference.startsWith(securityTokensIndex.aliasName() + "|")) {
+            // superseding token doc is stored on the new tokens index, irrespective of where the superseded token doc resides
             final String supersedingDocId = supersedingDocReference.substring(securityTokensIndex.aliasName().length() + 1);
             getTokenDocAsync(supersedingDocId, securityTokensIndex, listener);
         } else {
             assert false == supersedingDocReference
-                    .contains("|") : "Superseding doc reference appears to contain an alias name but shouldn't";
+                    .contains("|") : "The superseding doc reference appears to contain an alias name but should not";
             getTokenDocAsync(supersedingDocReference, securityMainIndex, listener);
         }
     }
@@ -1005,6 +1009,7 @@ public final class TokenService {
     }
 
     private Version getTokenVersionCompatibility() {
+        // newly minted tokens are compatible with the min node version in the cluster
         return clusterService.state().nodes().getMinNodeVersion();
     }
 
@@ -1210,10 +1215,10 @@ public final class TokenService {
      * have been stored on a dedicated separate index. This move has been implemented without requiring user intervention, so the newly
      * created tokens started to be created in the new index, while the old tokens were still usable out of the main security index, subject
      * to their maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. Once the dedicated tokens index has been
-     * created, all newly created tokens will be stored inside it. This function returns the list of the indices names that might contain
-     * tokens. Unless there are availability or version issues, the dedicated tokens index always contains tokens. The main security index
-     * <i>might</i> contain tokens if the tokens index has not been created yet, or if it has been created recently so that there might
-     * still be tokens that have not yet exceeded their maximum lifetime.
+     * automatically created, all the onwards created tokens will be stored inside it. This function returns the list of the indices names
+     * that might contain tokens. Unless there are availability or version issues, the dedicated tokens index always contains tokens. The
+     * main security index <i>might</i> contain tokens if the tokens index has not been created yet, or if it has been created recently so
+     * that there might still be tokens that have not yet exceeded their maximum lifetime.
      */
     private void sourceIndicesWithTokensAndRun(ActionListener<List<String>> listener) {
         final List<String> indicesWithTokens = new ArrayList<>(2);
@@ -1359,11 +1364,11 @@ public final class TokenService {
     }
 
     /**
-     * In version {@code #VERSION_TOKENS_INDEX_INTRODUCED} tokens moved into a separate index away from the other entities due to their
-     * ephemeral nature. But they moved "seamlessly" - without manual intervention. In this way, new tokens are created in the new index,
-     * while the existing ones were left in place - to be accessed from the old index - and due to be removed automatically by the {@code
-     * ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to consider both the new and the old
-     * indices.
+     * In version {@code #VERSION_TOKENS_INDEX_INTRODUCED} security tokens were moved into a separate index, away from the other entities in
+     * the main security index, due to their ephemeral nature. They moved "seamlessly" - without manual user intervention. In this way, new
+     * tokens are created in the new index, while the existing ones were left in place - to be accessed from the old index - and due to be
+     * removed automatically by the {@code ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to
+     * consider both the new and the old indices.
      */
     private SecurityIndexManager getTokensIndexManagerForVersion(Version version) {
         if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
@@ -1506,20 +1511,21 @@ public final class TokenService {
             out.writeString(payload);
             return new String(os.toByteArray(), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new RuntimeException("Unexpected exception when working with small in memory streams", e);
+            throw new RuntimeException("Unexpected exception when working with small in-memory streams", e);
         }
     }
 
-    private static Optional<Tuple<Version, String>> tryUnpackVersionAndPayload(String encodedPack) {
+    // public for testing
+    /**
+     * Unpacks a base64 encoded pair of a version tag and String payload.
+     */
+    public static Tuple<Version, String> unpackVersionAndPayload(String encodedPack) throws IOException {
         final byte[] bytes = encodedPack.getBytes(StandardCharsets.UTF_8);
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final String payload = in.readString();
-            return Optional.of(new Tuple<Version, String>(version, payload));
-        } catch (IOException | IllegalArgumentException e) {
-            logger.trace("Error decoding versioned String value.", e);
-            return Optional.empty();
+            return new Tuple<Version, String>(version, payload);
         }
     }
 

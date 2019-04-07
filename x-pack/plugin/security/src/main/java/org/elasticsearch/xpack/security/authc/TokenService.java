@@ -70,7 +70,6 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -230,14 +229,6 @@ public final class TokenService {
         getTokenMetaData();
     }
 
-    private Version getVersionCompatibility() {
-        return clusterService.state().nodes().getMinNodeVersion();
-    }
-
-    public static Boolean isTokenServiceEnabled(Settings settings) {
-        return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
-    }
-
     /**
      * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with an
      * auto-generated token document id. The created tokens are stored in the security index.
@@ -246,7 +237,7 @@ public final class TokenService {
                                    Map<String, Object> metadata, boolean includeRefreshToken,
                                    ActionListener<Tuple<UserToken, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
-        final Version tokenVersion = getVersionCompatibility();
+        final Version tokenVersion = getTokenVersionCompatibility();
         // in newer versions tokens moved to a separate index
         final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
@@ -845,7 +836,7 @@ public final class TokenService {
             getSupersedingTokenDocAsyncWithRetry(refreshTokenStatus, backoff, listener);
         } else {
             final String newUserTokenId = UUIDs.randomBase64UUID();
-            final Version newTokenVersion = getVersionCompatibility();
+            final Version newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());
@@ -1013,6 +1004,14 @@ public final class TokenService {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
     }
 
+    private Version getTokenVersionCompatibility() {
+        return clusterService.state().nodes().getMinNodeVersion();
+    }
+
+    public static Boolean isTokenServiceEnabled(Settings settings) {
+        return XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(settings);
+    }
+
     /**
      * A refresh token has a fixed maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. This checks if the
      * token document represents a valid token wrt this time interval.
@@ -1131,7 +1130,7 @@ public final class TokenService {
             listener.onFailure(new IllegalArgumentException("realm name is required"));
             return;
         }
-        sourceTokenIndicesStateAndRun(ActionListener.wrap(indicesWithTokens -> {
+        sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
             if (indicesWithTokens.isEmpty()) {
                 listener.onResponse(Collections.emptyList());
             } else {
@@ -1176,7 +1175,7 @@ public final class TokenService {
             listener.onFailure(new IllegalArgumentException("username is required"));
             return;
         }
-        sourceTokenIndicesStateAndRun(ActionListener.wrap(indicesWithTokens -> {
+        sourceIndicesWithTokensAndRun(ActionListener.wrap(indicesWithTokens -> {
             if (indicesWithTokens.isEmpty()) {
                 listener.onResponse(Collections.emptyList());
             } else {
@@ -1206,32 +1205,48 @@ public final class TokenService {
         }, listener::onFailure));
     }
 
-    private void sourceTokenIndicesStateAndRun(ActionListener<List<String>> listener) {
+    /**
+     * Security tokens were traditionally stored on the main security index but after version {@code #VERSION_TOKENS_INDEX_INTRODUCED} they
+     * have been stored on a dedicated separate index. This move has been implemented without requiring user intervention, so the newly
+     * created tokens started to be created in the new index, while the old tokens were still usable out of the main security index, subject
+     * to their maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. Once the dedicated tokens index has been
+     * created, all newly created tokens will be stored inside it. This function returns the list of the indices names that might contain
+     * tokens. Unless there are availability or version issues, the dedicated tokens index always contains tokens. The main security index
+     * <i>might</i> contain tokens if the tokens index has not been created yet, or if it has been created recently so that there might
+     * still be tokens that have not yet exceeded their maximum lifetime.
+     */
+    private void sourceIndicesWithTokensAndRun(ActionListener<List<String>> listener) {
         final List<String> indicesWithTokens = new ArrayList<>(2);
         final SecurityIndexManager frozenTokensIndex = securityTokensIndex.freeze();
         if (frozenTokensIndex.indexExists()) {
+            // an existing tokens index always contains tokens (if available and version allows)
             if (false == frozenTokensIndex.isAvailable()) {
                 listener.onFailure(frozenTokensIndex.getUnavailableReason());
                 return;
-            } else if (false == frozenTokensIndex.isIndexUpToDate()) {
+            }
+            if (false == frozenTokensIndex.isIndexUpToDate()) {
                 listener.onFailure(new IllegalStateException(
                         "Index [" + frozenTokensIndex.aliasName() + "] is not on the current version. Features relying on the index"
                                 + " will not be available until the upgrade API is run on the index"));
-            } else {
-                indicesWithTokens.add(frozenTokensIndex.aliasName());
+                return;
             }
+            indicesWithTokens.add(frozenTokensIndex.aliasName());
         }
         final SecurityIndexManager frozenMainIndex = securityMainIndex.freeze();
         if (frozenMainIndex.indexExists()) {
-            if (false == frozenMainIndex.isAvailable()) {
-                listener.onFailure(frozenMainIndex.getUnavailableReason());
-                return;
-            } else if (false == frozenMainIndex.isIndexUpToDate()) {
-                listener.onFailure(new IllegalStateException(
-                        "Index [" + frozenMainIndex.aliasName() + "] is not on the current version. Features relying on the index"
-                                + " will not be available until the upgrade API is run on the index"));
-            } else if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
-                    .isBefore(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
+            // main security index _might_ contain tokens if the tokens index has been created recently 
+            if (false == frozenTokensIndex.indexExists() || frozenTokensIndex.getCreationTime()
+                    .isAfter(clock.instant().minus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
+                if (false == frozenMainIndex.isAvailable()) {
+                    listener.onFailure(frozenMainIndex.getUnavailableReason());
+                    return;
+                }
+                if (false == frozenMainIndex.isIndexUpToDate()) {
+                    listener.onFailure(new IllegalStateException(
+                            "Index [" + frozenMainIndex.aliasName() + "] is not on the current version. Features relying on the index"
+                                    + " will not be available until the upgrade API is run on the index"));
+                    return;
+                }
                 indicesWithTokens.add(frozenMainIndex.aliasName());
             }
         }

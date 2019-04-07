@@ -146,10 +146,6 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         Archives.runElasticsearch(installation, newShell());
 
-        final String gcLogName = Platforms.LINUX && distribution().hasJdk == false
-            ? "gc.log.0.current"
-            : "gc.log";
-
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();
 

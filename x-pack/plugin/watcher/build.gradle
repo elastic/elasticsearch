@@ -69,48 +69,6 @@ thirdPartyAudit {
     )
 }
 
-// pulled in as external dependency to work on java 9
-if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreJarHellWithJDK (
-        // pulled in as external dependency to work on java 9
-        'com.sun.activation.registries.LineTokenizer',
-        'com.sun.activation.registries.LogSupport',
-        'com.sun.activation.registries.MailcapFile',
-        'com.sun.activation.registries.MailcapTokenizer',
-        'com.sun.activation.registries.MimeTypeEntry',
-        'com.sun.activation.registries.MimeTypeFile',
-        'javax.activation.MailcapCommandMap',
-        'javax.activation.MimetypesFileTypeMap',
-
-        'com.sun.activation.registries.MailcapParseException',
-        'javax.activation.ActivationDataFlavor',
-        'javax.activation.CommandInfo',
-        'javax.activation.CommandMap',
-        'javax.activation.CommandObject',
-        'javax.activation.DataContentHandler',
-        'javax.activation.DataContentHandlerFactory',
-        'javax.activation.DataHandler$1',
-        'javax.activation.DataHandler',
-        'javax.activation.DataHandlerDataSource',
-        'javax.activation.DataSource',
-        'javax.activation.DataSourceDataContentHandler',
-        'javax.activation.FileDataSource',
-        'javax.activation.FileTypeMap',
-        'javax.activation.MimeType',
-        'javax.activation.MimeTypeParameterList',
-        'javax.activation.MimeTypeParseException',
-        'javax.activation.ObjectDataContentHandler',
-        'javax.activation.SecuritySupport$1',
-        'javax.activation.SecuritySupport$2',
-        'javax.activation.SecuritySupport$3',
-        'javax.activation.SecuritySupport$4',
-        'javax.activation.SecuritySupport$5',
-        'javax.activation.SecuritySupport',
-        'javax.activation.URLDataSource',
-        'javax.activation.UnsupportedDataTypeException'
-    )
-}
-
 run {
     plugin xpackModule('core')
 }

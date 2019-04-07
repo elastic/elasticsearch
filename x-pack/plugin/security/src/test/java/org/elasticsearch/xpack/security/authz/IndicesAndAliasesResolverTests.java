@@ -105,7 +105,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Map<String, RoleDescriptor> roleMap;
-    private FieldPermissionsCache fieldPermissionsCache;
 
     @Before
     public void setup() {
@@ -148,7 +147,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             metaData = SecurityTestUtils.addAliasToMetaData(metaData, securityIndexName);
         }
         this.metaData = metaData;
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
@@ -1362,20 +1360,26 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     }
 
-    public void testDynamicPutMappingRequestForOneAliasForMultipleIndices() {
-        String index = "logs-00003";
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
+        String index = "logs-00003"; // write index
         PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
         List<String> authorizedIndices = Collections.singletonList("logs-alias");
         assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
         String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
-        assertEquals("logs-alias", putMappingIndexOrAlias);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
+                + "so this should have returned the alias name";
+        assertEquals(message, "logs-alias", putMappingIndexOrAlias);
+    }
 
-        index = "logs-00002";
-        request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
-        authorizedIndices = Collections.singletonList("logs-alias");
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
+        String index = "logs-00002"; // read index
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        List<String> authorizedIndices = Collections.singletonList("logs-alias");
         assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
-        putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
-        assertEquals(index, putMappingIndexOrAlias);
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
+                + "so this should have returned the concrete index as fallback";
+        assertEquals(message, index, putMappingIndexOrAlias);
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

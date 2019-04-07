@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
@@ -50,6 +51,7 @@ import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAlloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -205,7 +207,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         return null;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34950")
     public void testRelocationWithConcurrentIndexing() throws Exception {
         final String index = "relocation_with_concurrent_indexing";
         switch (CLUSTER_TYPE) {
@@ -239,6 +240,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
                 updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
+                // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
+                // return true even though shards haven't moved to the new node yet (allocation was throttled).
+                assertBusy(() -> {
+                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+                    String xpath = "routing_table.indices." + index + ".shards.0.node";
+                    @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+                    assertNotNull(state.toString(), assignedNodes);
+                    assertThat(state.toString(), newNode, isIn(assignedNodes));
+                }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 assertCount(index, "_only_nodes:" + newNode, 60);

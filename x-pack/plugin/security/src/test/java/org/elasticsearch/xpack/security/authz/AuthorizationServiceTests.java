@@ -1039,7 +1039,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.builder()
             .put(new IndexMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7)
-                    .putAlias(new AliasMetaData.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).build())
+                    .putAlias(new AliasMetaData.Builder(SECURITY_MAIN_ALIAS).build())
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -1051,7 +1051,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         SearchRequest request = new SearchRequest("_all");
         authorize(authentication, action, request);
         verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(superuser.roles()));
-        assertThat(request.indices(), arrayContainingInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(request.indices(), arrayContainingInAnyOrder(INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_MAIN_ALIAS));
     }
 
     public void testCompositeActionsAreImmediatelyRejected() {

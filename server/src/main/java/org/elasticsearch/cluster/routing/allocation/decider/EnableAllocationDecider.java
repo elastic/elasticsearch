@@ -147,13 +147,12 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
-        for (IndexMetaData indexMetaData : allocation.metaData()) {
-            if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
-                return allocation.decision(Decision.YES, NAME, "rebalancing is overridden on one or more indices");
-            }
-        }
-
         if (this.enableRebalance == Rebalance.NONE) {
+            for (IndexMetaData indexMetaData : allocation.metaData()) {
+                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())) {
+                    return allocation.decision(Decision.YES, NAME, "rebalancing is overridden on one or more indices");
+                }
+            }
             return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(this.enableRebalance, false));
         }
 

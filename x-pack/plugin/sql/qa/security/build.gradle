@@ -13,13 +13,15 @@ subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
+  }
+
+  processTestResources {
+    from mainProject.file('src/test/resources')
   }
 
   dependencies {

@@ -54,7 +54,8 @@ public class DataFrameTransformCheckpointingInfoTests extends ESTestCase {
             builder.field("in_progress");
             DataFrameTransformCheckpointStatsTests.toXContent(info.getInProgress(), builder);
         }
-        if (info.getOperationsBehind() > 0) {
+        // special meaning: operations could be -1 (not able to calculate)
+        if (info.getOperationsBehind() >= 0) {
             builder.field("operations_behind", info.getOperationsBehind());
         }
         builder.endObject();

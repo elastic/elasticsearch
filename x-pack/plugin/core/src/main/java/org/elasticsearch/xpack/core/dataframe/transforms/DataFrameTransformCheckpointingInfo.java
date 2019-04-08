@@ -94,7 +94,8 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         if (inProgress.getTimestampMillis() > 0) {
             builder.field(IN_PROGRESS_CHECKPOINT.getPreferredName(), inProgress);
         }
-        if (operationsBehind > 0) {
+        // special meaning: operations could be -1 (not able to calculate)
+        if (operationsBehind >= 0) {
             builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
         }
         builder.endObject();

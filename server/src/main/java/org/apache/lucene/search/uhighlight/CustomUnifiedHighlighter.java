@@ -152,11 +152,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Collection<Query> preMultiTermQueryRewrite(Query query) {
-        return rewriteCustomQuery(query);
-    }
-
-    @Override
     protected Collection<Query> preSpanQueryRewrite(Query query) {
         return rewriteCustomQuery(query);
     }

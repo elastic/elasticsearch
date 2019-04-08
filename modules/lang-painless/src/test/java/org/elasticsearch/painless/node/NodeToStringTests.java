@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.FeatureTest;
+import org.elasticsearch.painless.FeatureTestObject;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.ScriptClassInfo;
+import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClass;
@@ -35,8 +35,10 @@ import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +51,6 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
  * Tests {@link Object#toString} implementations on all extensions of {@link ANode}.
  */
 public class NodeToStringTests extends ESTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS);
 
     public void testEAssignment() {
         assertToString(
@@ -379,10 +380,11 @@ public class NodeToStringTests extends ESTestCase {
                 + "return a.length");
         assertToString(
                 "(SSource\n"
-              + "  (SDeclBlock (SDeclaration org.elasticsearch.painless.FeatureTest a (ENewObj org.elasticsearch.painless.FeatureTest)))\n"
+              + "  (SDeclBlock (SDeclaration org.elasticsearch.painless.FeatureTestObject a"
+              + " (ENewObj org.elasticsearch.painless.FeatureTestObject)))\n"
               + "  (SExpression (EAssignment (PField (EVariable a) x) = (ENumeric 10)))\n"
               + "  (SReturn (PField (EVariable a) x)))",
-                "org.elasticsearch.painless.FeatureTest a = new org.elasticsearch.painless.FeatureTest();\n"
+                "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject();\n"
               + "a.x = 10;\n"
               + "return a.x");
     }
@@ -497,10 +499,10 @@ public class NodeToStringTests extends ESTestCase {
 
     public void testPSubShortcut() {
         Location l = new Location(getTestName(), 0);
-        PainlessClass s = painlessLookup.lookupPainlessClass(FeatureTest.class);
+        PainlessClass s = painlessLookup.lookupPainlessClass(FeatureTestObject.class);
         PainlessMethod getter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("getX", 0));
         PainlessMethod setter = s.methods.get(PainlessLookupUtility.buildPainlessMethodKey("setX", 1));
-        PSubShortcut node = new PSubShortcut(l, "x", FeatureTest.class.getName(), getter, setter);
+        PSubShortcut node = new PSubShortcut(l, "x", FeatureTestObject.class.getName(), getter, setter);
         node.prefix = new EVariable(l, "a");
         assertEquals("(PSubShortcut (EVariable a) x)", node.toString());
         assertEquals("(PSubNullSafeCallInvoke (PSubShortcut (EVariable a) x))",
@@ -890,6 +892,14 @@ public class NodeToStringTests extends ESTestCase {
               + "} catch (Exception e) {\n"
               + "  return 3\n"
               + "}");
+    }
+
+    private final PainlessLookup painlessLookup;
+
+    public NodeToStringTests() {
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.painless.test"));
+        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(whitelists);
     }
 
     private void assertToString(String expected, String code) {

@@ -259,7 +259,7 @@ xpack.security.http.ssl.certificate: $ESCONFIG/certs/node-master/node-master.crt
 xpack.security.http.ssl.certificate_authorities: ["$ESCONFIG/certs/ca/ca.crt"]
 
 xpack.security.transport.ssl.enabled: true
-transport.tcp.port: 9300
+transport.port: 9300
 
 xpack.security.http.ssl.enabled: true
 http.port: 9200

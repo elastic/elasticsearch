@@ -67,7 +67,7 @@ if [ ! -x "`which unzip 2>/dev/null`" ]; then
     exit 1
 fi
 
-if [ ! -x "`which java 2>/dev/null`" ]; then
+if [ ! -x "$SYSTEM_JAVA_HOME"/bin/java ]; then
     # there are some tests that move java temporarily
     if [ ! -x "`command -v java.bak 2>/dev/null`" ]; then
         echo "'java' command is mandatory to run the tests"

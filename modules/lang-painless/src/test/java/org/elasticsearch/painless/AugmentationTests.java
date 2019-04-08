@@ -190,13 +190,13 @@ public class AugmentationTests extends ScriptTestCase {
     }
 
     public void testFeatureTest() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.getTotal()"));
-        assertEquals(5, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("def ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.getTotal()"));
-        assertEquals(8, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(8, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
-        assertEquals(8, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(8, exec("def ft = new org.elasticsearch.painless.FeatureTestObject();" +
             " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
     }
 }

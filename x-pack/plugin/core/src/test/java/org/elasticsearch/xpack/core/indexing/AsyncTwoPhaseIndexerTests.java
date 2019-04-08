@@ -99,7 +99,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            assertThat(step, equalTo(4));
+            assertThat(step, equalTo(5));
             ++step;
             next.run();
         }
@@ -110,10 +110,11 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {
-            assertThat(step, equalTo(5));
+        protected void onFinish(ActionListener<Void> listener) {
+            assertThat(step, equalTo(4));
             ++step;
             isFinished.set(true);
+            listener.onResponse(null);
         }
 
         @Override
@@ -172,20 +173,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            assertThat(step, equalTo(2));
-            ++step;
-            next.run();
+            fail("should not be called");
         }
 
         @Override
         protected void onFailure(Exception exc) {
-            assertThat(step, equalTo(3));
+            assertThat(step, equalTo(2));
             ++step;
             isFinished.set(true);
         }
 
         @Override
-        protected void onFinish() {
+        protected void onFinish(ActionListener<Void> listener) {
             fail("should not be called");
         }
 
@@ -207,6 +206,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40946")
     public void testStateMachine() throws InterruptedException {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
@@ -242,8 +242,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get()));
-            assertThat(indexer.getStep(), equalTo(4));
+            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get(), 10000, TimeUnit.SECONDS));
+            assertThat(indexer.getStep(), equalTo(3));
 
         } finally {
             executor.shutdownNow();

@@ -365,7 +365,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 mockClient);
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
-        // from write index is considered.
+        // (primaries from only write index is considered)
         PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
         RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(500L);
@@ -381,7 +381,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(response.getConditionStatus().get("[max_docs: 500]"), is(false));
 
         // For given alias, verify that the condition evaluation is successful when condition doc count is less than the primaries doc count
-        // from write index is considered.
+        // (primaries from only write index is considered)
         future = new PlainActionFuture<>();
         rolloverRequest = new RolloverRequest("logs-alias", "logs-index-000003");
         rolloverRequest.addMaxIndexDocsCondition(300L);

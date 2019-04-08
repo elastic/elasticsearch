@@ -41,23 +41,19 @@ import java.io.IOException;
  */
 public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
 
-    private static final int NUMBER_OF_TEST_RUNS = 20;
-
     public final void testFromXContent() throws IOException {
-        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            final S serverTestInstance = createServerTestInstance();
+        final S serverTestInstance = createServerTestInstance();
 
-            final XContentType xContentType = randomFrom(XContentType.values());
-            final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
-            final XContent xContent = XContentFactory.xContent(xContentType);
-            final XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE,
-                bytes.streamInput());
-            final C clientInstance = doParseToClientInstance(parser);
-            assertInstances(serverTestInstance, clientInstance);
-        }
+        final XContent xContent = XContentFactory.xContent(xContentType);
+        final XContentParser parser = xContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            bytes.streamInput());
+        final C clientInstance = doParseToClientInstance(parser);
+        assertInstances(serverTestInstance, clientInstance);
     }
 
     protected abstract S createServerTestInstance();

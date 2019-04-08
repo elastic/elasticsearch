@@ -19,30 +19,35 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class PutFollowResponseTests extends AbstractResponseTestCase<PutFollowAction.Response, PutFollowResponse> {
+public class PutFollowResponseTests extends ESTestCase {
 
-    @Override
-    protected PutFollowAction.Response createServerTestInstance() {
-        return new PutFollowAction.Response(randomBoolean(), randomBoolean(), randomBoolean());
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            this::createTestInstance,
+            PutFollowResponseTests::toXContent,
+            PutFollowResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .test();
     }
 
-    @Override
-    protected PutFollowResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return PutFollowResponse.fromXContent(parser);
+    private PutFollowResponse createTestInstance() {
+        return new PutFollowResponse(randomBoolean(), randomBoolean(), randomBoolean());
     }
 
-    @Override
-    protected void assertInstances(PutFollowAction.Response serverTestInstance, PutFollowResponse clientInstance) {
-        assertThat(serverTestInstance.isFollowIndexCreated(), is(clientInstance.isFollowIndexCreated()));
-        assertThat(serverTestInstance.isFollowIndexShardsAcked(), is(clientInstance.isFollowIndexShardsAcked()));
-        assertThat(serverTestInstance.isIndexFollowingStarted(), is(clientInstance.isIndexFollowingStarted()));
+    public static void toXContent(PutFollowResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        {
+            builder.field(PutFollowResponse.FOLLOW_INDEX_CREATED.getPreferredName(), response.isFollowIndexCreated());
+            builder.field(PutFollowResponse.FOLLOW_INDEX_SHARDS_ACKED.getPreferredName(), response.isFollowIndexShardsAcked());
+            builder.field(PutFollowResponse.INDEX_FOLLOWING_STARTED.getPreferredName(), response.isIndexFollowingStarted());
+        }
+        builder.endObject();
     }
 }

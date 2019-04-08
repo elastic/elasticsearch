@@ -420,44 +420,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
-    public void testInWithDifferentDataTypes_SelectClause() {
-        assertEquals("1:17: expected data type [integer], value provided is of type [keyword]",
+    public void testInWithDifferentDataTypes() {
+        assertEquals("1:8: 2nd argument of [1 IN (2, '3', 4)] must be [integer], found value ['3'] type [keyword]",
             error("SELECT 1 IN (2, '3', 4)"));
     }
 
-    public void testInNestedWithDifferentDataTypes_SelectClause() {
-        assertEquals("1:27: expected data type [integer], value provided is of type [keyword]",
-            error("SELECT 1 = 1  OR 1 IN (2, '3', 4)"));
-    }
-
-    public void testInWithDifferentDataTypesFromLeftValue_SelectClause() {
-        assertEquals("1:14: expected data type [integer], value provided is of type [keyword]",
+    public void testInWithDifferentDataTypesFromLeftValue() {
+        assertEquals("1:8: 1st argument of [1 IN ('foo', 'bar')] must be [integer], found value ['foo'] type [keyword]",
             error("SELECT 1 IN ('foo', 'bar')"));
-    }
-
-    public void testInNestedWithDifferentDataTypesFromLeftValue_SelectClause() {
-        assertEquals("1:29: expected data type [keyword], value provided is of type [integer]",
-            error("SELECT 1 = 1  OR  'foo' IN (2, 3)"));
-    }
-
-    public void testInWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:52: expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 4)"));
-    }
-
-    public void testInNestedWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:63: expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE int = 1 OR keyword IN ('foo', 'bar', 2)"));
-    }
-
-    public void testInWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:38: expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE keyword IN (1, 2)"));
-    }
-
-    public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
-        assertEquals("1:49: expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE int = 1 OR keyword IN (1, 2)"));
     }
 
     public void testInWithFieldInListOfValues() {
@@ -615,32 +585,17 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 incompatibleError("SELECT languages FROM \"*\" ORDER BY SIGN(ABS(emp_no))"));
     }
 
-    public void testConditionalWithDifferentDataTypes_SelectClause() {
+    public void testConditionalWithDifferentDataTypes() {
         @SuppressWarnings("unchecked")
         String function = randomFrom(IfNull.class, NullIf.class).getSimpleName();
-        assertEquals("1:" + (22 + function.length()) +
-                ": expected data type [integer], value provided is of type [keyword]",
-            error("SELECT 1 = 1  OR " + function + "(3, '4') > 1"));
+        assertEquals("1:17: 2nd argument of [" + function + "(3, '4')] must be [integer], found value ['4'] type [keyword]",
+            error("SELECT 1 = 1 OR " + function + "(3, '4') > 1"));
 
         @SuppressWarnings("unchecked")
-        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
-        assertEquals("1:" + (34 + arbirtraryArgsfunction.length()) +
-                ": expected data type [integer], value provided is of type [keyword]",
-            error("SELECT 1 = 1  OR " + arbirtraryArgsfunction + "(null, null, 3, '4') > 1"));
-    }
-
-    public void testConditionalWithDifferentDataTypes_WhereClause() {
-        @SuppressWarnings("unchecked")
-        String function = randomFrom(IfNull.class, NullIf.class).getSimpleName();
-        assertEquals("1:" + (34 + function.length()) +
-                ": expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE " + function + "('foo', 4) > 1"));
-
-        @SuppressWarnings("unchecked")
-        String arbirtraryArgsfunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
-        assertEquals("1:" + (46 + arbirtraryArgsfunction.length()) +
-                ": expected data type [keyword], value provided is of type [integer]",
-            error("SELECT * FROM test WHERE " + arbirtraryArgsfunction + "(null, null, 'foo', 4) > 1"));
+        String arbirtraryArgsFunction = randomFrom(Coalesce.class, Greatest.class, Least.class).getSimpleName();
+        assertEquals("1:17: 3rd argument of [" + arbirtraryArgsFunction + "(null, 3, '4')] must be [integer], " +
+                "found value ['4'] type [keyword]",
+            error("SELECT 1 = 1 OR " + arbirtraryArgsFunction + "(null, 3, '4') > 1"));
     }
 
     public void testAggsInWhere() {

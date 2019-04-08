@@ -262,7 +262,7 @@ public class FunctionRegistry {
             for (String alias : f.aliases()) {
                 Object old = batchMap.put(alias, f);
                 if (old != null || defs.containsKey(alias)) {
-                    throw new IllegalArgumentException("alias [" + alias + "] is used by "
+                    throw new SqlIllegalArgumentException("alias [" + alias + "] is used by "
                             + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
                 }
                 aliases.put(alias, f.name());
@@ -321,10 +321,10 @@ public class FunctionRegistry {
             java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
-                throw new IllegalArgumentException("expects no arguments");
+                throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.apply(source);
         };
@@ -341,10 +341,10 @@ public class FunctionRegistry {
             ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
-                throw new IllegalArgumentException("expects no arguments");
+                throw new SqlIllegalArgumentException("expects no arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, cfg);
         };
@@ -365,10 +365,10 @@ public class FunctionRegistry {
             UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() > 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             Expression ex = children.size() == 1 ? children.get(0) : null;
             return ctorRef.build(source, ex, cfg);
@@ -390,10 +390,10 @@ public class FunctionRegistry {
             BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.apply(source, children.get(0));
         };
@@ -409,7 +409,7 @@ public class FunctionRegistry {
             MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children);
         };
@@ -429,7 +429,7 @@ public class FunctionRegistry {
             DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             return ctorRef.build(source, children.get(0), distinct);
         };
@@ -449,10 +449,10 @@ public class FunctionRegistry {
             DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
-                throw new IllegalArgumentException("expects exactly one argument");
+                throw new SqlIllegalArgumentException("expects exactly one argument");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), cfg.zoneId());
         };
@@ -471,10 +471,10 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
-                throw new IllegalArgumentException("expects exactly two arguments");
+                throw new SqlIllegalArgumentException("expects exactly two arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), cfg.zoneId());
         };
@@ -496,13 +496,13 @@ public class FunctionRegistry {
             boolean isBinaryOptionalParamFunction = function.isAssignableFrom(Round.class) || function.isAssignableFrom(Truncate.class)
                     || TopHits.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
-                throw new IllegalArgumentException("expects one or two arguments");
+                throw new SqlIllegalArgumentException("expects one or two arguments");
             } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
-                throw new IllegalArgumentException("expects exactly two arguments");
+                throw new SqlIllegalArgumentException("expects exactly two arguments");
             }
 
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.size() == 2 ? children.get(1) : null);
         };
@@ -527,7 +527,7 @@ public class FunctionRegistry {
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
                 return builder.build(uf.source(), uf.children(), distinct, cfg);
-            } catch (IllegalArgumentException e) {
+            } catch (SqlIllegalArgumentException e) {
                 throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };
@@ -544,12 +544,12 @@ public class FunctionRegistry {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean isLocateFunction = function.isAssignableFrom(Locate.class);
             if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
-                throw new IllegalArgumentException("expects two or three arguments");
+                throw new SqlIllegalArgumentException("expects two or three arguments");
             } else if (!isLocateFunction && children.size() != 3) {
-                throw new IllegalArgumentException("expects exactly three arguments");
+                throw new SqlIllegalArgumentException("expects exactly three arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);
         };
@@ -565,10 +565,10 @@ public class FunctionRegistry {
             FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 4) {
-                throw new IllegalArgumentException("expects exactly four arguments");
+                throw new SqlIllegalArgumentException("expects exactly four arguments");
             }
             if (distinct) {
-                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+                throw new SqlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.get(2), children.get(3));
         };

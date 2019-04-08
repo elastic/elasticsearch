@@ -724,11 +724,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-            project.ext.compactProfile = 'compact3'
-        } else {
-            project.ext.compactProfile = 'full'
-        }
+        project.ext.compactProfile = 'full'
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
@@ -740,13 +736,6 @@ class BuildPlugin implements Plugin<Project> {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
                 }
-                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
-                    // compile with compact 3 profile by default
-                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    if (project.compactProfile != 'full') {
-                        options.compilerArgs << '-profile' << project.compactProfile
-                    }
-                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
@@ -754,7 +743,7 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 // fail on all javac warnings
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
                 if (options.compilerArgs.contains("-processor") == false) {

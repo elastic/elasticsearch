@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.function.Function;
@@ -70,9 +71,9 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment,
-                        NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+    public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+                        ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

@@ -19,29 +19,61 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.painless.action.PainlessContextInfo;
 
+import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ContextDocGenerator {
 
     public static void main(String[] args) throws Exception {
-        URL clusterUrl = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context");
-        HttpURLConnection conn = (HttpURLConnection)clusterUrl.openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, conn.getInputStream());
-
+        URLConnection getContextList = new URL(
+                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextList.getInputStream());
         parser.nextToken();
         parser.nextToken();
         @SuppressWarnings("unchecked")
         List<String> contexts = (List<String>)(Object)parser.list();
         parser.close();
-        System.out.println(contexts);
+        ((HttpURLConnection)getContextList).disconnect();
+
+        List<PainlessContextInfo> painlessContextInfoList = new ArrayList<>();
+        for (String context : contexts) {
+            URLConnection getContextInfo = new URL(
+                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + context).openConnection();
+            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
+            painlessContextInfoList.add(PainlessContextInfo.fromXContent(parser));
+            ((HttpURLConnection)getContextInfo).disconnect();
+        }
+
+        Path apiRootPath = PathUtils.get("../../docs/painless-contexts-api-reference");
+        IOUtils.rm(apiRootPath);
+        Files.createDirectories(apiRootPath);
+
+        Path indexPath = apiRootPath.resolve("index.asciidoc");
+
+        try (PrintStream indexStream = new PrintStream(
+                Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+            indexStream.println("| Name | API");
 
 
+            for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
 
-        conn.disconnect();
+            }
+        }
     }
 }

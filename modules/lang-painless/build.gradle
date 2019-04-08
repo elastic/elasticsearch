@@ -73,6 +73,8 @@ sourceSets {
 }
 
 dependencies {
+  docCompile(project(':server'))
+  docCompile(project(':libs-core'))
   docCompile(project(':libs:x-content'))
   docCompile(project(':modules:lang-painless'))
 }

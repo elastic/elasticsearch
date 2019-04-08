@@ -249,7 +249,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, final IndexMetaData metaData,
                                                     final IndicesStatsResponse statsResponse) {
-        return evaluateConditions(conditions, statsResponse.getPrimaries().getDocs(), metaData);
+        return evaluateConditions(conditions, statsResponse.getIndex(metaData.getIndex().getName()).getPrimaries().getDocs(), metaData);
     }
 
     static void validate(MetaData metaData, RolloverRequest request) {

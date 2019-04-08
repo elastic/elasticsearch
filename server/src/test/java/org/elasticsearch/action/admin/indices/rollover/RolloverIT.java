@@ -381,4 +381,38 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(error.getMessage(), equalTo(
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
     }
+
+    public void testRolloverIsSuccessWithAliasToAWriteIndexAndMultipleReadIndicesToVerifyConditionsAreEvaluatedAgainstWriteIndexOnly()
+            throws Exception {
+        assertAcked(prepareCreate("test_index-000001").addAlias(new Alias("test_alias").writeIndex(false)).get());
+        assertAcked(prepareCreate("test_index-000002").addAlias(new Alias("test_alias").writeIndex(true)).get());
+
+        index("test_index-000001", "type1", "1", "field", "value");
+        flush("test_index-000001");
+
+        index("test_index-000002", "type1", "1", "field", "value");
+        flush("test_index-000002");
+
+        RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").addMaxIndexDocsCondition(1).get();
+
+        assertThat(response.getOldIndex(), equalTo("test_index-000002"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(1));
+        assertThat(response.getConditionStatus().get("[max_docs: 1]"), is(true));
+
+        // sleep so the age condition is met
+        Thread.sleep(2);
+
+        response = client().admin().indices().prepareRolloverIndex("test_alias").addMaxIndexAgeCondition(TimeValue.timeValueMillis(1))
+                .get();
+
+        assertThat(response.getOldIndex(), equalTo("test_index-000003"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000004"));
+        assertThat(response.isDryRun(), equalTo(false));
+        assertThat(response.isRolledOver(), equalTo(true));
+        assertThat(response.getConditionStatus().size(), equalTo(1));
+        assertThat(response.getConditionStatus().get("[max_age: 1ms]"), is(true));
+    }
 }

@@ -41,10 +41,9 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging, TestTaskReports reports) {
+    public ErrorReportingTestListener(TestLogging testLogging, File outputDirectory) {
         this.formatter = new FullExceptionFormatter(testLogging);
-        this.outputDirectory = new File(reports.getJunitXml().getDestination(), "output");
-        outputDirectory.mkdirs();
+        this.outputDirectory = outputDirectory;
     }
 
     @Override

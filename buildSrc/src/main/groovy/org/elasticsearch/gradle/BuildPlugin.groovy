@@ -906,16 +906,15 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
 
             project.tasks.withType(Test) { Test test ->
+                File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
+
                 doFirst {
-                    heapdumpDir.mkdirs()
-                    workingDir.mkdirs()
+                    project.mkdir(testOutputDir)
+                    project.mkdir(heapdumpDir)
+                    project.mkdir(test.workingDir)
                 }
 
-                doLast {
-                    println "Task $test ended"
-                }
-
-                def listener = new ErrorReportingTestListener(test.testLogging, test.reports)
+                def listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
                 test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
                 addTestOutputListener(listener)
                 addTestListener(listener)

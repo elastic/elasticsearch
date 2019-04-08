@@ -17,6 +17,7 @@ DESCRIBE "geo";
        column:s      |   type:s   |  mapping:s
 city                 | VARCHAR    | keyword
 location             | GEOMETRY   | geo_point
+location_no_dv       | GEOMETRY   | geo_point
 region               | VARCHAR    | keyword
 region_point         | VARCHAR    | keyword
 shape                | GEOMETRY   | geo_shape
@@ -26,24 +27,24 @@ shape                | GEOMETRY   | geo_shape
 // TODO: For now we just get geopoint formatted as is and we also need to convert it to STRING to work with CSV
 
 selectAllPointsAsStrings
-SELECT city, CAST(location AS STRING) location, CAST(shape AS STRING) shape, region FROM "geo" ORDER BY "city";
+SELECT city, CAST(location AS STRING) location, CAST(location_no_dv AS STRING) location_no_dv, CAST(shape AS STRING) shape, region FROM "geo" ORDER BY "city";
 
-     city:s    |             location:s                       |             shape:s          |  region:s
-Amsterdam      |point (4.850311987102032 52.347556999884546)  |point (4.850312 52.347557)    |Europe
-Berlin         |point (13.390888944268227 52.48670099303126)  |point (13.390889 52.486701)   |Europe
-Chicago        |point (-87.63787407428026 41.888782968744636) |point (-87.637874 41.888783)  |Americas
-Hong Kong      |point (114.18392493389547 22.28139698971063)  |point (114.183925 22.281397)  |Asia
-London         |point (-0.12167204171419144 51.51087098289281)|point (-0.121672 51.510871)   |Europe
-Mountain View  |point (-122.08384302444756 37.38648299127817) |point (-122.083843 37.386483) |Americas
-Munich         |point (11.537504978477955 48.14632098656148)  |point (11.537505 48.146321)   |Europe
-New York       |point (-73.9900270756334 40.74517097789794)   |point (-73.990027 40.745171)  |Americas
-Paris          |point (2.3517729341983795 48.84553796611726)  |point (2.351773 48.845538)    |Europe
-Phoenix        |point (-111.97350500151515 33.37624196894467) |point (-111.973505 33.376242) |Americas
-San Francisco  |point (-122.39422800019383 37.789540970698)   |point (-122.394228 37.789541) |Americas
-Seoul          |point (127.06085099838674 37.50913198571652)  |point (127.060851 37.509132)  |Asia
-Singapore      |point (103.8555349688977 1.2958679627627134)  |point (103.855535 1.295868)   |Asia
-Sydney         |point (151.20862897485495 -33.863385021686554)|point (151.208629 -33.863385) |Asia
-Tokyo          |point (139.76402222178876 35.66961596254259)  |point (139.76402225 35.669616)|Asia
+     city:s    |             location:s                       |      location_no_dv:s        |             shape:s          |  region:s
+Amsterdam      |point (4.850311987102032 52.347556999884546)  |point (4.850312 52.347557)    |point (4.850312 52.347557)    |Europe
+Berlin         |point (13.390888944268227 52.48670099303126)  |point (13.390889 52.486701)   |point (13.390889 52.486701)   |Europe
+Chicago        |point (-87.63787407428026 41.888782968744636) |point (-87.637874 41.888783)  |point (-87.637874 41.888783)  |Americas
+Hong Kong      |point (114.18392493389547 22.28139698971063)  |point (114.183925 22.281397)  |point (114.183925 22.281397)  |Asia
+London         |point (-0.12167204171419144 51.51087098289281)|point (-0.121672 51.510871)   |point (-0.121672 51.510871)   |Europe
+Mountain View  |point (-122.08384302444756 37.38648299127817) |point (-122.083843 37.386483) |point (-122.083843 37.386483) |Americas
+Munich         |point (11.537504978477955 48.14632098656148)  |point (11.537505 48.146321)   |point (11.537505 48.146321)   |Europe
+New York       |point (-73.9900270756334 40.74517097789794)   |point (-73.990027 40.745171)  |point (-73.990027 40.745171)  |Americas
+Paris          |point (2.3517729341983795 48.84553796611726)  |point (2.351773 48.845538)    |point (2.351773 48.845538)    |Europe
+Phoenix        |point (-111.97350500151515 33.37624196894467) |point (-111.973505 33.376242) |point (-111.973505 33.376242) |Americas
+San Francisco  |point (-122.39422800019383 37.789540970698)   |point (-122.394228 37.789541) |point (-122.394228 37.789541) |Americas
+Seoul          |point (127.06085099838674 37.50913198571652)  |point (127.060851 37.509132)  |point (127.060851 37.509132)  |Asia
+Singapore      |point (103.8555349688977 1.2958679627627134)  |point (103.855535 1.295868)   |point (103.855535 1.295868)   |Asia
+Sydney         |point (151.20862897485495 -33.863385021686554)|point (151.208629 -33.863385) |point (151.208629 -33.863385) |Asia
+Tokyo          |point (139.76402222178876 35.66961596254259)  |point (139.76402225 35.669616)|point (139.76402225 35.669616)|Asia
 ;
 
 // TODO: Both shape and location contain the same data for now, we should change it later to make things more interesting

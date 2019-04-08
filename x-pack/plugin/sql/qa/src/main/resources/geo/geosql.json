@@ -13,6 +13,10 @@
         "location": {
           "type": "geo_point"
         },
+        "location_no_dv": {
+          "type": "geo_point",
+          "doc_values": "false"
+        },
         "shape": {
           "type": "geo_shape"
         },

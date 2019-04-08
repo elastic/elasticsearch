@@ -127,8 +127,39 @@ public class FieldHitExtractor implements HitExtractor {
         if (values == null) {
             return null;
         }
-        if (dataType == DataType.GEO_POINT || dataType == DataType.GEO_SHAPE) {
-            return extractGeoShape(values);
+        if (dataType == DataType.GEO_POINT) {
+            Object value;
+            if (values instanceof List) {
+                List<?> list = (List<?>) values;
+                if (list.isEmpty()) {
+                    // we get geo_points from doc values and they were not specified for this record
+                    return null;
+                }
+                if (((List<?>) values).size() == 1) {
+                    value = ((List<?>) values).get(0);
+                } else {
+                    // This could be a single point in [lon, lat] format or multiple points
+                    if ((list.size() == 2 || list.size() == 3) && (list.get(0) instanceof Number)) {
+                        // this looks like a single geo_point in the array format
+                        value = values;
+                    } else {
+                        // most likely we have multiple points
+                        if (arrayLeniency) {
+                            value = list.get(0);
+                        } else {
+                            throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                        }
+                    }
+                }
+            } else {
+                value = values;
+            }
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", value, fieldName);
+            }
         }
         if (values instanceof List) {
             List<?> list = (List<?>) values;
@@ -140,6 +171,13 @@ public class FieldHitExtractor implements HitExtractor {
                 } else {
                     throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
                 }
+            }
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
             }
         }
         if (values instanceof Map) {
@@ -154,33 +192,6 @@ public class FieldHitExtractor implements HitExtractor {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
-    }
-
-    private Object extractGeoShape(Object values) {
-        Object value;
-        if (values instanceof List) {
-            if (((List<?>) values).size() > 0) {
-                value = ((List<?>) values).get(0);
-            } else {
-                return null;
-            }
-        } else {
-            value = values;
-        }
-        if (dataType == DataType.GEO_SHAPE) {
-            try {
-                return new GeoShape(value);
-            } catch (IOException ex) {
-                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
-            }
-        } else {
-            try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
-                return new GeoShape(geoPoint.lon(), geoPoint.lat());
-            } catch (ElasticsearchParseException ex) {
-                throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
-            }
-        }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -207,7 +218,7 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1 || arrayLeniency) {
+                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
                         // in case of being lenient about arrays, just extract the first value in the array

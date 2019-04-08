@@ -489,54 +489,44 @@ public class Detector implements ToXContentObject, Writeable {
             this.fieldName = fieldName;
         }
 
-        public Builder setDetectorDescription(String detectorDescription) {
+        public void setDetectorDescription(String detectorDescription) {
             this.detectorDescription = detectorDescription;
-            return this;
         }
 
-        public Builder setFunction(String function) {
+        public void setFunction(String function) {
             this.function = DetectorFunction.fromString(function);
-            return this;
         }
 
-        public Builder setFieldName(String fieldName) {
+        public void setFieldName(String fieldName) {
             this.fieldName = fieldName;
-            return this;
         }
 
-        public Builder setByFieldName(String byFieldName) {
+        public void setByFieldName(String byFieldName) {
             this.byFieldName = byFieldName;
-            return this;
         }
 
-        public Builder setOverFieldName(String overFieldName) {
+        public void setOverFieldName(String overFieldName) {
             this.overFieldName = overFieldName;
-            return this;
         }
 
-        public Builder setPartitionFieldName(String partitionFieldName) {
+        public void setPartitionFieldName(String partitionFieldName) {
             this.partitionFieldName = partitionFieldName;
-            return this;
         }
 
-        public Builder setUseNull(boolean useNull) {
+        public void setUseNull(boolean useNull) {
             this.useNull = useNull;
-            return this;
         }
 
-        public Builder setExcludeFrequent(ExcludeFrequent excludeFrequent) {
+        public void setExcludeFrequent(ExcludeFrequent excludeFrequent) {
             this.excludeFrequent = excludeFrequent;
-            return this;
         }
 
-        public Builder setRules(List<DetectionRule> rules) {
+        public void setRules(List<DetectionRule> rules) {
             this.rules = rules;
-            return this;
         }
 
-        public Builder setDetectorIndex(int detectorIndex) {
+        public void setDetectorIndex(int detectorIndex) {
             this.detectorIndex = detectorIndex;
-            return this;
         }
 
         public Detector build() {

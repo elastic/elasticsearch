@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -82,9 +83,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
@@ -119,10 +117,10 @@ public abstract class TransportReplicationAction<
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                         Supplier<ReplicaRequest> replicaRequest, String executor) {
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> requestReader,
+                                         Writeable.Reader<ReplicaRequest> replicaRequestReader, String executor) {
         this(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-                indexNameExpressionResolver, request, replicaRequest, executor, false, false);
+                indexNameExpressionResolver, requestReader, replicaRequestReader, executor, false, false);
     }
 
 
@@ -130,8 +128,8 @@ public abstract class TransportReplicationAction<
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                         Supplier<ReplicaRequest> replicaRequest, String executor,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> requestReader,
+                                         Writeable.Reader<ReplicaRequest> replicaRequestReader, String executor,
                                          boolean syncGlobalCheckpointAfterOperation, boolean forceExecutionOnPrimary) {
         super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
@@ -145,14 +143,14 @@ public abstract class TransportReplicationAction<
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
 
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, this::handleOperationRequest);
+        transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, requestReader, this::handleOperationRequest);
 
-        transportService.registerRequestHandler(transportPrimaryAction,
-            () -> new ConcreteShardRequest<>(request), executor, forceExecutionOnPrimary, true, this::handlePrimaryRequest);
+        transportService.registerRequestHandler(transportPrimaryAction, executor, forceExecutionOnPrimary, true,
+            in -> new ConcreteShardRequest<>(requestReader, in), this::handlePrimaryRequest);
 
         // we must never reject on because of thread pool capacity on replicas
-        transportService.registerRequestHandler(transportReplicaAction, () -> new ConcreteReplicaRequest<>(replicaRequest),
-            executor, true, true, this::handleReplicaRequest);
+        transportService.registerRequestHandler(transportReplicaAction, executor, true, true,
+            in -> new ConcreteReplicaRequest<>(replicaRequestReader, in), this::handleReplicaRequest);
 
         this.transportOptions = transportOptions(settings);
 
@@ -192,8 +190,8 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
-    protected abstract PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request shardRequest, IndexShard primary) throws Exception;
+    protected abstract void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
@@ -419,7 +417,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+    public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse>
             implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
         final ReplicaRequest replicaRequest;
@@ -918,11 +916,15 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public PrimaryResult<ReplicaRequest, Response> perform(Request request) throws Exception {
-            PrimaryResult<ReplicaRequest, Response> result = shardOperationOnPrimary(request, indexShard);
-            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
-                + "] with a primary failure [" + result.finalFailure + "]";
-            return result;
+        public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+            if (Assertions.ENABLED) {
+                listener = ActionListener.map(listener, result -> {
+                    assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                        + "] with a primary failure [" + result.finalFailure + "]";
+                    return result;
+                });
+            }
+            shardOperationOnPrimary(request, indexShard, listener);
         }
 
         @Override
@@ -1075,17 +1077,14 @@ public abstract class TransportReplicationAction<
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
-        private String targetAllocationID;
+        private final String targetAllocationID;
+        private final long primaryTerm;
+        private final R request;
 
-        private long primaryTerm;
-
-        private R request;
-
-        public ConcreteShardRequest(Supplier<R> requestSupplier) {
-            request = requestSupplier.get();
-            // null now, but will be populated by reading from the streams
-            targetAllocationID = null;
-            primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+            targetAllocationID = in.readString();
+            primaryTerm  = in.readVLong();
+            request = requestReader.read(in);
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {
@@ -1121,10 +1120,8 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            targetAllocationID = in.readString();
-            primaryTerm = in.readVLong();
-            request.readFrom(in);
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1154,11 +1151,13 @@ public abstract class TransportReplicationAction<
 
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
 
-        private long globalCheckpoint;
-        private long maxSeqNoOfUpdatesOrDeletes;
+        private final long globalCheckpoint;
+        private final long maxSeqNoOfUpdatesOrDeletes;
 
-        public ConcreteReplicaRequest(final Supplier<R> requestSupplier) {
-            super(requestSupplier);
+        public ConcreteReplicaRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+            super(requestReader, in);
+            globalCheckpoint = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
         }
 
         public ConcreteReplicaRequest(final R request, final String targetAllocationID, final long primaryTerm,
@@ -1169,10 +1168,8 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            globalCheckpoint = in.readZLong();
-            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

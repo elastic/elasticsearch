@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -45,21 +43,6 @@ public class NullIf extends ConditionalFunction {
     protected TypeResolution resolveType() {
         dataType = children().get(0).dataType();
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
-    public DataType dataType() {
-        return dataType;
-    }
-
-    @Override
-    public boolean foldable() {
-        return Expressions.foldable(children());
-    }
-
-    @Override
-    public Nullability nullable() {
-        return Nullability.UNKNOWN;
     }
 
     @Override

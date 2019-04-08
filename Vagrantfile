@@ -246,6 +246,10 @@ def linux_common(config,
     touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
+  config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
+    curl -sSL https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
+  SHELL
+
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
   config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
@@ -342,7 +346,7 @@ def sh_install_deps(config,
     }
     cat \<\<JAVA > /etc/profile.d/java_home.sh
 if [ -z "\\\$JAVA_HOME" ]; then
-  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+  export JAVA_HOME=/opt/jdk-11.0.2
 fi
 export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
 unset JAVA_HOME

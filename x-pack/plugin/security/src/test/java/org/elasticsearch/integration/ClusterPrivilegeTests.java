@@ -139,6 +139,7 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/38030")
     public void testThatSnapshotAndRestore() throws Exception {
         String repoJson = Strings.toString(jsonBuilder().startObject().field("type", "fs").startObject("settings").field("location",
                 repositoryLocation.toString()).endObject().endObject());

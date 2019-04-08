@@ -37,13 +37,11 @@
 -XX:CMSInitiatingOccupancyFraction=75
 -XX:+UseCMSInitiatingOccupancyOnly
 
-## G1GC Configuration
-# NOTE: G1GC is only supported on JDK version 10 or later.
-# To use G1GC uncomment the lines below.
-# 11-:-XX:-UseConcMarkSweepGC
-# 11-:-XX:-UseCMSInitiatingOccupancyOnly
-# 11-:-XX:+UseG1GC
-# 11-:-XX:InitiatingHeapOccupancyPercent=75
+## G1GC Configuration; to use G1GC uncomment the lines below
+# -XX:-UseConcMarkSweepGC
+# -XX:-UseCMSInitiatingOccupancyOnly
+# -XX:+UseG1GC
+# -XX:InitiatingHeapOccupancyPercent=75
 
 ## DNS cache policy
 # cache ttl in seconds for positive DNS lookups noting that this overrides the

@@ -24,8 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class DeleteWatchResponseHlrcTests extends
-        AbstractHlrcXContentTestCase<org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, org.elasticsearch.client.watcher.DeleteWatchResponse> {
+public class DeleteWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
+    org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, org.elasticsearch.client.watcher.DeleteWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createTestInstance() {
@@ -46,8 +46,10 @@ public class DeleteWatchResponseHlrcTests extends
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.DeleteWatchResponse instance) {
-        return new org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse(instance.getId(), instance.getVersion(), instance.isFound());
+    public org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse convertHlrcToInternal(
+        org.elasticsearch.client.watcher.DeleteWatchResponse instance) {
+        return new org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse(instance.getId(), instance.getVersion(),
+            instance.isFound());
     }
 
     @Override

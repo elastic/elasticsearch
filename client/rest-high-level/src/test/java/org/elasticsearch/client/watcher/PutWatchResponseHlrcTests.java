@@ -24,8 +24,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class PutWatchResponseHlrcTests extends
-        AbstractHlrcXContentTestCase<org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, org.elasticsearch.client.watcher.PutWatchResponse> {
+public class PutWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
+    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, org.elasticsearch.client.watcher.PutWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createTestInstance() {
@@ -48,9 +48,10 @@ public class PutWatchResponseHlrcTests extends
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.PutWatchResponse instance) {
-        return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(instance.getId(), instance.getVersion(), instance.getSeqNo(), instance.getPrimaryTerm(),
-            instance.isCreated());
+    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(
+        org.elasticsearch.client.watcher.PutWatchResponse instance) {
+        return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(instance.getId(), instance.getVersion(),
+            instance.getSeqNo(), instance.getPrimaryTerm(), instance.isCreated());
     }
 
     @Override

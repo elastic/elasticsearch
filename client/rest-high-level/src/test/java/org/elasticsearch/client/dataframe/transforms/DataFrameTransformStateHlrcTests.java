@@ -72,7 +72,8 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
         return field -> field.equals("current_position");
     }
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
+    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats
+    randomDataFrameTransformStateAndStats(String id) {
         return new DataFrameTransformStateAndStats(id,
             randomDataFrameTransformState(),
             randomStats(id));

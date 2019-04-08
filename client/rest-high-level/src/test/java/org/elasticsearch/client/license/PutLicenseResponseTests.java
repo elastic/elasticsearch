@@ -30,8 +30,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class PutLicenseResponseTests extends
-        AbstractHlrcStreamableXContentTestCase<org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.client.license.PutLicenseResponse> {
+public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestCase<
+    org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.client.license.PutLicenseResponse> {
 
     @Override
     public org.elasticsearch.client.license.PutLicenseResponse doHlrcParseInstance(XContentParser parser) throws IOException {
@@ -39,8 +39,10 @@ public class PutLicenseResponseTests extends
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.license.PutLicenseResponse convertHlrcToInternal(org.elasticsearch.client.license.PutLicenseResponse instance) {
-        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(instance.isAcknowledged(), org.elasticsearch.protocol.xpack.license.LicensesStatus.valueOf(instance.status().name()),
+    public org.elasticsearch.protocol.xpack.license.PutLicenseResponse convertHlrcToInternal(
+        org.elasticsearch.client.license.PutLicenseResponse instance) {
+        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(instance.isAcknowledged(),
+            org.elasticsearch.protocol.xpack.license.LicensesStatus.valueOf(instance.status().name()),
             instance.acknowledgeHeader(), instance.acknowledgeMessages());
     }
 
@@ -59,7 +61,10 @@ public class PutLicenseResponseTests extends
     @Override
     protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createTestInstance() {
         boolean acknowledged = ESTestCase.randomBoolean();
-        org.elasticsearch.protocol.xpack.license.LicensesStatus status = ESTestCase.randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID, org.elasticsearch.protocol.xpack.license.LicensesStatus.INVALID, org.elasticsearch.protocol.xpack.license.LicensesStatus.EXPIRED);
+        org.elasticsearch.protocol.xpack.license.LicensesStatus status =
+            ESTestCase.randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID,
+                org.elasticsearch.protocol.xpack.license.LicensesStatus.INVALID,
+                org.elasticsearch.protocol.xpack.license.LicensesStatus.EXPIRED);
         String messageHeader;
         Map<String, String[]> ackMessages;
         if (ESTestCase.randomBoolean()) {
@@ -97,9 +102,11 @@ public class PutLicenseResponseTests extends
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse mutateInstance(org.elasticsearch.protocol.xpack.license.PutLicenseResponse response) {
+    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse mutateInstance(
+        org.elasticsearch.protocol.xpack.license.PutLicenseResponse response) {
         @SuppressWarnings("unchecked")
-        Function<org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = ESTestCase.randomFrom(
+        Function<org.elasticsearch.protocol.xpack.license.PutLicenseResponse,
+            org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = ESTestCase.randomFrom(
             r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
                 r.isAcknowledged() == false,
                 r.status(),
@@ -127,7 +134,8 @@ public class PutLicenseResponseTests extends
         return mutator.apply(response);
     }
 
-    private org.elasticsearch.protocol.xpack.license.LicensesStatus mutateStatus(org.elasticsearch.protocol.xpack.license.LicensesStatus status) {
+    private org.elasticsearch.protocol.xpack.license.LicensesStatus mutateStatus(
+        org.elasticsearch.protocol.xpack.license.LicensesStatus status) {
         return ESTestCase.randomValueOtherThan(status, () -> ESTestCase.randomFrom(LicensesStatus.values()));
     }
 }

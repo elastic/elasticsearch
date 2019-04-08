@@ -183,12 +183,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            // support first line with \n
-            if (nextMarker == 0) {
-                from = nextMarker + 1;
-                continue;
-            }
-
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
                 searchRequest.indices(indices);

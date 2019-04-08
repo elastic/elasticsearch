@@ -113,22 +113,30 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     ActionListener.wrap(
                             r -> {},
                             e -> {
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                                if (ExceptionsHelper.isTransportStoppedForAction(e, ACTION_NAME + "[p]")) {
+                                    // we are likely shutting down
+                                    return;
                                 }
+                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                                    // the shard is closed
+                                    return;
+                                }
+                                getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                             }));
         }
     }
 
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
             final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new PrimaryResult<>(request, new ReplicationResponse());
+            final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new PrimaryResult<>(request, new ReplicationResponse());
+        });
     }
 
     @Override

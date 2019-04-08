@@ -287,11 +287,12 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get) {
             @Override
-            public Result perform(Request request) throws Exception {
-                Result result = super.perform(request);
-                replicationGroup.set(updatedReplicationGroup);
-                logger.debug("--> state after primary operation:\n{}", replicationGroup.get());
-                return result;
+            public void perform(Request request, ActionListener<Result> listener) {
+                super.perform(request, ActionListener.map(listener, result -> {
+                    replicationGroup.set(updatedReplicationGroup);
+                    logger.debug("--> state after primary operation:\n{}", replicationGroup.get());
+                    return result;
+                }));
             }
         };
 
@@ -481,11 +482,11 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public Result perform(Request request) throws Exception {
+        public void perform(Request request, ActionListener<Result> listener) {
             if (request.processedOnPrimary.compareAndSet(false, true) == false) {
                 fail("processed [" + request + "] twice");
             }
-            return new Result(request);
+            listener.onResponse(new Result(request));
         }
 
         static class Result implements ReplicationOperation.PrimaryResult<Request> {

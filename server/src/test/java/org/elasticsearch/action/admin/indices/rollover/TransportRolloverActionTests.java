@@ -360,8 +360,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(MetaData.builder().put(indexMetaData).put(indexMetaData2)).build();
 
-        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService, mockThreadPool,
-                mockCreateIndexService, mockActionFilters, mockIndexNameExpressionResolver, mdIndexAliasesService, mockClient);
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
+                mockThreadPool, mockCreateIndexService, mockActionFilters, mockIndexNameExpressionResolver, mdIndexAliasesService,
+                mockClient);
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
         // from write index is considered.

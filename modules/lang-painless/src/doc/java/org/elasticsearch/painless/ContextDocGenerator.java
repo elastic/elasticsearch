@@ -19,13 +19,29 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 
 public class ContextDocGenerator {
+
     public static void main(String[] args) throws Exception {
-        URL clusterUrl = new URL("http://" + System.getProperty("cluster.uri"));
-        HttpURLConnection conn = (HttpURLConnection) clusterUrl.openConnection();
-        System.out.println(conn.getResponseCode());
+        URL clusterUrl = new URL("http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context");
+        HttpURLConnection conn = (HttpURLConnection)clusterUrl.openConnection();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, conn.getInputStream());
+
+        parser.nextToken();
+        parser.nextToken();
+        @SuppressWarnings("unchecked")
+        List<String> contexts = (List<String>)(Object)parser.list();
+        parser.close();
+        System.out.println(contexts);
+
+
+
+        conn.disconnect();
     }
 }

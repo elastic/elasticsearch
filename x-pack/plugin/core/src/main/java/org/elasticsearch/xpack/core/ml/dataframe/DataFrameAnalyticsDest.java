@@ -29,7 +29,7 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
         ConstructingObjectParser<DataFrameAnalyticsDest, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_dest",
             ignoreUnknownFields, a -> new DataFrameAnalyticsDest((String) a[0], (String) a[1]));
         parser.declareString(ConstructingObjectParser.constructorArg(), INDEX);
-        parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
         return parser;
     }
 

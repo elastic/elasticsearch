@@ -83,8 +83,16 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
     public void testNothingScheduledWhenNotRunning() {
         ClockMock clock = new ClockMock();
+        SnapshotLifecyclePolicyMetadata initialPolicy = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(createPolicy("initial", "*/1 * * * * ?"))
+            .setHeaders(Collections.emptyMap())
+            .setVersion(1)
+            .setModifiedDate(1)
+            .build();
+        ClusterState initialState = createState(new SnapshotLifecycleMetadata(
+            Collections.singletonMap(initialPolicy.getPolicy().getId(), initialPolicy), OperationMode.RUNNING));
         try (ThreadPool threadPool = new TestThreadPool("test");
-             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+             ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
                  () -> new FakeSnapshotTask(e -> logger.info("triggered")), clusterService, clock)) {
 
@@ -107,6 +115,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             sls.onMaster();
+            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("initial-1")));
+
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPING));
             sls.clusterChanged(new ClusterChangedEvent("2", state, emptyState));
 

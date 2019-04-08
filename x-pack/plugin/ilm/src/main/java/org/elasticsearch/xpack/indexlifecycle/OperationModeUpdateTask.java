@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 
 public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(OperationModeUpdateTask.class);
@@ -27,6 +28,13 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
+        ClusterState newState = currentState;
+        newState = updateILMState(newState);
+        newState = updateSLMState(newState);
+        return newState;
+    }
+
+    private ClusterState updateILMState(final ClusterState currentState) {
         IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(mode) == false) {
             return currentState;
@@ -41,12 +49,33 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             newMode = currentMetadata.getOperationMode();
         }
 
-        ClusterState.Builder builder = new ClusterState.Builder(currentState);
-        MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-        metadataBuilder.putCustom(IndexLifecycleMetadata.TYPE,
-            new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode));
-        builder.metaData(metadataBuilder.build());
-        return builder.build();
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData())
+                    .putCustom(IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode)))
+            .build();
+    }
+
+    private ClusterState updateSLMState(final ClusterState currentState) {
+        SnapshotLifecycleMetadata currentMetadata = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        if (currentMetadata != null && currentMetadata.getOperationMode().isValidChange(mode) == false) {
+            return currentState;
+        } else if (currentMetadata == null) {
+            currentMetadata = SnapshotLifecycleMetadata.EMPTY;
+        }
+
+        final OperationMode newMode;
+        if (currentMetadata.getOperationMode().isValidChange(mode)) {
+            newMode = mode;
+        } else {
+            newMode = currentMetadata.getOperationMode();
+        }
+
+        return ClusterState.builder(currentState)
+            .metaData(MetaData.builder(currentState.metaData())
+                .putCustom(SnapshotLifecycleMetadata.TYPE,
+                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode)))
+            .build();
     }
 
     @Override

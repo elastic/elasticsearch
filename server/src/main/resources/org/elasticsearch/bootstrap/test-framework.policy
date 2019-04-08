@@ -56,6 +56,8 @@ grant codeBase "${codebase.randomizedtesting-runner}" {
 grant codeBase "${codebase.junit}" {
   // needed for TestClass creation
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // needed for test listener notifications
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
 grant codeBase "${codebase.mocksocket}" {
@@ -85,4 +87,21 @@ grant codeBase "${codebase.httpasyncclient}" {
   permission java.net.SocketPermission "*", "connect";
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
+};
+
+grant codeBase "file:${gradle.dist.lib}/-" {
+  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
+  // dependency and there's no point in exercising the security policy against it
+  permission java.security.AllPermission;
+};
+
+grant codeBase "file:${gradle.worker.jar}" {
+  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
+  // dependency and there's no point in exercising the security policy against it
+  permission java.security.AllPermission;
+};
+
+grant {
+  // since the gradle test worker jar is on the test classpath, our tests should be able to read it
+  permission java.io.FilePermission "${gradle.worker.jar}", "read";
 };

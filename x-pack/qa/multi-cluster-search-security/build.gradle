@@ -75,5 +75,5 @@ task integTest {
   dependsOn = [mixedClusterTest]
 }
 
-unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
 check.dependsOn(integTest)

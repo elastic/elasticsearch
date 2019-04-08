@@ -23,5 +23,5 @@ dependencies {
   compile "org.apache.hadoop:hadoop-minicluster:2.8.1"
 }
 
-unitTest.enabled = false
+test.enabled = false
 thirdPartyAudit.enabled = false

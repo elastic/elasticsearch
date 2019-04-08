@@ -198,8 +198,7 @@ if (project != rootProject) {
     from configurations.distribution
     into localDownloads
   }
-
-  // This can't be an RandomizedTestingTask because we can't yet reference it
+    
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
@@ -207,8 +206,6 @@ if (project != rootProject) {
     }
     dependsOn setupLocalDownloads
     exclude "**/*Tests.class"
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))
     // tell BuildExamplePluginsIT where to find the example plugins
     systemProperty (
@@ -224,11 +221,7 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
-    String defaultParallel = System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
-    if (defaultParallel == "auto") {
-        defaultParallel = Math.max(Runtime.getRuntime().availableProcessors(), 4)
-    }
-    maxParallelForks defaultParallel as Integer
+    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
 

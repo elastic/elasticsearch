@@ -122,8 +122,15 @@ class BuildPlugin implements Plugin<Project> {
                     BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
             )
             String compilerJavaHome = findCompilerJavaHome()
+            if (new File(compilerJavaHome).isDirectory() == false) {
+                throw new GradleException("Configured compiler java home does not exist or is not a directory: ${compilerJavaHome}")
+            }
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
+            if (new File(runtimeJavaHome).isDirectory() == false) {
+                throw new GradleException("Configured runtime java home does not exist or is not a directory: ${compilerJavaHome}")
+            }
             File gradleJavaHome = Jvm.current().javaHome
+
 
             final Map<Integer, String> javaVersions = [:]
             for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
@@ -355,27 +362,22 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findCompilerJavaHome() {
-        String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
-            compilerJavaHome = findJavaHome(compilerJavaProperty)
+            if (compilerJavaProperty.contains("/") || compilerJavaProperty.contains("\\")) {
+                return compilerJavaProperty
+            }
+            return findJavaHome(compilerJavaProperty)
         }
-        if (compilerJavaHome == null) {
-            // if JAVA_HOME does not set,so we use the JDK that Gradle was run with.
-            return Jvm.current().javaHome
-        }
-        return compilerJavaHome
+
+        return  Jvm.current().javaHome
     }
 
     private static String findJavaHome(String version) {
         String versionedVarName = getJavaHomeEnvVarName(version)
-        String versionedJavaHome = System.getenv(versionedVarName);
+        String versionedJavaHome = System.getenv(versionedVarName)
         if (versionedJavaHome == null) {
-            throw new GradleException(
-                    "$versionedVarName must be set to build Elasticsearch. " +
-                            "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                            "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
-            )
+            throw new GradleException("$versionedVarName must be set to build Elasticsearch")
         }
         return versionedJavaHome
     }
@@ -424,6 +426,9 @@ class BuildPlugin implements Plugin<Project> {
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
         String runtimeJavaProperty = System.getProperty("runtime.java")
         if (runtimeJavaProperty != null) {
+            if (runtimeJavaProperty.contains("/") || runtimeJavaProperty.contains("\\")) {
+                return runtimeJavaProperty
+            }
             return findJavaHome(runtimeJavaProperty)
         }
         return System.getenv('RUNTIME_JAVA_HOME') ?: compilerJavaHome

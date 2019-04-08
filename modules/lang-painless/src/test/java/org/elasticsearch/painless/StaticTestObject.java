@@ -17,33 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.monitor.jvm;
+package org.elasticsearch.painless;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-
-import java.lang.management.ManagementFactory;
-
-class JvmPid {
-
-    private static final long PID;
-
-    static long getPid() {
-        return PID;
+public class StaticTestObject {
+    public static int staticAddIntsTest(int x, int y) {
+        return x + y;
     }
-
-    static {
-        PID = initializePid();
-    }
-
-    private static long initializePid() {
-        final String name = ManagementFactory.getRuntimeMXBean().getName();
-        try {
-            return Long.parseLong(name.split("@")[0]);
-        } catch (final NumberFormatException e) {
-            LogManager.getLogger(JvmPid.class).debug(new ParameterizedMessage("failed parsing PID from [{}]", name), e);
-            return -1;
-        }
-    }
-
 }

@@ -491,10 +491,15 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void onFinish() {
-            long checkpoint = currentCheckpoint.get();
-            auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
-            logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");
+        protected void onFinish(ActionListener<Void> listener) {
+            try {
+                long checkpoint = currentCheckpoint.get();
+                auditor.info(transform.getId(), "Finished indexing for data frame transform");
+                logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
+                listener.onResponse(null);
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         @Override

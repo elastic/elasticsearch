@@ -7,3 +7,4 @@ exposed directly from the Java Runtime Environment (JRE) while others
 are part of Elasticsearch or Painless itself. Below is a list of the available
 APIs per context.
 
+include::painless-contexts-api-reference/index.asciidoc[]

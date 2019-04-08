@@ -74,11 +74,11 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
                 (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p), INSTANCE_BINDINGS);
     }
 
-    private final String name;
-    private final List<PainlessContextClassInfo> classes;
-    private final List<PainlessContextMethodInfo> importedMethods;
-    private final List<PainlessContextClassBindingInfo> classBindings;
-    private final List<PainlessContextInstanceBindingInfo> instanceBindings;
+    public final String name;
+    public final List<PainlessContextClassInfo> classes;
+    public final List<PainlessContextMethodInfo> importedMethods;
+    public final List<PainlessContextClassBindingInfo> classBindings;
+    public final List<PainlessContextInstanceBindingInfo> instanceBindings;
 
     public PainlessContextInfo(ScriptContext<?> scriptContext, PainlessLookup painlessLookup) {
         this(

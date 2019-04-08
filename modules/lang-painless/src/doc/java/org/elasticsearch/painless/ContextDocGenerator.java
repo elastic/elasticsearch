@@ -58,7 +58,7 @@ public class ContextDocGenerator {
             ((HttpURLConnection)getContextInfo).disconnect();
         }
 
-        Path apiRootPath = PathUtils.get("../../docs/painless-contexts-api-reference");
+        Path apiRootPath = PathUtils.get("../../docs/painless/painless-contexts-api-reference");
         IOUtils.rm(apiRootPath);
         Files.createDirectories(apiRootPath);
 
@@ -68,12 +68,15 @@ public class ContextDocGenerator {
                 Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
 
+            indexStream.println("[options=\"header\",cols=\"<2,<1\"]");
+            indexStream.println("|====");
             indexStream.println("| Name | API");
 
-
             for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
-
+                indexStream.println("| " + painlessContextInfo.name + " | API");
             }
+
+            indexStream.println("|====");
         }
     }
 }

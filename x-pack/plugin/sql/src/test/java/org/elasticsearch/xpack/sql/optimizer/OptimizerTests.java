@@ -43,7 +43,9 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
@@ -97,6 +99,7 @@ import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -445,18 +448,32 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(and, rule.rule(and));
     }
 
-    public void testNullFoldingDoesNotApplyOnConditionals() {
+    @SuppressWarnings("unchecked")
+    public void testNullFoldingDoesNotApplyOnConditionals() throws Exception {
         FoldNull rule = new FoldNull();
 
-        Coalesce coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
-        assertEquals(coalesce, rule.rule(coalesce));
-        coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
-        assertEquals(coalesce, rule.rule(coalesce));
+        Class<ConditionalFunction> clazz =
+            (Class<ConditionalFunction>) randomFrom(IfNull.class, NullIf.class);
+        Constructor<ConditionalFunction> ctor = clazz.getConstructor(Source.class, Expression.class, Expression.class);
+        ConditionalFunction conditionalFunction = ctor.newInstance(EMPTY, Literal.NULL, ONE);
+        assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+        conditionalFunction = ctor.newInstance(EMPTY, ONE, Literal.NULL);
+        assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+        conditionalFunction = ctor.newInstance(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+    }
 
-        Greatest greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
-        assertEquals(greatest, rule.rule(greatest));
-        greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
-        assertEquals(greatest, rule.rule(greatest));
+    @SuppressWarnings("unchecked")
+    public void testNullFoldingDoesNotApplyOnArbitraryConditionals() throws Exception {
+        FoldNull rule = new FoldNull();
+
+        Class<ArbitraryConditionalFunction> clazz =
+            (Class<ArbitraryConditionalFunction>) randomFrom(Coalesce.class, Greatest.class, Least.class);
+        Constructor<ArbitraryConditionalFunction> ctor = clazz.getConstructor(Source.class, List.class);
+        ArbitraryConditionalFunction conditionalFunction = ctor.newInstance(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(conditionalFunction, rule.rule(conditionalFunction));
+        conditionalFunction = ctor.newInstance(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
+        assertEquals(conditionalFunction, rule.rule(conditionalFunction));
     }
 
     public void testSimplifyCoalesceNulls() {

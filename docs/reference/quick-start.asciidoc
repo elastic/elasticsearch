@@ -64,7 +64,7 @@ To index a document with a specific ID, use the PUT method with the
 <<docs-index_, index API>>.
 
 This example command adds a document with an ID of `1` to the `customer` index.
-This command will also create the `customer` index if it doesn't already exist.
+This command also creates the `customer` index if it doesn't already exist.
 
 [source, js]
 --------------------------------------------------
@@ -105,11 +105,11 @@ Here's an example response, formatted to be more readable.
 ==== Autogenerate a document ID
 
 To add a document without providing an ID, use the POST method with the
-<<docs-index_, index API>>. {es} will automatically generate an ID for the
+<<docs-index_, index API>>. {es} automatically generates an ID for the
 document.
 
-This example command adds a document to `customer` index. This command will
-also create the `customer` index if it doesn't already exist.
+This example command adds a document to `customer` index. This command
+also creates the `customer` index if it doesn't already exist.
 
 [source, js]
 --------------------------------------------------
@@ -123,7 +123,7 @@ POST /customer/_doc
 --------------------------------------------------
 // CONSOLE
 
-{es} will provide the generated ID in `\_id` field of the response. Here's an
+{es} provides the generated ID in `\_id` field of the response. Here's an
 example response, formatted to be more readable.
 
 [source, js]

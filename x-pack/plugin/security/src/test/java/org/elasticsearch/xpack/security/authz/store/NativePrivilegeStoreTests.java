@@ -188,7 +188,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"bool\":{\"filter\":[{\"terms\":{\"application\":[\"yourapp\"]"));
@@ -208,7 +208,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));

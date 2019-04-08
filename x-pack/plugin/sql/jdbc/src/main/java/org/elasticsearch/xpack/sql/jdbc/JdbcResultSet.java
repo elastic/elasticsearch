@@ -1224,6 +1224,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d", getClass().getSimpleName(), rowNumber);
+        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
+                cursor.columns());
     }
 }

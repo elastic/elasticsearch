@@ -131,7 +131,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         long pivot1CurrentRunStartTime = 0L;
         long pivot2CurrentRunStartTime = 0L;
         for (Map<String, Object> transformStats : transformsStats) {
-            System.out.println(transformStats);
             Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
             assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));

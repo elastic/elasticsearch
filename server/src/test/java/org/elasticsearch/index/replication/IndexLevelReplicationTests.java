@@ -121,8 +121,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             Future<Void> future = shards.asyncRecoverReplica(replica,
                 (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
-                    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-                        super.cleanFiles(totalTranslogOps, sourceMetaData);
+                    public void cleanFiles(int totalTranslogOps, long globalCheckpoint,
+                                           Store.MetadataSnapshot sourceMetaData) throws IOException {
+                        super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
                         latch.countDown();
                         try {
                             latch.await();

@@ -78,7 +78,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         allocationService.reroute(clusterState, "reroute").routingTable();
     }
 
-    private AllocationService createAllocationService(Settings.Builder settings, ClusterPlugin plugin) {
+    private static AllocationService createAllocationService(Settings.Builder settings, ClusterPlugin plugin) {
         final ClusterSettings emptyClusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         List<AllocationDecider> deciders = new ArrayList<>(ClusterModule.createAllocationDeciders(settings.build(), emptyClusterSettings,
                 Collections.singletonList(plugin)));

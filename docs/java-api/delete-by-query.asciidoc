@@ -1,7 +1,9 @@
 [[delete-by-query]]
 == Delete By Query API
 
-deprecated[1.5.3, "Delete by Query will be removed in 2.0: it is problematic since it silently forces a refresh which can quickly cause OutOfMemoryError during concurrent indexing, and can also cause primary and replica to become inconsistent.  Instead, use the <<search,scroll/scan API>> to find all matching ids and then issue a bulk request to delete them.]
+deprecated[1.5.3]
+
+The delete by query API will be removed in 2.0: it is problematic since it silently forces a refresh which can quickly cause OutOfMemoryError during concurrent indexing, and can also cause primary and replica to become inconsistent. Instead, use the <<search,scroll/scan API>> to find all matching ids and then issue a bulk request to delete them.
 
 The delete by query API allows one to delete documents from one or more
 indices and one or more types based on a <<query-dsl-queries,query>>. Here

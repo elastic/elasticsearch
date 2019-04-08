@@ -207,6 +207,12 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+
+            // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
+            if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
+                return true;
+            }
+
             if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&
                 assignment.isAssigned() == false) {
                 // Assignment has failed despite passing our "fast fail" validation
@@ -321,24 +327,11 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, id, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker,
-                node -> nodeFilter(node, id));
+                maxLazyMLNodes, node -> nodeFilter(node, id));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            PersistentTasksCustomMetaData.Assignment assignment = jobNodeSelector.selectNode(
+            return jobNodeSelector.selectNode(
                 maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
-            if (assignment.getExecutorNode() == null) {
-                int numMlNodes = 0;
-                for (DiscoveryNode node : clusterState.getNodes()) {
-                    if (MachineLearning.isMlNode(node)) {
-                        numMlNodes++;
-                    }
-                }
-
-                if (numMlNodes < maxLazyMLNodes) { // Means we have lazy nodes left to allocate
-                    assignment = TransportOpenJobAction.AWAITING_LAZY_ASSIGNMENT;
-                }
-            }
-            return assignment;
         }
 
         @Override

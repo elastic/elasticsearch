@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -50,6 +49,9 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  */
 public class JobNodeSelector {
 
+    public static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
+        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+
     private static final Logger logger = LogManager.getLogger(JobNodeSelector.class);
 
     private final String jobId;
@@ -57,18 +59,20 @@ public class JobNodeSelector {
     private final ClusterState clusterState;
     private final MlMemoryTracker memoryTracker;
     private final Function<DiscoveryNode, String> nodeFilter;
+    private final int maxLazyNodes;
 
     /**
      * @param nodeFilter Optionally a function that returns a reason beyond the general
      *                   reasons why a job cannot be assigned to a particular node.  May
      *                   be <code>null</code> if no such function is needed.
      */
-    public JobNodeSelector(ClusterState clusterState, String jobId, String taskName, MlMemoryTracker memoryTracker,
+    public JobNodeSelector(ClusterState clusterState, String jobId, String taskName, MlMemoryTracker memoryTracker, int maxLazyNodes,
                            Function<DiscoveryNode, String> nodeFilter) {
         this.jobId = Objects.requireNonNull(jobId);
         this.taskName = Objects.requireNonNull(taskName);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
+        this.maxLazyNodes = maxLazyNodes;
         this.nodeFilter = node -> {
             if (MachineLearning.isMlNode(node)) {
                 return (nodeFilter != null) ? nodeFilter.apply(node) : null;
@@ -107,15 +111,13 @@ public class JobNodeSelector {
             }
 
             // Assuming the node is elligible at all, check loading
-            Tuple<long[], Boolean> currentLoad = calculateCurrentLoadForNode(node, persistentTasks, allocateByMemory);
-            long numberOfAssignedJobs = currentLoad.v1()[0];
-            long numberOfAllocatingJobs = currentLoad.v1()[1];
-            long assignedJobMemory = currentLoad.v1()[2];
-            allocateByMemory = currentLoad.v2();
+            CurrentLoad currentLoad = calculateCurrentLoadForNode(node, persistentTasks, allocateByMemory);
+            allocateByMemory = currentLoad.allocateByMemory;
 
-            if (numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
+            if (currentLoad.numberOfAllocatingJobs >= maxConcurrentJobAllocations) {
                 reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node) + "], because node exceeds ["
-                    + numberOfAllocatingJobs + "] the maximum number of jobs [" + maxConcurrentJobAllocations + "] in opening state";
+                    + currentLoad.numberOfAllocatingJobs + "] the maximum number of jobs [" + maxConcurrentJobAllocations
+                    + "] in opening state";
                 logger.trace(reason);
                 reasons.add(reason);
                 continue;
@@ -136,10 +138,10 @@ public class JobNodeSelector {
                     continue;
                 }
             }
-            long availableCount = maxNumberOfOpenJobs - numberOfAssignedJobs;
+            long availableCount = maxNumberOfOpenJobs - currentLoad.numberOfAssignedJobs;
             if (availableCount == 0) {
                 reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
-                    + "], because this node is full. Number of opened jobs [" + numberOfAssignedJobs
+                    + "], because this node is full. Number of opened jobs [" + currentLoad.numberOfAssignedJobs
                     + "], " + MAX_OPEN_JOBS_PER_NODE.getKey() + " [" + maxNumberOfOpenJobs + "]";
                 logger.trace(reason);
                 reasons.add(reason);
@@ -168,11 +170,11 @@ public class JobNodeSelector {
                     long maxMlMemory = machineMemory * maxMachineMemoryPercent / 100;
                     Long estimatedMemoryFootprint = memoryTracker.getJobMemoryRequirement(taskName, jobId);
                     if (estimatedMemoryFootprint != null) {
-                        long availableMemory = maxMlMemory - assignedJobMemory;
+                        long availableMemory = maxMlMemory - currentLoad.assignedJobMemory;
                         if (estimatedMemoryFootprint > availableMemory) {
                             reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndMlAttributes(node)
                                 + "], because this node has insufficient available memory. Available memory for ML [" + maxMlMemory
-                                + "], memory required by existing jobs [" + assignedJobMemory
+                                + "], memory required by existing jobs [" + currentLoad.assignedJobMemory
                                 + "], estimated memory required for this job [" + estimatedMemoryFootprint + "]";
                             logger.trace(reason);
                             reasons.add(reason);
@@ -206,17 +208,33 @@ public class JobNodeSelector {
         if (minLoadedNode == null) {
             String explanation = String.join("|", reasons);
             logger.debug("no node selected for job [{}], reasons [{}]", jobId, explanation);
-            return new PersistentTasksCustomMetaData.Assignment(null, explanation);
+            return considerLazyAssignment(new PersistentTasksCustomMetaData.Assignment(null, explanation));
         }
         logger.debug("selected node [{}] for job [{}]", minLoadedNode, jobId);
         return new PersistentTasksCustomMetaData.Assignment(minLoadedNode.getId(), "");
     }
 
-    private Tuple<long[], Boolean> calculateCurrentLoadForNode(DiscoveryNode node, PersistentTasksCustomMetaData persistentTasks,
-                                                               boolean allocateByMemory) {
-        long numberOfAssignedJobs = 0;
-        long numberOfAllocatingJobs = 0;
-        long assignedJobMemory = 0;
+    PersistentTasksCustomMetaData.Assignment considerLazyAssignment(PersistentTasksCustomMetaData.Assignment currentAssignment) {
+
+        assert currentAssignment.getExecutorNode() == null;
+
+        int numMlNodes = 0;
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            if (MachineLearning.isMlNode(node)) {
+                numMlNodes++;
+            }
+        }
+
+        if (numMlNodes < maxLazyNodes) { // Means we have lazy nodes left to allocate
+            return AWAITING_LAZY_ASSIGNMENT;
+        }
+
+        return currentAssignment;
+    }
+
+    private CurrentLoad calculateCurrentLoadForNode(DiscoveryNode node, PersistentTasksCustomMetaData persistentTasks,
+                                                    final boolean allocateByMemory) {
+        CurrentLoad result = new CurrentLoad(allocateByMemory);
 
         if (persistentTasks != null) {
             // find all the anomaly detector job tasks assigned to this node
@@ -226,19 +244,19 @@ public class JobNodeSelector {
                 JobState jobState = MlTasks.getJobStateModifiedForReassignments(assignedTask);
                 if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                     // Don't count CLOSED or FAILED jobs, as they don't consume native memory
-                    ++numberOfAssignedJobs;
+                    ++result.numberOfAssignedJobs;
                     if (jobState == JobState.OPENING) {
-                        ++numberOfAllocatingJobs;
+                        ++result.numberOfAllocatingJobs;
                     }
                     OpenJobAction.JobParams params = (OpenJobAction.JobParams) assignedTask.getParams();
                     Long jobMemoryRequirement = memoryTracker.getAnomalyDetectorJobMemoryRequirement(params.getJobId());
                     if (jobMemoryRequirement == null) {
-                        allocateByMemory = false;
+                        result.allocateByMemory = false;
                         logger.debug("Falling back to allocating job [{}] by job counts because " +
                             "the memory requirement for job [{}] was not available", jobId, params.getJobId());
                     } else {
                         logger.debug("adding " + jobMemoryRequirement);
-                        assignedJobMemory += jobMemoryRequirement;
+                        result.assignedJobMemory += jobMemoryRequirement;
                     }
                 }
             }
@@ -251,22 +269,22 @@ public class JobNodeSelector {
                 if (dataFrameAnalyticsState != DataFrameAnalyticsState.STOPPED) {
                     // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
                     // and REINDEXING states we're committed to using the memory soon, so account for it here
-                    ++numberOfAssignedJobs;
+                    ++result.numberOfAssignedJobs;
                     StartDataFrameAnalyticsAction.TaskParams params =
                         (StartDataFrameAnalyticsAction.TaskParams) assignedTask.getParams();
                     Long jobMemoryRequirement = memoryTracker.getDataFrameAnalyticsJobMemoryRequirement(params.getId());
                     if (jobMemoryRequirement == null) {
-                        allocateByMemory = false;
+                        result.allocateByMemory = false;
                         logger.debug("Falling back to allocating job [{}] by job counts because " +
                             "the memory requirement for job [{}] was not available", jobId, params.getId());
                     } else {
-                        assignedJobMemory += jobMemoryRequirement;
+                        result.assignedJobMemory += jobMemoryRequirement;
                     }
                 }
             }
         }
 
-        return new Tuple<>(new long[] { numberOfAssignedJobs, numberOfAllocatingJobs, assignedJobMemory }, allocateByMemory);
+        return result;
     }
 
     static String nodeNameOrId(DiscoveryNode node) {
@@ -294,5 +312,17 @@ public class JobNodeSelector {
             }
         }
         return builder.toString();
+    }
+
+    private static class CurrentLoad {
+
+        long numberOfAssignedJobs = 0;
+        long numberOfAllocatingJobs = 0;
+        long assignedJobMemory = 0;
+        boolean allocateByMemory;
+
+        CurrentLoad(boolean allocateByMemory) {
+            this.allocateByMemory = allocateByMemory;
+        }
     }
 }

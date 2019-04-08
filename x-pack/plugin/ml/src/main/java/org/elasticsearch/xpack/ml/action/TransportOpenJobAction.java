@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -78,9 +77,6 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
  The open job api is a low through put api, so the fact that we redirect to elected master node shouldn't be an issue.
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
-
-    public static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
-        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
 
     static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
             new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
@@ -179,11 +175,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (Job.getCompatibleJobTypes(node.getVersion()).contains(job.getJobType()) == false) {
             return "Not opening job [" + jobId + "] on node [" + JobNodeSelector.nodeNameAndVersion(node) +
                 "], because this node does not support jobs of type [" + job.getJobType() + "]";
-        }
-
-        if (TransportOpenJobAction.jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-            return "Not opening job [" + jobId + "] on node [" + JobNodeSelector.nodeNameAndVersion(node) +
-                "], because jobs using custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
         }
 
         return null;
@@ -412,22 +403,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             Job job = params.getJob();
             JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, jobId, MlTasks.JOB_TASK_NAME, memoryTracker,
-                node -> nodeFilter(node, job));
-            PersistentTasksCustomMetaData.Assignment assignment = jobNodeSelector.selectNode(
+                maxLazyMLNodes, node -> nodeFilter(node, job));
+            return jobNodeSelector.selectNode(
                 maxOpenJobs, maxConcurrentJobAllocations, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed);
-            if (assignment.getExecutorNode() == null) {
-                int numMlNodes = 0;
-                for (DiscoveryNode node : clusterState.getNodes()) {
-                    if (MachineLearning.isMlNode(node)) {
-                        numMlNodes++;
-                    }
-                }
-
-                if (numMlNodes < maxLazyMLNodes) { // Means we have lazy nodes left to allocate
-                    assignment = AWAITING_LAZY_ASSIGNMENT;
-                }
-            }
-            return assignment;
         }
 
         @Override
@@ -442,7 +420,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 throw makeCurrentlyBeingUpgradedException(logger, params.getJobId(), assignment.getExplanation());
             }
 
-            if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
+            if (assignment.getExecutorNode() == null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT) == false) {
                 throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
@@ -558,7 +536,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
 
                 // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
-                if (assignment != null && assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
+                if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
                     return true;
                 }
 

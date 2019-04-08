@@ -400,7 +400,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     private Request request() {
-        return new Request().setShardId(primary.shardId());
+        return new Request(primary.shardId());
     }
 
     /**
@@ -439,12 +439,13 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
             executedOnPrimary.set(true);
             // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the primary shard
             assertSame(primary, shard);
-            return new PrimaryResult<>(shardRequest, new Response());
+            listener.onResponse(new PrimaryResult<>(shardRequest, new Response()));
         }
 
         @Override
@@ -499,10 +500,11 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
             assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
-            return super.shardOperationOnPrimary(shardRequest, shard);
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
@@ -545,9 +547,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         @Override
-        protected PrimaryResult<Request, Response> shardOperationOnPrimary(Request shardRequest, IndexShard shard) throws Exception {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
+                ActionListener<PrimaryResult<Request, Response>> listener) {
             assertEquals("All permits must be acquired", 0, shard.getActiveOperationsCount());
-            return super.shardOperationOnPrimary(shardRequest, shard);
+            super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
@@ -558,6 +561,14 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     static class Request extends ReplicationRequest<Request> {
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        Request(ShardId shardId) {
+            super(shardId);
+        }
+
         @Override
         public String toString() {
             return getTestClass().getName() + ".Request";

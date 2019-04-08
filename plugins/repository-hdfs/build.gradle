@@ -91,9 +91,6 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")}");
-      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
-      }
     }
 
     // If it's an HA fixture, set a nameservice to use in the JVM options
@@ -140,9 +137,6 @@ project.afterEvaluate {
               "${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"
       )
       jvmArgs = jvmArgs + " " + "-Djava.security.krb5.conf=${krb5conf}"
-      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        jvmArgs = jvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-      }
 
       // If it's the HA + Secure tests then also set the Kerberos settings for the integration test JVM since we'll
       // need to auth to HDFS to trigger namenode failovers.
@@ -151,9 +145,6 @@ project.afterEvaluate {
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
         restIntegTestTaskRunner.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
         restIntegTestTaskRunner.jvmArg "-Djava.security.krb5.conf=${krb5conf}"
-        if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-          restIntegTestTaskRunner.jvmArg '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
-        }
         restIntegTestTaskRunner.systemProperty (
                 "test.krb5.keytab.hdfs",
                 project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab")

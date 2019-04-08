@@ -27,6 +27,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation.ReplicaResponse;
@@ -130,6 +131,8 @@ import static org.mockito.Mockito.when;
 
 public class TransportReplicationActionTests extends ESTestCase {
 
+    private static final ShardId NO_SHARD_ID = null;
+
     /**
      * takes a request that was sent by a {@link TransportReplicationAction} and captured
      * and returns the underlying request if it's wrapped or the original (cast to the expected type).
@@ -231,7 +234,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, nonRetryableBlock, globalBlock);
 
-            Request request = globalBlock ? new Request() : new Request().index("index");
+            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -246,7 +249,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request requestWithTimeout = (globalBlock ? new Request() : new Request().index("index")).timeout("5ms");
+            Request requestWithTimeout = (globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index")).timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -262,7 +265,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         {
             setStateWithBlock(clusterService, retryableBlock, globalBlock);
 
-            Request request = globalBlock ? new Request() : new Request().index("index");
+            Request request = globalBlock ? new Request(NO_SHARD_ID) : new Request(NO_SHARD_ID).index("index");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -281,7 +284,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertIndexShardUninitialized();
         }
         {
-            Request requestWithTimeout = new Request().index("unknown").setShardId(new ShardId("unknown", "_na_", 0)).timeout("5ms");
+            Request requestWithTimeout = new Request(new ShardId("unknown", "_na_", 0)).index("unknown").timeout("5ms");
             PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
             ReplicationTask task = maybeTask();
 
@@ -688,17 +691,17 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
-        final Request request = new Request();
-        Request replicaRequest = (Request) primary.perform(request).replicaRequest;
+        final Request request = new Request(NO_SHARD_ID);
+        primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
+            final ElasticsearchException exception = new ElasticsearchException("testing");
+            primary.failShard("test", exception);
 
-        final ElasticsearchException exception = new ElasticsearchException("testing");
-        primary.failShard("test", exception);
+            verify(shard).failShard("test", exception);
 
-        verify(shard).failShard("test", exception);
+            primary.close();
 
-        primary.close();
-
-        assertTrue(closed.get());
+            assertTrue(closed.get());
+        }));
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -716,7 +719,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         proxy.performOn(
             TestShardRouting.newShardRouting(shardId, "NOT THERE",
                 routingState == ShardRoutingState.RELOCATING ? state.nodes().iterator().next().getId() : null, false, routingState),
-                new Request(),
+                new Request(NO_SHARD_ID),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 listener);
@@ -727,7 +730,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardRouting replica = randomFrom(shardRoutings.replicaShards().stream()
             .filter(ShardRouting::assignedToNode).collect(Collectors.toList()));
         listener = new PlainActionFuture<>();
-        proxy.performOn(replica, new Request(), randomNonNegativeLong(), randomNonNegativeLong(), listener);
+        proxy.performOn(replica, new Request(NO_SHARD_ID), randomNonNegativeLong(), randomNonNegativeLong(), listener);
         assertFalse(listener.isDone());
 
         CapturingTransport.CapturedRequest[] captures = transport.getCapturedRequestsAndClear();
@@ -888,7 +891,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         try {
             action.handleReplicaRequest(
                 new TransportReplicationAction.ConcreteReplicaRequest<>(
-                        new Request().setShardId(shardId), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
+                        new Request(shardId), replicaRouting.allocationId().getId(), randomNonNegativeLong(),
                         randomNonNegativeLong(), randomNonNegativeLong()),
                 createTransportChannel(new PlainActionFuture<>()), task);
         } catch (ElasticsearchException e) {
@@ -1020,7 +1023,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         };
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
-        final Request request = new Request().setShardId(shardId);
+        final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdatesOrDeletes = randomNonNegativeLong();
         action.handleReplicaRequest(
@@ -1088,7 +1091,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             }
         };
         final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
-        final Request request = new Request().setShardId(shardId);
+        final Request request = new Request(shardId);
         final long checkpoint = randomNonNegativeLong();
         final long maxSeqNoOfUpdates = randomNonNegativeLong();
         action.handleReplicaRequest(
@@ -1166,13 +1169,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         public AtomicInteger processedOnReplicas = new AtomicInteger();
         public AtomicBoolean isRetrySet = new AtomicBoolean(false);
 
-        public Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
         }
 
-        Request(ShardId shardId) {
-            this();
-            this.shardId = shardId;
-            this.index = shardId.getIndexName();
+        Request(@Nullable ShardId shardId) {
+            super(shardId);
             this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }
@@ -1184,7 +1186,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1228,10 +1230,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected PrimaryResult<Request, TestResponse> shardOperationOnPrimary(Request shardRequest, IndexShard primary) {
+        protected void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            return new PrimaryResult<>(shardRequest, new TestResponse());
+            listener.onResponse(new PrimaryResult<>(shardRequest, new TestResponse()));
         }
 
         @Override

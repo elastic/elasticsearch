@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -64,7 +65,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         long docsInShards = 200;
 
         final Condition<?> condition = createTestCondition();
-        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndicesStatResponse(docsInShards, docsInPrimaryShards));
+        String indexName = randomAlphaOfLengthBetween(5, 7);
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(indexName),
+                createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
@@ -286,7 +289,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .patterns(Arrays.asList("foo-*", "bar-*"))
             .putAlias(AliasMetaData.builder("foo-write")).putAlias(AliasMetaData.builder("bar-write").writeIndex(randomBoolean()))
             .build();
-        final MetaData metaData = MetaData.builder().put(createMetaData(), false).put(template).build();
+        final MetaData metaData = MetaData.builder().put(createMetaData(randomAlphaOfLengthBetween(5, 7)), false).put(template).build();
         String indexName = randomFrom("foo-123", "bar-xyz");
         String aliasName = randomFrom("foo-write", "bar-write");
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
@@ -294,7 +297,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("index template [test-template]"));
     }
 
-    private IndicesStatsResponse createIndicesStatResponse(long totalDocs, long primaryDocs) {
+    private IndicesStatsResponse createIndicesStatResponse(String indexName, long totalDocs, long primaryDocs) {
         final CommonStats primaryStats = mock(CommonStats.class);
         when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0, between(1, 10000)));
 
@@ -304,18 +307,21 @@ public class TransportRolloverActionTests extends ESTestCase {
         final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
         when(response.getPrimaries()).thenReturn(primaryStats);
         when(response.getTotal()).thenReturn(totalStats);
-
+        final IndexStats indexStats = mock(IndexStats.class);
+        when(response.getIndex(indexName)).thenReturn(indexStats);
+        when(indexStats.getPrimaries()).thenReturn(primaryStats);
+        when(indexStats.getTotal()).thenReturn(totalStats);
         return response;
     }
 
-    private static IndexMetaData createMetaData() {
+    private static IndexMetaData createMetaData(String indexName) {
         final Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
-        return IndexMetaData.builder(randomAlphaOfLength(10))
+        return IndexMetaData.builder(indexName)
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();

@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyItem;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
 
 import java.io.IOException;
@@ -66,7 +67,7 @@ public class TransportGetSnapshotLifecycleAction extends
             listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
         } else {
             final Set<String> ids = new HashSet<>(Arrays.asList(request.getLifecycleIds()));
-            List<GetSnapshotLifecycleAction.SnapshotLifecyclePolicyItem> lifecycles = snapMeta.getSnapshotConfigurations()
+            List<SnapshotLifecyclePolicyItem> lifecycles = snapMeta.getSnapshotConfigurations()
                 .values()
                 .stream()
                 .filter(meta -> {
@@ -76,7 +77,7 @@ public class TransportGetSnapshotLifecycleAction extends
                         return ids.contains(meta.getPolicy().getId());
                     }
                 })
-                .map(GetSnapshotLifecycleAction.SnapshotLifecyclePolicyItem::new)
+                .map(SnapshotLifecyclePolicyItem::new)
                 .collect(Collectors.toList());
             listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));
         }

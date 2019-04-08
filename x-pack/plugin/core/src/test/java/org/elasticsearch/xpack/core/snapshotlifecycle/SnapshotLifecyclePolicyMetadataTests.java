@@ -28,23 +28,10 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
     @Override
     protected SnapshotLifecyclePolicyMetadata createTestInstance() {
         policyId = randomAlphaOfLength(5);
-        SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(createRandomPolicy(policyId))
-            .setVersion(randomNonNegativeLong())
-            .setModifiedDate(randomNonNegativeLong());
-        if (randomBoolean()) {
-            builder.setHeaders(randomHeaders());
-        }
-        if (randomBoolean()) {
-            builder.setLastSuccess(randomSnapshotInvocationRecord());
-        }
-        if (randomBoolean()) {
-            builder.setLastFailure(randomSnapshotInvocationRecord());
-        }
-        return builder.build();
+        return createRandomPolicyMetadata(policyId);
     }
 
-    private Map<String, String> randomHeaders() {
+    private static Map<String, String> randomHeaders() {
         Map<String, String> headers = new HashMap<>();
         int headerCount = randomIntBetween(1,10);
         for (int i = 0; i < headerCount; i++) {
@@ -71,7 +58,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
                     .build();
             case 2:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setHeaders(randomValueOtherThan(instance.getHeaders(), this::randomHeaders))
+                    .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
                     .build();
             case 3:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
@@ -86,6 +73,23 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
             default:
                 throw new AssertionError("failure, got illegal switch case");
         }
+    }
+
+    public static SnapshotLifecyclePolicyMetadata createRandomPolicyMetadata(String policyId) {
+        SnapshotLifecyclePolicyMetadata.Builder builder = SnapshotLifecyclePolicyMetadata.builder()
+            .setPolicy(createRandomPolicy(policyId))
+            .setVersion(randomNonNegativeLong())
+            .setModifiedDate(randomNonNegativeLong());
+        if (randomBoolean()) {
+            builder.setHeaders(randomHeaders());
+        }
+        if (randomBoolean()) {
+            builder.setLastSuccess(randomSnapshotInvocationRecord());
+        }
+        if (randomBoolean()) {
+            builder.setLastFailure(randomSnapshotInvocationRecord());
+        }
+        return builder.build();
     }
 
     public static SnapshotLifecyclePolicy createRandomPolicy(String policyId) {

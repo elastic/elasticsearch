@@ -757,7 +757,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(0, shardFailedRequests.length);
     }
 
-    public void testSeqNoIsSetOnPrimary() throws Exception {
+    public void testSeqNoIsSetOnPrimary() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         // we use one replica to check the primary term was set on the operation and sent to the replica
@@ -788,14 +788,14 @@ public class TransportReplicationActionTests extends ESTestCase {
             return null;
         }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
 
-        TestAction action =
-            new TestAction(Settings.EMPTY, "internal:testSeqNoIsSetOnPrimary", transportService, clusterService, shardStateAction,
-                threadPool) {
-                @Override
-                protected IndexShard getIndexShard(ShardId shardId) {
-                    return shard;
-                }
-            };
+        final IndexService indexService = mock(IndexService.class);
+        when(indexService.getShard(shard.shardId().id())).thenReturn(shard);
+
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.indexServiceSafe(shard.shardId().getIndex())).thenReturn(indexService);
+
+        TestAction action = new TestAction(Settings.EMPTY, "internal:testSeqNoIsSetOnPrimary", transportService, clusterService,
+            shardStateAction, threadPool, indicesService);
 
         action.handlePrimaryRequest(concreteShardRequest, createTransportChannel(listener), null);
         CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
@@ -1207,11 +1207,16 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private class TestAction extends TransportReplicationAction<Request, Request, TestResponse> {
 
-
         TestAction(Settings settings, String actionName, TransportService transportService,
                    ClusterService clusterService, ShardStateAction shardStateAction,
                    ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
+            this(settings, actionName, transportService, clusterService, shardStateAction, threadPool, mockIndicesService(clusterService));
+        }
+
+        TestAction(Settings settings, String actionName, TransportService transportService,
+                   ClusterService clusterService, ShardStateAction shardStateAction,
+                   ThreadPool threadPool, IndicesService indicesService) {
+            super(settings, actionName, transportService, clusterService, indicesService, threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
@@ -1241,7 +1246,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    final IndicesService mockIndicesService(ClusterService clusterService) {
+    private IndicesService mockIndicesService(ClusterService clusterService) {
         final IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
             Index index = (Index)invocation.getArguments()[0];
@@ -1261,7 +1266,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         return indicesService;
     }
 
-    final IndexService mockIndexService(final IndexMetaData indexMetaData, ClusterService clusterService) {
+    private IndexService mockIndexService(final IndexMetaData indexMetaData, ClusterService clusterService) {
         final IndexService indexService = mock(IndexService.class);
         when(indexService.getShard(anyInt())).then(invocation -> {
             int shard = (Integer) invocation.getArguments()[0];

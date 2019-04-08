@@ -284,21 +284,20 @@ thirdPartyAudit {
     )
 }
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses(
-        'javax.xml.bind.JAXBContext',
-        'javax.xml.bind.JAXBElement',
-        'javax.xml.bind.JAXBException',
-        'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler', 
-        'javax.activation.ActivationDataFlavor',
-        'javax.activation.DataContentHandler',
-        'javax.activation.DataHandler',
-        'javax.activation.DataSource',
-        'javax.activation.FileDataSource',
-        'javax.activation.FileTypeMap'
-    )
-}
+thirdPartyAudit.ignoreMissingClasses(
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.JAXBException',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.UnmarshallerHandler',
+    'javax.activation.ActivationDataFlavor',
+    'javax.activation.DataContentHandler',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.activation.FileDataSource',
+    'javax.activation.FileTypeMap'
+)
+
 
 run {
     plugin xpackModule('core')

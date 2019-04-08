@@ -49,16 +49,41 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     static final String NAME = "date_histogram";
     public static final String INTERVAL = "interval";
-    private static final String FIELD = "field";
+    public static final String FIXED_INTERVAL = "fixed_interval";
+    public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
     public static final String DELAY = "delay";
+
     private static final String DEFAULT_TIMEZONE = "UTC";
+    private static final String FIELD = "field";
+
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, a ->
-            new DateHistogramGroupConfig((String) a[0], (DateHistogramInterval) a[1], (DateHistogramInterval) a[2], (String) a[3]));
+        PARSER = new ConstructingObjectParser<>(NAME, a -> {
+            DateHistogramInterval oldInterval = (DateHistogramInterval) a[1];
+            DateHistogramInterval calendarInterval = (DateHistogramInterval) a[2];
+            DateHistogramInterval fixedInterval = (DateHistogramInterval) a[3];
+
+            if (oldInterval != null) {
+                if  (calendarInterval != null || fixedInterval != null) {
+                    throw new IllegalArgumentException("Cannot use [interval] with [fixed_interval] or [calendar_interval] " +
+                        "configuration options.");
+                }
+                return fromUnknownTimeUnit((String) a[0], oldInterval, (DateHistogramInterval) a[4], (String) a[5]);
+            } else if (calendarInterval != null && fixedInterval == null) {
+                return new CalendarInterval((String) a[0], calendarInterval, (DateHistogramInterval) a[4], (String) a[5]);
+            } else if (calendarInterval == null && fixedInterval != null) {
+                return new FixedInterval((String) a[0], fixedInterval, (DateHistogramInterval) a[4], (String) a[5]);
+            } else {
+                throw new IllegalArgumentException("An interval is required.  Use [fixed_interval] or [calendar_interval].");
+            }
+        });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
-        PARSER.declareField(constructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()), new ParseField(INTERVAL), ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
+            new ParseField(CALENDAR_INTERVAL), ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), p -> new DateHistogramInterval(p.text()),
+            new ParseField(FIXED_INTERVAL), ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(),  p -> new DateHistogramInterval(p.text()), new ParseField(DELAY), ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
@@ -69,8 +94,81 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private final String timeZone;
 
     /**
-     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
+     * FixedInterval is a {@link DateHistogramGroupConfig} that uses a fixed time interval for rolling up data.
+     * The fixed time interval is one or multiples of SI units and has no calendar-awareness (e.g. doesn't account
+     * for leap corrections, does not have variable length months, etc).
+     *
+     * For calendar-aware rollups, use {@link CalendarInterval}
      */
+    public static class FixedInterval extends DateHistogramGroupConfig {
+        public FixedInterval(String field, DateHistogramInterval interval) {
+            this(field, interval, null, null);
+        }
+
+        public FixedInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
+            super(field, interval, delay, timeZone);
+            // validate fixed time
+            TimeValue fixedInterval = TimeValue.parseTimeValue(interval.toString(), NAME + ".FixedInterval");
+        }
+
+        FixedInterval(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
+    /**
+     * CalendarInterval is a {@link DateHistogramGroupConfig} that uses calendar-aware intervals for rolling up data.
+     * Calendar time intervals understand leap corrections and contextual differences in certain calendar units (e.g.
+     * months are variable length depending on the month).  Calendar units are only available in singular quantities:
+     * 1s, 1m, 1h, 1d, 1w, 1q, 1M, 1y
+     *
+     * For fixed time rollups, use {@link FixedInterval}
+     */
+    public static class CalendarInterval extends DateHistogramGroupConfig {
+        public CalendarInterval(String field, DateHistogramInterval interval) {
+            this(field, interval, null, null);
+
+        }
+
+        public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
+            super(field, interval, delay, timeZone);
+            if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
+                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
+                    "as a calendar interval.");
+            }
+        }
+
+        CalendarInterval(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
+    static DateHistogramGroupConfig fromUnknownTimeUnit(String field, DateHistogramInterval interval,
+                                                                DateHistogramInterval delay, String timeZone) {
+        if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) != null) {
+            return new CalendarInterval(field, interval, delay, timeZone);
+        } else {
+            return new FixedInterval(field, interval, delay, timeZone);
+        }
+    }
+
+    static DateHistogramGroupConfig fromUnknownTimeUnit(StreamInput in) throws IOException {
+        DateHistogramInterval interval = new DateHistogramInterval(in);
+        String field = in.readString();
+        DateHistogramInterval delay = in.readOptionalWriteable(DateHistogramInterval::new);
+        String timeZone = in.readString();
+        return fromUnknownTimeUnit(field, interval, delay, timeZone);
+    }
+
+    /**
+     * Create a new {@link DateHistogramGroupConfig} using the given field and interval parameters.
+     *
+     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
+     * or {@link DateHistogramGroupConfig.FixedInterval} instead
+     *
+     * @since 7.1.0
+     */
+    @Deprecated
     public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
         this(field, interval, null, null);
     }
@@ -87,7 +185,13 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @param interval the interval to use for the date histogram (required)
      * @param delay the time delay (optional)
      * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
+     *
+     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
+     * or {@link DateHistogramGroupConfig.FixedInterval} instead
+     *
+     * @since 7.1.0
      */
+    @Deprecated
     public DateHistogramGroupConfig(final String field,
                                     final DateHistogramInterval interval,
                                     final @Nullable DateHistogramInterval delay,
@@ -112,6 +216,13 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         }
     }
 
+    /**
+     * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
+     * or {@link DateHistogramGroupConfig.FixedInterval} instead
+     *
+     * @since 7.1.0
+     */
+    @Deprecated
     DateHistogramGroupConfig(final StreamInput in) throws IOException {
         interval = new DateHistogramInterval(in);
         field = in.readString();
@@ -131,7 +242,13 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(INTERVAL, interval.toString());
+            if (this.getClass().equals(CalendarInterval.class)) {
+                builder.field(CALENDAR_INTERVAL, interval.toString());
+            } else if (this.getClass().equals(FixedInterval.class)) {
+                builder.field(FIXED_INTERVAL, interval.toString());
+            } else {
+                builder.field(INTERVAL, interval.toString());
+            }
             builder.field(FIELD, field);
             if (delay != null) {
                 builder.field(DELAY, delay.toString());
@@ -203,7 +320,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other == null || getClass() != other.getClass()) {
+        if (other == null || other instanceof DateHistogramGroupConfig == false) {
             return false;
         }
         final DateHistogramGroupConfig that = (DateHistogramGroupConfig) other;

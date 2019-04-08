@@ -114,7 +114,7 @@ public class RollupIT extends ESRestTestCase {
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","
-            + "        \"interval\":\"5m\""
+            + "        \"fixed_interval\":\"5m\""
             + "      }"
             + "},"
             + "\"metrics\":["
@@ -158,7 +158,7 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"60m\",\n" +
+            "        \"fixed_interval\": \"60m\",\n" +
             "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +

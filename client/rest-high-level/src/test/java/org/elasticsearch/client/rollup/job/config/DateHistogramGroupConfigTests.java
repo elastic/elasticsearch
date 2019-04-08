@@ -90,9 +90,18 @@ public class DateHistogramGroupConfigTests extends AbstractXContentTestCase<Date
 
     static DateHistogramGroupConfig randomDateHistogramGroupConfig() {
         final String field = randomAlphaOfLength(randomIntBetween(3, 10));
-        final DateHistogramInterval interval = new DateHistogramInterval(randomPositiveTimeValue());
         final DateHistogramInterval delay = randomBoolean() ? new DateHistogramInterval(randomPositiveTimeValue()) : null;
         final String timezone = randomBoolean() ? randomDateTimeZone().toString() : null;
-        return new DateHistogramGroupConfig(field, interval, delay, timezone);
+        int i = randomIntBetween(0,2);
+        if (i == 0) {
+            final DateHistogramInterval interval = new DateHistogramInterval(randomPositiveTimeValue());
+            return new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timezone);
+        } else if (i == 1) {
+            final DateHistogramInterval interval = new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"));
+            return new DateHistogramGroupConfig.CalendarInterval(field, interval, delay, timezone);
+        } else {
+            final DateHistogramInterval interval = new DateHistogramInterval(randomPositiveTimeValue());
+            return new DateHistogramGroupConfig(field, interval, delay, timezone);
+        }
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -62,7 +63,7 @@ public class RollupRequestTranslator {
      *     "the_histo": {
      *       "date_histogram" : {
      *         "field" : "ts",
-     *         "interval" : "1d"
+     *         "calendar_interval" : "1d"
      *       },
      *       "aggs": {
      *         "the_max": {
@@ -95,7 +96,7 @@ public class RollupRequestTranslator {
      *         "the_histo" : {
      *           "date_histogram" : {
      *             "field" : "ts.date_histogram.timestamp",
-     *             "interval" : "1d"
+     *             "calendar_interval" : "1d"
      *           },
      *           "aggregations" : {
      *             "the_histo._count" : {
@@ -156,7 +157,7 @@ public class RollupRequestTranslator {
      *     "the_histo": {
      *       "date_histogram" : {
      *         "field" : "ts",
-     *         "interval" : "day"
+     *         "calendar_interval" : "day"
      *       }
      *     }
      *   }
@@ -215,9 +216,13 @@ public class RollupRequestTranslator {
                     = new DateHistogramAggregationBuilder(source.getName());
 
             if (source.dateHistogramInterval() != null) {
-                rolledDateHisto.dateHistogramInterval(source.dateHistogramInterval());
+                rolledDateHisto.calendarInterval(source.dateHistogramInterval());
+            } else if (source.getCalendarInterval() != null) {
+                rolledDateHisto.calendarInterval(source.getCalendarInterval());
+            } else if (source.getFixedInterval() != null) {
+                rolledDateHisto.fixedInterval(source.getFixedInterval());
             } else {
-                rolledDateHisto.interval(source.interval());
+                rolledDateHisto.fixedInterval(new DateHistogramInterval(source.interval() + "ms"));
             }
 
             String timezone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();

@@ -60,7 +60,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testBasicDateHisto() {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
+        histo.calendarInterval(new DateHistogramInterval("1d"))
                 .field("foo")
                 .extendedBounds(new ExtendedBounds(0L, 1000L))
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
@@ -72,7 +72,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
 
-        assertThat(translatedHisto.dateHistogramInterval(), equalTo(new DateHistogramInterval("1d")));
+        assertThat(translatedHisto.getCalendarInterval(), equalTo(new DateHistogramInterval("1d")));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
         assertThat(translatedHisto.getSubAggregations().size(), equalTo(4));
 
@@ -113,7 +113,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testFormattedDateHisto() {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
+        histo.calendarInterval(new DateHistogramInterval("1d"))
             .field("foo")
             .extendedBounds(new ExtendedBounds(0L, 1000L))
             .format("yyyy-MM-dd")
@@ -125,7 +125,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
 
-        assertThat(translatedHisto.dateHistogramInterval(), equalTo(new DateHistogramInterval("1d")));
+        assertThat(translatedHisto.getCalendarInterval(), equalTo(new DateHistogramInterval("1d")));
         assertThat(translatedHisto.format(), equalTo("yyyy-MM-dd"));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
     }
@@ -174,7 +174,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testDateHistoIntervalWithMinMax() {
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
-        histo.dateHistogramInterval(new DateHistogramInterval("1d"))
+        histo.calendarInterval(new DateHistogramInterval("1d"))
                 .field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
@@ -185,7 +185,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
 
-        assertThat(translatedHisto.dateHistogramInterval().toString(), equalTo("1d"));
+        assertThat(translatedHisto.getCalendarInterval().toString(), equalTo("1d"));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
         assertThat(translatedHisto.getSubAggregations().size(), equalTo(4));
 
@@ -235,7 +235,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
 
-        assertThat(translatedHisto.interval(), equalTo(86400000L));
+        assertNull(translatedHisto.getCalendarInterval());
+        assertThat(translatedHisto.getFixedInterval(), equalTo(new DateHistogramInterval("86400000ms")));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
         assertThat(translatedHisto.getSubAggregations().size(), equalTo(4));
 
@@ -270,6 +271,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 fail("Unexpected query builder in filter conditions");
             }
         }
+
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.");
     }
 
     public void testDateHistoWithTimezone() {

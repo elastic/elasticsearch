@@ -206,6 +206,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40946")
     public void testStateMachine() throws InterruptedException {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);

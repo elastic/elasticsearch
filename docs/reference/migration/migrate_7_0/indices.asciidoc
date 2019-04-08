@@ -6,7 +6,8 @@
 [float]
 ==== Index creation no longer defaults to five shards
 Previous versions of Elasticsearch defaulted to creating five shards per index.
-Starting with 7.0.0, the default is now one shard per index.
+Starting with 7.0.0, the default is now one shard per index to avoid to overload the cluster when its size doesn't require it.
+Using the Split API is the recommanded solution to scale up your indices.
 //end::notable-breaking-changes[]
 
 [float]

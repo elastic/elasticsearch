@@ -1359,7 +1359,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .addAggregation(dateHistogram("histo").field("date").interval(-TimeUnit.DAYS.toMillis(1)).minDocCount(0)).get();
             fail();
         } catch (IllegalArgumentException e) {
-            assertThat(e.toString(), containsString("[interval] must be 1 or greater for histogram aggregation [histo]"));
+            assertThat(e.toString(), containsString("[interval] must be 1 or greater for aggregation [date_histogram]"));
         }
     }
 
@@ -1433,7 +1433,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(new MatchNoneQueryBuilder())
                 .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
-                        .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                        .calendarInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
                                 new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
                 .get();
 

@@ -60,10 +60,6 @@ setup:
 
 ---
 "Simple Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -89,10 +85,6 @@ setup:
 
 ---
 "Nested Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
 
   - do:
       search:
@@ -139,10 +131,6 @@ setup:
 
 ---
 "Aggregate After":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
 
   - do:
       search:
@@ -181,10 +169,6 @@ setup:
 
 ---
 "Aggregate After Missing":
-  - skip:
-      version: " - 6.1.99"
-      reason:  bug fixed in 6.2.0
-
 
   - do:
       search:
@@ -212,9 +196,6 @@ setup:
 
 ---
 "Invalid Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
 
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
@@ -242,8 +223,74 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 6.2.99"
-      reason:  this uses a new option (format) added in 6.3.0
+      version: " - 7.99.99"
+      reason:  calendar_interval introduced in 7.1.0
+      features: warnings
+
+  - do:
+      warnings:
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "interval": "1d",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 2 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-20" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+  - match: { aggregations.test.buckets.1.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+
+  - do:
+        warnings:
+          - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  after: {
+                    date: "2017-10-20"
+                  }
+                  sources: [
+                    {
+                      "date": {
+                        "date_histogram": {
+                          "field": "date",
+                          "interval": "1d",
+                          "format": "yyyy-MM-dd"
+                        }
+                      }
+                    }
+                  ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.date: "2017-10-21" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Composite aggregation with format and calendar_interval":
+  - skip:
+      version: " - 7.99.99"
+      reason:  calendar_interval introduced in 7.1.0
 
   - do:
       search:
@@ -258,7 +305,7 @@ setup:
                     "date": {
                       "date_histogram": {
                         "field": "date",
-                        "interval": "1d",
+                        "calendar_interval": "1d",
                         "format": "yyyy-MM-dd"
                       }
                     }
@@ -288,7 +335,7 @@ setup:
                       "date": {
                         "date_histogram": {
                           "field": "date",
-                          "interval": "1d",
+                          "calendar_interval": "1d",
                           "format": "yyyy-MM-dd"
                         }
                       }
@@ -302,9 +349,6 @@ setup:
 
 ---
 "Composite aggregation with after_key in the response":
-  - skip:
-      version: " - 6.2.99"
-      reason:  starting in 6.3.0 after_key is returned in the response
 
   - do:
         search:

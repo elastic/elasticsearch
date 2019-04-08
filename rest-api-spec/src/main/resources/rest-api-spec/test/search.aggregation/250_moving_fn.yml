@@ -6,6 +6,10 @@ setup:
 ---
 "Bad window":
 
+  - skip:
+      version: " - 7.99.0"
+      reason:  "calendar_interval added in 7.1"
+
   - do:
       catch: /\[window\] must be a positive, non-zero integer\./
       search:
@@ -16,7 +20,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:

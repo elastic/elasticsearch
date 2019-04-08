@@ -64,9 +64,6 @@ dependencies {
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
-  // Needed for serialization tests: 
-  // (In order to serialize a server side class to a client side class or the other way around)
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 
   restSpec "org.elasticsearch:rest-api-spec:${version}"
 }

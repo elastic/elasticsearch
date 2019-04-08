@@ -19,111 +19,99 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.client.ccr.PutAutoFollowPatternRequest.FOLLOW_PATTERN_FIELD;
+import static org.elasticsearch.client.ccr.PutAutoFollowPatternRequest.LEADER_PATTERNS_FIELD;
+import static org.elasticsearch.client.ccr.PutFollowRequest.REMOTE_CLUSTER_FIELD;
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
-    GetAutoFollowPatternAction.Response,
-    GetAutoFollowPatternResponse> {
+public class GetAutoFollowPatternResponseTests extends ESTestCase {
 
-    @Override
-    protected GetAutoFollowPatternAction.Response createServerTestInstance() {
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser,
+            this::createTestInstance,
+            GetAutoFollowPatternResponseTests::toXContent,
+            GetAutoFollowPatternResponse::fromXContent)
+            .supportsUnknownFields(true)
+            .test();
+    }
+
+    private GetAutoFollowPatternResponse createTestInstance() {
         int numPatterns = randomIntBetween(0, 16);
-        NavigableMap<String, AutoFollowMetadata.AutoFollowPattern> patterns = new TreeMap<>();
+        NavigableMap<String, GetAutoFollowPatternResponse.Pattern> patterns = new TreeMap<>();
         for (int i = 0; i < numPatterns; i++) {
-            String remoteCluster = randomAlphaOfLength(4);
-            List<String> leaderIndexPatters = Collections.singletonList(randomAlphaOfLength(4));
-            String followIndexNamePattern = randomAlphaOfLength(4);
-
-            Integer maxOutstandingReadRequests = null;
+            GetAutoFollowPatternResponse.Pattern pattern = new GetAutoFollowPatternResponse.Pattern(
+                randomAlphaOfLength(4), Collections.singletonList(randomAlphaOfLength(4)), randomAlphaOfLength(4));
             if (randomBoolean()) {
-                maxOutstandingReadRequests = randomIntBetween(0, Integer.MAX_VALUE);
+                pattern.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            Integer maxOutstandingWriteRequests = null;
             if (randomBoolean()) {
-                maxOutstandingWriteRequests = randomIntBetween(0, Integer.MAX_VALUE);
+                pattern.setMaxOutstandingWriteRequests(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            Integer maxReadRequestOperationCount = null;
             if (randomBoolean()) {
-                maxReadRequestOperationCount = randomIntBetween(0, Integer.MAX_VALUE);
+                pattern.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            ByteSizeValue maxReadRequestSize = null;
             if (randomBoolean()) {
-                maxReadRequestSize = new ByteSizeValue(randomNonNegativeLong());
+                pattern.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong()));
             }
-            Integer maxWriteBufferCount = null;
             if (randomBoolean()) {
-                maxWriteBufferCount = randomIntBetween(0, Integer.MAX_VALUE);
+                pattern.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            ByteSizeValue maxWriteBufferSize = null;
             if (randomBoolean()) {
-                maxWriteBufferSize = new ByteSizeValue(randomNonNegativeLong());
+                pattern.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
             }
-            Integer maxWriteRequestOperationCount = null;
             if (randomBoolean()) {
-                maxWriteRequestOperationCount = randomIntBetween(0, Integer.MAX_VALUE);
+                pattern.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
             }
-            ByteSizeValue maxWriteRequestSize = null;
             if (randomBoolean()) {
-                maxWriteRequestSize = new ByteSizeValue(randomNonNegativeLong());
+                pattern.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
             }
-            TimeValue maxRetryDelay =  null;
             if (randomBoolean()) {
-                maxRetryDelay = new TimeValue(randomNonNegativeLong());
+                pattern.setMaxRetryDelay(new TimeValue(randomNonNegativeLong()));
             }
-            TimeValue readPollTimeout = null;
             if (randomBoolean()) {
-                readPollTimeout = new TimeValue(randomNonNegativeLong());
+                pattern.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
             }
-            patterns.put(randomAlphaOfLength(4), new AutoFollowMetadata.AutoFollowPattern(remoteCluster, leaderIndexPatters,
-                followIndexNamePattern, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
-                maxOutstandingWriteRequests, maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize,
-                maxRetryDelay, readPollTimeout));
+            patterns.put(randomAlphaOfLength(4), pattern);
         }
-        return new GetAutoFollowPatternAction.Response(patterns);
+        return new GetAutoFollowPatternResponse(patterns);
     }
 
-    @Override
-    protected GetAutoFollowPatternResponse doParseToClientInstance(XContentParser parser) throws IOException {
-        return GetAutoFollowPatternResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected void assertInstances(GetAutoFollowPatternAction.Response serverTestInstance, GetAutoFollowPatternResponse clientInstance) {
-        assertThat(serverTestInstance.getAutoFollowPatterns().size(), equalTo(clientInstance.getPatterns().size()));
-        for (Map.Entry<String, AutoFollowMetadata.AutoFollowPattern> entry : serverTestInstance.getAutoFollowPatterns().entrySet()) {
-            AutoFollowMetadata.AutoFollowPattern serverPattern = entry.getValue();
-            GetAutoFollowPatternResponse.Pattern clientPattern = clientInstance.getPatterns().get(entry.getKey());
-            assertThat(clientPattern, notNullValue());
-
-            assertThat(serverPattern.getRemoteCluster(), equalTo(clientPattern.getRemoteCluster()));
-            assertThat(serverPattern.getLeaderIndexPatterns(), equalTo(clientPattern.getLeaderIndexPatterns()));
-            assertThat(serverPattern.getFollowIndexPattern(), equalTo(clientPattern.getFollowIndexNamePattern()));
-            assertThat(serverPattern.getMaxOutstandingReadRequests(), equalTo(clientPattern.getMaxOutstandingReadRequests()));
-            assertThat(serverPattern.getMaxOutstandingWriteRequests(), equalTo(clientPattern.getMaxOutstandingWriteRequests()));
-            assertThat(serverPattern.getMaxReadRequestOperationCount(), equalTo(clientPattern.getMaxReadRequestOperationCount()));
-            assertThat(serverPattern.getMaxWriteRequestOperationCount(), equalTo(clientPattern.getMaxWriteRequestOperationCount()));
-            assertThat(serverPattern.getMaxReadRequestSize(), equalTo(clientPattern.getMaxReadRequestSize()));
-            assertThat(serverPattern.getMaxWriteRequestSize(), equalTo(clientPattern.getMaxWriteRequestSize()));
-            assertThat(serverPattern.getMaxWriteBufferCount(), equalTo(clientPattern.getMaxWriteBufferCount()));
-            assertThat(serverPattern.getMaxWriteBufferSize(), equalTo(clientPattern.getMaxWriteBufferSize()));
-            assertThat(serverPattern.getMaxRetryDelay(), equalTo(clientPattern.getMaxRetryDelay()));
-            assertThat(serverPattern.getReadPollTimeout(), equalTo(clientPattern.getReadPollTimeout()));
+    public static void toXContent(GetAutoFollowPatternResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        {
+            builder.startArray(GetAutoFollowPatternResponse.PATTERNS_FIELD.getPreferredName());
+            for (Map.Entry<String, GetAutoFollowPatternResponse.Pattern> entry : response.getPatterns().entrySet()) {
+                builder.startObject();
+                {
+                    builder.field(GetAutoFollowPatternResponse.NAME_FIELD.getPreferredName(), entry.getKey());
+                    builder.startObject(GetAutoFollowPatternResponse.PATTERN_FIELD.getPreferredName());
+                    {
+                        GetAutoFollowPatternResponse.Pattern pattern = entry.getValue();
+                        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), pattern.getRemoteCluster());
+                        builder.field(LEADER_PATTERNS_FIELD.getPreferredName(), pattern.getLeaderIndexPatterns());
+                        if (pattern.getFollowIndexNamePattern()!= null) {
+                            builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), pattern.getFollowIndexNamePattern());
+                        }
+                        entry.getValue().toXContentFragment(builder, ToXContent.EMPTY_PARAMS);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endArray();
         }
+        builder.endObject();
     }
-
 }

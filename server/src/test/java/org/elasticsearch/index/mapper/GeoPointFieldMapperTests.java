@@ -524,12 +524,12 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject().field("location", "NaN,12").endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("location").nullField("lat").field("lon", 1).endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
 
-        assertThat(defaultMapper.parse(new SourceToParse("test", "type", "1",
+        assertThat(defaultMapper.parse(SourceToParse.source("test", "type", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("location").nullField("lat").nullField("lon").endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());

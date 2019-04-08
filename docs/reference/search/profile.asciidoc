@@ -82,7 +82,9 @@ This will yield the following result:
                           "compute_max_score": 0,
                           "compute_max_score_count": 0,
                           "shallow_advance": 0,
-                          "shallow_advance_count": 0
+                          "shallow_advance_count": 0,
+                          "set_min_competitive_score": 0,
+                          "set_min_competitive_score_count": 0
                        },
                        "children": [
                           {
@@ -105,7 +107,9 @@ This will yield the following result:
                                 "compute_max_score": 0,
                                 "compute_max_score_count": 0,
                                 "shallow_advance": 0,
-                                "shallow_advance_count": 0
+                                "shallow_advance_count": 0,
+                                "set_min_competitive_score": 0,
+                                "set_min_competitive_score_count": 0
                              }
                           },
                           {
@@ -128,7 +132,9 @@ This will yield the following result:
                                 "compute_max_score": 0,
                                 "compute_max_score_count": 0,
                                 "shallow_advance": 0,
-                                "shallow_advance_count": 0
+                                "shallow_advance_count": 0,
+                                "set_min_competitive_score": 0,
+                                "set_min_competitive_score_count": 0
                              }
                           }
                        ]
@@ -311,7 +317,9 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
    "compute_max_score": 0,
    "compute_max_score_count": 0,
    "shallow_advance": 0,
-   "shallow_advance_count": 0
+   "shallow_advance_count": 0,
+   "set_min_competitive_score": 0,
+   "set_min_competitive_score_count": 0
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
@@ -575,7 +583,9 @@ And the response:
                               "compute_max_score": 0,
                               "compute_max_score_count": 0,
                               "shallow_advance": 0,
-                              "shallow_advance_count": 0
+                              "shallow_advance_count": 0,
+                              "set_min_competitive_score": 0,
+                              "set_min_competitive_score_count": 0
                            }
                         },
                         {
@@ -598,7 +608,9 @@ And the response:
                               "compute_max_score": 0,
                               "compute_max_score_count": 0,
                               "shallow_advance": 0,
-                              "shallow_advance_count": 0
+                              "shallow_advance_count": 0,
+                              "set_min_competitive_score": 0,
+                              "set_min_competitive_score_count": 0
                            }
                         }
                      ],

@@ -39,7 +39,8 @@ final class ProfileScorer extends Scorer {
     private final Scorer scorer;
     private ProfileWeight profileWeight;
 
-    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer;
+    private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
+        setMinCompetitiveScoreTimer;
     private final boolean isConstantScoreQuery;
 
 
@@ -53,6 +54,7 @@ final class ProfileScorer extends Scorer {
         matchTimer = profile.getTimer(QueryTimingType.MATCH);
         shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
         computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
+        setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
         ProfileScorer profileScorer = null;
         if (w.getQuery() instanceof ConstantScoreQuery && scorer instanceof ProfileScorer) {
             //Case when we have a totalHits query and it is not cached
@@ -217,6 +219,16 @@ final class ProfileScorer extends Scorer {
             return scorer.getMaxScore(upTo);
         } finally {
             computeMaxScoreTimer.stop();
+        }
+    }
+
+    @Override
+    public void setMinCompetitiveScore(float minScore) throws IOException {
+        setMinCompetitiveScoreTimer.start();
+        try {
+            scorer.setMinCompetitiveScore(minScore);
+        } finally {
+            setMinCompetitiveScoreTimer.stop();
         }
     }
 }

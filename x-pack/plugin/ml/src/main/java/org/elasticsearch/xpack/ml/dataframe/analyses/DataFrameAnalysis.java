@@ -10,7 +10,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public interface DataFrameAnalysis extends ToXContentObject {
 

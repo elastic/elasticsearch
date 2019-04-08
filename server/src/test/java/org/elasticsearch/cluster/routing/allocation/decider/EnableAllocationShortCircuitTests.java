@@ -83,6 +83,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         return clusterState;
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40964")
     public void testRebalancingAttemptedIfPermitted() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
 
@@ -123,6 +124,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         assertThat(plugin.rebalanceAttempts, equalTo(0));
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40964")
     public void testRebalancingAttemptedIfDisabledButOverridenOnSpecificIndices() {
         ClusterState clusterState = createClusterStateWithAllShardsAssigned();
         final IndexMetaData indexMetaData = randomFrom(clusterState.metaData().indices().values().toArray(IndexMetaData.class));

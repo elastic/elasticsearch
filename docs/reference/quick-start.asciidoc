@@ -77,7 +77,6 @@ PUT /customer/_doc/1
 }
 --------------------------------------------------
 // CONSOLE
-// TESTSETUP
 
 You can confirm {es} used your ID by checking the `\_id` field of the response.
 Here's an example response, formatted to be more readable.
@@ -88,18 +87,19 @@ Here's an example response, formatted to be more readable.
   "_index" : "customer",
   "_type" : "_doc",
   "_id" : "1",
-  "_version" : 2,
-  "result" : "updated",
+  "_version" : 1,
+  "result" : "created",
   "_shards" : {
     "total" : 2,
     "successful" : 1,
     "failed" : 0
   },
-  "_seq_no" : 1,
+  "_seq_no" : 0,
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/yDWh7WkBJ8uiWiWqEEaF/$body._id/]
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/]
 
 [float]
 ==== Autogenerate a document ID
@@ -122,6 +122,7 @@ POST /customer/_doc
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 {es} provides the generated ID in `\_id` field of the response. Here's an
 example response, formatted to be more readable.
@@ -132,18 +133,19 @@ example response, formatted to be more readable.
   "_index" : "customer",
   "_type" : "_doc",
   "_id" : "yDWh7WkBJ8uiWiWqEEaF",
-  "_version" : 2,
-  "result" : "updated",
+  "_version" : 1,
+  "result" : "created",
   "_shards" : {
     "total" : 2,
     "successful" : 1,
     "failed" : 0
   },
-  "_seq_no" : 1,
+  "_seq_no" : 0,
   "_primary_term" : 1
 }
 --------------------------------------------------
 // TESTRESPONSE[s/yDWh7WkBJ8uiWiWqEEaF/$body._id/]
+// TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/]
 
 [float]
 === Run a search
@@ -164,6 +166,7 @@ This example returns the document with an ID of `1` in the
 GET /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 ==== URI search
@@ -178,6 +181,7 @@ This example performs a URI search for documents with an employer of
 GET /customer/_search?q=employer:Geekfarm
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 ==== Fully-body search
@@ -213,6 +217,7 @@ GET /customer/_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 === Update a document
@@ -232,6 +237,7 @@ POST /customer/_doc/1/_update
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 === Replace a document
@@ -253,6 +259,7 @@ PUT /customer/_doc/1
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 === Delete a document
@@ -267,6 +274,7 @@ index.
 DELETE /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 
 [float]
@@ -282,3 +290,4 @@ This example deletes the `customer` index.
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]

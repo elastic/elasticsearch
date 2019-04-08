@@ -3,22 +3,24 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.action;
+package org.elasticsearch.client.ml;
 
-import org.elasticsearch.client.ml.PutCalendarResponse;
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
-import org.elasticsearch.xpack.core.ml.calendars.CalendarTests;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PutCalendarActionResponseTests
     extends AbstractHlrcStreamableXContentTestCase<PutCalendarAction.Response, PutCalendarResponse> {
 
     @Override
     protected PutCalendarAction.Response createTestInstance() {
-        return new PutCalendarAction.Response(CalendarTests.testInstance());
+        return new PutCalendarAction.Response(testInstance());
     }
 
     @Override
@@ -46,5 +48,22 @@ public class PutCalendarActionResponseTests
     @Override
     protected PutCalendarAction.Response createBlankInstance() {
         return new PutCalendarAction.Response();
+    }
+
+    public static Calendar testInstance() {
+        return testInstance(new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray()).ofCodePointsLength(random(), 10, 10));
+    }
+
+    public static Calendar testInstance(String calendarId) {
+        int size = randomInt(10);
+        List<String> items = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            items.add(randomAlphaOfLengthBetween(1, 20));
+        }
+        String description = null;
+        if (randomBoolean()) {
+            description = randomAlphaOfLength(20);
+        }
+        return new Calendar(calendarId, items, description);
     }
 }

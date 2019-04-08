@@ -4,16 +4,19 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms.hlrc;
+package org.elasticsearch.client.dataframe.transforms;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
 public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCase<DataFrameTransformState,
@@ -38,7 +41,7 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
 
     @Override
     protected DataFrameTransformState createTestInstance() {
-        return DataFrameTransformStateTests.randomDataFrameTransformState();
+        return randomDataFrameTransformState();
     }
 
     @Override
@@ -54,5 +57,44 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return field -> field.equals("current_position");
+    }
+
+    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
+        return new DataFrameTransformStateAndStats(id,
+            randomDataFrameTransformState(),
+            randomStats(id));
+    }
+
+    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats randomStats(String transformId) {
+        return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L));
+    }
+
+    public static DataFrameTransformState randomDataFrameTransformState() {
+        return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
+            randomFrom(IndexerState.values()),
+            randomPosition(),
+            randomLongBetween(0,10),
+            randomBoolean() ? null : randomAlphaOfLength(10));
+    }
+
+    private static Map<String, Object> randomPosition() {
+        if (randomBoolean()) {
+            return null;
+        }
+        int numFields = randomIntBetween(1, 5);
+        Map<String, Object> position = new HashMap<>();
+        for (int i = 0; i < numFields; i++) {
+            Object value;
+            if (randomBoolean()) {
+                value = randomLong();
+            } else {
+                value = randomAlphaOfLengthBetween(1, 10);
+            }
+            position.put(randomAlphaOfLengthBetween(3, 10), value);
+        }
+        return position;
     }
 }

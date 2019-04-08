@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.watcher;
+package org.elasticsearch.client.watcher;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -15,7 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -87,13 +89,13 @@ public class GetWatchResponseTests extends
 
     @Override
     protected GetWatchResponse createTestInstance() {
-        String id = randomAlphaOfLength(10);
-        if (rarely()) {
+        String id = ESTestCase.randomAlphaOfLength(10);
+        if (LuceneTestCase.rarely()) {
             return new GetWatchResponse(id);
         }
-        long version = randomLongBetween(0, 10);
-        long seqNo = randomNonNegativeLong();
-        long primaryTerm = randomLongBetween(1, 2000);
+        long version = ESTestCase.randomLongBetween(0, 10);
+        long seqNo = ESTestCase.randomNonNegativeLong();
+        long primaryTerm = ESTestCase.randomLongBetween(1, 2000);
         WatchStatus status = randomWatchStatus();
         BytesReference source = simpleWatch();
         return new GetWatchResponse(id, version, seqNo, primaryTerm, status, new XContentSource(source, XContentType.JSON));
@@ -123,43 +125,43 @@ public class GetWatchResponseTests extends
     }
 
     private static WatchStatus randomWatchStatus() {
-        long version = randomLongBetween(-1, Long.MAX_VALUE);
-        WatchStatus.State state = new WatchStatus.State(randomBoolean(), DateUtils.nowWithMillisResolution());
-        ExecutionState executionState = randomFrom(ExecutionState.values());
-        ZonedDateTime lastChecked = rarely() ? null : DateUtils.nowWithMillisResolution();
-        ZonedDateTime lastMetCondition = rarely() ? null : DateUtils.nowWithMillisResolution();
-        int size = randomIntBetween(0, 5);
+        long version = ESTestCase.randomLongBetween(-1, Long.MAX_VALUE);
+        WatchStatus.State state = new WatchStatus.State(ESTestCase.randomBoolean(), DateUtils.nowWithMillisResolution());
+        ExecutionState executionState = ESTestCase.randomFrom(ExecutionState.values());
+        ZonedDateTime lastChecked = LuceneTestCase.rarely() ? null : DateUtils.nowWithMillisResolution();
+        ZonedDateTime lastMetCondition = LuceneTestCase.rarely() ? null : DateUtils.nowWithMillisResolution();
+        int size = ESTestCase.randomIntBetween(0, 5);
         Map<String, ActionStatus> actionMap = new HashMap<>();
         for (int i = 0; i < size; i++) {
             ActionStatus.AckStatus ack = new ActionStatus.AckStatus(
                 DateUtils.nowWithMillisResolution(),
-                randomFrom(ActionStatus.AckStatus.State.values())
+                ESTestCase.randomFrom(ActionStatus.AckStatus.State.values())
             );
             ActionStatus actionStatus = new ActionStatus(
                 ack,
-                randomBoolean() ? null : randomExecution(),
-                randomBoolean() ? null : randomExecution(),
-                randomBoolean() ? null : randomThrottle()
+                ESTestCase.randomBoolean() ? null : randomExecution(),
+                ESTestCase.randomBoolean() ? null : randomExecution(),
+                ESTestCase.randomBoolean() ? null : randomThrottle()
             );
-            actionMap.put(randomAlphaOfLength(10), actionStatus);
+            actionMap.put(ESTestCase.randomAlphaOfLength(10), actionStatus);
         }
         Map<String, String> headers = new HashMap<>();
-        int headerSize = randomIntBetween(0, 5);
+        int headerSize = ESTestCase.randomIntBetween(0, 5);
         for (int i = 0; i < headerSize; i++) {
-            headers.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(1, 10));
+            headers.put(ESTestCase.randomAlphaOfLengthBetween(5, 10), ESTestCase.randomAlphaOfLengthBetween(1, 10));
         }
         return new WatchStatus(version, state, executionState, lastChecked, lastMetCondition, actionMap, headers);
     }
 
     private static ActionStatus.Throttle randomThrottle() {
-        return new ActionStatus.Throttle(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
+        return new ActionStatus.Throttle(DateUtils.nowWithMillisResolution(), ESTestCase.randomAlphaOfLengthBetween(10, 20));
     }
 
     private static ActionStatus.Execution randomExecution() {
-        if (randomBoolean()) {
+        if (ESTestCase.randomBoolean()) {
             return null;
-        } else if (randomBoolean()) {
-            return ActionStatus.Execution.failure(DateUtils.nowWithMillisResolution(), randomAlphaOfLengthBetween(10, 20));
+        } else if (ESTestCase.randomBoolean()) {
+            return ActionStatus.Execution.failure(DateUtils.nowWithMillisResolution(), ESTestCase.randomAlphaOfLengthBetween(10, 20));
         } else {
             return ActionStatus.Execution.successful(DateUtils.nowWithMillisResolution());
         }

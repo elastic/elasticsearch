@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol;
+package org.elasticsearch.client;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -11,6 +11,8 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
+// TODO: Remove and change subclasses to use AbstractResponseTestCase instead
+@Deprecated
 public abstract class AbstractHlrcXContentTestCase<T extends ToXContent, H> extends AbstractXContentTestCase<T> {
 
     /**

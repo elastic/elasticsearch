@@ -3,12 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-
-import org.elasticsearch.client.license.GetBasicStatusResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 public class GetBasicStatusResponseTests
     extends AbstractHlrcStreamableXContentTestCase<org.elasticsearch.license.GetBasicStatusResponse, GetBasicStatusResponse> {
@@ -29,6 +28,6 @@ public class GetBasicStatusResponseTests
 
     @Override
     protected org.elasticsearch.license.GetBasicStatusResponse createTestInstance() {
-        return new org.elasticsearch.license.GetBasicStatusResponse(randomBoolean());
+        return new org.elasticsearch.license.GetBasicStatusResponse(ESTestCase.randomBoolean());
     }
 }

@@ -4,13 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms.hlrc;
+package org.elasticsearch.client.dataframe.transforms;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -35,7 +34,7 @@ public class DataFrameTransformStateAndStatsHlrcTests extends AbstractHlrcXConte
     @Override
     protected DataFrameTransformStateAndStats createTestInstance() {
         // the transform id is not part of HLRC as it's only to a field for internal storage, therefore use a default id
-        return DataFrameTransformStateAndStatsTests
+        return DataFrameTransformStateHlrcTests
                 .randomDataFrameTransformStateAndStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
     }
 

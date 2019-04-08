@@ -4,19 +4,19 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.protocol.xpack.watcher;
+package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchResponse;
 
 import java.io.IOException;
 
-public class ExecuteWatchResponseTests
+public class ExecuteWatchResponseHlrcTests
     extends AbstractHlrcXContentTestCase<ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
 
     @Override

@@ -3,16 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack;
+package org.elasticsearch.client;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -72,10 +73,10 @@ public class XPackInfoResponseTests extends
     @Override
     protected ToXContent.Params getToXContentParams() {
         Map<String, String> params = new HashMap<>();
-        if (randomBoolean()) {
-            params.put("human", randomBoolean() ? "true" : "false");
+        if (ESTestCase.randomBoolean()) {
+            params.put("human", ESTestCase.randomBoolean() ? "true" : "false");
         }
-        if (randomBoolean()) {
+        if (ESTestCase.randomBoolean()) {
             params.put("categories", "_none");
         }
         return new ToXContent.MapParams(params);
@@ -84,15 +85,15 @@ public class XPackInfoResponseTests extends
     @Override
     protected XPackInfoResponse createTestInstance() {
         return new XPackInfoResponse(
-            randomBoolean() ? null : randomBuildInfo(),
-            randomBoolean() ? null : randomLicenseInfo(),
-            randomBoolean() ? null : randomFeatureSetsInfo());
+            ESTestCase.randomBoolean() ? null : randomBuildInfo(),
+            ESTestCase.randomBoolean() ? null : randomLicenseInfo(),
+            ESTestCase.randomBoolean() ? null : randomFeatureSetsInfo());
     }
 
     @Override
     protected XPackInfoResponse mutateInstance(XPackInfoResponse response) {
         @SuppressWarnings("unchecked")
-        Function<XPackInfoResponse, XPackInfoResponse> mutator = randomFrom(
+        Function<XPackInfoResponse, XPackInfoResponse> mutator = ESTestCase.randomFrom(
             r -> new XPackInfoResponse(
                     mutateBuildInfo(r.getBuildInfo()),
                     r.getLicenseInfo(),
@@ -110,8 +111,8 @@ public class XPackInfoResponseTests extends
 
     private BuildInfo randomBuildInfo() {
         return new BuildInfo(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(15));
+            ESTestCase.randomAlphaOfLength(10),
+            ESTestCase.randomAlphaOfLength(15));
     }
 
     private BuildInfo mutateBuildInfo(BuildInfo buildInfo) {
@@ -123,11 +124,11 @@ public class XPackInfoResponseTests extends
 
     private LicenseInfo randomLicenseInfo() {
         return new LicenseInfo(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(4),
-            randomAlphaOfLength(5),
-            randomFrom(LicenseStatus.values()),
-            randomLong());
+            ESTestCase.randomAlphaOfLength(10),
+            ESTestCase.randomAlphaOfLength(4),
+            ESTestCase.randomAlphaOfLength(5),
+            ESTestCase.randomFrom(LicenseStatus.values()),
+            ESTestCase.randomLong());
     }
 
     private LicenseInfo mutateLicenseInfo(LicenseInfo licenseInfo) {
@@ -138,7 +139,7 @@ public class XPackInfoResponseTests extends
     }
 
     private FeatureSetsInfo randomFeatureSetsInfo() {
-        int size = between(0, 10);
+        int size = ESTestCase.between(0, 10);
         Set<FeatureSet> featureSets = new HashSet<>(size);
         while (featureSets.size() < size) {
             featureSets.add(randomFeatureSet());
@@ -155,21 +156,21 @@ public class XPackInfoResponseTests extends
 
     private FeatureSet randomFeatureSet() {
         return new FeatureSet(
-            randomAlphaOfLength(5),
-            randomBoolean() ? null : randomAlphaOfLength(20),
-            randomBoolean(),
-            randomBoolean(),
+            ESTestCase.randomAlphaOfLength(5),
+            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(20),
+            ESTestCase.randomBoolean(),
+            ESTestCase.randomBoolean(),
             randomNativeCodeInfo());
     }
 
     private Map<String, Object> randomNativeCodeInfo() {
-        if (randomBoolean()) {
+        if (ESTestCase.randomBoolean()) {
             return null;
         }
-        int size = between(0, 10);
+        int size = ESTestCase.between(0, 10);
         Map<String, Object> nativeCodeInfo = new HashMap<>(size);
         while (nativeCodeInfo.size() < size) {
-            nativeCodeInfo.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+            nativeCodeInfo.put(ESTestCase.randomAlphaOfLength(5), ESTestCase.randomAlphaOfLength(5));
         }
         return nativeCodeInfo;
     }

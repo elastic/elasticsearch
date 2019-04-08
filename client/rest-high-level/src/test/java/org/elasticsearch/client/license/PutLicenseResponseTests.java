@@ -1,0 +1,120 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.client.license;
+
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.protocol.xpack.license.LicensesStatus;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+public class PutLicenseResponseTests extends
+        AbstractHlrcStreamableXContentTestCase<org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.client.license.PutLicenseResponse> {
+
+    @Override
+    public org.elasticsearch.client.license.PutLicenseResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.license.PutLicenseResponse.fromXContent(parser);
+    }
+
+    @Override
+    public org.elasticsearch.protocol.xpack.license.PutLicenseResponse convertHlrcToInternal(org.elasticsearch.client.license.PutLicenseResponse instance) {
+        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(instance.isAcknowledged(), org.elasticsearch.protocol.xpack.license.LicensesStatus.valueOf(instance.status().name()),
+            instance.acknowledgeHeader(), instance.acknowledgeMessages());
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // The structure of the response is such that unknown fields inside acknowledge cannot be supported since they
+        // are treated as messages from new services
+        return p -> p.startsWith("acknowledge");
+    }
+
+    @Override
+    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createTestInstance() {
+        boolean acknowledged = ESTestCase.randomBoolean();
+        org.elasticsearch.protocol.xpack.license.LicensesStatus status = ESTestCase.randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID, org.elasticsearch.protocol.xpack.license.LicensesStatus.INVALID, org.elasticsearch.protocol.xpack.license.LicensesStatus.EXPIRED);
+        String messageHeader;
+        Map<String, String[]> ackMessages;
+        if (ESTestCase.randomBoolean()) {
+            messageHeader = ESTestCase.randomAlphaOfLength(10);
+            ackMessages = randomAckMessages();
+        } else {
+            messageHeader = null;
+            ackMessages = Collections.emptyMap();
+        }
+
+        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(acknowledged, status, messageHeader, ackMessages);
+    }
+
+    private static Map<String, String[]> randomAckMessages() {
+        int nFeatures = ESTestCase.randomIntBetween(1, 5);
+
+        Map<String, String[]> ackMessages = new HashMap<>();
+
+        for (int i = 0; i < nFeatures; i++) {
+            String feature = ESTestCase.randomAlphaOfLengthBetween(9, 15);
+            int nMessages = ESTestCase.randomIntBetween(1, 5);
+            String[] messages = new String[nMessages];
+            for (int j = 0; j < nMessages; j++) {
+                messages[j] = ESTestCase.randomAlphaOfLengthBetween(10, 30);
+            }
+            ackMessages.put(feature, messages);
+        }
+
+        return ackMessages;
+    }
+
+    @Override
+    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createBlankInstance() {
+        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse();
+    }
+
+    @Override
+    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse mutateInstance(org.elasticsearch.protocol.xpack.license.PutLicenseResponse response) {
+        @SuppressWarnings("unchecked")
+        Function<org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = ESTestCase.randomFrom(
+            r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
+                r.isAcknowledged() == false,
+                r.status(),
+                r.acknowledgeHeader(),
+                r.acknowledgeMessages()),
+            r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
+                r.isAcknowledged(),
+                mutateStatus(r.status()),
+                r.acknowledgeHeader(),
+                r.acknowledgeMessages()),
+            r -> {
+                if (r.acknowledgeMessages().isEmpty()) {
+                    return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
+                        r.isAcknowledged(),
+                        r.status(),
+                        ESTestCase.randomAlphaOfLength(10),
+                        randomAckMessages()
+                    );
+                } else {
+                    return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(r.isAcknowledged(), r.status());
+                }
+            }
+
+        );
+        return mutator.apply(response);
+    }
+
+    private org.elasticsearch.protocol.xpack.license.LicensesStatus mutateStatus(org.elasticsearch.protocol.xpack.license.LicensesStatus status) {
+        return ESTestCase.randomValueOtherThan(status, () -> ESTestCase.randomFrom(LicensesStatus.values()));
+    }
+}

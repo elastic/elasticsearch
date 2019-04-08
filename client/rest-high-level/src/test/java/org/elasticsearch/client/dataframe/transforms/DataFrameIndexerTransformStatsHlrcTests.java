@@ -4,12 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms.hlrc;
+package org.elasticsearch.client.dataframe.transforms;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStatsTests;
 
 import java.io.IOException;
 
@@ -38,7 +37,7 @@ public class DataFrameIndexerTransformStatsHlrcTests extends AbstractHlrcXConten
 
     @Override
     protected DataFrameIndexerTransformStats createTestInstance() {
-        return DataFrameIndexerTransformStatsTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
+        return DataFrameTransformStateHlrcTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
     }
 
     @Override

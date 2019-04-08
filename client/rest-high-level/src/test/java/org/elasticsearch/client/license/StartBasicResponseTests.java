@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.PostStartBasicResponse;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,11 +50,11 @@ public class StartBasicResponseTests extends
 
     @Override
     protected PostStartBasicResponse createTestInstance() {
-        PostStartBasicResponse.Status status = randomFrom(PostStartBasicResponse.Status.values());
+        PostStartBasicResponse.Status status = ESTestCase.randomFrom(PostStartBasicResponse.Status.values());
         String acknowledgeMessage = null;
         Map<String, String[]> ackMessages = Collections.emptyMap();
         if (status != PostStartBasicResponse.Status.GENERATED_BASIC) {
-            acknowledgeMessage = randomAlphaOfLength(10);
+            acknowledgeMessage = ESTestCase.randomAlphaOfLength(10);
             ackMessages = randomAckMessages();
         }
         final PostStartBasicResponse postStartBasicResponse = new PostStartBasicResponse(status, ackMessages, acknowledgeMessage);
@@ -62,16 +63,16 @@ public class StartBasicResponseTests extends
     }
 
     private static Map<String, String[]> randomAckMessages() {
-        int nFeatures = randomIntBetween(1, 5);
+        int nFeatures = ESTestCase.randomIntBetween(1, 5);
 
         Map<String, String[]> ackMessages = new HashMap<>();
 
         for (int i = 0; i < nFeatures; i++) {
-            String feature = randomAlphaOfLengthBetween(9, 15);
-            int nMessages = randomIntBetween(1, 5);
+            String feature = ESTestCase.randomAlphaOfLengthBetween(9, 15);
+            int nMessages = ESTestCase.randomIntBetween(1, 5);
             String[] messages = new String[nMessages];
             for (int j = 0; j < nMessages; j++) {
-                messages[j] = randomAlphaOfLengthBetween(10, 30);
+                messages[j] = ESTestCase.randomAlphaOfLengthBetween(10, 30);
             }
             ackMessages.put(feature, messages);
         }

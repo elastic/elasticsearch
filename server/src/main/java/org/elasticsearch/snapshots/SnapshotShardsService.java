@@ -492,7 +492,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     void sendSnapshotShardUpdate(final Snapshot snapshot, final ShardId shardId, final ShardSnapshotStatus status) {
         remoteFailedRequestDeduplicator.executeOnce(
             new UpdateIndexShardSnapshotStatusRequest(snapshot, shardId, status),
-            new ActionListener<Void>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(Void aVoid) {
                     logger.trace("[{}] [{}] updated snapshot state", snapshot, status);
@@ -557,7 +557,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             });
     }
 
-    private class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {
+    private static class SnapshotStateExecutor implements ClusterStateTaskExecutor<UpdateIndexShardSnapshotStatusRequest> {
 
         @Override
         public ClusterTasksResult<UpdateIndexShardSnapshotStatusRequest>

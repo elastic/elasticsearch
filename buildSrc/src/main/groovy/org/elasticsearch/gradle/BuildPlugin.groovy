@@ -361,16 +361,8 @@ class BuildPlugin implements Plugin<Project> {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
         }
         if (compilerJavaHome == null) {
-            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
-                // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
-                return Jvm.current().javaHome
-            } else {
-                throw new GradleException(
-                        "JAVA_HOME must be set to build Elasticsearch. " +
-                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
-                )
-            }
+            // if JAVA_HOME does not set,so we use the JDK that Gradle was run with.
+            return Jvm.current().javaHome
         }
         return compilerJavaHome
     }
@@ -730,11 +722,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
-        if (project.compilerJavaVersion < JavaVersion.VERSION_1_10) {
-            project.ext.compactProfile = 'compact3'
-        } else {
-            project.ext.compactProfile = 'full'
-        }
+        project.ext.compactProfile = 'full'
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
@@ -746,13 +734,6 @@ class BuildPlugin implements Plugin<Project> {
                     options.fork = true
                     options.forkOptions.javaHome = compilerJavaHomeFile
                 }
-                if (targetCompatibilityVersion == JavaVersion.VERSION_1_8) {
-                    // compile with compact 3 profile by default
-                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                    if (project.compactProfile != 'full') {
-                        options.compilerArgs << '-profile' << project.compactProfile
-                    }
-                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
@@ -760,7 +741,7 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 // fail on all javac warnings
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
                 if (options.compilerArgs.contains("-processor") == false) {
@@ -943,9 +924,7 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
-            if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                jvmArg '--illegal-access=warn'
-            }
+            jvmArg '--illegal-access=warn'
             argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD

@@ -69,8 +69,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     public ReindexRequest(StreamInput in) throws IOException {
         super.readFrom(in);
-        destination = new IndexRequest();
-        destination.readFrom(in);
+        destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 

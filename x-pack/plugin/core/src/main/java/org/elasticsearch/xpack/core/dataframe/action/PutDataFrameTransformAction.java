@@ -10,8 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -97,13 +95,6 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
             }
             Request other = (Request) obj;
             return Objects.equals(config, other.config);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PutDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 

@@ -16,12 +16,17 @@ Elasticsearch Service for free].
 Elasticsearch is provided in the following package formats:
 
 [horizontal]
-`zip`/`tar.gz`::
+Linux and MacOS `tar.gz` archives::
 
-The `zip` and `tar.gz` packages are suitable for installation on any system
-and are the easiest choice for getting started with Elasticsearch on most systems.
+The `tar.gz` archives are available for installation on any Linux distribution and MacOS.
 +
-<<zip-targz>> or <<zip-windows>>
+<<targz>>
+
+Windows `.zip` archive::
+
+The `zip` archive is suitable for installation on Windows.
++
+<<zip-windows>>
 
 `deb`::
 
@@ -69,7 +74,7 @@ Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearc
 Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
-include::install/zip-targz.asciidoc[]
+include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]
 

@@ -15,9 +15,6 @@ archivesBaseName = 'x-pack-ccr'
 
 integTest.enabled = false
 
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-try"
-
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = [ "**/CloseFollowerIndexIT.class" ]
 

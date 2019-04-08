@@ -321,6 +321,7 @@ public class SearchModuleTests extends ESTestCase {
             "intervals",
             "match",
             "match_all",
+            "match_bool_prefix",
             "match_none",
             "match_phrase",
             "match_phrase_prefix",

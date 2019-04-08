@@ -915,7 +915,7 @@ class BuildPlugin implements Plugin<Project> {
                     println "Task $test ended"
                 }
 
-                def listener = new ErrorReportingTestListener(test.testLogging)
+                def listener = new ErrorReportingTestListener(test.testLogging, test.reports)
                 test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
                 addTestOutputListener(listener)
                 addTestListener(listener)

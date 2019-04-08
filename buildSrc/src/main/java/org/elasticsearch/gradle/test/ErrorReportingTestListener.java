@@ -2,31 +2,49 @@ package org.elasticsearch.gradle.test;
 
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 import org.gradle.api.tasks.testing.TestOutputListener;
 import org.gradle.api.tasks.testing.TestResult;
+import org.gradle.api.tasks.testing.TestTaskReports;
 import org.gradle.api.tasks.testing.logging.TestLogging;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.PrintStream;
-import java.util.ArrayList;
+import java.io.PrintWriter;
+import java.io.UncheckedIOException;
+import java.io.Writer;
+import java.util.Deque;
 import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
+    private static final Logger LOGGER = Logging.getLogger(ErrorReportingTestListener.class);
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
     private final TestExceptionFormatter formatter;
-    private Map<Descriptor, List<TestOutputEvent>> eventBuffer = new ConcurrentHashMap<>();
+    private final File outputDirectory;
+    private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
+    private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging) {
+    public ErrorReportingTestListener(TestLogging testLogging, TestTaskReports reports) {
         this.formatter = new FullExceptionFormatter(testLogging);
+        this.outputDirectory = new File(reports.getJunitXml().getDestination(), "output");
+        outputDirectory.mkdirs();
     }
 
     @Override
@@ -38,8 +56,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             suite = testDescriptor;
         }
 
-        List<TestOutputEvent> events = eventBuffer.computeIfAbsent(Descriptor.of(suite), d -> new ArrayList<>());
-        events.add(outputEvent);
+        // Hold on to any repro messages so we can report them immediately on test case failure
+        if (outputEvent.getMessage().startsWith(REPRODUCE_WITH_PREFIX)) {
+            Deque<String> lines = reproductionLines.computeIfAbsent(Descriptor.of(suite), d -> new LinkedList<>());
+            lines.add(outputEvent.getMessage());
+        }
+
+        EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(suite), EventWriter::new);
+        eventWriter.write(outputEvent);
     }
 
     @Override
@@ -49,26 +73,49 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
     @Override
     public void afterSuite(final TestDescriptor suite, TestResult result) {
+        Descriptor descriptor = Descriptor.of(suite);
+
         try {
             // if the test suite failed, report all captured output
             if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
-                List<TestOutputEvent> events = eventBuffer.get(Descriptor.of(suite));
+                EventWriter eventWriter = eventWriters.get(descriptor);
 
-                if (events != null) {
+                if (eventWriter != null) {
                     // It's not explicit what the threading guarantees are for TestListener method execution so we'll
                     // be explicitly safe here to avoid interleaving output from multiple test suites
                     synchronized (this) {
+                        // make sure we've flushed everything to disk before reading
+                        eventWriter.flush();
+
                         System.err.println("\n\nSuite: " + suite);
 
-                        for (TestOutputEvent event : events) {
-                            log(event.getMessage(), event.getDestination());
+                        try (BufferedReader reader = eventWriter.reader()) {
+                            PrintStream out = System.out;
+                            for (String message = reader.readLine(); message != null; message = reader.readLine()) {
+                                if (message.startsWith("  1> ")) {
+                                    out = System.out;
+                                } else if (message.startsWith("  2> ")) {
+                                    out = System.err;
+                                }
+
+                                out.println(message);
+                            }
                         }
                     }
                 }
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error reading test suite output", e);
         } finally {
-            // make sure we don't hold on to test output in memory after the suite has finished
-            eventBuffer.remove(Descriptor.of(suite));
+            reproductionLines.remove(descriptor);
+            EventWriter writer = eventWriters.remove(descriptor);
+            if (writer != null) {
+                try {
+                    writer.close();
+                } catch (IOException e) {
+                    LOGGER.error("Failed to close test suite output stream", e);
+                }
+            }
         }
     }
 
@@ -83,21 +130,21 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             failedTests.add(Descriptor.of(testDescriptor));
 
             if (testDescriptor.getParent() != null) {
-                // go back and find the reproduction line for this test failure
-                List<TestOutputEvent> events = eventBuffer.get(Descriptor.of(testDescriptor.getParent()));
-                for (int i = events.size() - 1; i >= 0; i--) {
-                    String message = events.get(i).getMessage();
-                    if (message.startsWith(REPRODUCE_WITH_PREFIX)) {
-                        System.err.print('\n' + message);
-                        break;
+                // go back and fetch the reproduction line for this test failure
+                Deque<String> lines = reproductionLines.get(Descriptor.of(testDescriptor.getParent()));
+                if (lines != null) {
+                    String line = lines.getLast();
+                    if (line != null) {
+                        System.err.print('\n' + line);
                     }
                 }
 
                 // include test failure exception stacktraces in test suite output log
                 if (result.getExceptions().size() > 0) {
                     String message = formatter.format(testDescriptor, result.getExceptions()).substring(4);
+                    EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(testDescriptor.getParent()), EventWriter::new);
 
-                    events.add(new TestOutputEvent() {
+                    eventWriter.write(new TestOutputEvent() {
                         @Override
                         public Destination getDestination() {
                             return Destination.StdErr;
@@ -115,26 +162,6 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
     public Set<Descriptor> getFailedTests() {
         return failedTests;
-    }
-
-    private static void log(String message, TestOutputEvent.Destination destination) {
-        PrintStream out;
-        String prefix;
-
-        if (destination == TestOutputEvent.Destination.StdOut) {
-            out = System.out;
-            prefix = "  1> ";
-        } else {
-            out = System.err;
-            prefix = "  2> ";
-        }
-
-        if (message.equals("\n")) {
-            out.print(message);
-        } else {
-            out.print(prefix);
-            out.print(message);
-        }
     }
 
     /**
@@ -158,6 +185,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             return new Descriptor(d.getName(), d.getClassName(), d.getParent() == null ? null : d.getParent().toString());
         }
 
+        public String getClassName() {
+            return className;
+        }
+
         public String getFullName() {
             return className + "." + name;
         }
@@ -175,6 +206,63 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         @Override
         public int hashCode() {
             return Objects.hash(name, className, parent);
+        }
+    }
+
+    private class EventWriter implements Closeable {
+        private final File outputFile;
+        private final Writer writer;
+
+        EventWriter(Descriptor descriptor) {
+            this.outputFile = new File(outputDirectory, descriptor.getClassName() + ".out");
+
+            FileOutputStream fos;
+            try {
+                fos = new FileOutputStream(this.outputFile);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to create test suite output file", e);
+            }
+
+            this.writer = new PrintWriter(new BufferedOutputStream(fos));
+        }
+
+        public void write(TestOutputEvent event) {
+            String prefix;
+            if (event.getDestination() == TestOutputEvent.Destination.StdOut) {
+                prefix = "  1> ";
+            } else {
+                prefix = "  2> ";
+            }
+
+            try {
+                if (event.getMessage().equals("\n")) {
+                    writer.write(event.getMessage());
+                } else {
+                    writer.write(prefix + event.getMessage());
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to write test suite output", e);
+            }
+        }
+
+        public void flush() throws IOException {
+            writer.flush();
+        }
+
+        public BufferedReader reader() {
+            try {
+                return new BufferedReader(new FileReader(outputFile));
+            } catch (IOException e) {
+                throw new UncheckedIOException("Unable to read test suite output file", e);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            writer.close();
+
+            // there's no need to keep this stuff on disk after suite execution
+            outputFile.delete();
         }
     }
 }

@@ -79,7 +79,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         // create DSL for tasks to mark clusters these use
-        createUseClusterTaskExtension(project);
+        createUseClusterTaskExtension(project, container);
 
         if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
             // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
@@ -170,7 +170,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void createUseClusterTaskExtension(Project project) {
+    private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
         project.getTasks().all((Task task) ->
@@ -179,6 +179,12 @@ public class TestClustersPlugin implements Plugin<Project> {
                     "useCluster",
                     new Closure<Void>(project, task) {
                         public void doCall(ElasticsearchCluster cluster) {
+                            if (container.contains(cluster) == false) {
+                                throw new TestClustersException(
+                                    "Task " + task.getPath() + " can't use test cluster from" +
+                                    " another project " + cluster
+                                );
+                            }
                             Object thisObject = this.getThisObject();
                             if (thisObject instanceof Task == false) {
                                 throw new AssertionError("Expected " + thisObject + " to be an instance of " +

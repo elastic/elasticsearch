@@ -226,6 +226,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));
@@ -258,6 +261,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
+        createPreviewRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         assertThat(preview.size(), equalTo(393));
@@ -298,6 +304,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         assertTrue(indexExists(dataFrameIndex));

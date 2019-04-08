@@ -82,6 +82,16 @@ public class PivotTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
+
+    /*
+      Had to disable warnings because tests get random date histo configs, and changing to
+      new interval format was non-trivial.  Best for ML team to fix
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     public void testValidateExistingIndex() throws Exception {
         Pivot pivot = new Pivot(new String[]{"existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 

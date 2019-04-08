@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -278,7 +279,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
                 .field(Result.IS_INTERIM.getPreferredName());
         return AggregationBuilders.dateHistogram(Result.TIMESTAMP.getPreferredName())
                 .field(Result.TIMESTAMP.getPreferredName())
-                .interval(maxBucketSpanMillis)
+                .fixedInterval(new DateHistogramInterval(maxBucketSpanMillis + "ms"))
                 .subAggregation(jobsAgg)
                 .subAggregation(interimAgg);
     }

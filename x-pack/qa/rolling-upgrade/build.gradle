@@ -92,6 +92,7 @@ task copyTestNodeKeyMaterial(type: Copy) {
 
 for (Version version : bwcVersions.wireCompatible) {
     String baseName = "v${version}"
+    
 
     Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
         mustRunAfter(precommit)
@@ -165,6 +166,7 @@ for (Version version : bwcVersions.wireCompatible) {
     Task oldClusterTestRunner = tasks.getByName("${baseName}#oldClusterTestRunner")
     oldClusterTestRunner.configure {
         systemProperty 'tests.rest.suite', 'old_cluster'
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
     }
 
     Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
@@ -227,6 +229,7 @@ for (Version version : bwcVersions.wireCompatible) {
     oneThirdUpgradedTestRunner.configure {
         systemProperty 'tests.rest.suite', 'mixed_cluster'
         systemProperty 'tests.first_round', 'true'
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         // We only need to run these tests once so we may as well do it when we're two thirds upgraded
         systemProperty 'tests.rest.blacklist', [
                 'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
@@ -248,6 +251,7 @@ for (Version version : bwcVersions.wireCompatible) {
     twoThirdsUpgradedTestRunner.configure {
         systemProperty 'tests.rest.suite', 'mixed_cluster'
         systemProperty 'tests.first_round', 'false'
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         finalizedBy "${baseName}#oldClusterTestCluster#node2.stop"
     }
 
@@ -260,6 +264,7 @@ for (Version version : bwcVersions.wireCompatible) {
     Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
     upgradedClusterTestRunner.configure {
         systemProperty 'tests.rest.suite', 'upgraded_cluster'
+        systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
         /*
          * Force stopping all the upgraded nodes after the test runner
          * so they are alive during the test.

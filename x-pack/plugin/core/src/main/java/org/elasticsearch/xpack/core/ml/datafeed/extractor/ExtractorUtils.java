@@ -132,10 +132,17 @@ public final class ExtractorUtils {
             throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 
+        // TODO retains `dateHistogramInterval()`/`interval()` access for bwc logic, needs updating
         if (dateHistogram.dateHistogramInterval() != null) {
             return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
-        } else {
+        } else if (dateHistogram.getCalendarInterval() != null) {
+            return validateAndGetCalendarInterval(dateHistogram.getCalendarInterval().toString());
+        } else if (dateHistogram.getFixedInterval() != null) {
+            return dateHistogram.getFixedInterval().getMillisFromFixedOrCalendar();
+        } else if (dateHistogram.interval() != 0) {
             return dateHistogram.interval();
+        } else {
+            throw new IllegalArgumentException("Must specify an interval for DateHistogram");
         }
     }
 

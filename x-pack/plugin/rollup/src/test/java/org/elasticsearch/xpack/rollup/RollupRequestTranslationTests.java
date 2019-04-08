@@ -31,6 +31,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -262,6 +263,37 @@ public class RollupRequestTranslationTests extends ESTestCase {
             if (q instanceof TermQueryBuilder) {
                 if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
                     assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
+                }  else {
+                    fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
+                }
+            } else {
+                fail("Unexpected query builder in filter conditions");
+            }
+        }
+    }
+
+    public void testDateHistoWithTimezone() {
+        ZoneId timeZone = ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds()));
+        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
+        histo.interval(86400000)
+            .field("foo")
+            .timeZone(timeZone);
+        List<QueryBuilder> filterConditions = new ArrayList<>();
+
+        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        assertThat(translated.size(), equalTo(1));
+        assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
+        DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
+
+        assertThat(translatedHisto.interval(), equalTo(86400000L));
+        assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
+        assertThat(translatedHisto.timeZone(), equalTo(timeZone));
+        assertThat(filterConditions.size(), equalTo(1));
+
+        for (QueryBuilder q : filterConditions) {
+            if (q instanceof TermQueryBuilder) {
+                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
+                    assertThat(((TermQueryBuilder) q).value(), equalTo(timeZone.toString()));
                 }  else {
                     fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
                 }

@@ -85,14 +85,16 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
-                                                                                       final IndexShard primary) throws Exception {
-        executeShardOperation(shardRequest, primary);
-        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
+            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            executeShardOperation(shardRequest, primary);
+            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+        });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
@@ -136,9 +138,11 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
-        private ClusterBlock clusterBlock;
+        private final ClusterBlock clusterBlock;
 
-        ShardRequest(){
+        ShardRequest(StreamInput in) throws IOException {
+            super(in);
+            clusterBlock = new ClusterBlock(in);
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
@@ -153,9 +157,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterBlock = new ClusterBlock(in);
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

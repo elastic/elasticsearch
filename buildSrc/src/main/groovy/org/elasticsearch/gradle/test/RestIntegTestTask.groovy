@@ -20,7 +20,7 @@ package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testclusters.ElasticsearchNode
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
@@ -81,10 +81,10 @@ public class RestIntegTestTask extends DefaultTask {
                 throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
             }
             if (usesTestclusters == true) {
-                ElasticsearchNode node = project.testClusters."${name}"
-                runner.systemProperty('tests.rest.cluster', {node.allHttpSocketURI.join(",") })
-                runner.systemProperty('tests.config.dir', {node.getConfigDir()})
-                runner.systemProperty('tests.cluster', {node.transportPortURI})
+                ElasticsearchCluster cluster = project.testClusters."${name}"
+                runner.systemProperty('tests.rest.cluster', {cluster.allHttpSocketURI.join(",") })
+                runner.systemProperty('tests.config.dir', {cluster.singleNode().getConfigDir()})
+                runner.systemProperty('tests.cluster', {cluster.transportPortURI})
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node

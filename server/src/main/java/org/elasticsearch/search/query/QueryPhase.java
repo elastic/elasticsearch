@@ -353,6 +353,9 @@ public class QueryPhase implements SearchPhase {
     }
 
      private static Query tryRewriteNumericLongOrDateSort(SearchContext searchContext, IndexReader reader) throws IOException {
+        // child docs can inherit scores from parent, so avoid has_parent query
+        if (searchContext.request().source().query().getName().equals("has_parent")) return null;
+
         if (searchContext.searchAfter() != null) return null;
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;

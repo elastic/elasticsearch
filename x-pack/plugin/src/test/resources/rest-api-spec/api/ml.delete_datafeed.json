@@ -1,5 +1,6 @@
 {
   "ml.delete_datafeed": {
+    "stability": "stable",
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html",
     "methods": [ "DELETE" ],
     "url": {

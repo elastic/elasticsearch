@@ -1,5 +1,6 @@
 {
   "ml.forecast": {
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ml/anomaly_detectors/{job_id}/_forecast",

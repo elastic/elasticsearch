@@ -1,5 +1,6 @@
 {
   "ml.close_job": {
+    "stability": "stable",
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-close-job.html",
     "methods": [ "POST" ],
     "url": {

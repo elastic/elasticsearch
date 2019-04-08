@@ -1,5 +1,6 @@
 {
   "scripts_painless_context": {
+    "stability": "private",
     "methods": ["GET"],
     "url": {
       "path": "/_scripts/painless/_context",

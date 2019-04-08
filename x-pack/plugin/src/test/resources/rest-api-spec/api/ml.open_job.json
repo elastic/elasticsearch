@@ -1,5 +1,6 @@
 {
   "ml.open_job": {
+    "stability": "stable",
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
     "methods": [ "POST" ],
     "url": {

@@ -118,6 +118,12 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         super(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
             indexFailures, searchFailures);
         this.transformId = Objects.requireNonNull(transformId, "parameter transformId must not be null");
+        if (currentRunDocsProcessed != null && currentRunDocsProcessed < 0) {
+            throw new IllegalArgumentException("[" + CURRENT_RUN_DOCUMENTS_PROCESSED.getPreferredName() + "] must be >= 0.");
+        }
+        if (currentRunTotalDocsToProcess != null && currentRunTotalDocsToProcess < 0) {
+            throw new IllegalArgumentException("[" + CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS.getPreferredName() + "] must be >= 0.");
+        }
         this.currentRunDocsProcessed = currentRunDocsProcessed;
         this.currentRunTotalDocsToProcess = currentRunTotalDocsToProcess;
         this.currentRunStartTime = currentRunStartTime;

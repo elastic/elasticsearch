@@ -192,7 +192,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             statisticsList.get(7),  // searchTotal
             statisticsList.get(8),  // indexFailures
             statisticsList.get(9),  // searchFailures
-            // Both of these are negative one and not aggregated as they pertain to individual transforms, not all transforms
+            // Both of these are null not aggregated as they pertain to individual transforms, not all transforms
             null, // currentRunDocsProcessed
             null, // currentRunTotalDocsToProcess
             // Since this is going to be used to collect for all transforms, no need to include the start time

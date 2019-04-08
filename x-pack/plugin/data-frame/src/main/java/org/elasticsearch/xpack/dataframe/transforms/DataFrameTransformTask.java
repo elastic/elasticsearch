@@ -135,14 +135,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     void initializePreviousStats(DataFrameIndexerTransformStats stats) {
         previousStats.merge(stats);
-        previousStats.setCurrentRunStartTime(stats.getCurrentRunStartTime().getTime());
+        if (stats.getCurrentRunStartTime() != null) {
+            previousStats.setCurrentRunStartTime(stats.getCurrentRunStartTime().getTime());
+        }
     }
 
     public DataFrameIndexerTransformStats getStats() {
         return mergePreviousStats(indexer.getStats());
     }
 
-    private DataFrameIndexerTransformStats mergePreviousStats(DataFrameIndexerTransformStats stats) {
+    private DataFrameIndexerTransformStats mergePreviousStats(final DataFrameIndexerTransformStats stats) {
         DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(stats).merge(previousStats);
         // Handle the case for when task is migrated between nodes, but a new run did not start, so we should keep
         // the previous stats run start time.
@@ -345,29 +347,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStart(long now, ActionListener<Void> listener) {
-            ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(
-                destinationMappings -> {
-                    fieldMappings = destinationMappings;
-                    super.onStart(now, listener);
-                },
-                e -> listener.onFailure(new RuntimeException(
-                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                        transformConfig.getDestination().getIndex()),
-                    e))
-            );
 
+            // NOTE: This is skipped if this is not the first run of the indexer
             final DataFrameIndexerTransformStats stats = this.getStats();
-
-             // NOTE: This is skipped if this is not the first run of the indexer
             ActionListener<SearchResponse> getTotalCountListener = ActionListener.wrap(
                 searchResponse -> {
                     stats.setCurrentRunTotalDocumentsToProcess(searchResponse.getHits().getTotalHits().value);
                     stats.resetCurrentRunDocsProcessed();
-                    if (this.fieldMappings == null) {
-                        SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), fieldMappingsListener);
-                    } else {
-                        fieldMappingsListener.onResponse(fieldMappings);
-                    }
+                    super.onStart(now, listener);
                 },
                 e -> {
                     stats.setCurrentRunTotalDocumentsToProcess(0L);
@@ -375,26 +362,17 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     logger.warn("Failed getting total doc count for transform [" + transformId + "]", e);
                     auditor.warning(transformId, "Failed getting total doc count to measure progress");
                     // Continue execution as not being able to measure progress should not completely break the transform job
-                    if (this.fieldMappings == null) {
-                        SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), fieldMappingsListener);
-                    } else {
-                        fieldMappingsListener.onResponse(fieldMappings);
-                    }
+                    super.onStart(now, listener);
                 }
             );
 
-            ActionListener<DataFrameTransformConfig> getConfigListener = ActionListener.wrap(
-                config -> {
-                    if (config.isValid() == false) {
-                        DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
-                        listener.onFailure(exception);
-                        return;
-                    }
-                    transformConfig = config;
-                    // If this is the first run for the given checkpoint, we should gather our stats and reset the count
+            ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(
+                destinationMappings -> {
+                    fieldMappings = destinationMappings;
+                    // Attempt to gather the total doc count as this is the first run for this checkpoint
                     if (isFirstRun()) {
-                        SearchRequest searchRequest = client.prepareSearch(config.getSource().getIndex())
-                            .setQuery(config.getSource().getQueryConfig().getQuery())
+                        SearchRequest searchRequest = client.prepareSearch(transformConfig.getSource().getIndex())
+                            .setQuery(transformConfig.getSource().getQueryConfig().getQuery())
                             .setSize(0)
                             .setTrackTotalHits(true)
                             .request();
@@ -405,12 +383,30 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             getTotalCountListener,
                             client::search);
                     } else {
-                        if (this.fieldMappings == null) {
-                            SchemaUtil.getDestinationFieldMappings(client,
-                                transformConfig.getDestination().getIndex(), fieldMappingsListener);
-                        } else {
-                            fieldMappingsListener.onResponse(fieldMappings);
-                        }
+                        // Just skip gathering the stats
+                        super.onStart(now, listener);
+                    }
+
+                },
+                e -> listener.onFailure(new RuntimeException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                        transformConfig.getDestination().getIndex()),
+                    e))
+            );
+
+            ActionListener<DataFrameTransformConfig> getConfigListener = ActionListener.wrap(
+                config -> {
+                    if (config.isValid() == false) {
+                        DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
+                        listener.onFailure(exception);
+                        return;
+                    }
+                    transformConfig = config;
+                    if (this.fieldMappings == null) {
+                        SchemaUtil.getDestinationFieldMappings(client,
+                            transformConfig.getDestination().getIndex(), fieldMappingsListener);
+                    } else {
+                        fieldMappingsListener.onResponse(fieldMappings);
                     }
                 },
                 e -> listener.onFailure(new RuntimeException(

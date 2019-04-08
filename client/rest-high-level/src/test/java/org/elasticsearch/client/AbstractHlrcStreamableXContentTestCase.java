@@ -27,6 +27,8 @@ import java.io.IOException;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
+// TODO: Remove and change subclasses to use AbstractResponseTestCase instead
+@Deprecated
 public abstract class AbstractHlrcStreamableXContentTestCase<T extends ToXContent & Streamable, H>
         extends AbstractStreamableXContentTestCase<T> {
 

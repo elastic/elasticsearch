@@ -196,20 +196,17 @@ public class QueryPhase implements SearchPhase {
                             .add(rewrittenQuery, BooleanClause.Occur.SHOULD) //should for rewrittenQuery
                             .build();
 
-                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the last
+                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
                         SortField[] oldSortFields = searchContext.sort().sort.getSort();
                         DocValueFormat[] oldFormats = searchContext.sort().formats;
                         SortField[] newSortFields = new SortField[oldSortFields.length + 1];
                         DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
                         newSortFields[0] = SortField.FIELD_SCORE;
                         newFormats[0] = DocValueFormat.RAW;
-                        for (int i = 1; i < oldSortFields.length; i++) {
-                            newSortFields[i] = oldSortFields[i];
-                            newFormats[i] = oldFormats[i];
+                        for (int i = 0; i < oldSortFields.length; i++) {
+                            newSortFields[i + 1] = oldSortFields[i];
+                            newFormats[i + 1] = oldFormats[i];
                         }
-                        // add the numeric field as the last sort, so we can access its values later
-                        newSortFields[oldSortFields.length] = oldSortFields[0];
-                        newFormats[oldSortFields.length] = oldFormats[0];
                         sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                         searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
                     }
@@ -396,7 +393,7 @@ public class QueryPhase implements SearchPhase {
         return LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
     }
 
-    // Restore sorts to remove the first _score sort; and move the last sort on the numeric/date field to be the first
+    // Restore fieldsDocs to remove the first _score sort
     // updating in place without creating new FieldDoc objects
     static void restoreTopFieldDocs(QuerySearchResult result, SortAndFormats originalSortAndFormats) {
         TopDocs topDocs = result.topDocs().topDocs;
@@ -404,9 +401,8 @@ public class QueryPhase implements SearchPhase {
             FieldDoc fieldDoc = (FieldDoc) scoreDoc;
             Object[] oldFieldValues = fieldDoc.fields;
             Object[] newFieldValues = new Object[oldFieldValues.length - 1];
-            newFieldValues[0] = oldFieldValues[oldFieldValues.length - 1];
-            for (int j = 1; j < oldFieldValues.length - 1; j++) {
-                newFieldValues[j] = oldFieldValues[j];
+            for (int i = 0; i < oldFieldValues.length - 1; i++) {
+                newFieldValues[i] = oldFieldValues[i + 1];
             }
             fieldDoc.fields = newFieldValues;
         }

@@ -36,7 +36,7 @@ to open a new terminal window for the rest of these steps.
 [float]
 === How to talk to {es}
 While you can interact with {es} in many ways, the examples on this page
-use {es}'s REST API. The REST API offers a few advantages:
+use the {es} REST API. The REST API offers a few advantages:
 
 * You can talk to {es} using `curl` commands in your terminal.
 * You can use standard HTTP request methods, like `GET`, `POST`, `PUT`, and `DELETE`.
@@ -183,7 +183,7 @@ GET /customer/_search?q=employer:Geekfarm
 ==== Fully-body search
 For more complex queries or to run {es} in production, you'll want to use
 full-body search. With full-body search, you send search criteria to {es} as a
-JSON object in the body of your API requests. You can also use {es}'s
+JSON object in the body of your API requests. You can also use the {es}
 <<query-dsl>> to filter results or combine queries. It's flexible and powerful!
 
 This example performs a full-body search for documents that match the

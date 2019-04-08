@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.sql.DatabaseMetaData;
 import java.util.ArrayList;
@@ -108,7 +109,8 @@ public class SysColumns extends Command {
         }
 
         // save original index name (as the pattern can contain special chars)
-        String indexName = index != null ? index : (pattern != null ? pattern.pattern() : "");
+        String indexName = index != null ? index : (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(),
+                pattern.escape()) : "");
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 

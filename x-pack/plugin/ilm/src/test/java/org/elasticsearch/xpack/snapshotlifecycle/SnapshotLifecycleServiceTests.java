@@ -116,7 +116,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPED));
             sls.clusterChanged(new ClusterChangedEvent("3", state, emptyState));
 
-            // Since the service is stopping, jobs should have been cancelled
+            // Since the service is stopped, jobs should have been cancelled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
             threadPool.shutdownNow();

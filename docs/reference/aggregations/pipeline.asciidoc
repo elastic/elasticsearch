@@ -57,7 +57,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"timestamp",
-                "interval":"day"
+                "calendar_interval":"day"
             },
             "aggs":{
                 "the_sum":{
@@ -87,7 +87,7 @@ POST /_search
         "sales_per_month" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             },
             "aggs": {
                 "sales": {
@@ -125,7 +125,7 @@ POST /_search
         "my_date_histo": {
             "date_histogram": {
                 "field":"timestamp",
-                "interval":"day"
+                "calendar_interval":"day"
             },
             "aggs": {
                 "the_deriv": {
@@ -152,7 +152,7 @@ POST /sales/_search
     "histo": {
       "date_histogram": {
         "field": "date",
-        "interval": "day"
+        "calendar_interval": "day"
       },
       "aggs": {
         "categories": {

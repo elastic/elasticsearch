@@ -221,7 +221,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram" : { "field": "timestamp", "interval": "1d" } } }
+                    { "date": { "date_histogram" : { "field": "timestamp", "calendar_interval": "1d" } } }
                 ]
             }
         }
@@ -255,7 +255,7 @@ GET /_search
                         "date": {
                             "date_histogram" : {
                                 "field": "timestamp",
-                                "interval": "1d",
+                                "calendar_interval": "1d",
                                 "format": "yyyy-MM-dd" <1>
                             }
                         }
@@ -294,7 +294,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             }
@@ -319,7 +319,7 @@ GET /_search
                 "sources" : [
                     { "shop": { "terms": {"field": "shop" } } },
                     { "product": { "terms": { "field": "product" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } }
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
                 ]
             }
         }
@@ -347,7 +347,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product", "order": "asc" } } }
                 ]
             }
@@ -415,7 +415,7 @@ GET /_search
             "composite" : {
                 "size": 2,
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             }
@@ -481,7 +481,7 @@ GET /_search
             "composite" : {
                 "size": 2,
                  "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product", "order": "asc" } } }
                 ],
                 "after": { "date": 1494288000000, "product": "mad max" } <1>
@@ -510,7 +510,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                  "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             },

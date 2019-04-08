@@ -54,7 +54,7 @@ Using the REST API, we could define this grouping configuration:
 "groups" : {
   "date_histogram": {
     "field": "timestamp",
-    "interval": "1h",
+    "calendar_interval": "1h",
     "delay": "7d",
     "time_zone": "UTC"
   },

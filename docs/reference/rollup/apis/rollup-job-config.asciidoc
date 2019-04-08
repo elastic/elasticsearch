@@ -24,7 +24,7 @@ PUT _rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "60m",
+        "fixed_interval": "60m",
         "delay": "7d"
       },
       "terms": {
@@ -100,7 +100,7 @@ fields will then be available later for aggregating into buckets.  For example, 
 "groups" : {
   "date_histogram": {
     "field": "timestamp",
-    "interval": "60m",
+    "fixed_interval": "60m",
     "delay": "7d"
   },
   "terms": {

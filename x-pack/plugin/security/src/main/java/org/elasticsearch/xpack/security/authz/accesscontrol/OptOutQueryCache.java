@@ -44,6 +44,14 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
         this.indexName = indexSettings.getIndex().getName();
         this.licenseState = Objects.requireNonNull(licenseState, "licenseState");
+    }
+
+    public void listenForLicenseStateChanges() {
+        /*
+         * Registering this as a listener can not be done in the constructor because otherwise it would be unsafe publication of this. That
+         * is, it would expose this to another thread before the constructor had finished. Therefore, we have a dedicated method to register
+         * the listener that is invoked after the constructor has returned.
+         */
         licenseState.addListener(this);
     }
 

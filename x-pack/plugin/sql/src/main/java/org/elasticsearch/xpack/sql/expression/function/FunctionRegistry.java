@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -153,13 +155,16 @@ public class FunctionRegistry {
                 def(Min.class, Min::new, "MIN"),
                 def(Sum.class, Sum::new, "SUM"));
         // Statistics
-        addToMap(def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
-                def(VarPop.class, VarPop::new,"VAR_POP"),
+        addToMap(
+                def(Kurtosis.class, Kurtosis::new, "KURTOSIS"),
+                def(MedianAbsoluteDeviation.class, MedianAbsoluteDeviation::new, "MAD"),
                 def(Percentile.class, Percentile::new, "PERCENTILE"),
                 def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
-                def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
-                def(Kurtosis.class, Kurtosis::new, "KURTOSIS"));
+                def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
+                def(VarPop.class, VarPop::new,"VAR_POP")
+                );
         // histogram
         addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
@@ -171,6 +176,7 @@ public class FunctionRegistry {
                 def(Least.class, Least::new, "LEAST"));
         // Date
         addToMap(def(CurrentDate.class, CurrentDate::new, "CURRENT_DATE", "CURDATE", "TODAY"),
+                def(CurrentTime.class, CurrentTime::new, "CURRENT_TIME", "CURTIME"),
                 def(CurrentDateTime.class, CurrentDateTime::new, "CURRENT_TIMESTAMP", "NOW"),
                 def(DayName.class, DayName::new, "DAY_NAME", "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAY_OF_MONTH", "DAYOFMONTH", "DAY", "DOM"),

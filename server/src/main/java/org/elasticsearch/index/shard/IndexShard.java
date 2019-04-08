@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -66,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -132,6 +134,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
@@ -166,6 +169,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -218,6 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
+    private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
 
@@ -532,6 +537,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
                                     engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
                                 }
+                                // in case we previously reset engine, we need to forward MSU before replaying translog.
+                                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
@@ -777,7 +784,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
-                logger.trace("index [{}][{}] (seq# [{}])",  index.type(), index.id(), index.seqNo());
+                logger.trace("index [{}][{}] seq# [{}] allocation-id {}",
+                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId());
             }
             result = engine.index(index);
         } catch (Exception e) {
@@ -802,7 +810,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return noOp(engine, noOp);
     }
 
-    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) {
+    private Engine.NoOpResult noOp(Engine engine, Engine.NoOp noOp) throws IOException {
         active.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("noop (seq# [{}])", noOp.seqNo());
@@ -925,7 +933,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public RefreshStats refreshStats() {
         int listeners = refreshListeners.pendingCount();
-        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
+        return new RefreshStats(
+            refreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
+            externalRefreshMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(externalRefreshMetric.sum()),
+            listeners);
     }
 
     public FlushStats flushStats() {
@@ -934,9 +947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        DocsStats docsStats = getEngine().docStats();
-        markSearcherAccessed();
-        return docsStats;
+        return getEngine().docStats();
     }
 
     /**
@@ -994,8 +1005,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engine.getMergeStats();
     }
 
-    public SegmentsStats segmentStats(boolean includeSegmentFileSizes) {
-        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes);
+    public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
+        SegmentsStats segmentsStats = getEngine().segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
         segmentsStats.addBitsetMemoryInBytes(shardBitsetFilterCache.getMemorySizeInBytes());
         return segmentsStats;
     }
@@ -1015,11 +1026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         try {
-            CompletionStats stats = getEngine().completionStats(fields);
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            return stats;
+            return getEngine().completionStats(fields);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -1389,7 +1396,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         };
         innerOpenEngineAndTranslog();
         final Engine engine = getEngine();
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
+        engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
@@ -1428,7 +1435,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
         final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
         replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
-        replicationTracker.updateRetentionLeasesOnReplica(getRetentionLeases(store.readLastCommittedSegmentsInfo()));
+        updateRetentionLeasesOnReplica(loadRetentionLeases());
+        assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
+            : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
+            + "] but got " + getRetentionLeases();
         trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
@@ -1446,14 +1456,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         onSettingsChanged();
         assertSequenceNumbersInCommit();
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
-    }
-
-    static RetentionLeases getRetentionLeases(final SegmentInfos segmentInfos) {
-        final String committedRetentionLeases = segmentInfos.getUserData().get(Engine.RETENTION_LEASES);
-        if (committedRetentionLeases == null) {
-            return RetentionLeases.EMPTY;
-        }
-        return RetentionLeases.decodeRetentionLeases(committedRetentionLeases);
     }
 
     private void trimUnsafeCommits() throws IOException {
@@ -1738,8 +1740,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Acquires a lock on the translog files and Lucene soft-deleted documents to prevent them from being trimmed
      */
-    public Closeable acquireRetentionLockForPeerRecovery() {
-        return getEngine().acquireRetentionLockForPeerRecovery();
+    public Closeable acquireRetentionLock() {
+        return getEngine().acquireRetentionLock();
     }
 
     /**
@@ -1759,10 +1761,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Checks if we have a completed history of operations since the given starting seqno (inclusive).
-     * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLockForPeerRecovery()}
+     * This method should be called after acquiring the retention lock; See {@link #acquireRetentionLock()}
      */
     public boolean hasCompleteHistoryOperations(String source, long startingSeqNo) throws IOException {
         return getEngine().hasCompleteOperationHistory(source, mapperService, startingSeqNo);
+    }
+
+    /**
+     * Gets the minimum retained sequence number for this engine.
+     *
+     * @return the minimum retained sequence number
+     */
+    public long getMinRetainedSeqNo() {
+        return getEngine().getMinRetainedSeqNo();
     }
 
     /**
@@ -1891,14 +1902,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointListeners.add(waitingForGlobalCheckpoint, listener, timeout);
     }
 
+    private void ensureSoftDeletesEnabled(String feature) {
+        if (indexSettings.isSoftDeleteEnabled() == false) {
+            String message = feature + " requires soft deletes but " + indexSettings.getIndex() + " does not have soft deletes enabled";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+    }
+
     /**
-     * Get all non-expired retention leases tracked on this shard.
+     * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
      */
     public RetentionLeases getRetentionLeases() {
+        return getRetentionLeases(false).v2();
+    }
+
+    /**
+     * If the expire leases parameter is false, gets all retention leases tracked on this shard and otherwise first calculates
+     * expiration of existing retention leases, and then gets all non-expired retention leases tracked on this shard. Note that only the
+     * primary shard calculates which leases are expired, and if any have expired, syncs the retention leases to any replicas. If the
+     * expire leases parameter is true, this replication tracker must be in primary mode.
+     *
+     * @return a tuple indicating whether or not any retention leases were expired, and the non-expired retention leases
+     */
+    public Tuple<Boolean, RetentionLeases> getRetentionLeases(final boolean expireLeases) {
+        assert expireLeases == false || assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.getRetentionLeases();
+        return replicationTracker.getRetentionLeases(expireLeases);
     }
 
     public RetentionLeaseStats getRetentionLeaseStats() {
@@ -1924,7 +1956,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Objects.requireNonNull(listener);
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, listener);
+        ensureSoftDeletesEnabled("retention leases");
+        try (Closeable ignore = acquireRetentionLock()) {
+            final long actualRetainingSequenceNumber =
+                    retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
+            return replicationTracker.addRetentionLease(id, actualRetainingSequenceNumber, source, listener);
+        } catch (final IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -1939,7 +1978,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert assertPrimaryMode();
         verifyNotClosed();
-        return replicationTracker.renewRetentionLease(id, retainingSequenceNumber, source);
+        ensureSoftDeletesEnabled("retention leases");
+        try (Closeable ignore = acquireRetentionLock()) {
+            final long actualRetainingSequenceNumber =
+                    retainingSequenceNumber == RETAIN_ALL ? getMinRetainedSeqNo() : retainingSequenceNumber;
+            return replicationTracker.renewRetentionLease(id, actualRetainingSequenceNumber, source);
+        } catch (final IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Removes an existing retention lease.
+     *
+     * @param id       the identifier of the retention lease
+     * @param listener the callback when the retention lease is successfully removed and synced to replicas
+     */
+    public void removeRetentionLease(final String id, final ActionListener<ReplicationResponse> listener) {
+        Objects.requireNonNull(listener);
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
+        replicationTracker.removeRetentionLease(id, listener);
     }
 
     /**
@@ -1954,22 +2014,53 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Syncs the current retention leases to all replicas.
+     * Loads the latest retention leases from their dedicated state file.
+     *
+     * @return the retention leases
+     * @throws IOException if an I/O exception occurs reading the retention leases
      */
-    public void backgroundSyncRetentionLeases() {
-        assert assertPrimaryMode();
+    public RetentionLeases loadRetentionLeases() throws IOException {
         verifyNotClosed();
-        retentionLeaseSyncer.backgroundSync(shardId, getRetentionLeases());
+        return replicationTracker.loadRetentionLeases(path.getShardStatePath());
     }
 
     /**
-     * Waits for all operations up to the provided sequence number to complete.
+     * Persists the current retention leases to their dedicated state file.
      *
-     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
-     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     * @throws WriteStateException if an exception occurs writing the state file
      */
-    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
-        getEngine().waitForOpsToComplete(seqNo);
+    public void persistRetentionLeases() throws WriteStateException {
+        verifyNotClosed();
+        replicationTracker.persistRetentionLeases(path.getShardStatePath());
+    }
+
+    public boolean assertRetentionLeasesPersisted() throws IOException {
+        return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
+    }
+
+    /**
+     * Syncs the current retention leases to all replicas.
+     */
+    public void syncRetentionLeases() {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        ensureSoftDeletesEnabled("retention leases");
+        final Tuple<Boolean, RetentionLeases> retentionLeases = getRetentionLeases(true);
+        if (retentionLeases.v1()) {
+            logger.trace("syncing retention leases [{}] after expiration check", retentionLeases.v2());
+            retentionLeaseSyncer.sync(
+                    shardId,
+                    retentionLeases.v2(),
+                    ActionListener.wrap(
+                            r -> {},
+                            e -> logger.warn(new ParameterizedMessage(
+                                            "failed to sync retention leases [{}] after expiration check",
+                                            retentionLeases),
+                                    e)));
+        } else {
+            logger.trace("background syncing retention leases [{}] after expiration check", retentionLeases.v2());
+            retentionLeaseSyncer.backgroundSync(shardId, retentionLeases.v2());
+        }
     }
 
     /**
@@ -2396,8 +2487,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Sort indexSort = indexSortSupplier.get();
         return new EngineConfig(shardId, shardRouting.allocationId().getId(),
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener,
-                indexCache.query(), cachingPolicy, translogConfig,
+                mapperService != null ? mapperService.indexAnalyzer() : null,
+                similarityService.similarity(mapperService), codecService, shardEventListener,
+                indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 Collections.singletonList(refreshListeners),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
@@ -2596,9 +2688,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
+        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired,
+            (delegatedListener, releasable) -> {
                 if (opPrimaryTerm < getOperationPrimaryTerm()) {
                     releasable.close();
                     final String message = String.format(
@@ -2607,7 +2698,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId,
                         opPrimaryTerm,
                         getOperationPrimaryTerm());
-                    onPermitAcquired.onFailure(new IllegalStateException(message));
+                    delegatedListener.onFailure(new IllegalStateException(message));
                 } else {
                     assert assertReplicationTarget();
                     try {
@@ -2615,18 +2706,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
                     } catch (Exception e) {
                         releasable.close();
-                        onPermitAcquired.onFailure(e);
+                        delegatedListener.onFailure(e);
                         return;
                     }
-                    onPermitAcquired.onResponse(releasable);
+                    delegatedListener.onResponse(releasable);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                onPermitAcquired.onFailure(e);
-            }
-        };
+            });
 
         if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {
@@ -2809,7 +2894,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexSettings::getMaxRefreshListeners,
             () -> refresh("too_many_listeners"),
             threadPool.executor(ThreadPool.Names.LISTENER)::execute,
-            logger, threadPool.getThreadContext());
+            logger, threadPool.getThreadContext(),
+            externalRefreshMetric);
     }
 
     /**
@@ -2845,6 +2931,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return <code>true</code> iff the engine got refreshed otherwise <code>false</code>
      */
     public boolean scheduledRefresh() {
+        verifyNotClosed();
         boolean listenerNeedsRefresh = refreshListeners.refreshNeeded();
         if (isReadAllowed() && (listenerNeedsRefresh || getEngine().refreshNeeded())) {
             if (listenerNeedsRefresh == false // if we have a listener that is waiting for a refresh we need to force it
@@ -2859,8 +2946,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 setRefreshPending(engine);
                 return false;
             } else {
-                refresh("schedule");
-                return true;
+                if (logger.isTraceEnabled()) {
+                    logger.trace("refresh with source [schedule]");
+                }
+                return getEngine().maybeRefresh("schedule");
             }
         }
         final Engine engine = getEngine();
@@ -2976,7 +3065,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
         final RootObjectMapper.Builder noopRootMapper = new RootObjectMapper.Builder("__noop");
-        final DocumentMapper noopDocumentMapper = new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService);
+        final DocumentMapper noopDocumentMapper = mapperService != null ?
+            new DocumentMapper.Builder(noopRootMapper, mapperService).build(mapperService) :
+            null;
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
@@ -3064,7 +3155,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see org.elasticsearch.indices.recovery.RecoveryTarget#indexTranslogOperations(List, int, long, long, ActionListener)
+     * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO
@@ -3072,5 +3163,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             "replica has max_seq_no_of_updates=" + getMaxSeqNoOfUpdatesOrDeletes() + " but primary does not";
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
         assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
+    }
+
+    /**
+     * Performs the pre-closing checks on the {@link IndexShard}.
+     *
+     * @throws IllegalStateException if the sanity checks failed
+     */
+    public void verifyShardBeforeIndexClosing() throws IllegalStateException {
+        getEngine().verifyEngineBeforeIndexClosing();
+    }
+
+    RetentionLeaseSyncer getRetentionLeaseSyncer() {
+        return retentionLeaseSyncer;
     }
 }

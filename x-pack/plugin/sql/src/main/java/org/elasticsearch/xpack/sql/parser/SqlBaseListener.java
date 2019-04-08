@@ -574,6 +574,18 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitArithmeticUnary(SqlBaseParser.ArithmeticUnaryContext ctx);
   /**
+   * Enter a parse tree produced by the {@code dereference}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterDereference(SqlBaseParser.DereferenceContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code dereference}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitDereference(SqlBaseParser.DereferenceContext ctx);
+  /**
    * Enter a parse tree produced by the {@code cast}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -585,30 +597,6 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitCast(SqlBaseParser.CastContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterExtract(SqlBaseParser.ExtractContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code extract}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitExtract(SqlBaseParser.ExtractContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code currentDateTimeFunction}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code currentDateTimeFunction}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
   /**
    * Enter a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
@@ -622,6 +610,30 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitConstantDefault(SqlBaseParser.ConstantDefaultContext ctx);
   /**
+   * Enter a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterExtract(SqlBaseParser.ExtractContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code extract}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitExtract(SqlBaseParser.ExtractContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code parenthesizedExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code parenthesizedExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code star}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -633,6 +645,18 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitStar(SqlBaseParser.StarContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code castOperatorExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code castOperatorExpression}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx);
   /**
    * Enter a parse tree produced by the {@code function}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
@@ -646,6 +670,18 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitFunction(SqlBaseParser.FunctionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code currentDateTimeFunction}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code currentDateTimeFunction}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
+  /**
    * Enter a parse tree produced by the {@code subqueryExpression}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -658,29 +694,15 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code dereference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * Enter a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
    * @param ctx the parse tree
    */
-  void enterDereference(SqlBaseParser.DereferenceContext ctx);
+  void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code dereference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * Exit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
    * @param ctx the parse tree
    */
-  void exitDereference(SqlBaseParser.DereferenceContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code parenthesizedExpression}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code parenthesizedExpression}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#castExpression}.
    * @param ctx the parse tree
@@ -701,16 +723,6 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
-  /**
-   * Enter a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
-   * @param ctx the parse tree
-   */
-  void enterBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
-   * @param ctx the parse tree
-   */
-  void exitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#convertTemplate}.
    * @param ctx the parse tree

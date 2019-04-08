@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskExecutionGraph
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
@@ -50,6 +51,7 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.GroovyCompile
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
+import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
@@ -211,6 +213,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
             project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
             project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
+            project.rootProject.ext.isRuntimeJavaHomeSet = compilerJavaHome.equals(runtimeJavaHome) == false
             project.rootProject.ext.javaVersions = javaVersions
             project.rootProject.ext.buildChecksDone = true
             project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
@@ -229,6 +232,7 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
         project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
         project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
+        project.ext.isRuntimeJavaHomeSet = project.rootProject.ext.isRuntimeJavaHomeSet
         project.ext.javaVersions = project.rootProject.ext.javaVersions
         project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
         project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
@@ -357,16 +361,8 @@ class BuildPlugin implements Plugin<Project> {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
         }
         if (compilerJavaHome == null) {
-            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
-                // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
-                return Jvm.current().javaHome
-            } else {
-                throw new GradleException(
-                        "JAVA_HOME must be set to build Elasticsearch. " +
-                                "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                                "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
-                )
-            }
+            // if JAVA_HOME does not set,so we use the JDK that Gradle was run with.
+            return Jvm.current().javaHome
         }
         return compilerJavaHome
     }
@@ -570,6 +566,14 @@ class BuildPlugin implements Plugin<Project> {
             patternLayout {
                 artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
             }
+            // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
+            credentials(HttpHeaderCredentials) {
+                name = "X-Elastic-No-KPI"
+                value = "1"
+            }
+            authentication {
+                header(HttpHeaderAuthentication)
+            }
         }
         repos.maven {
             name "elastic"
@@ -581,7 +585,7 @@ class BuildPlugin implements Plugin<Project> {
             String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
             repos.maven {
                 name 'lucene-snapshots'
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
     }
@@ -748,7 +752,7 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 // fail on all javac warnings
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation,-try' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
                 // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
                 if (options.compilerArgs.contains("-processor") == false) {

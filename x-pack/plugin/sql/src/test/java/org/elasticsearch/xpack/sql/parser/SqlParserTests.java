@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
@@ -63,6 +64,26 @@ public class SqlParserTests extends ESTestCase {
     public void testSelectScore() {
         UnresolvedFunction f = singleProjection(project(parseStatement("SELECT SCORE() FROM foo")), UnresolvedFunction.class);
         assertEquals("SCORE()", f.sourceText());
+    }
+
+    public void testSelectCast() {
+        Cast f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")), Cast.class);
+        assertEquals("CAST(POWER(languages, 2) AS DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectCastOperator() {
+        Cast f = singleProjection(project(parseStatement("SELECT POWER(languages, 2)::DOUBLE FROM foo")), Cast.class);
+        assertEquals("POWER(languages, 2)::DOUBLE", f.sourceText());
+    }
+
+    public void testSelectCastWithSQLOperator() {
+        Cast f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")), Cast.class);
+        assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
+    }
+
+    public void testSelectCastToEsType() {
+        Cast f = singleProjection(project(parseStatement("SELECT CAST('0.' AS SCALED_FLOAT)")), Cast.class);
+        assertEquals("CAST('0.' AS SCALED_FLOAT)", f.sourceText());
     }
 
     public void testSelectAddWithParanthesis() {
@@ -294,9 +315,18 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testLimitStackOverflowForInAndLiteralsIsNotApplied() {
-        int noChildren = 100_000;
+        int noChildren = 10_000;
         LogicalPlan plan = parseStatement("SELECT * FROM t WHERE a IN(" +
-            Joiner.on(",").join(nCopies(noChildren, "a + b")) + ")");
+            Joiner.on(",").join(nCopies(noChildren, "a + 10")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-(-a - 10)")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "20.1234")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-20.4321")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "1.1234E56")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "-1.4321E-65")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'foo'")) + "," +
+            Joiner.on(",").join(nCopies(noChildren, "'bar'")) + ")");
 
         assertEquals(With.class, plan.getClass());
         assertEquals(Project.class, ((With) plan).child().getClass());
@@ -305,8 +335,17 @@ public class SqlParserTests extends ESTestCase {
         assertEquals(In.class, filter.condition().getClass());
         In in = (In) filter.condition();
         assertEquals("?a", in.value().toString());
-        assertEquals(noChildren, in.list().size());
-        assertThat(in.list().get(0).toString(), startsWith("Add[?a,?b]"));
+        assertEquals(noChildren * 2 + 8, in.list().size());
+        assertThat(in.list().get(0).toString(), startsWith("Add[?a,10]#"));
+        assertThat(in.list().get(noChildren).toString(), startsWith("Neg[Sub[Neg[?a]#"));
+        assertEquals("20", in.list().get(noChildren * 2).toString());
+        assertEquals("-20", in.list().get(noChildren * 2 + 1).toString());
+        assertEquals("20.1234", in.list().get(noChildren * 2 + 2).toString());
+        assertEquals("-20.4321", in.list().get(noChildren * 2 + 3).toString());
+        assertEquals("1.1234E56", in.list().get(noChildren * 2 + 4).toString());
+        assertEquals("-1.4321E-65", in.list().get(noChildren * 2 + 5).toString());
+        assertEquals("'foo'=foo", in.list().get(noChildren * 2 + 6).toString());
+        assertEquals("'bar'=bar", in.list().get(noChildren * 2 + 7).toString());
     }
 
     public void testDecrementOfDepthCounter() {

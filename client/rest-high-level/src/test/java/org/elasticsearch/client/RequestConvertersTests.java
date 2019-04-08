@@ -768,8 +768,6 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         setRandomWaitForActiveShards(updateRequest::waitForActiveShards, expectedParams);
-        setRandomVersion(updateRequest, expectedParams);
-        setRandomVersionType(updateRequest::versionType, expectedParams);
         setRandomIfSeqNoAndTerm(updateRequest, new HashMap<>()); // if* params are passed in the body
         if (randomBoolean()) {
             int retryOnConflict = randomIntBetween(0, 5);
@@ -911,14 +909,7 @@ public class RequestConvertersTests extends ESTestCase {
             if (randomBoolean()) {
                 docWriteRequest.routing(randomAlphaOfLength(10));
             }
-            if (randomBoolean()) {
-                if (randomBoolean()) {
-                    docWriteRequest.version(randomNonNegativeLong());
-                }
-                if (randomBoolean()) {
-                    docWriteRequest.versionType(randomFrom(VersionType.values()));
-                }
-            } else if (randomBoolean()) {
+            if (opType != DocWriteRequest.OpType.UPDATE && randomBoolean()) {
                 docWriteRequest.setIfSeqNo(randomNonNegativeLong());
                 docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }
@@ -1780,6 +1771,38 @@ public class RequestConvertersTests extends ESTestCase {
             EndpointBuilder endpointBuilder = new EndpointBuilder().addCommaSeparatedPathParts(new String[] { "index1", "index2" })
                     .addPathPartAsIs("cache/clear");
             assertEquals("/index1,index2/cache/clear", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo");
+            assertEquals("/%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo");
+            assertEquals("/%2F%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("///foo");
+            assertEquals("/%2F%2F%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo/bar");
+            assertEquals("/%2Ffoo%2Fbar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo/bar");
+            assertEquals("/%2F%2Ffoo%2Fbar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo@bar");
+            assertEquals("/%2Ffoo@bar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo@bar");
+            assertEquals("/%2F%2Ffoo@bar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/part1").addPathPart("//part2").addPathPart("///part3");
+            assertEquals("/%2Fpart1/%2F%2Fpart2/%2F%2F%2Fpart3", endpointBuilder.build());
         }
     }
 

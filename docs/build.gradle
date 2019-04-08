@@ -98,19 +98,17 @@ Closure setupTwitter = { String name, int count ->
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  user:
-                    type: keyword
-                    doc_values: true
-                  date:
-                    type: date
-                  likes:
-                    type: long
+              properties:
+                user:
+                  type: keyword
+                  doc_values: true
+                date:
+                  type: date
+                likes:
+                  type: long
   - do:
         bulk:
           index: twitter
-          type: _doc
           refresh: true
           body: |'''
     for (int i = 0; i < count; i++) {
@@ -161,16 +159,14 @@ buildRestTests.setups['ledger'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  type:
-                    type: keyword
-                  amount:
-                    type: double
+              properties:
+                type:
+                  type: keyword
+                amount:
+                  type: double
   - do:
         bulk:
           index: ledger
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -194,14 +190,12 @@ buildRestTests.setups['sales'] = '''
               number_of_shards: 2
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  type:
-                    type: keyword
+              properties:
+                type:
+                  type: keyword
   - do:
         bulk:
           index: sales
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -231,7 +225,6 @@ buildRestTests.setups['bank'] = '''
   - do:
         bulk:
           index: bank
-          type: _doc
           refresh: true
           body: |
 #bank_data#
@@ -273,16 +266,14 @@ buildRestTests.setups['stackoverflow'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  author:
-                    type: keyword
-                  tags:
-                    type: keyword
+              properties:
+                author:
+                  type: keyword
+                tags:
+                  type: keyword
   - do:
         bulk:
           index: stackoverflow
-          type: _doc
           refresh: true
           body: |'''
 
@@ -328,16 +319,14 @@ buildRestTests.setups['news'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  source:
-                    type: keyword
-                  content:
-                    type: text
+              properties:
+                source:
+                  type: keyword
+                content:
+                  type: text
   - do:
         bulk:
           index: news
-          type: _doc
           refresh: true
           body: |'''
 
@@ -381,14 +370,12 @@ buildRestTests.setups['exams'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  grade:
-                    type: byte
+              properties:
+                grade:
+                  type: byte
   - do:
         bulk:
           index: exams
-          type: _doc
           refresh: true
           body: |
             {"index":{}}
@@ -446,10 +433,9 @@ buildRestTests.setups['analyze_sample'] = '''
                     type: custom
                     filter: [lowercase]
             mappings:
-              _doc:
-                properties:
-                  obj1.field1:
-                    type: text'''
+              properties:
+                obj1.field1:
+                  type: text'''
 
 // Used by percentile/percentile-rank aggregations
 buildRestTests.setups['latency'] = '''
@@ -461,14 +447,12 @@ buildRestTests.setups['latency'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  load_time:
-                    type: long
+              properties:
+                load_time:
+                  type: long
   - do:
         bulk:
           index: latency
-          type: _doc
           refresh: true
           body: |'''
 
@@ -493,14 +477,12 @@ buildRestTests.setups['iprange'] = '''
               number_of_shards: 1
               number_of_replicas: 1
             mappings:
-              _doc:
-                properties:
-                  ip:
-                    type: ip
+              properties:
+                ip:
+                  type: ip
   - do:
         bulk:
           index: ip_addresses
-          type: _doc
           refresh: true
           body: |'''
 
@@ -613,16 +595,15 @@ buildRestTests.setups['sensor_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
       raw:
         method: PUT
@@ -664,21 +645,19 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
 
   - do:
       bulk:
         index: sensor-1
-        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -740,26 +719,25 @@ buildRestTests.setups['sensor_index'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
-                load:
-                  type: double
-                net_in:
-                  type: long
-                net_out:
-                  type: long
-                hostname:
-                  type: keyword
-                datacenter:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              load:
+                type: double
+              net_in:
+                type: long
+              net_out:
+                type: long
+              hostname:
+                type: keyword
+              datacenter:
+                type: keyword
 '''
 
 buildRestTests.setups['sensor_prefab_data'] = '''
@@ -771,16 +749,15 @@ buildRestTests.setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                timestamp:
-                  type: date
-                temperature:
-                  type: long
-                voltage:
-                  type: float
-                node:
-                  type: keyword
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
   - do:
       indices.create:
         index: sensor_rollup
@@ -789,64 +766,62 @@ buildRestTests.setups['sensor_prefab_data'] = '''
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
-            _doc:
-              properties:
-                node.terms.value:
-                  type: keyword
-                temperature.sum.value:
-                  type: double
-                temperature.max.value:
-                  type: double
-                temperature.min.value:
-                  type: double
-                timestamp.date_histogram.time_zone:
-                  type: keyword
-                timestamp.date_histogram.interval:
-                  type: keyword
-                timestamp.date_histogram.timestamp:
-                  type: date
-                timestamp.date_histogram._count:
-                  type: long
-                voltage.avg.value:
-                  type: double
-                voltage.avg._count:
-                  type: long
-                _rollup.id:
-                  type: keyword
-                _rollup.version:
-                  type: long
-              _meta:
-                _rollup:
-                  sensor:
-                    cron: "* * * * * ?"
-                    rollup_index: "sensor_rollup"
-                    index_pattern: "sensor-*"
-                    timeout: "20s"
-                    page_size: 1000
-                    groups:
-                      date_histogram:
-                        delay: "7d"
-                        field: "timestamp"
-                        interval: "60m"
-                        time_zone: "UTC"
-                      terms:
-                        fields:
-                          - "node"
-                    id: sensor
-                    metrics:
-                      - field: "temperature"
-                        metrics:
-                          - min
-                          - max
-                          - sum
-                      - field: "voltage"
-                        metrics:
-                          - avg
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      delay: "7d"
+                      field: "timestamp"
+                      interval: "60m"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
 
   - do:
       bulk:
         index: sensor_rollup
-        type: _doc
         refresh: true
         body: |
           {"index":{}}
@@ -865,7 +840,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
 '''
 buildRestTests.setups['sample_job'] = '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "sample_job"
         body:  >
           {
@@ -919,7 +894,7 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
 '''
 buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "farequote"
         body:  >
           {
@@ -939,7 +914,7 @@ buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data']
 '''
 buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-farequote"
         body:  >
           {
@@ -1003,7 +978,7 @@ buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_met
 '''
 buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
   - do:
-      xpack.ml.put_job:
+      ml.put_job:
         job_id: "total-requests"
         body:  >
           {
@@ -1025,7 +1000,7 @@ buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metr
 '''
 buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
   - do:
-      xpack.ml.put_datafeed:
+      ml.put_datafeed:
         datafeed_id: "datafeed-total-requests"
         body:  >
           {
@@ -1035,22 +1010,22 @@ buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server
 '''
 buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
   - do:
-      xpack.ml.open_job:
+      ml.open_job:
         job_id: "total-requests"
 '''
 buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-      xpack.ml.start_datafeed:
+      ml.start_datafeed:
         datafeed_id: "datafeed-total-requests"
 '''
 buildRestTests.setups['calendar_outages'] = '''
   - do:
-        xpack.ml.put_calendar:
+        ml.put_calendar:
           calendar_id: "planned-outages"
 '''
 buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
   - do:
-        xpack.ml.post_calendar_events:
+        ml.post_calendar_events:
           calendar_id: "planned-outages"
           body: >
             { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
@@ -1059,12 +1034,12 @@ buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['cale
 '''
 buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
 '''
 buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
   - do:
-       xpack.ml.put_calendar:
+       ml.put_calendar:
          calendar_id: "planned-outages"
          body:  >
            {
@@ -1073,7 +1048,7 @@ buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server
 '''
 buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages_addjob'] + '''
   - do:
-       xpack.ml.post_calendar_events:
+       ml.post_calendar_events:
          calendar_id: "planned-outages"
          body:  >
            { "events" : [
@@ -1093,16 +1068,14 @@ buildRestTests.setups['reviews'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              _doc:
-                properties:
-                  product:
-                    type: keyword
-                  rating:
-                    type: long
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
   - do:
         bulk:
           index: reviews
-          type: _doc
           refresh: true
           body: |
             {"index": {"_id": "1"}}
@@ -1139,22 +1112,20 @@ buildRestTests.setups['seats'] = '''
               number_of_shards: 1
               number_of_replicas: 0
             mappings:
-              _doc:
-                properties:
-                  theatre:
-                    type: keyword
-                  cost:
-                    type: long
-                  row:
-                    type: long
-                  number:
-                    type: long
-                  sold:
-                    type: boolean
+              properties:
+                theatre:
+                  type: keyword
+                cost:
+                  type: long
+                row:
+                  type: long
+                number:
+                  type: long
+                sold:
+                  type: boolean
   - do:
         bulk:
           index: seats
-          type: _doc
           refresh: true
           body: |
             {"index":{"_id": "1"}}

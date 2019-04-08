@@ -29,8 +29,8 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
-import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.GetWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
@@ -88,9 +88,12 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            long version = randomLongBetween(10, 100);
-            putWatchRequest.setVersion(version);
-            expectedParams.put("version", String.valueOf(version));
+            long seqNo = randomNonNegativeLong();
+            long ifPrimaryTerm = randomLongBetween(1, 200);
+            putWatchRequest.setIfSeqNo(seqNo);
+            putWatchRequest.setIfPrimaryTerm(ifPrimaryTerm);
+            expectedParams.put("if_seq_no", String.valueOf(seqNo));
+            expectedParams.put("if_primary_term", String.valueOf(ifPrimaryTerm));
         }
 
         Request request = WatcherRequestConverters.putWatch(putWatchRequest);

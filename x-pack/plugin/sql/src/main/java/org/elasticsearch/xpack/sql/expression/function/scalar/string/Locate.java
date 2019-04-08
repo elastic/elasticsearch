@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunctionProcessor.doProcess;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -48,19 +50,17 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.FIRST);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
-        
-        return start == null ?
-            TypeResolution.TYPE_RESOLVED :
-                Expressions.typeMustBeNumeric(start, sourceText(), ParamOrdinal.THIRD);
+
+        return start == null ? TypeResolution.TYPE_RESOLVED : isNumeric(start, sourceText(), ParamOrdinal.THIRD);
     }
 
     @Override
@@ -80,7 +80,7 @@ public class Locate extends ScalarFunction {
     public boolean foldable() {
         return pattern.foldable()
                 && source.foldable()
-                && (start == null? true : start.foldable());
+                && (start == null || start.foldable());
     }
 
     @Override
@@ -122,7 +122,7 @@ public class Locate extends ScalarFunction {
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.isInexact() ? field.exactAttribute().name() : field.name()).build(),
+                paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }
 

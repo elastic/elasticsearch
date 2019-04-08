@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "dense_vector";
-    public static short MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     private static final byte INT_BYTES = 4;
 
     public static class Defaults {
@@ -119,8 +120,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support sorting, scripting or aggregating");
+            return new VectorDVIndexFieldData.Builder(true);
         }
 
         @Override
@@ -169,10 +169,9 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
             buf[offset+2] = (byte) (intValue >>  8);
             buf[offset+3] = (byte) intValue;
             offset += INT_BYTES;
-            dim++;
-            if (dim >= MAX_DIMS_COUNT) {
+            if (dim++ >= MAX_DIMS_COUNT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                    "] has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                    "] has exceeded the maximum allowed number of dimensions of [" + MAX_DIMS_COUNT + "]");
             }
         }
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));

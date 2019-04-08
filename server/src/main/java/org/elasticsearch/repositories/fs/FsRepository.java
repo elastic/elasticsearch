@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.function.Function;
@@ -61,23 +62,18 @@ public class FsRepository extends BlobStoreRepository {
             new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
     public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
         new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
-    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
-    public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
-        Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
     private final Environment environment;
 
-    private ByteSizeValue chunkSize;
+    private final ByteSizeValue chunkSize;
 
     private final BlobPath basePath;
-
-    private boolean compress;
 
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment,
-                        NamedXContentRegistry namedXContentRegistry) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+    public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+                        ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -105,8 +101,6 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.compress = COMPRESS_SETTING.exists(metadata.settings())
-            ? COMPRESS_SETTING.get(metadata.settings()) : REPOSITORIES_COMPRESS_SETTING.get(environment.settings());
         this.basePath = BlobPath.cleanPath();
     }
 
@@ -115,11 +109,6 @@ public class FsRepository extends BlobStoreRepository {
         final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         final Path locationFile = environment.resolveRepoFile(location);
         return new FsBlobStore(environment.settings(), locationFile);
-    }
-
-    @Override
-    protected boolean isCompress() {
-        return compress;
     }
 
     @Override

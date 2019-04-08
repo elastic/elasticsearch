@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
@@ -124,9 +122,7 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
-        // soft deletes are enabled by default on indices created on 7.0.0 or later
-        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
-            IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(leaderIndexMetaData.getSettings()).onOrAfter(Version.V_7_0_0)) == false) {
+        if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetaData.getSettings()) == false) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
                 "] does not have soft deletes enabled"));
             return;
@@ -150,19 +146,10 @@ public final class TransportPutFollowAction
             }
 
             @Override
-            protected void doRun() throws Exception {
-                restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreService.RestoreCompletionResponse>() {
-
-                    @Override
-                    public void onResponse(RestoreService.RestoreCompletionResponse response) {
-                        afterRestoreStarted(clientWithHeaders, request, listener, response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
+            protected void doRun() {
+                restoreService.restoreSnapshot(restoreRequest,
+                    ActionListener.delegateFailure(listener,
+                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)));
             }
         });
     }
@@ -189,28 +176,20 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, new ActionListener<RestoreSnapshotResponse>() {
-            @Override
-            public void onResponse(RestoreSnapshotResponse restoreSnapshotResponse) {
+        RestoreClusterStateListener.createAndRegisterListener(clusterService, response,
+            ActionListener.delegateFailure(listener, (delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
                     // restore.
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, listener);
+                    initiateFollowing(clientWithHeaders, request, delegatedListener);
                 } else {
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
+                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            }));
     }
 
     private void initiateFollowing(
@@ -218,21 +197,17 @@ public final class TransportPutFollowAction
         final PutFollowAction.Request request,
         final ActionListener<PutFollowAction.Response> listener) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
-        activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
-            request.waitForActiveShards(), request.timeout(), result -> {
-                if (result) {
-                    FollowParameters parameters = request.getParameters();
-                    ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
-                        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
-                        resumeFollowRequest.setParameters(new FollowParameters(parameters));
-                        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
-                        r -> listener.onResponse(new PutFollowAction.Response(true, true, r.isAcknowledged())),
-                        listener::onFailure
-                    ));
-                } else {
-                    listener.onResponse(new PutFollowAction.Response(true, false, false));
-                }
-            }, listener::onFailure);
+        FollowParameters parameters = request.getParameters();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
+        resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
+            r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
+                request.waitForActiveShards(), request.timeout(), result ->
+                    listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
+                listener::onFailure),
+            listener::onFailure
+        ));
     }
 
     @Override

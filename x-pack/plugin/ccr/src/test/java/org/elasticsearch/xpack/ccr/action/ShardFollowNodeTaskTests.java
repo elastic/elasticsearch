@@ -8,13 +8,16 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -27,12 +30,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -52,6 +60,9 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> task.run();
 
     private Consumer<ShardFollowNodeTaskStatus> beforeSendShardChangesRequest = status -> {};
+
+    private AtomicBoolean scheduleRetentionLeaseRenewal = new AtomicBoolean();
+    private LongConsumer retentionLeaseRenewal = followerGlobalCheckpoint -> {};
 
     private AtomicBoolean simulateResponse = new AtomicBoolean();
 
@@ -936,6 +947,28 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(ShardFollowNodeTask.computeDelay(1024, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
     }
 
+    public void testRetentionLeaseRenewal() throws InterruptedException {
+        scheduleRetentionLeaseRenewal.set(true);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final long expectedFollowerGlobalChekcpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        retentionLeaseRenewal = followerGlobalCheckpoint -> {
+            assertThat(followerGlobalCheckpoint, equalTo(expectedFollowerGlobalChekcpoint));
+            latch.countDown();
+        };
+
+        final ShardFollowTaskParams params = new ShardFollowTaskParams();
+        final ShardFollowNodeTask task = createShardFollowTask(params);
+
+        try {
+            startTask(task, randomLongBetween(expectedFollowerGlobalChekcpoint, Long.MAX_VALUE), expectedFollowerGlobalChekcpoint);
+            latch.await();
+        } finally {
+            task.onCancelled();
+            scheduleRetentionLeaseRenewal.set(false);
+        }
+    }
+
+
     static final class ShardFollowTaskParams {
         private String remoteCluster = null;
         private ShardId followShardId = new ShardId("follow_index", "", 0);
@@ -960,11 +993,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             params.followShardId,
             params.leaderShardId,
             params.maxReadRequestOperationCount,
-            params.maxReadRequestSize,
-            params.maxOutstandingReadRequests,
             params.maxWriteRequestOperationCount,
-            params.maxWriteRequestSize,
+            params.maxOutstandingReadRequests,
             params.maxOutstandingWriteRequests,
+            params.maxReadRequestSize,
+            params.maxWriteRequestSize,
             params.maxWriteBufferCount,
             params.maxWriteBufferSize,
             params.maxRetryDelay,
@@ -1060,6 +1093,47 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         1L
                     );
                     handler.accept(response);
+                }
+            }
+
+            @Override
+            protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
+                if (scheduleRetentionLeaseRenewal.get()) {
+                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+                    final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
+                            () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
+                            0,
+                            TimeValue.timeValueMillis(200).millis(),
+                            TimeUnit.MILLISECONDS);
+                    return new Scheduler.Cancellable() {
+
+                        @Override
+                        public boolean cancel() {
+                            final boolean cancel = future.cancel(true);
+                            scheduler.shutdown();
+                            return cancel;
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return future.isCancelled();
+                        }
+
+                    };
+                } else {
+                    return new Scheduler.Cancellable() {
+
+                        @Override
+                        public boolean cancel() {
+                            return true;
+                        }
+
+                        @Override
+                        public boolean isCancelled() {
+                            return true;
+                        }
+
+                    };
                 }
             }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.coordination;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -301,21 +300,6 @@ public class DeterministicTaskQueue {
             @Override
             public long absoluteTimeInMillis() {
                 return currentTimeMillis;
-            }
-
-            @Override
-            public Counter estimatedTimeInMillisCounter() {
-                return new Counter() {
-                    @Override
-                    public long addAndGet(long delta) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public long get() {
-                        return currentTimeMillis;
-                    }
-                };
             }
 
             @Override

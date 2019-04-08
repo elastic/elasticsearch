@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -39,7 +38,7 @@ import java.io.IOException;
 
 /**
  * Shard level search request that gets created and consumed on the local node.
- * Used by warmers and by api that need to create a search context within their execution.
+ * Used directly by api that need to create a search context within their execution.
  *
  * Source structure:
  * <pre>
@@ -56,51 +55,41 @@ import java.io.IOException;
  * }
  * </pre>
  */
-
 public class ShardSearchLocalRequest implements ShardSearchRequest {
-    private String clusterAlias;
-    private ShardId shardId;
-    private int numberOfShards;
-    private SearchType searchType;
-    private Scroll scroll;
-    private String[] types = Strings.EMPTY_ARRAY;
+    private final String clusterAlias;
+    private final ShardId shardId;
+    private final int numberOfShards;
+    private final SearchType searchType;
+    private final Scroll scroll;
+    private final String[] types;
+    private final float indexBoost;
+    private final Boolean requestCache;
+    private final long nowInMillis;
+    private final boolean allowPartialSearchResults;
+    private final String[] indexRoutings;
+    private final String preference;
+    //these are the only two mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
-    private float indexBoost;
     private SearchSourceBuilder source;
-    private Boolean requestCache;
-    private long nowInMillis;
-    private boolean allowPartialSearchResults;
-    private String[] indexRoutings = Strings.EMPTY_ARRAY;
-    private String preference;
-    private boolean profile;
 
-    ShardSearchLocalRequest() {
-    }
-
-    ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter, float indexBoost,
-                            long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
-        this(shardId, numberOfShards, searchRequest.searchType(),
-                searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost,
-                searchRequest.allowPartialSearchResults(), indexRoutings, searchRequest.preference());
+    public ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards, AliasFilter aliasFilter,
+                                   float indexBoost, long nowInMillis, @Nullable String clusterAlias, String[] indexRoutings) {
+        this(shardId, numberOfShards, searchRequest.searchType(), searchRequest.source(), searchRequest.types(),
+            searchRequest.requestCache(), aliasFilter, indexBoost, searchRequest.allowPartialSearchResults(), indexRoutings,
+            searchRequest.preference(), searchRequest.scroll(), nowInMillis, clusterAlias);
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
-        this.scroll = searchRequest.scroll();
-        this.nowInMillis = nowInMillis;
-        this.clusterAlias = clusterAlias;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
-        this.types = types;
-        this.nowInMillis = nowInMillis;
-        this.aliasFilter = aliasFilter;
-        this.shardId = shardId;
-        indexBoost = 1.0f;
+        this(shardId, -1, null, null, types, null, aliasFilter, 1.0f, false, Strings.EMPTY_ARRAY, null, null, nowInMillis, null);
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
-                                   Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
-                                   String[] indexRoutings, String preference) {
+    private ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
+                                    Boolean requestCache, AliasFilter aliasFilter, float indexBoost, boolean allowPartialSearchResults,
+                                    String[] indexRoutings, String preference, Scroll scroll, long nowInMillis,
+                                    @Nullable String clusterAlias) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
@@ -112,6 +101,49 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.indexRoutings = indexRoutings;
         this.preference = preference;
+        this.scroll = scroll;
+        this.nowInMillis = nowInMillis;
+        this.clusterAlias = clusterAlias;
+    }
+
+    ShardSearchLocalRequest(StreamInput in) throws IOException {
+        shardId = ShardId.readShardId(in);
+        searchType = SearchType.fromId(in.readByte());
+        numberOfShards = in.readVInt();
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
+        types = in.readStringArray();
+        aliasFilter = new AliasFilter(in);
+        indexBoost = in.readFloat();
+        nowInMillis = in.readVLong();
+        requestCache = in.readOptionalBoolean();
+        clusterAlias = in.readOptionalString();
+        allowPartialSearchResults = in.readBoolean();
+        indexRoutings = in.readStringArray();
+        preference = in.readOptionalString();
+    }
+
+    protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
+        shardId.writeTo(out);
+        out.writeByte(searchType.id());
+        if (!asKey) {
+            out.writeVInt(numberOfShards);
+        }
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
+        out.writeStringArray(types);
+        aliasFilter.writeTo(out);
+        out.writeFloat(indexBoost);
+        if (asKey == false) {
+            out.writeVLong(nowInMillis);
+        }
+        out.writeOptionalBoolean(requestCache);
+        out.writeOptionalString(clusterAlias);
+        out.writeBoolean(allowPartialSearchResults);
+        if (asKey == false) {
+            out.writeStringArray(indexRoutings);
+            out.writeOptionalString(preference);
+        }
     }
 
     @Override
@@ -174,7 +206,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         return allowPartialSearchResults;
     }
 
-
     @Override
     public Scroll scroll() {
         return scroll;
@@ -188,75 +219,6 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     @Override
     public String preference() {
         return preference;
-    }
-
-    @Override
-    public void setProfile(boolean profile) {
-        this.profile = profile;
-    }
-
-    @Override
-    public boolean isProfile() {
-        return profile;
-    }
-
-    void setSearchType(SearchType type) {
-        this.searchType = type;
-    }
-
-    protected void innerReadFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
-        searchType = SearchType.fromId(in.readByte());
-        numberOfShards = in.readVInt();
-        scroll = in.readOptionalWriteable(Scroll::new);
-        source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        types = in.readStringArray();
-        aliasFilter = new AliasFilter(in);
-        indexBoost = in.readFloat();
-        nowInMillis = in.readVLong();
-        requestCache = in.readOptionalBoolean();
-        clusterAlias = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            allowPartialSearchResults = in.readBoolean();
-        } else if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            indexRoutings = in.readStringArray();
-            preference = in.readOptionalString();
-        } else {
-            indexRoutings = Strings.EMPTY_ARRAY;
-            preference = null;
-        }
-    }
-
-    protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
-        shardId.writeTo(out);
-        out.writeByte(searchType.id());
-        if (!asKey) {
-            out.writeVInt(numberOfShards);
-        }
-        out.writeOptionalWriteable(scroll);
-        out.writeOptionalWriteable(source);
-        out.writeStringArray(types);
-        aliasFilter.writeTo(out);
-        out.writeFloat(indexBoost);
-        if (asKey == false) {
-            out.writeVLong(nowInMillis);
-        }
-        out.writeOptionalBoolean(requestCache);
-        out.writeOptionalString(clusterAlias);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        } else if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
-        }
-        if (asKey == false) {
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeStringArray(indexRoutings);
-                out.writeOptionalString(preference);
-            }
-        }
     }
 
     @Override

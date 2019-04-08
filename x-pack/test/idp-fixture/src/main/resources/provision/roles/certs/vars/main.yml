@@ -1,1 +1,0 @@
-ssl_dir_templates: "{{ ssl_dir }}/templates"

@@ -20,7 +20,6 @@ ES_JVM_OPTIONS="$ES_PATH_CONF"/jvm.options
 JVM_OPTIONS=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_JVM_OPTIONS"`
 ES_JAVA_OPTS="${JVM_OPTIONS//\$\{ES_TMPDIR\}/$ES_TMPDIR} $ES_JAVA_OPTS"
 
-cd "$ES_HOME"
 # manual parsing to find out, if process should be detached
 if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; then
   exec \
@@ -30,6 +29,7 @@ if ! echo $* | grep -E '(^-d |-d$| -d |--daemonize$|--daemonize )' > /dev/null; 
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+    -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@"
@@ -41,6 +41,7 @@ else
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
+    -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     -cp "$ES_CLASSPATH" \
     org.elasticsearch.bootstrap.Elasticsearch \
     "$@" \

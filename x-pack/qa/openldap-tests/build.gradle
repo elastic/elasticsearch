@@ -1,8 +1,5 @@
-Project idpFixtureProject = xpackProject("test:idp-fixture")
-evaluationDependsOn(idpFixtureProject.path)
-
 apply plugin: 'elasticsearch.standalone-test'
-apply plugin: 'elasticsearch.vagrantsupport'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -11,21 +8,13 @@ dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-task openLdapFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
-}
+testFixtures.useFixture ":x-pack:test:idp-fixture"
 
+Project idpFixtureProject = xpackProject("test:idp-fixture")
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
 task copyIdpTrust(type: Copy) {
-    from idpFixtureProject.file('src/main/resources/certs/idptrust.jks');
-    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
+    from idpFixtureProject.file('openldap/certs/ca.jks');
+    from idpFixtureProject.file('openldap/certs/ca_server.pem');
     into outputDir
 }
-if (project.rootProject.vagrantSupported) {
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)
-  unitTest.dependsOn openLdapFixture
-  unitTest.finalizedBy idpFixtureProject.halt
-} else {
-    unitTest.enabled = false
-  testingConventions.enabled = false
-}
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpTrust)

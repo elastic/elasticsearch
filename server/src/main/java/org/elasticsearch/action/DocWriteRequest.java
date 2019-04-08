@@ -222,13 +222,9 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            IndexRequest indexRequest = new IndexRequest();
-            indexRequest.readFrom(in);
-            docWriteRequest = indexRequest;
+            docWriteRequest = new IndexRequest(in);
         } else if (type == 1) {
-            DeleteRequest deleteRequest = new DeleteRequest();
-            deleteRequest.readFrom(in);
-            docWriteRequest = deleteRequest;
+            docWriteRequest = new DeleteRequest(in);
         } else if (type == 2) {
             UpdateRequest updateRequest = new UpdateRequest();
             updateRequest.readFrom(in);
@@ -257,16 +253,23 @@ public interface DocWriteRequest<T> extends IndicesRequest {
 
     static ActionRequestValidationException validateSeqNoBasedCASParams(
         DocWriteRequest request, ActionRequestValidationException validationException) {
-        if (request.versionType().validateVersionForWrites(request.version()) == false) {
-            validationException = addValidationError("illegal version value [" + request.version() + "] for version type ["
-                + request.versionType().name() + "]", validationException);
+        final long version = request.version();
+        final VersionType versionType = request.versionType();
+        if (versionType.validateVersionForWrites(version) == false) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["
+                + versionType.name() + "]", validationException);
         }
-        if (request.versionType() == VersionType.FORCE) {
+        if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
 
+        if (versionType == VersionType.INTERNAL && version != Versions.MATCH_ANY && version != Versions.MATCH_DELETED) {
+            validationException = addValidationError("internal versioning can not be used for optimistic concurrency control. " +
+                "Please use `if_seq_no` and `if_primary_term` instead", validationException);
+        }
+
         if (request.ifSeqNo() != UNASSIGNED_SEQ_NO && (
-            request.versionType() != VersionType.INTERNAL || request.version() != Versions.MATCH_ANY
+            versionType != VersionType.INTERNAL || version != Versions.MATCH_ANY
         )) {
             validationException = addValidationError("compare and write operations can not use versioning", validationException);
         }

@@ -45,7 +45,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -670,16 +669,16 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
-    public void testInvalidPolicyNames() throws UnsupportedEncodingException {
+    public void testInvalidPolicyNames() {
         ResponseException ex;
 
         policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
         
         policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getMessage(), containsString("invalid policy name"));
 
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
@@ -716,7 +715,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         Request deleteRequest = new Request("DELETE", "_ilm/policy/" + originalPolicy);
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
-        assertThat(ex.getCause().getMessage(),
+        assertThat(ex.getMessage(),
             Matchers.allOf(
                 containsString("Cannot delete policy [" + originalPolicy + "]. It is in use by one or more indices: ["),
                 containsString(managedIndex1),
@@ -811,6 +810,28 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertTrue(aliasExists(shrunkenIndex, index));
             assertThat(getStepKeyForIndex(shrunkenIndex), equalTo(TerminalPolicyStep.KEY));
         });
+    }
+
+    public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5,15)));
+
+        Request stopILMRequest = new Request("POST", "_ilm/stop");
+        assertOK(client().performRequest(stopILMRequest));
+
+        Request statusRequest = new Request("GET", "_ilm/status");
+        assertBusy(() -> {
+            Response statusResponse = client().performRequest(statusRequest);
+            assertOK(statusResponse);
+            Map<String, Object> statusResponseMap = entityAsMap(statusResponse);
+            String status = (String) statusResponseMap.get("operation_mode");
+            assertEquals("STOPPED", status);
+        });
+
+        // Re-start ILM so that subsequent tests don't fail
+        Request startILMReqest = new Request("POST", "_ilm/start");
+        assertOK(client().performRequest(startILMReqest));
     }
 
     private void createFullPolicy(TimeValue hotTime) throws IOException {

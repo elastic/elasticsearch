@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -58,6 +59,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
@@ -632,7 +634,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
      * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or
-     * {@link AbstractQueryTestCase#DATE_FIELD_NAME}, or a String value by default
+     * {@link AbstractQueryTestCase#DATE_FIELD_NAME} or {@link AbstractQueryTestCase#DATE_NANOS_FIELD_NAME} or a String value by default
      */
     protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;
@@ -658,6 +660,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 break;
             case DATE_FIELD_NAME:
                 value = new DateTime(System.currentTimeMillis(), DateTimeZone.UTC).toString();
+                break;
+            case DATE_NANOS_FIELD_NAME:
+                value = Instant.now().toString();
                 break;
             default:
                 value = randomAlphaOfLengthBetween(1, 10);
@@ -706,11 +711,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static Fuzziness randomFuzziness(String fieldName) {
         switch (fieldName) {
             case INT_FIELD_NAME:
-                return Fuzziness.build(randomIntBetween(3, 100));
             case DOUBLE_FIELD_NAME:
-                return Fuzziness.build(1 + randomFloat() * 10);
             case DATE_FIELD_NAME:
-                return Fuzziness.build(randomTimeValue());
+            case DATE_NANOS_FIELD_NAME:
+                return Fuzziness.fromEdits(randomIntBetween(0, 2));
             default:
                 if (randomBoolean()) {
                     return Fuzziness.fromEdits(randomIntBetween(0, 2));
@@ -793,7 +797,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) throws IOException {
+    protected QueryBuilder rewriteAndFetch(QueryBuilder builder, QueryRewriteContext context) {
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();

@@ -7,7 +7,7 @@ monitoring, reporting, machine learning, and many other capabilities. By default
 when you install {es}, {xpack} is installed. 
  	 
 If you want to try all of the {xpack} features, you can 
-{xpack-ref}/license-management.html[start a 30-day trial]. At the end of the 
+{stack-ov}/license-management.html[start a 30-day trial]. At the end of the 
 trial period, you can purchase a subscription to keep using the full 
 functionality of the {xpack} components. For more information, see 
 https://www.elastic.co/subscriptions.
@@ -15,6 +15,4 @@ https://www.elastic.co/subscriptions.
 * <<configuring-monitoring>>
 * <<configuring-security>>
 * <<setup-xpack-client>>
-* <<settings-xpack>>
 * <<bootstrap-checks-xpack>>
-

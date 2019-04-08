@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
@@ -418,6 +419,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (e instanceof TimeoutException) {
                 try {
                     final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+                    if (indexMetaData == null) {
+                        listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
+                        return;
+                    }
+
                     final long mappingVersion = indexMetaData.getMappingVersion();
                     final long settingsVersion = indexMetaData.getSettingsVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();

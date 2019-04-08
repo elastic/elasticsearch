@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,11 +120,7 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode = new DiscoveryNode(in);
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            startingSeqNo = in.readLong();
-        } else {
-            startingSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+        startingSeqNo = in.readLong();
     }
 
     @Override
@@ -138,9 +133,6 @@ public class StartRecoveryRequest extends TransportRequest {
         targetNode.writeTo(out);
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeLong(startingSeqNo);
-        }
+        out.writeLong(startingSeqNo);
     }
-
 }

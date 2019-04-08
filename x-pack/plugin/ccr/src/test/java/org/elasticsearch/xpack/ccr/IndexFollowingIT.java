@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -32,7 +34,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -44,9 +45,12 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -54,14 +58,19 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -87,11 +96,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -106,6 +117,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);
+
+        followerClient().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(),
+                new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.KB)))
+            .get();
+
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
@@ -114,97 +131,93 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final int firstBatchNumDocs;
         // Sometimes we want to index a lot of documents to ensure that the recovery works with larger files
         if (rarely()) {
-            firstBatchNumDocs = randomIntBetween(1800, 2000);
+            firstBatchNumDocs = randomIntBetween(1800, 10000);
         } else {
             firstBatchNumDocs = randomIntBetween(10, 64);
         }
-        final int flushPoint = (int) (firstBatchNumDocs * 0.75);
 
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
-        BulkRequestBuilder bulkRequestBuilder = leaderClient().prepareBulk();
-        for (int i = 0; i < flushPoint; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            IndexRequest indexRequest = new IndexRequest("index1", "doc", Integer.toString(i))
-                .source(source, XContentType.JSON)
-                .timeout(TimeValue.timeValueSeconds(1));
-            bulkRequestBuilder.add(indexRequest);
-        }
-        bulkRequestBuilder.get();
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs,
+            randomIntBetween(1, 5))) {
+            waitForDocs(randomInt(firstBatchNumDocs), indexer);
+            leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(true).get();
+            waitForDocs(firstBatchNumDocs, indexer);
+            indexer.assertNoFailures();
 
-        leaderClient().admin().indices().prepareFlush("index1").setWaitIfOngoing(true).get();
+            logger.info("Executing put follow");
+            boolean waitOnAll = randomBoolean();
 
-        // Index some docs after the flush that might be recovered in the normal index following operations
-        for (int i = flushPoint; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
-        }
-
-        boolean waitOnAll = randomBoolean();
-
-        final PutFollowAction.Request followRequest;
-        if (waitOnAll) {
-            followRequest = putFollow("index1", "index2", ActiveShardCount.ALL);
-        } else {
-            followRequest = putFollow("index1", "index2", ActiveShardCount.ONE);
-        }
-        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-        assertTrue(response.isFollowIndexCreated());
-        assertTrue(response.isFollowIndexShardsAcked());
-        assertTrue(response.isIndexFollowingStarted());
-
-        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest("index2").waitForNoRelocatingShards(true);
-        ClusterIndexHealth indexHealth = followerClient().admin().cluster().health(healthRequest).actionGet().getIndices().get("index2");
-        for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
+            final PutFollowAction.Request followRequest;
             if (waitOnAll) {
-                assertTrue(shardHealth.isPrimaryActive());
-                assertEquals(1 + numberOfReplicas, shardHealth.getActiveShards());
+                followRequest = putFollow("index1", "index2", ActiveShardCount.ALL);
             } else {
-                assertTrue(shardHealth.isPrimaryActive());
+                followRequest = putFollow("index1", "index2", ActiveShardCount.ONE);
             }
-        }
+            PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+            assertTrue(response.isFollowIndexCreated());
+            assertTrue(response.isFollowIndexShardsAcked());
+            assertTrue(response.isIndexFollowingStarted());
 
-        final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
-        final ShardStats[] firstBatchShardStats =
-            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
-        for (final ShardStats shardStats : firstBatchShardStats) {
-            if (shardStats.getShardRouting().primary()) {
-                long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
-                firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            ClusterHealthRequest healthRequest = Requests.clusterHealthRequest("index2").waitForNoRelocatingShards(true);
+            ClusterIndexHealth indexHealth = followerClient().admin().cluster().health(healthRequest).get().getIndices().get("index2");
+            for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
+                if (waitOnAll) {
+                    assertTrue(shardHealth.isPrimaryActive());
+                    assertEquals(1 + numberOfReplicas, shardHealth.getActiveShards());
+                } else {
+                    assertTrue(shardHealth.isPrimaryActive());
+                }
             }
-        }
 
-        assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
-
-        for (int i = 0; i < firstBatchNumDocs; i++) {
-            assertBusy(assertExpectedDocumentRunnable(i));
-        }
-
-        pauseFollow("index2");
-        followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).get();
-        final int secondBatchNumDocs = randomIntBetween(2, 64);
-        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
-        for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
-            leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
-        }
-
-        final Map<ShardId, Long> secondBatchNumDocsPerShard = new HashMap<>();
-        final ShardStats[] secondBatchShardStats =
-            leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
-        for (final ShardStats shardStats : secondBatchShardStats) {
-            if (shardStats.getShardRouting().primary()) {
-                final long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
-                secondBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+            final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+            final ShardStats[] firstBatchShardStats =
+                leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : firstBatchShardStats) {
+                if (shardStats.getShardRouting().primary()) {
+                    long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                    firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+                }
             }
-        }
 
-        assertBusy(assertTask(numberOfPrimaryShards, secondBatchNumDocsPerShard));
+            assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
 
-        for (int i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
-            assertBusy(assertExpectedDocumentRunnable(i));
+            for (String docId : indexer.getIds()) {
+                assertBusy(() -> {
+                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+                });
+            }
+
+            pauseFollow("index2");
+            followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).get();
+            final int secondBatchNumDocs = randomIntBetween(2, 64);
+            logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
+            indexer.continueIndexing(secondBatchNumDocs);
+
+            waitForDocs(firstBatchNumDocs + secondBatchNumDocs, indexer);
+
+            final Map<ShardId, Long> secondBatchNumDocsPerShard = new HashMap<>();
+            final ShardStats[] secondBatchShardStats =
+                leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : secondBatchShardStats) {
+                if (shardStats.getShardRouting().primary()) {
+                    final long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                    secondBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+                }
+            }
+
+            assertBusy(assertTask(numberOfPrimaryShards, secondBatchNumDocsPerShard));
+
+            for (String docId : indexer.getIds()) {
+                assertBusy(() -> {
+                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+                });
+            }
+
+            pauseFollow("index2");
+            assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
         }
-        pauseFollow("index2");
-        assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
     }
 
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
@@ -929,7 +942,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(4L));
             assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
 
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
@@ -979,9 +992,70 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testIndexFallBehind() throws Exception {
+        runFallBehindTest(
+                () -> {
+                    // we have to remove the retention leases on the leader shards to ensure the follower falls behind
+                    final ClusterStateResponse followerIndexClusterState =
+                            followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index2").get();
+                    final String followerUUID = followerIndexClusterState.getState().metaData().index("index2").getIndexUUID();
+                    final ClusterStateResponse leaderIndexClusterState =
+                            leaderClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices("index1").get();
+                    final String leaderUUID = leaderIndexClusterState.getState().metaData().index("index1").getIndexUUID();
+
+                    final RoutingTable leaderRoutingTable = leaderClient()
+                            .admin()
+                            .cluster()
+                            .prepareState()
+                            .clear()
+                            .setIndices("index1")
+                            .setRoutingTable(true)
+                            .get()
+                            .getState()
+                            .routingTable();
+
+                    final String retentionLeaseId = retentionLeaseId(
+                            getFollowerCluster().getClusterName(),
+                            new Index("index2", followerUUID),
+                            getLeaderCluster().getClusterName(),
+                            new Index("index1", leaderUUID));
+
+                    for (final ObjectCursor<IndexShardRoutingTable> shardRoutingTable
+                            : leaderRoutingTable.index("index1").shards().values()) {
+                        final ShardId shardId = shardRoutingTable.value.shardId();
+                        leaderClient().execute(
+                                RetentionLeaseActions.Remove.INSTANCE,
+                                new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId))
+                                .get();
+                    }
+                },
+                exceptions -> assertThat(exceptions.size(), greaterThan(0)));
+    }
+
+    public void testIndexDoesNotFallBehind() throws Exception {
+        runFallBehindTest(
+                () -> {},
+                exceptions -> assertThat(exceptions.size(), equalTo(0)));
+    }
+
+    /**
+     * Runs a fall behind test. In this test, we construct a situation where a follower is paused. While the follower is paused we index
+     * more documents that causes soft deletes on the leader, flush them, and run a force merge. This is to set up a situation where the
+     * operations will not necessarily be there. With retention leases in place, we would actually expect the operations to be there. After
+     * pausing the follower, the specified callback is executed. This gives a test an opportunity to set up assumptions. For example, a test
+     * might remove all the retention leases on the leader to set up a situation where the follower will fall behind when it is resumed
+     * because the operations will no longer be held on the leader. The specified exceptions callback is invoked after resuming the follower
+     * to give a test an opportunity to assert on the resource not found exceptions (either present or not present).
+     *
+     * @param afterPausingFollower the callback to run after pausing the follower
+     * @param exceptionConsumer    the callback to run on a collection of resource not found exceptions after resuming the follower
+     * @throws Exception if a checked exception is thrown during the test
+     */
+    private void runFallBehindTest(
+            final CheckedRunnable<Exception> afterPausingFollower,
+            final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1),
-            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+                singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderYellow("index1");
 
@@ -1005,6 +1079,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         pauseFollow("index2");
 
+        afterPausingFollower.run();
+
         for (int i = 0; i < numDocs; i++) {
             final String source = String.format(Locale.ROOT, "{\"f\":%d}", i * 2);
             leaderClient().prepareIndex("index1", "doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
@@ -1021,19 +1097,18 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertBusy(() -> {
             List<ShardFollowNodeTaskStatus> statuses = getFollowTaskStatuses("index2");
             Set<ResourceNotFoundException> exceptions = statuses.stream()
-                .map(ShardFollowNodeTaskStatus::getFatalException)
-                .filter(Objects::nonNull)
-                .map(ExceptionsHelper::unwrapCause)
-                .filter(e -> e instanceof ResourceNotFoundException)
-                .map(e -> (ResourceNotFoundException) e)
-                .filter(e -> e.getMetadataKeys().contains("es.requested_operations_missing"))
-                .collect(Collectors.toSet());
-            assertThat(exceptions.size(), greaterThan(0));
+                    .map(ShardFollowNodeTaskStatus::getFatalException)
+                    .filter(Objects::nonNull)
+                    .map(ExceptionsHelper::unwrapCause)
+                    .filter(e -> e instanceof ResourceNotFoundException)
+                    .map(e -> (ResourceNotFoundException) e)
+                    .filter(e -> e.getMetadataKeys().contains("es.requested_operations_missing"))
+                    .collect(Collectors.toSet());
+            exceptionConsumer.accept(exceptions);
         });
 
         followerClient().admin().indices().prepareClose("index2").get();
         pauseFollow("index2");
-
 
         final PutFollowAction.Request followRequest2 = putFollow("index1", "index2");
         PutFollowAction.Response response2 = followerClient().execute(PutFollowAction.INSTANCE, followRequest2).get();
@@ -1045,6 +1120,69 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertIndexFullyReplicatedToFollower("index1", "index2");
         for (int i = 2; i < numDocs; i++) {
             assertBusy(assertExpectedDocumentRunnable(i, i * 2));
+        }
+    }
+
+    public void testUpdateRemoteConfigsDuringFollowing() throws Exception {
+        final int numberOfPrimaryShards = randomIntBetween(1, 3);
+        int numberOfReplicas = between(0, 1);
+
+        final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("index1");
+
+        final int firstBatchNumDocs = randomIntBetween(200, 800);
+
+        logger.info("Executing put follow");
+        final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+        PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        assertTrue(response.isFollowIndexCreated());
+        assertTrue(response.isFollowIndexShardsAcked());
+        assertTrue(response.isIndexFollowingStarted());
+
+        logger.info("Indexing [{}] docs while updateing remote config", firstBatchNumDocs);
+        try (BackgroundIndexer indexer = new BackgroundIndexer("index1", "_doc", leaderClient(), firstBatchNumDocs,
+            randomIntBetween(1, 5))) {
+
+            ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+            String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), true).put(seeds.getKey(), address));
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
+
+            waitForDocs(firstBatchNumDocs, indexer);
+            indexer.assertNoFailures();
+
+            final Map<ShardId, Long> firstBatchNumDocsPerShard = new HashMap<>();
+            final ShardStats[] firstBatchShardStats =
+                leaderClient().admin().indices().prepareStats("index1").get().getIndex("index1").getShards();
+            for (final ShardStats shardStats : firstBatchShardStats) {
+                if (shardStats.getShardRouting().primary()) {
+                    long value = shardStats.getStats().getIndexing().getTotal().getIndexCount() - 1;
+                    firstBatchNumDocsPerShard.put(shardStats.getShardRouting().shardId(), value);
+                }
+            }
+
+            assertBusy(assertTask(numberOfPrimaryShards, firstBatchNumDocsPerShard));
+
+            for (String docId : indexer.getIds()) {
+                assertBusy(() -> {
+                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
+                });
+            }
+
+            assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfPrimaryShards);
+        } finally {
+            ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest();
+            String address = getLeaderCluster().getDataNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
+            Setting<Boolean> compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("leader_cluster");
+            Setting<List<String>> seeds = RemoteClusterService.REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace("leader_cluster");
+            settingsRequest.persistentSettings(Settings.builder().put(compress.getKey(), compress.getDefault(Settings.EMPTY))
+                .put(seeds.getKey(), address));
+            assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
         }
     }
 

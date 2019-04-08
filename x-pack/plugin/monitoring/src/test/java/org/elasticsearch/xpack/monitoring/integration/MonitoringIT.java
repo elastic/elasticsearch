@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -104,13 +105,13 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":0}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":1}}\n" +
-               "{\"index\":{}}\n" +
-               "{\"foo\":{\"bar\":2}}\n" +
-               "\n";
+        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":0}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":1}}\n" +
+                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"foo\":{\"bar\":2}}\n" +
+                "\n";
     }
 
     /**
@@ -127,7 +128,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             final MonitoringBulkResponse bulkResponse =
                     new MonitoringBulkRequestBuilder(client())
-                            .add(system, "monitoring_data_type", new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
+                            .add(system, new BytesArray(createBulkEntity().getBytes("UTF-8")), XContentType.JSON,
                                  System.currentTimeMillis(), interval.millis())
                     .get();
 
@@ -374,9 +375,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("cluster_uuid"), notNullValue());
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
-        assertThat(clusterState.remove("term"), notNullValue());
-        assertThat(clusterState.remove("last_committed_config"), notNullValue());
-        assertThat(clusterState.remove("last_accepted_config"), notNullValue());
         assertThat(clusterState.keySet(), empty());
 
         final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
@@ -612,7 +610,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                                .setSize(0)
                                .get().getHits().getTotalHits().value,
                        greaterThan(0L));
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -649,7 +647,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to wait for monitoring exporters to stop:", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {

@@ -249,6 +249,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void onStoreCreated(ShardId shardId) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onStoreCreated(shardId);
+            } catch (Exception e) {
+                logger.warn("failed to invoke on store created", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
     public void onStoreClosed(ShardId shardId) {
         for (IndexEventListener listener  : listeners) {
             try {

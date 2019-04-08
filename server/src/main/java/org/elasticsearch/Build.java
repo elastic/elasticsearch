@@ -75,6 +75,7 @@ public class Build {
     public enum Type {
 
         DEB("deb"),
+        DOCKER("docker"),
         RPM("rpm"),
         TAR("tar"),
         ZIP("zip"),
@@ -94,6 +95,8 @@ public class Build {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
+                case "docker":
+                    return Type.DOCKER;
                 case "rpm":
                     return Type.RPM;
                 case "tar":
@@ -238,7 +241,13 @@ public class Build {
             out.writeString(build.flavor().displayName());
         }
         if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.type().displayName());
+            final Type buildType;
+            if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
+                buildType = Type.TAR;
+            } else {
+                buildType = build.type();
+            }
+            out.writeString(buildType.displayName());
         }
         out.writeString(build.shortHash());
         out.writeString(build.date());

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -32,24 +33,20 @@ public interface RecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
-     *  @param fileBasedRecovery whether or not this call is part of an file based recovery
-     * @param totalTranslogOps    total translog operations expected to be sent
+     *
+     * @param fileBasedRecovery whether or not this call is part of an file based recovery
+     * @param totalTranslogOps  total translog operations expected to be sent
      */
     void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener);
 
     /**
-     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
-     * updates the global checkpoint.
+     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates
+     * the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
      * @param listener         the listener which will be notified when this method is completed
      */
     void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
-
-    /**
-     * Blockingly waits for cluster state with at least clusterStateVersion to be available
-     */
-    void ensureClusterStateVersion(long clusterStateVersion);
 
     /**
      * Handoff the primary context between the relocation source and the relocation target.
@@ -67,11 +64,17 @@ public interface RecoveryTargetHandler {
      * @param maxSeqNoOfUpdatesOrDeletesOnPrimary the max seq_no of update operations (index operations overwrite Lucene) or delete ops on
      *                                            the primary shard when capturing these operations. This value is at least as high as the
      *                                            max_seq_no_of_updates on the primary was when any of these ops were processed on it.
+     * @param retentionLeases                     the retention leases on the primary
      * @param listener                            a listener which will be notified with the local checkpoint on the target
      *                                            after these operations are successfully indexed on the target.
      */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
-                                 long maxSeqNoOfUpdatesOrDeletesOnPrimary, ActionListener<Long> listener);
+    void indexTranslogOperations(
+            List<Translog.Operation> operations,
+            int totalTranslogOps,
+            long maxSeenAutoIdTimestampOnPrimary,
+            long maxSeqNoOfUpdatesOrDeletesOnPrimary,
+            RetentionLeases retentionLeases,
+            ActionListener<Long> listener);
 
     /**
      * Notifies the target of the files it is going to receive
@@ -85,10 +88,12 @@ public interface RecoveryTargetHandler {
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
      * files that are not part of the source store
+     *
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
-     * @param sourceMetaData meta data of the source store
+     * @param globalCheckpoint the global checkpoint on the primary
+     * @param sourceMetaData   meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
+    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,

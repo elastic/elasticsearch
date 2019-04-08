@@ -23,6 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportRequest;
@@ -43,13 +45,12 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.BOOTSTRAP_PLACEHOLDER_PREFIX;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -128,7 +129,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
     }
 
-    public void testDoesNothingByDefaultIfUnicastHostsConfigured() {
+    public void testDoesNothingByDefaultIfSeedHostsConfigured() {
         testDoesNothingWithSettings(builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()));
     }
 
@@ -152,19 +153,6 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.scheduleUnconfiguredBootstrap();
         deterministicTaskQueue.runAllTasks();
     }
-
-    public void testDoesNothingByDefaultIfZen1NodesDiscovered() {
-        final DiscoveryNode zen1Node = new DiscoveryNode("zen1", buildNewFakeTransportAddress(), singletonMap("zen1", "true"),
-            singleton(Role.MASTER), Version.CURRENT);
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.EMPTY, transportService, () ->
-            Stream.of(localNode, zen1Node).collect(Collectors.toSet()), () -> false, vc -> {
-            throw new AssertionError("should not be called");
-        });
-        transportService.start();
-        clusterBootstrapService.scheduleUnconfiguredBootstrap();
-        deterministicTaskQueue.runAllTasks();
-    }
-
 
     public void testThrowsExceptionOnDuplicates() {
         final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () -> {
@@ -352,23 +340,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         deterministicTaskQueue.runAllTasks();
     }
 
-    public void testDoesNotBootstrapsIfZen1NodesDiscovered() {
-        final DiscoveryNode zen1Node = new DiscoveryNode("zen1", buildNewFakeTransportAddress(), singletonMap("zen1", "true"),
-            singleton(Role.MASTER), Version.CURRENT);
-
-        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
-            INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
-            transportService, () -> Stream.of(otherNode1, otherNode2, zen1Node).collect(Collectors.toList()), () -> false, vc -> {
-            throw new AssertionError("should not be called");
-        });
-
-        transportService.start();
-        clusterBootstrapService.onFoundPeersUpdated();
-        deterministicTaskQueue.runAllTasks();
-    }
-
     public void testRetriesBootstrappingOnException() {
-
         final AtomicLong bootstrappingAttempts = new AtomicLong();
         ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(Settings.builder().putList(
             INITIAL_MASTER_NODES_SETTING.getKey(), localNode.getName(), otherNode1.getName(), otherNode2.getName()).build(),
@@ -490,5 +462,53 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
         clusterBootstrapService.onFoundPeersUpdated();
         deterministicTaskQueue.runAllTasks();
         assertTrue(bootstrapped.get());
+    }
+
+    public void testBootstrapsAutomaticallyWithSingleNodeDiscovery() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName());
+        final AtomicBoolean bootstrapped = new AtomicBoolean();
+
+        ClusterBootstrapService clusterBootstrapService = new ClusterBootstrapService(settings.build(),
+            transportService, () -> emptyList(), () -> false, vc -> {
+            assertTrue(bootstrapped.compareAndSet(false, true));
+            assertThat(vc.getNodeIds(), hasSize(1));
+            assertThat(vc.getNodeIds(), hasItem(localNode.getId()));
+            assertTrue(vc.hasQuorum(singletonList(localNode.getId())));
+        });
+
+        transportService.start();
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+        assertTrue(bootstrapped.get());
+
+        bootstrapped.set(false);
+        clusterBootstrapService.onFoundPeersUpdated();
+        deterministicTaskQueue.runAllTasks();
+        assertFalse(bootstrapped.get()); // should only bootstrap once
+    }
+
+    public void testFailBootstrapWithBothSingleNodeDiscoveryAndInitialMasterNodes() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
+            .put(INITIAL_MASTER_NODES_SETTING.getKey(), "test");
+
+        assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
+            transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
+            containsString("setting [" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is not allowed when [discovery.type] is set " +
+                "to [single-node]"));
+    }
+
+    public void testFailBootstrapNonMasterEligibleNodeWithSingleNodeDiscovery() {
+        final Settings.Builder settings = Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE)
+            .put(NODE_NAME_SETTING.getKey(), localNode.getName())
+            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+
+        assertThat(expectThrows(IllegalArgumentException.class, () -> new ClusterBootstrapService(settings.build(),
+                transportService, () -> emptyList(), () -> false, vc -> fail())).getMessage(),
+            containsString("node with [discovery.type] set to [single-node] must be master-eligible"));
     }
 }

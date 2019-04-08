@@ -30,16 +30,12 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
-            createIndex.startObject("_doc");
+            createIndex.startObject("properties");
             {
+                createIndex.startObject("nested").field("type", "nested");
                 createIndex.startObject("properties");
-                {
-                    createIndex.startObject("nested").field("type", "nested");
-                    createIndex.startObject("properties");
-                    createIndex.startObject("inner_field").field("type", "integer").endObject();
-                    createIndex.endObject();
-                    createIndex.endObject();
-                }
+                createIndex.startObject("inner_field").field("type", "integer").endObject();
+                createIndex.endObject();
                 createIndex.endObject();
             }
             createIndex.endObject();

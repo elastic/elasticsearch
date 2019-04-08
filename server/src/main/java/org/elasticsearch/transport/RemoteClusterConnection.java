@@ -64,9 +64,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
-import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE;
-
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
  * current node is part of the cluster and it won't receive cluster state updates from the remote cluster. Remote clusters are also not
@@ -107,12 +104,13 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
      * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      * @param proxyAddress the proxy address
+     * @param connectionProfile the connection profile to use
      */
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
                             TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
-                            String proxyAddress) {
+                            String proxyAddress, ConnectionProfile connectionProfile) {
         this(settings, clusterAlias, seedNodes, transportService, maxNumRemoteConnections, nodePredicate, proxyAddress,
-            createConnectionManager(settings, clusterAlias, transportService));
+            createConnectionManager(connectionProfile, transportService));
     }
 
     // Public for tests to pass a StubbableConnectionManager
@@ -309,11 +307,21 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(connectHandler, connectionManager);
+        IOUtils.close(connectHandler);
+        // In the ConnectionManager we wait on connections being closed.
+        threadPool.generic().execute(connectionManager::close);
     }
 
     public boolean isClosed() {
         return connectHandler.isClosed();
+    }
+
+    public String getProxyAddress() {
+        return proxyAddress;
+    }
+
+    public List<Tuple<String, Supplier<DiscoveryNode>>> getSeedNodes() {
+        return seedNodes;
     }
 
     /**
@@ -697,18 +705,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         }
     }
 
-    private static ConnectionManager createConnectionManager(Settings settings, String clusterAlias, TransportService transportService) {
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder()
-            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
-            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
-            // we don't want this to be used for anything else but search
-            .addConnections(0, TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings));
-        return new ConnectionManager(builder.build(), transportService.transport, transportService.threadPool);
+    private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
+        return new ConnectionManager(connectionProfile, transportService.transport);
     }
 
     ConnectionManager getConnectionManager() {

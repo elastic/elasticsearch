@@ -288,18 +288,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (builder.getWriteableName().equals(RangeQueryBuilder.NAME)) {
             RangeQueryBuilder range = (RangeQueryBuilder) builder;
             String fieldName = range.fieldName();
-            // Many range queries don't include the timezone because the default is UTC, but the query
-            // builder will return null so we need to set it here
-            String timeZone = range.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE.toString() : range.timeZone();
 
-            String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName, timeZone);
+            String rewrittenFieldName = rewriteFieldName(jobCaps, RangeQueryBuilder.NAME, fieldName);
             RangeQueryBuilder rewritten = new RangeQueryBuilder(rewrittenFieldName)
                 .from(range.from())
                 .to(range.to())
                 .includeLower(range.includeLower())
-                .includeUpper(range.includeUpper())
-                .timeZone(timeZone);
-
+                .includeUpper(range.includeUpper());
+            if (range.timeZone() != null) {
+                rewritten.timeZone(range.timeZone());
+            }
             if (range.format() != null) {
                 rewritten.format(range.format());
             }
@@ -307,12 +305,12 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         } else if (builder.getWriteableName().equals(TermQueryBuilder.NAME)) {
             TermQueryBuilder term = (TermQueryBuilder) builder;
             String fieldName = term.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
             return new TermQueryBuilder(rewrittenFieldName, term.value());
         } else if (builder.getWriteableName().equals(TermsQueryBuilder.NAME)) {
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
-            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName, null);
+            String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
             return new TermsQueryBuilder(rewrittenFieldName, terms.values());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
@@ -322,11 +320,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    private static String rewriteFieldName(Set<RollupJobCaps> jobCaps,
-                                           String builderName,
-                                           String fieldName,
-                                           String timeZone) {
-        List<String> incompatibleTimeZones = timeZone == null ? Collections.emptyList() : new ArrayList<>();
+    private static String rewriteFieldName(Set<RollupJobCaps> jobCaps, String builderName, String fieldName) {
         List<String> rewrittenFieldNames = jobCaps.stream()
             // We only care about job caps that have the query's target field
             .filter(caps -> caps.getFieldCaps().keySet().contains(fieldName))
@@ -336,17 +330,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     // For now, we only allow filtering on grouping fields
                     .filter(agg -> {
                         String type = (String)agg.get(RollupField.AGG);
-
-                        // If the cap is for a date_histo, and the query is a range, the timezones need to match
-                        if (type.equals(DateHistogramAggregationBuilder.NAME) && timeZone != null) {
-                            boolean matchingTZ = ZoneId.of((String)agg.get(DateHistogramGroupConfig.TIME_ZONE), ZoneId.SHORT_IDS)
-                                .getRules().equals(ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules());
-                            if (matchingTZ == false) {
-                                incompatibleTimeZones.add((String)agg.get(DateHistogramGroupConfig.TIME_ZONE));
-                            }
-                            return matchingTZ;
-                        }
-                        // Otherwise just make sure it's one of the three groups
+                        // make sure it's one of the three groups
                         return type.equals(TermsAggregationBuilder.NAME)
                             || type.equals(DateHistogramAggregationBuilder.NAME)
                             || type.equals(HistogramAggregationBuilder.NAME);
@@ -364,14 +348,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             .distinct()
             .collect(ArrayList::new, List::addAll, List::addAll);
         if (rewrittenFieldNames.isEmpty()) {
-            if (incompatibleTimeZones.isEmpty()) {
-                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
+            throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
                     + "] query is not available in selected rollup indices, cannot query.");
-            } else {
-                throw new IllegalArgumentException("Field [" + fieldName + "] in [" + builderName
-                    + "] query was found in rollup indices, but requested timezone is not compatible. Options include: "
-                    + incompatibleTimeZones);
-            }
         } else if (rewrittenFieldNames.size() > 1) {
             throw new IllegalArgumentException("Ambiguous field name resolution when mapping to rolled fields.  Field name [" +
                 fieldName + "] was mapped to: [" + Strings.collectionToDelimitedString(rewrittenFieldNames, ",") + "].");

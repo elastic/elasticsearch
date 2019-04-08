@@ -21,12 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
@@ -92,5 +94,44 @@ public final class SearchShardIterator extends PlainShardIterator {
      */
     boolean skip() {
         return skip;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        SearchShardIterator that = (SearchShardIterator) o;
+        return Objects.equals(clusterAlias, that.clusterAlias);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), clusterAlias);
+    }
+
+    @Override
+    public int compareTo(ShardIterator o) {
+        int superCompareTo = super.compareTo(o);
+        if (superCompareTo != 0 || (o instanceof SearchShardIterator == false)) {
+            return superCompareTo;
+        }
+        SearchShardIterator searchShardIterator = (SearchShardIterator)o;
+        if (clusterAlias == null && searchShardIterator.getClusterAlias() == null) {
+            return 0;
+        }
+        if (clusterAlias == null) {
+            return -1;
+        }
+        if (searchShardIterator.getClusterAlias() == null) {
+            return 1;
+        }
+        return clusterAlias.compareTo(searchShardIterator.getClusterAlias());
     }
 }

@@ -57,7 +57,7 @@ public class TransportBulkShardOperationsAction
                 indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE);
+                ThreadPool.Names.WRITE, false);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class TransportBulkShardOperationsAction
             request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
     }
 
-    static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
+    public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {
         final Translog.Operation operationWithPrimaryTerm;
         switch (operation.opType()) {
             case INDEX:

@@ -3,13 +3,13 @@
 [[sql-client-apps-microstrat]]
 === MicroStrategy Desktop
 
-experimental[]
-
 [quote, https://www.microstrategy.com/us/resources/library/videos/new-microstrategy-desktop]
 ____
 https://www.microstrategy.com/us/get-started/desktop[MicroStrategy Desktop] is a free data discovery tool that helps people bring data to
 life using powerful self-service analytics.
 ____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
@@ -19,7 +19,7 @@ ____
 
 ==== Data loading
 
-To use the {product} to load data into MicroStrategy Desktop perform the following steps in sequence.
+To use the {odbc} to load data into MicroStrategy Desktop perform the following steps in sequence.
 
 . Create a New Dossier
 +

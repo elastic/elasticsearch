@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.persistence;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -20,7 +19,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -51,10 +49,9 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -127,12 +124,11 @@ public class DatafeedConfigProvider {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest =  client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                    ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId))
-                    .setSource(source)
-                    .setOpType(DocWriteRequest.OpType.CREATE)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .request();
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+                    .id(DatafeedConfig.documentId(datafeedId))
+                    .source(source)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                     listener::onResponse,
@@ -163,8 +159,7 @@ public class DatafeedConfigProvider {
      * @param datafeedConfigListener The config listener
      */
     public void getDatafeedConfig(String datafeedId, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -231,8 +226,7 @@ public class DatafeedConfigProvider {
      * @param actionListener Deleted datafeed listener
      */
     public void deleteDatafeedConfig(String datafeedId,  ActionListener<DeleteResponse> actionListener) {
-        DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
+        DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
             @Override
@@ -264,15 +258,12 @@ public class DatafeedConfigProvider {
      * @param headers Datafeed headers applied with the update
      * @param validator BiConsumer that accepts the updated config and can perform
      *                  extra validations. {@code validator} must call the passed listener
-     * @param minClusterNodeVersion minimum version of nodes in cluster
      * @param updatedConfigListener Updated datafeed config listener
      */
     public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
-                          BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
-                          Version minClusterNodeVersion,
-                          ActionListener<DatafeedConfig> updatedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(),
-                ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
+                                     BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+                                     ActionListener<DatafeedConfig> updatedConfigListener) {
+        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
@@ -304,7 +295,7 @@ public class DatafeedConfigProvider {
 
                 ActionListener<Boolean> validatedListener = ActionListener.wrap(
                         ok -> {
-                            indexUpdatedConfig(updatedConfig, version, seqNo, primaryTerm, minClusterNodeVersion, ActionListener.wrap(
+                            indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(
                                     indexResponse -> {
                                         assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
                                         updatedConfigListener.onResponse(updatedConfig);
@@ -324,23 +315,19 @@ public class DatafeedConfigProvider {
         });
     }
 
-    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long version, long seqNo, long primaryTerm,
-                                    Version minClusterNodeVersion, ActionListener<IndexResponse> listener) {
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm,
+                                    ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequestBuilder indexRequest = client.prepareIndex(AnomalyDetectorsIndex.configIndexName(),
-                    ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(updatedConfig.getId()))
-                    .setSource(updatedSource)
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
+                    .id(DatafeedConfig.documentId(updatedConfig.getId()))
+                    .source(updatedSource)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            if (minClusterNodeVersion.onOrAfter(Version.V_6_7_0)) {
-                indexRequest.setIfSeqNo(seqNo);
-                indexRequest.setIfPrimaryTerm(primaryTerm);
-            } else {
-                indexRequest.setVersion(version);
-            }
+            indexRequest.setIfSeqNo(seqNo);
+            indexRequest.setIfPrimaryTerm(primaryTerm);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest.request(), listener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
 
         } catch (IOException e) {
             listener.onFailure(

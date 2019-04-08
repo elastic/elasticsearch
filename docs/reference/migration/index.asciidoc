@@ -3,23 +3,13 @@
 
 [partintro]
 --
-This section discusses the changes that you need to be aware of when migrating
-your application from one version of Elasticsearch to another.
+This section discusses the changes that you need to be aware of to migrate
+your application to {version}. For more information about what's new in this
+release, see the <<release-highlights>> and <<es-release-notes>>.
 
-As a general rule:
+For information about how to upgrade your cluster, see <<setup-upgrade>>.
 
-* Migration between minor versions -- e.g. `7.x` to `7.y` -- can be
-  performed by <<rolling-upgrades,upgrading one node at a time>>.
-
-* Migration between consecutive major versions -- e.g. `6.x` to `7.x` --
-  requires a <<restart-upgrade,full cluster restart>>.
-
-* Migration between non-consecutive major versions -- e.g. `5.x` to `7.x` --
-  is not supported.
-
-For more information, see <<setup-upgrade>>.
-
-See also <<release-highlights>> and <<es-release-notes>>.
+* <<breaking-changes-8.0,Breaking changes in 8.0>>
 
 --
-include::migrate_7_0.asciidoc[]
+include::migrate_8_0.asciidoc[]

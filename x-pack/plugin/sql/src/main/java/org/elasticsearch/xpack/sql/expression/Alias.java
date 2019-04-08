@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 
@@ -73,6 +73,10 @@ public class Alias extends NamedExpression {
 
     public String qualifier() {
         return qualifier;
+    }
+
+    public String qualifiedName() {
+        return qualifier == null ? name() : qualifier + "." + name();
     }
 
     @Override

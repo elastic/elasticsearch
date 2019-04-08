@@ -39,11 +39,11 @@ The result of the above index operation is:
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
 
-The `_shards` header provides information about the replication process of the index operation.
+The `_shards` header provides information about the replication process of the index operation:
 
-* `total` - Indicates to how many shard copies (primary and replica shards) the index operation should be executed on.
-* `successful`- Indicates the number of shard copies the index operation succeeded on.
-* `failed` - An array that contains replication related errors in the case an index operation failed on a replica shard.
+`total`:: Indicates how many shard copies (primary and replica shards) the index operation should be executed on.
+`successful`:: Indicates the number of shard copies the index operation succeeded on.
+`failed`:: An array that contains replication-related errors in the case an index operation failed on a replica shard.
 
 The index operation is successful in the case `successful` is at least 1.
 
@@ -61,7 +61,7 @@ exist, and applies any <<indices-templates,index templates>> that are
 configured. The index operation also creates a dynamic mapping if one does not
 already exist. By default, new fields and objects will automatically be added
 to the mapping definition if needed. Check out the <<mapping,mapping>> section
-for more information on mapping definitions, and the the
+for more information on mapping definitions, and the
 <<indices-put-mapping,put mapping>> API for information about updating mappings
 manually.
 
@@ -299,16 +299,16 @@ Control when the changes made by this request are visible to search. See
 [[index-noop]]
 === Noop Updates
 
-When updating a document using the index api a new version of the document is
+When updating a document using the index API a new version of the document is
 always created even if the document hasn't changed. If this isn't acceptable
-use the `_update` api with `detect_noop` set to true. This option isn't
-available on the index api because the index api doesn't fetch the old source
+use the `_update` API with `detect_noop` set to true. This option isn't
+available on the index API because the index API doesn't fetch the old source
 and isn't able to compare it against the new source.
 
 There isn't a hard and fast rule about when noop updates aren't acceptable.
 It's a combination of lots of factors like how frequently your data source
 sends updates that are actually noops and how many queries per second
-Elasticsearch runs on the shard with receiving the updates.
+Elasticsearch runs on the shard receiving the updates.
 
 [float]
 [[timeout]]
@@ -343,7 +343,7 @@ internal versioning is used that starts at 1 and increments
 with each update, deletes included. Optionally, the version number can be
 set to an external value (for example, if maintained in a
 database). To enable this functionality, `version_type` should be set to
-`external`. The value provided must be a numeric, long value greater or equal to 0,
+`external`. The value provided must be a numeric, long value greater than or equal to 0,
 and less than around 9.2e+18. 
 
 When using the external version type, the system checks to see if
@@ -363,7 +363,7 @@ PUT twitter/_doc/1?version=2&version_type=external
 // CONSOLE
 // TEST[continued]
 
-*NOTE:* versioning is completely real time, and is not affected by the
+*NOTE:* Versioning is completely real time, and is not affected by the
 near real time aspects of search operations. If no version is provided,
 then the operation is executed without any version checks.
 
@@ -387,15 +387,15 @@ Next to the `external` version type explained above, Elasticsearch
 also supports other types for specific use cases. Here is an overview of
 the different version types and their semantics.
 
-`internal`:: only index the document if the given version is identical to the version
+`internal`:: Only index the document if the given version is identical to the version
 of the stored document.
 
-`external` or `external_gt`:: only index the document if the given version is strictly higher
+`external` or `external_gt`:: Only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given
 version will be used as the new version and will be stored with the new document. The supplied
 version must be a non-negative long number.
 
-`external_gte`:: only index the document if the given version is *equal* or higher
+`external_gte`:: Only index the document if the given version is *equal* or higher
 than the version of the stored document. If there is no existing document
 the operation will succeed as well. The given version will be used as the new version
 and will be stored with the new document. The supplied version must be a non-negative long number.

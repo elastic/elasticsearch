@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.rollup;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -29,6 +31,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -215,6 +218,23 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("test_histo._count"), instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
+    }
+
+    public void testDateHistoWithTimezone() {
+        ZoneId timeZone = ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds()));
+        DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("test_histo");
+        histo.interval(86400000)
+            .field("foo")
+            .timeZone(timeZone);
+
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
+        assertThat(translated.size(), equalTo(1));
+        assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
+        DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
+
+        assertThat(translatedHisto.interval(), equalTo(86400000L));
+        assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
+        assertThat(translatedHisto.timeZone(), equalTo(timeZone));
     }
 
     public void testAvgMetric() {

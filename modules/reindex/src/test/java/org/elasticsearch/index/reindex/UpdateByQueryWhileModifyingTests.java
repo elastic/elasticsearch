@@ -67,7 +67,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
                         .setRefreshPolicy(IMMEDIATE);
                 /*
-                 * Update by query increments the version number so concurrent
+                 * Update by query changes the document so concurrent
                  * indexes might get version conflict exceptions so we just
                  * blindly retry.
                  */
@@ -75,7 +75,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 while (true) {
                     attempts++;
                     try {
-                        index.setVersion(get.getVersion()).get();
+                        index.setIfSeqNo(get.getSeqNo()).setIfPrimaryTerm(get.getPrimaryTerm()).get();
                         break;
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {

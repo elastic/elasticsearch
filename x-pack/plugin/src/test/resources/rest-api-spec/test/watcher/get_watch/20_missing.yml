@@ -6,7 +6,7 @@
 
   # ensure index exists by creating a different watch
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "other"
         body:  >
           {
@@ -38,7 +38,7 @@
 
   - do:
       catch: missing
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "missing_watch"
   - match: { found : false}
   - match: { _id: "missing_watch" }
@@ -56,7 +56,7 @@
 
   - do:
       catch: missing
-      xpack.watcher.get_watch:
+      watcher.get_watch:
         id: "missing_watch"
   - match: { found : false}
   - match: { _id: "missing_watch" }

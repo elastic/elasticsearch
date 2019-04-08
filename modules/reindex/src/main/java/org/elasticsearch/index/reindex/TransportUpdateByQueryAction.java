@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -113,13 +112,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             index.type(doc.getType());
             index.id(doc.getId());
             index.source(doc.getSource(), doc.getXContentType());
-            if (useSeqNoForCAS) {
-                index.setIfSeqNo(doc.getSeqNo());
-                index.setIfPrimaryTerm(doc.getPrimaryTerm());
-            } else {
-                index.versionType(VersionType.INTERNAL);
-                index.version(doc.getVersion());
-            }
+            index.setIfSeqNo(doc.getSeqNo());
+            index.setIfPrimaryTerm(doc.getPrimaryTerm());
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }

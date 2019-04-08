@@ -167,7 +167,7 @@ GET /customer/_doc/1
 
 [float]
 ==== URI search
-For simpler test searches, you can use {es}'s <<search-search, search API>>
+For simpler test searches, you can use the {es} <<search-search, search API>>
 with query-string parameters. This is also called <<search-uri-request>>.
 
 This example performs a URI search for documents with an employer of

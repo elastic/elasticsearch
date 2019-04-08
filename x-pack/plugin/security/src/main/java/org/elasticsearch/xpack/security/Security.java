@@ -770,12 +770,18 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                 indexService.cache().bitsetFilterCache(),
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
                                 indexService.getScriptService()));
-                /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.
-                 *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
-                 *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
-                 *  unauthorized users. */
+                /*
+                 * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
+                 * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
+                 * overwrite the query cache implementation to prevent data leakage to unauthorized users.
+                 */
                 module.forceQueryCacheProvider(
-                        (settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState()));
+                        (settings, cache) -> {
+                            final OptOutQueryCache queryCache =
+                                    new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState());
+                            queryCache.listenForLicenseStateChanges();
+                            return queryCache;
+                        });
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that

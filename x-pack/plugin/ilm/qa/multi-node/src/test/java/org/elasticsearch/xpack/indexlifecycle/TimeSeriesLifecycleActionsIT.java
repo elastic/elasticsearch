@@ -812,6 +812,28 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         });
     }
 
+    public void testCanStopILMWithPolicyUsingNonexistentPolicy() throws Exception {
+        createIndexWithSettings(index, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(5,15)));
+
+        Request stopILMRequest = new Request("POST", "_ilm/stop");
+        assertOK(client().performRequest(stopILMRequest));
+
+        Request statusRequest = new Request("GET", "_ilm/status");
+        assertBusy(() -> {
+            Response statusResponse = client().performRequest(statusRequest);
+            assertOK(statusResponse);
+            Map<String, Object> statusResponseMap = entityAsMap(statusResponse);
+            String status = (String) statusResponseMap.get("operation_mode");
+            assertEquals("STOPPED", status);
+        });
+
+        // Re-start ILM so that subsequent tests don't fail
+        Request startILMReqest = new Request("POST", "_ilm/start");
+        assertOK(client().performRequest(startILMReqest));
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));

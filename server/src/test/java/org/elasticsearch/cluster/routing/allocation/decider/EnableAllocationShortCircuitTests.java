@@ -87,13 +87,13 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
     }
 
-    private class RebalanceShortCircuitPlugin implements ClusterPlugin {
+    private static class RebalanceShortCircuitPlugin implements ClusterPlugin {
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
             return Collections.singletonList(new RebalanceShortCircuitAllocationDecider());
         }
 
-        private class RebalanceShortCircuitAllocationDecider extends AllocationDecider {
+        private static class RebalanceShortCircuitAllocationDecider extends AllocationDecider {
             @Override
             public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
                 throw new AssertionError("canRebalance was not bypassed");
@@ -106,13 +106,13 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         }
     }
 
-    private class AllocateShortCircuitPlugin implements ClusterPlugin {
+    private static class AllocateShortCircuitPlugin implements ClusterPlugin {
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
             return Collections.singletonList(new AllocateShortCircuitAllocationDecider());
         }
 
-        private class AllocateShortCircuitAllocationDecider extends AllocationDecider {
+        private static class AllocateShortCircuitAllocationDecider extends AllocationDecider {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 throw new AssertionError("canAllocate was not bypassed");

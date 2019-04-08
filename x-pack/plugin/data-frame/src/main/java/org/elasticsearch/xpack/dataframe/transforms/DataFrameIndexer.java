@@ -54,14 +54,20 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     /**
      * Request a checkpoint
      */
-    protected abstract void createCheckpoint();
+    protected abstract void createCheckpoint(ActionListener<Void> listener);
 
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
             QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
             pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
-            listener.onResponse(null);
+
+            // if run for the 1st time, create checkpoint
+            if (getPosition() == null) {
+                createCheckpoint(listener);
+            } else {
+                listener.onResponse(null);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -115,10 +121,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        // if run for the 1st time, create checkpoint
-        if (getPosition() == null) {
-            createCheckpoint();
-        }
         return pivot.buildSearchRequest(getPosition());
     }
 }

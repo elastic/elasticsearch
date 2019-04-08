@@ -430,12 +430,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            // temporary solution till https://github.com/elastic/elasticsearch/pull/40855 has been fixed
-            // to be moved to onFinish()
-            if(indexerState.equals(IndexerState.STARTED) && getStats().getNumDocuments() > 0) {
-                currentCheckpoint.incrementAndGet();
-            }
-
             final DataFrameTransformState state = new DataFrameTransformState(
                 taskState.get(),
                 indexerState,
@@ -493,9 +487,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
-                long checkpoint = currentCheckpoint.get();
-                auditor.info(transform.getId(), "Finished indexing for data frame transform");
-                logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
+                long checkpoint = currentCheckpoint.incrementAndGet();
+                auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
+                logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -510,25 +504,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void createCheckpoint() {
-            CountDownLatch latch = new CountDownLatch(1);
-
-            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1,
-                    new LatchedActionListener<>(ActionListener.wrap(checkpoint -> {
-                        transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
-                        }, createCheckpointException -> {
-                            throw new RuntimeException("Failed to create checkpoint", createCheckpointException);
-                        }));
-                    }, getCheckPointException -> {
-                        throw new RuntimeException("Failed to retrieve checkpoint", getCheckPointException);
-                    }), latch));
-
-            // wait for async operations and return
-            try {
-                latch.await(CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException("Failed to create checkpoint for data frame transform [" + transformId + "]", e);
-            }
+        protected void createCheckpoint(ActionListener<Void> listener) {
+            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1, ActionListener.wrap(checkpoint -> {
+                transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
+                    listener.onResponse(null);
+                }, createCheckpointException -> {
+                    listener.onFailure(new RuntimeException("Failed to create checkpoint", createCheckpointException));
+                }));
+            }, getCheckPointException -> {
+                listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException));
+            }));
         }
     }
 

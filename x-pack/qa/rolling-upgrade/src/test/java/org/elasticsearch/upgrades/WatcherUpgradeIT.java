@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.watcher.condition.AlwaysCondition;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -43,7 +44,7 @@ public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
 
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             final String watch = watchBuilder()
-                .trigger(schedule(interval("1s")))
+                .trigger(schedule(interval("5s")))
                 .input(simpleInput())
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("_action1", loggingAction("{{ctx.watch_id}}"))
@@ -84,7 +85,7 @@ public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
                 assertBusy(() -> {
                     Integer totalHits = getWatchHistoryEntriesCount();
                     assertThat(totalHits, greaterThan(previous));
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         }
 
@@ -111,7 +112,7 @@ public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> responseBody = entityAsMap(response);
             int activeShards = (int) responseBody.get("active_shards");
             assertThat(activeShards, equalTo(3));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

@@ -26,8 +26,8 @@ dependencies {
     testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 configurations {
     testArtifacts.extendsFrom testRuntime

@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -69,17 +68,8 @@ public class TransportDeleteRepositoryAction extends TransportMasterNodeAction<D
     protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         repositoriesService.unregisterRepository(
-            request,
-            new ActionListener<ClusterStateUpdateResponse>() {
-                @Override
-                public void onResponse(ClusterStateUpdateResponse unregisterRepositoryResponse) {
-                    listener.onResponse(new AcknowledgedResponse(unregisterRepositoryResponse.isAcknowledged()));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            request, ActionListener.delegateFailure(listener,
+                (delegatedListener, unregisterRepositoryResponse) ->
+                    delegatedListener.onResponse(new AcknowledgedResponse(unregisterRepositoryResponse.isAcknowledged()))));
     }
 }

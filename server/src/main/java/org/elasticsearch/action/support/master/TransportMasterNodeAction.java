@@ -185,23 +185,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             });
                         }
                     } else {
-                        ActionListener<Response> delegate = new ActionListener<Response>() {
-                            @Override
-                            public void onResponse(Response response) {
-                                listener.onResponse(response);
+                        ActionListener<Response> delegate = ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+                            if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
+                                logger.debug(() -> new ParameterizedMessage("master could not publish cluster state or " +
+                                    "stepped down before publishing action [{}], scheduling a retry", actionName), t);
+                                retry(t, masterChangePredicate);
+                            } else {
+                                delegatedListener.onFailure(t);
                             }
-
-                            @Override
-                            public void onFailure(Exception t) {
-                                if (t instanceof FailedToCommitClusterStateException || t instanceof NotMasterException) {
-                                    logger.debug(() -> new ParameterizedMessage("master could not publish cluster state or " +
-                                        "stepped down before publishing action [{}], scheduling a retry", actionName), t);
-                                    retry(t, masterChangePredicate);
-                                } else {
-                                    listener.onFailure(t);
-                                }
-                            }
-                        };
+                        });
                         threadPool.executor(executor).execute(new ActionRunnable<Response>(delegate) {
                             @Override
                             protected void doRun() throws Exception {

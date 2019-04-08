@@ -22,6 +22,7 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
@@ -86,20 +87,15 @@ public final class ThreadedActionListener<Response> implements ActionListener<Re
 
     @Override
     public void onResponse(final Response response) {
-        threadPool.executor(executor).execute(new AbstractRunnable() {
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
             @Override
             public boolean isForceExecution() {
                 return forceExecution;
             }
 
             @Override
-            protected void doRun() throws Exception {
+            protected void doRun() {
                 listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
             }
         });
     }

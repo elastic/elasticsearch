@@ -45,6 +45,8 @@ The specification contains:
     * `experimental` highly likely to break in the near future (minor/path), no bwc guarantees. 
     Possibly removed in the future.
     * `beta` less likely to break or be removed but still reserve the right to do so
+    * `internal` API that is stable with regards to its lifetime (here to stay) but makes no guarantees towards its
+     output format. Typically used by monitoring API's exposing internal representations.
     * `stable` No backwards breaking changes in a minor (default if not specified)
 * List of HTTP methods for the endpoint
 * URL specification: path, parts, parameters

@@ -5,8 +5,9 @@
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
 
 A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
-https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files
+are in
+https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 These images are free to use under the Elastic license. They contain open source 
 and free commercial features and access to paid commercial features.  

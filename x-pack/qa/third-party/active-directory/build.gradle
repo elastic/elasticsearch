@@ -13,7 +13,7 @@ processTestResources {
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs) 
 }
 
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 // we have to repeat these patterns because the security test resources are effectively in the src of this project
 forbiddenPatterns {
@@ -22,7 +22,7 @@ forbiddenPatterns {
   exclude '**/*.der'
 }
 
-test {
+unitTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.

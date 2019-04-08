@@ -18,36 +18,30 @@
  */
 package org.elasticsearch.gradle.test
 
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
-import org.gradle.api.logging.Logger
-import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskState
 import org.gradle.api.tasks.options.Option
-import org.gradle.api.tasks.testing.Test
 import org.gradle.plugins.ide.idea.IdeaPlugin
-import org.gradle.process.CommandLineArgumentProvider
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
-
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
-class RestIntegTestTask extends DefaultTask {
-
-    private static final Logger LOGGER = Logging.getLogger(RestIntegTestTask)
+public class RestIntegTestTask extends DefaultTask {
 
     protected ClusterConfiguration clusterConfig
 
-    protected Test runner
+    protected RandomizedTestingTask runner
 
     protected Task clusterInit
 
@@ -58,8 +52,8 @@ class RestIntegTestTask extends DefaultTask {
     @Input
     Boolean includePackaged = false
 
-    RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", Test.class)
+    public RestIntegTestTask() {
+        runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
@@ -77,41 +71,10 @@ class RestIntegTestTask extends DefaultTask {
             runner.useCluster project.testClusters."$name"
         }
 
-        // disable the build cache for rest test tasks
-        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.outputs.doNotCacheIf('Caching is disabled for REST integration tests') { true }
-
         // override/add more for rest tests
-        runner.maxParallelForks = 1
+        runner.parallelism = '1'
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
-
-        /*
-         * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
-         * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
-         * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
-         * to the GStrings containing references to non-serializable objects.
-         *
-         * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
-         * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
-         * build cache key or up to date checking.
-         */
-        def nonInputProperties = new CommandLineArgumentProvider() {
-            private final Map<String, Object> systemProperties = [:]
-
-            void systemProperty(String key, Object value) {
-                systemProperties.put(key, value)
-            }
-
-            @Override
-            Iterable<String> asArguments() {
-                return systemProperties.collect { key, value ->
-                    "-D${key}=${value.toString()}".toString()
-                }
-            }
-        }
-        runner.jvmArgumentProviders.add(nonInputProperties)
-        runner.ext.nonInputProperties = nonInputProperties
 
         if (System.getProperty("tests.rest.cluster") == null) {
             if (System.getProperty("tests.cluster") != null) {
@@ -119,24 +82,24 @@ class RestIntegTestTask extends DefaultTask {
             }
             if (usesTestclusters == true) {
                 ElasticsearchCluster cluster = project.testClusters."${name}"
-                nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
-                nonInputProperties.systemProperty('tests.config.dir', "${-> cluster.singleNode().getConfigDir() }")
-                nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
+                runner.systemProperty('tests.rest.cluster', {cluster.allHttpSocketURI.join(",") })
+                runner.systemProperty('tests.config.dir', {cluster.singleNode().getConfigDir()})
+                runner.systemProperty('tests.cluster', {cluster.transportPortURI})
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node
-                nonInputProperties.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
-                nonInputProperties.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
+                runner.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
+                runner.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
                 // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
                 // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
                 // both as separate sysprops
-                nonInputProperties.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+                runner.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
 
                 // dump errors and warnings from cluster log on failure
                 TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
                     @Override
                     void afterExecute(Task task, TaskState state) {
-                        if (task == runner && state.failure != null) {
+                        if (state.failure != null) {
                             for (NodeInfo nodeInfo : nodes) {
                                 printLogExcerpt(nodeInfo)
                             }
@@ -231,9 +194,9 @@ class RestIntegTestTask extends DefaultTask {
     /** Print out an excerpt of the log from the given node. */
     protected static void printLogExcerpt(NodeInfo nodeInfo) {
         File logFile = new File(nodeInfo.homeDir, "logs/${nodeInfo.clusterName}.log")
-        LOGGER.lifecycle("\nCluster ${nodeInfo.clusterName} - node ${nodeInfo.nodeNum} log excerpt:")
-        LOGGER.lifecycle("(full log at ${logFile})")
-        LOGGER.lifecycle('-----------------------------------------')
+        println("\nCluster ${nodeInfo.clusterName} - node ${nodeInfo.nodeNum} log excerpt:")
+        println("(full log at ${logFile})")
+        println('-----------------------------------------')
         Stream<String> stream = Files.lines(logFile.toPath(), StandardCharsets.UTF_8)
         try {
             boolean inStartup = true
@@ -248,9 +211,9 @@ class RestIntegTestTask extends DefaultTask {
                 }
                 if (inStartup || inExcerpt) {
                     if (linesSkipped != 0) {
-                        LOGGER.lifecycle("... SKIPPED ${linesSkipped} LINES ...")
+                        println("... SKIPPED ${linesSkipped} LINES ...")
                     }
-                    LOGGER.lifecycle(line)
+                    println(line)
                     linesSkipped = 0
                 } else {
                     ++linesSkipped
@@ -262,7 +225,7 @@ class RestIntegTestTask extends DefaultTask {
         } finally {
             stream.close()
         }
-        LOGGER.lifecycle('=========================================')
+        println('=========================================')
 
     }
 

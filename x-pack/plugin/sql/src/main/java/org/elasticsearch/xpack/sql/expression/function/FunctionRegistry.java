@@ -527,7 +527,7 @@ public class FunctionRegistry {
         FunctionDefinition.Builder realBuilder = (uf, distinct, cfg) -> {
             try {
                 return builder.build(uf.source(), uf.children(), distinct, cfg);
-            } catch (IllegalArgumentException e) {
+            } catch (SqlIllegalArgumentException e) {
                 throw new ParsingException(uf.source(), "error building [" + primaryName + "]: " + e.getMessage(), e);
             }
         };

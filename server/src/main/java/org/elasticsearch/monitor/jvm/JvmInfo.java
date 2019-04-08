@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.SuppressForbidden;
@@ -157,10 +158,29 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
         final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
 
-        INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
-                runtimeMXBean.getVmVendor(), bundledJdk, usingBundledJdk, runtimeMXBean.getStartTime(), configuredInitialHeapSize,
-                configuredMaxHeapSize, mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError,
-                onOutOfMemoryError, useCompressedOops, useG1GC, useSerialGC);
+        INSTANCE = new JvmInfo(
+                ProcessHandle.current().pid(),
+                System.getProperty("java.version"),
+                runtimeMXBean.getVmName(),
+                runtimeMXBean.getVmVersion(),
+                runtimeMXBean.getVmVendor(),
+                bundledJdk,
+                usingBundledJdk,
+                runtimeMXBean.getStartTime(),
+                configuredInitialHeapSize,
+                configuredMaxHeapSize,
+                mem,
+                inputArguments,
+                bootClassPath,
+                classPath,
+                systemProperties,
+                gcCollectors,
+                memoryPools,
+                onError,
+                onOutOfMemoryError,
+                useCompressedOops,
+                useG1GC,
+                useSerialGC);
     }
 
     @SuppressForbidden(reason = "PathUtils#get")
@@ -171,7 +191,11 @@ public class JvmInfo implements Writeable, ToXContentFragment {
          */
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
-        return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+        if (Constants.MAC_OS_X) {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+        } else {
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
+        }
     }
 
     public static JvmInfo jvmInfo() {

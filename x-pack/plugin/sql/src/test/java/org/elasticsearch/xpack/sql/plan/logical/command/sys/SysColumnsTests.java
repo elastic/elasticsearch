@@ -87,7 +87,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals("date", name(row));
         assertEquals(Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
-        assertEquals(24, precision(row));
+        assertEquals(29, precision(row));
         assertEquals(8, bufferLength(row));
 
         row = rows.get(5);
@@ -186,7 +186,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals("date", name(row));
         assertEquals((short) Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
-        assertEquals(24, precision(row));
+        assertEquals(29, precision(row));
         assertEquals(8, bufferLength(row));
         assertNull(decimalPrecision(row));
         assertEquals(Short.class, nullable(row).getClass());
@@ -321,7 +321,7 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals("date", name(row));
         assertEquals(Types.TIMESTAMP, sqlType(row));
         assertEquals(null, radix(row));
-        assertEquals(24, precision(row));
+        assertEquals(29, precision(row));
         assertEquals(8, bufferLength(row));
         assertNull(decimalPrecision(row));
         assertEquals(Integer.class, nullable(row).getClass());

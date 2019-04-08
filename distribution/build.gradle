@@ -52,10 +52,16 @@ task buildServerNotice(type: NoticeTask) {
 // other distributions include notices from modules as well, which are added below later
 task buildDefaultNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
-
-// other distributions include notices from modules as well, which are added below later
 task buildOssNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+  licensesDir new File(project(':distribution').projectDir, 'licenses')
+}
+task buildDefaultNoJdkNotice(type: NoticeTask) {
+  licensesDir new File(project(':server').projectDir, 'licenses')
+}
+task buildOssNoJdkNotice(type: NoticeTask) {
   licensesDir new File(project(':server').projectDir, 'licenses')
 }
 
@@ -377,11 +383,21 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    noticeFile = copySpec {
-      if (project.name == 'integ-test-zip') {
-        from buildServerNotice
-      } else {
-        from buildDefaultNotice
+    noticeFile = { oss, jdk ->
+      copySpec {
+        if (project.name == 'integ-test-zip') {
+          from buildServerNotice
+        } else {
+          if (oss && jdk) {
+            from buildOssNotice
+          } else if (oss) {
+            from buildOssNoJdkNotice
+          } else if (jdk) {
+            from buildDefaultNotice
+          } else {
+            from buildDefaultNoJdkNotice
+          }
+      }  
       }
     }
 

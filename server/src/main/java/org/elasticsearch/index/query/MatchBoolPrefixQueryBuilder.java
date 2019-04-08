@@ -161,8 +161,8 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
-    public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = Fuzziness.build(fuzziness);
+    public MatchBoolPrefixQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 

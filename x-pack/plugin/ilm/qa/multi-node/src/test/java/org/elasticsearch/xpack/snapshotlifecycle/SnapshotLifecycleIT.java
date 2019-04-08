@@ -13,9 +13,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -150,6 +153,57 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
         assertOK(client().performRequest(delReq));
+    }
+
+    public void testPolicyManualExecution() throws Exception {
+        final String indexName = "test";
+        final String policyName = "test-policy";
+        final String repoId = "my-repo";
+        int docCount = randomIntBetween(10, 50);
+        List<IndexRequestBuilder> indexReqs = new ArrayList<>();
+        for (int i = 0; i < docCount; i++) {
+            index(client(), indexName, "" + i, "foo", "bar");
+        }
+
+        // Create a snapshot repo
+        inializeRepo(repoId);
+
+        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
+
+        ResponseException badResp = expectThrows(ResponseException.class,
+            () -> client().performRequest(new Request("PUT", "/_ilm/snapshot/" + policyName + "-bad/_execute")));
+        assertThat(EntityUtils.toString(badResp.getResponse().getEntity()),
+            containsString("no such snapshot lifecycle policy [" + policyName + "-bad]"));
+
+        Response goodResp = client().performRequest(new Request("PUT", "/_ilm/snapshot/" + policyName + "/_execute"));
+
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(goodResp.getEntity()))) {
+            final String snapshotName = parser.mapStrings().get("snapshot_name");
+
+            // Check that the executed snapshot is created
+            assertBusy(() -> {
+                try {
+                    Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                    Map<String, Object> snapshotResponseMap;
+                    try (InputStream is = response.getEntity().getContent()) {
+                        snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                    }
+                    assertThat(snapshotResponseMap.size(), greaterThan(0));
+                } catch (ResponseException e) {
+                    fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+                }
+            });
+        }
+
+        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        assertOK(client().performRequest(delReq));
+
+        // It's possible there could have been a snapshot in progress when the
+        // policy is deleted, so wait for it to be finished
+        assertBusy(() -> {
+            assertThat(wipeSnapshots().size(), equalTo(0));
+        });
     }
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,

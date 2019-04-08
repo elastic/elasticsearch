@@ -220,6 +220,7 @@ if (project != rootProject) {
 
   forbiddenPatterns {
     exclude '**/*.wav'
+    exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
   }

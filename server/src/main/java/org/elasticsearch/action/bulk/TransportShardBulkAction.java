@@ -170,7 +170,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             public void onFailure(Exception e) {
-                assert false : "All exceptions should be handled by #executeBulkItemRequest";
                 onRejection(e);
             }
 

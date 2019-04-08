@@ -51,7 +51,6 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40933")
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
 
         Auditor auditor = new Auditor(client(), "node_1");

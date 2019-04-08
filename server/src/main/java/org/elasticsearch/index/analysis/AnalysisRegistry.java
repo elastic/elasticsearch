@@ -431,10 +431,6 @@ public final class AnalysisRegistry implements Closeable {
                     charFilterFactoryFactories, tokenizerFactoryFactories), (k, v) -> {
                         throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
                     });
-            final String analyzerAliasKey = "index.analysis.analyzer." + entry.getKey() + ".alias";
-            if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-                throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
-            }
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",

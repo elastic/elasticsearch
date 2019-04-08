@@ -73,10 +73,38 @@ public class ContextDocGenerator {
             indexStream.println("| Name | API");
 
             for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
-                indexStream.println("| " + painlessContextInfo.name + " | API");
+                String header = "painless-context-api-" + painlessContextInfo.name.replace(" ", "").replace("_", "-");
+                String[] split = painlessContextInfo.name.split("[_-]");
+                StringBuilder name = new StringBuilder();
+
+                for (String part : split) {
+                    name.append(Character.toUpperCase(part.charAt(0)));
+                    name.append(part.substring(1));
+                    name.append(' ');
+                }
+
+                indexStream.println("| " + name.substring(0, name.length() - 1) + " | <<" + header + ", API>>");
+
+                Path contextPath = apiRootPath.resolve(header + ".asciidoc");
+
+                try (PrintStream contextStream = new PrintStream(
+                        Files.newOutputStream(contextPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                        false, StandardCharsets.UTF_8.name())) {
+
+                    contextStream.println("[[" + header  + "]]");
+                    contextStream.println("=== " + name + " API");
+                    contextStream.println("test");
+                }
             }
 
             indexStream.println("|====");
+
+            for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
+                String header = "painless-context-api-" + painlessContextInfo.name.replace(" ", "").replace("_", "-");
+
+                indexStream.println();
+                indexStream.println("include::" + header + ".asciidoc[]");
+            }
         }
     }
 }

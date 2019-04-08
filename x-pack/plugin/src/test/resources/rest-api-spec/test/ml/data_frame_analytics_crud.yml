@@ -40,15 +40,15 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}],
-            "analyses_fields": [ "obj1.*", "obj2.*" ]
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
   - match: { source.index: "index-source" }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
-  - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { analysis: {"outlier_detection":{}} }
+  - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
 
 ---
 "Test put config with security headers in the body":
@@ -65,7 +65,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}],
+            "analysis": {"outlier_detection":{}},
             "headers":{ "a_security_header" : "secret" }
           }
 
@@ -83,13 +83,13 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
   - match: { id: "simple-outlier-detection" }
   - match: { source.index: "index-source" }
   - match: { source.query: {"match_all" : {} } }
   - match: { dest.index: "index-dest" }
-  - match: { analyses: [{"outlier_detection":{}}] }
+  - match: { analysis: {"outlier_detection":{}} }
 
 ---
 "Test put config with inconsistent body/param ids":
@@ -107,7 +107,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -125,7 +125,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -143,7 +143,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}],
+            "analysis": {"outlier_detection":{}},
             "unknown_field": 42
           }
 
@@ -151,7 +151,7 @@
 "Test put config with unknown field in outlier detection analysis":
 
   - do:
-      catch: /Data frame analysis \[outlier_detection\] does not support one or more provided parameters \[unknown_field\]/
+      catch: /unknown field \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >
@@ -162,7 +162,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{"unknown_field": 42}}]
+            "analysis": {"outlier_detection":{"unknown_field":42}}
           }
 
 ---
@@ -177,7 +177,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -195,7 +195,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -212,7 +212,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -227,7 +227,7 @@
             "source": {
               "index": "index-source"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -245,7 +245,7 @@
             "dest": {
               "index": ""
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
@@ -262,14 +262,14 @@
             },
             "dest": {
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
 ---
-"Test put config given missing analyses":
+"Test put config given missing analysis":
 
   - do:
-      catch: /\[analyses\] must not be null/
+      catch: /\[analysis\] must not be null/
       ml.put_data_frame_analytics:
         id: "simple-outlier-detection"
         body: >
@@ -283,10 +283,10 @@
           }
 
 ---
-"Test put config given empty analyses":
+"Test put config given empty analysis":
 
   - do:
-      catch: /One or more analyses are required/
+      catch: /parsing_exception/
       ml.put_data_frame_analytics:
         id: "simple-outlier-detection"
         body: >
@@ -297,25 +297,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": []
-          }
-
----
-"Test put config given two analyses":
-
-  - do:
-      catch: /Does not yet support multiple analyses/
-      ml.put_data_frame_analytics:
-        id: "simple-outlier-detection"
-        body: >
-          {
-            "source": {
-              "index": "index-source"
-            },
-            "dest": {
-              "index": "index-dest"
-            },
-            "analyses": [{"outlier_detection":{}}, {"outlier_detection":{}}]
+            "analysis": {}
           }
 
 ---
@@ -332,7 +314,7 @@
             "dest": {
               "index": "index-foo-1_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
   - do:
@@ -346,7 +328,7 @@
             "dest": {
               "index": "index-foo-2_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
   - match: { id: "foo-2" }
 
@@ -361,7 +343,7 @@
             "dest": {
               "index": "index-bar_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
   - match: { id: "bar" }
 
@@ -429,7 +411,7 @@
             "dest": {
               "index": "index-foo-1_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
   - do:
@@ -443,7 +425,7 @@
             "dest": {
               "index": "index-foo-2_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
   - match: { id: "foo-2" }
 
@@ -458,7 +440,7 @@
             "dest": {
               "index": "index-bar_dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
   - match: { id: "bar" }
 
@@ -527,7 +509,7 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
   - do:
@@ -575,9 +557,9 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}],
+            "analysis": {"outlier_detection":{}},
             "model_memory_limit": "8gb",
-            "analyses_fields": [ "obj1.*", "obj2.*" ]
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
 
   # Request using default higher than limit gets silently capped
@@ -593,15 +575,15 @@
             "dest": {
               "index": "index-dest"
             },
-            "analyses": [{"outlier_detection":{}}],
-            "analyses_fields": [ "obj1.*", "obj2.*" ]
+            "analysis": {"outlier_detection":{}},
+            "analyzed_fields": [ "obj1.*", "obj2.*" ]
           }
   - match: { id: "simple-outlier-detection-with-query" }
   - match: { source.index: "index-source" }
   - match: { source.query: {"term" : { "user" : "Kimchy"} } }
   - match: { dest.index: "index-dest" }
-  - match: { analyses: [{"outlier_detection":{}}] }
-  - match: { analyses_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
+  - match: { analysis: {"outlier_detection":{}} }
+  - match: { analyzed_fields: {"includes" : ["obj1.*", "obj2.*" ], "excludes": [] } }
   - match: { model_memory_limit: "20mb" }
 
 

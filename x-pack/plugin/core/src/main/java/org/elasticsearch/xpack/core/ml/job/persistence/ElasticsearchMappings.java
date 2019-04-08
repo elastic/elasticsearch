@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -413,17 +414,17 @@ public class ElasticsearchMappings {
                 .endObject()
             .endObject()
         .endObject()
-        .startObject(DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName())
+        .startObject(DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName())
             .field(ENABLED, false)
         .endObject()
-        .startObject(DataFrameAnalyticsConfig.ANALYSES.getPreferredName())
+        .startObject(DataFrameAnalyticsConfig.ANALYSIS.getPreferredName())
             .startObject(PROPERTIES)
-                .startObject("outlier_detection")
+                .startObject(OutlierDetection.NAME.getPreferredName())
                     .startObject(PROPERTIES)
-                        .startObject("number_neighbours")
+                        .startObject(OutlierDetection.NUMBER_NEIGHBORS.getPreferredName())
                             .field(TYPE, INTEGER)
                         .endObject()
-                        .startObject("method")
+                        .startObject(OutlierDetection.METHOD.getPreferredName())
                             .field(TYPE, KEYWORD)
                         .endObject()
                     .endObject()

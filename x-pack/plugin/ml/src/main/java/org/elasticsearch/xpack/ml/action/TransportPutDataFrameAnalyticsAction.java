@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysesUtils;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
 import java.io.IOException;
@@ -147,6 +146,5 @@ public class TransportPutDataFrameAnalyticsAction
             throw ExceptionsHelper.badRequestException("id [{}] is too long; must not contain more than {} characters", config.getId(),
                 MlStrings.ID_LENGTH_LIMIT);
         }
-        DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
     }
 }

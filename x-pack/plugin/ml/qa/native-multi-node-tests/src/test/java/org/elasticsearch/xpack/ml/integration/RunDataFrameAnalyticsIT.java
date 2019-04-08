@@ -15,15 +15,13 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalysisConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -151,9 +149,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
         configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", resultsField));
-        Map<String, Object> analysisConfig = new HashMap<>();
-        analysisConfig.put("outlier_detection", Collections.emptyMap());
-        configBuilder.setAnalyses(Collections.singletonList(new DataFrameAnalysisConfig(analysisConfig)));
+        configBuilder.setAnalysis(new OutlierDetection());
         return configBuilder.build();
     }
 

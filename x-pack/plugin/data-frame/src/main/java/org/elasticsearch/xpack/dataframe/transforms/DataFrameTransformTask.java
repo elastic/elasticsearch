@@ -135,10 +135,21 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     void initializePreviousStats(DataFrameIndexerTransformStats stats) {
         previousStats.merge(stats);
+        previousStats.setCurrentRunStartTime(stats.getCurrentRunStartTime().getTime());
     }
 
     public DataFrameIndexerTransformStats getStats() {
-        return new DataFrameIndexerTransformStats(previousStats).merge(indexer.getStats());
+        return mergePreviousStats(indexer.getStats());
+    }
+
+    private DataFrameIndexerTransformStats mergePreviousStats(DataFrameIndexerTransformStats stats) {
+        DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(stats).merge(previousStats);
+        // Handle the case for when task is migrated between nodes, but a new run did not start, so we should keep
+        // the previous stats run start time.
+        if (tempStats.getCurrentRunStartTime() == null && previousStats.getCurrentRunStartTime() != null) {
+            tempStats.setCurrentRunStartTime(previousStats.getCurrentRunStartTime().getTime());
+        }
+        return tempStats;
     }
 
     public long getGeneration() {
@@ -302,7 +313,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     protected class ClientDataFrameIndexer extends DataFrameIndexer {
-        private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -347,6 +357,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             );
 
             final DataFrameIndexerTransformStats stats = this.getStats();
+
+             // NOTE: This is skipped if this is not the first run of the indexer
             ActionListener<SearchResponse> getTotalCountListener = ActionListener.wrap(
                 searchResponse -> {
                     stats.setCurrentRunTotalDocumentsToProcess(searchResponse.getHits().getTotalHits().value);
@@ -360,7 +372,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 e -> {
                     stats.setCurrentRunTotalDocumentsToProcess(0L);
                     stats.resetCurrentRunDocsProcessed();
-                    logger.error("Failed getting total doc count for transform [" + transformId + "]", e);
+                    logger.warn("Failed getting total doc count for transform [" + transformId + "]", e);
+                    auditor.warning(transformId, "Failed getting total doc count to measure progress");
+                    // Continue execution as not being able to measure progress should not completely break the transform job
+                    if (this.fieldMappings == null) {
+                        SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), fieldMappingsListener);
+                    } else {
+                        fieldMappingsListener.onResponse(fieldMappings);
+                    }
                 }
             );
 
@@ -369,24 +388,36 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     if (config.isValid() == false) {
                         DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
                         listener.onFailure(exception);
+                        return;
                     }
                     transformConfig = config;
-                    SearchRequest searchRequest = client.prepareSearch(config.getSource().getIndex())
-                        .setQuery(config.getSource().getQueryConfig().getQuery())
-                        .setSize(0)
-                        .setTrackTotalHits(true)
-                        .request();
+                    // If this is the first run for the given checkpoint, we should gather our stats and reset the count
+                    if (isFirstRun()) {
+                        SearchRequest searchRequest = client.prepareSearch(config.getSource().getIndex())
+                            .setQuery(config.getSource().getQueryConfig().getQuery())
+                            .setSize(0)
+                            .setTrackTotalHits(true)
+                            .request();
 
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-                        DATA_FRAME_ORIGIN,
-                        searchRequest,
-                        getTotalCountListener,
-                        client::search);
+                        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+                            DATA_FRAME_ORIGIN,
+                            searchRequest,
+                            getTotalCountListener,
+                            client::search);
+                    } else {
+                        if (this.fieldMappings == null) {
+                            SchemaUtil.getDestinationFieldMappings(client,
+                                transformConfig.getDestination().getIndex(), fieldMappingsListener);
+                        } else {
+                            fieldMappingsListener.onResponse(fieldMappings);
+                        }
+                    }
                 },
                 e -> listener.onFailure(new RuntimeException(
                         DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e))
             );
 
+            // If we have not yet gathered the config, we should attempt to gather it
             if (transformConfig == null) {
                 transformsConfigManager.getTransformConfiguration(transformId, getConfigListener);
             } else {
@@ -446,9 +477,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
             ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
                 task -> {
-                    // Make a copy of the previousStats so that they are not constantly updated when `merge` is called
-                    DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats).merge(getStats());
-
+                    DataFrameIndexerTransformStats tempStats = mergePreviousStats(getStats());
                     // Only persist the stats if something has actually changed
                     if (previouslyPersistedStats == null || previouslyPersistedStats.equals(tempStats) == false) {
                         transformsConfigManager.putOrUpdateTransformStats(tempStats,

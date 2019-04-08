@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Date;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
@@ -46,7 +47,8 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
         return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L));
+            randomLongBetween(0L, 10000L), randomBoolean() ? null : randomLongBetween(0L, 10000L),
+            randomBoolean() ? null : randomLongBetween(0L, 10000L), randomBoolean() ? null : new Date(randomNonNegativeLong()));
     }
 
     @Override
@@ -58,19 +60,25 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
         String transformId = randomAlphaOfLength(10);
         DataFrameIndexerTransformStats emptyStats = new DataFrameIndexerTransformStats(transformId);
         DataFrameIndexerTransformStats randomStats = randomStats(transformId);
+        // Set the current time here so that equality check passes
+        if (randomStats.getCurrentRunStartTime() != null) {
+            emptyStats.setCurrentRunStartTime(randomStats.getCurrentRunStartTime().getTime());
+        }
 
         assertEquals(randomStats, emptyStats.merge(randomStats));
         assertEquals(randomStats, randomStats.merge(emptyStats));
 
         DataFrameIndexerTransformStats randomStatsClone = copyInstance(randomStats);
 
-        DataFrameIndexerTransformStats trippleRandomStats = new DataFrameIndexerTransformStats(transformId, 3 * randomStats.getNumPages(),
+        DataFrameIndexerTransformStats tripleRandomStats = new DataFrameIndexerTransformStats(transformId, 3 * randomStats.getNumPages(),
             3 * randomStats.getNumDocuments(), 3 * randomStats.getOutputDocuments(), 3 * randomStats.getNumInvocations(),
             3 * randomStats.getIndexTime(), 3 * randomStats.getSearchTime(), 3 * randomStats.getIndexTotal(),
             3 * randomStats.getSearchTotal(), 3 * randomStats.getIndexFailures(), 3 * randomStats.getSearchFailures(),
-            3 * randomStats.getCurrentRunDocsProcessed(), 3 * randomStats.getCurrentRunTotalDocsToProcess());
+            randomStats.getCurrentRunDocsProcessed() == null ? null : 3 * randomStats.getCurrentRunDocsProcessed(),
+            randomStats.getCurrentRunTotalDocsToProcess() == null ? null : 3 * randomStats.getCurrentRunTotalDocsToProcess(),
+            randomStats.getCurrentRunStartTime());
 
-        assertEquals(trippleRandomStats, randomStats.merge(randomStatsClone).merge(randomStatsClone));
+        assertEquals(tripleRandomStats, randomStats.merge(randomStatsClone).merge(randomStatsClone));
     }
 
     public void testGetCurrentPercentageComplete() {
@@ -88,7 +96,6 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
 
         stats.incrementCurrentRunDocsProcessed(5);
 
-
         assertThat(stats.getCurrentPercentageComplete(), closeTo(0.5, 0.00001));
 
         stats.incrementCurrentRunDocsProcessed(5);
@@ -96,5 +103,14 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
 
         stats.incrementCurrentRunDocsProcessed(5);
         assertThat(stats.getCurrentPercentageComplete(), equalTo(1.0));
+
+        DataFrameIndexerTransformStats noProgress = DataFrameIndexerTransformStats.withDefaultTransformId();
+        assertThat(noProgress.getCurrentPercentageComplete(), equalTo(0.0));
+
+        noProgress.resetCurrentRunDocsProcessed();
+        assertThat(noProgress.getCurrentPercentageComplete(), equalTo(0.0));
+
+        noProgress.setCurrentRunTotalDocumentsToProcess(0L);
+        assertThat(noProgress.getCurrentPercentageComplete(), equalTo(1.0));
     }
 }

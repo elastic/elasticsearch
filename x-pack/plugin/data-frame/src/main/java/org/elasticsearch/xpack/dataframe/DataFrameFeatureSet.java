@@ -192,9 +192,11 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             statisticsList.get(7),  // searchTotal
             statisticsList.get(8),  // indexFailures
             statisticsList.get(9),  // searchFailures
-            // Both of these are zero and not aggregated as they pertain to individual transforms, not all transforms
-            0L, // currentRunDocsProcessed
-            0L);  // currentRunTotalDocsToProcess
+            // Both of these are negative one and not aggregated as they pertain to individual transforms, not all transforms
+            null, // currentRunDocsProcessed
+            null, // currentRunTotalDocsToProcess
+            // Since this is going to be used to collect for all transforms, no need to include the start time
+            null); // currentRunStartTime
     }
 
     static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
@@ -204,6 +206,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setSize(0)
+            .setTrackTotalHits(false)
             .setQuery(queryBuilder);
 
         for(String statName : PROVIDED_STATS) {

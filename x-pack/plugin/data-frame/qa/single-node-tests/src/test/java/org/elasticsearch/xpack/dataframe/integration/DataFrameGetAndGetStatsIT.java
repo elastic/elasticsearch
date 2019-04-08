@@ -128,7 +128,10 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertEquals(2, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         // Verify that both transforms, the one with the task and the one without have statistics
+        long pivot1CurrentRunStartTime = 0L;
+        long pivot2CurrentRunStartTime = 0L;
         for (Map<String, Object> transformStats : transformsStats) {
+            System.out.println(transformStats);
             Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
             assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));
@@ -136,7 +139,14 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat(stat.get("documents_processed_percentage"), equalTo(1.0));
             assertThat(stat.get("current_run_total_documents_to_process"), equalTo(1000));
             assertThat(stat.get("current_run_documents_processed"), equalTo(1000));
+            assertThat((Long)stat.get("current_run_start_time"), greaterThan(0L));
+            if (transformStats.get("id").equals("pivot_stats_2")) {
+                pivot2CurrentRunStartTime = (Long)stat.get("current_run_start_time");
+            } else {
+                pivot1CurrentRunStartTime = (Long)stat.get("current_run_start_time");
+            }
         }
+        assertThat(pivot2CurrentRunStartTime, greaterThan(pivot1CurrentRunStartTime));
     }
 
     @SuppressWarnings("unchecked")

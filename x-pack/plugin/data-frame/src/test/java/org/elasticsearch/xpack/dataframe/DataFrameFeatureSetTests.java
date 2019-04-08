@@ -93,9 +93,10 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             7,  // indexTotal
             8,  // searchTotal
             9,  // indexFailures
-            10,
-            11,
-            12); // searchFailures
+            10, // searchFailures
+            null, // currentRunDocsProcessed
+            null, // currentRunTotalDocsToProcess
+            null);
 
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);

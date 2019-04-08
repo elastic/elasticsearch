@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Date;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
@@ -43,7 +44,8 @@ public class DataFrameIndexerTransformStatsTests extends ESTestCase {
         return new DataFrameIndexerTransformStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+            randomBoolean() ? null : randomNonNegativeLong(), randomBoolean() ? null : randomNonNegativeLong(),
+            randomBoolean() ? null : new Date(randomNonNegativeLong()));
     }
 
     public static void toXContent(DataFrameIndexerTransformStats stats, XContentBuilder builder) throws IOException {
@@ -58,10 +60,18 @@ public class DataFrameIndexerTransformStatsTests extends ESTestCase {
         builder.field(IndexerJobStats.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
         builder.field(IndexerJobStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
         builder.field(IndexerJobStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
-        builder.field(DataFrameIndexerTransformStats.CURRENT_RUN_DOCUMENTS_PROCESSED.getPreferredName(),
-            stats.getCurrentRunDocsProcessed());
-        builder.field(DataFrameIndexerTransformStats.CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS.getPreferredName(),
-            stats.getCurrentRunTotalDocsToProcess());
+        if (stats.getCurrentRunDocsProcessed() != null) {
+            builder.field(DataFrameIndexerTransformStats.CURRENT_RUN_DOCUMENTS_PROCESSED.getPreferredName(),
+                stats.getCurrentRunDocsProcessed());
+        }
+        if (stats.getCurrentRunTotalDocsToProcess() != null) {
+            builder.field(DataFrameIndexerTransformStats.CURRENT_RUN_TOTAL_DOCUMENTS_TO_PROCESS.getPreferredName(),
+                stats.getCurrentRunTotalDocsToProcess());
+        }
+        if (stats.getCurrentRunStartTime() != null) {
+            builder.field(DataFrameIndexerTransformStats.CURRENT_RUN_START_TIME.getPreferredName(),
+                stats.getCurrentRunStartTime().getTime());
+        }
         builder.endObject();
     }
 }

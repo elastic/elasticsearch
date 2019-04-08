@@ -56,6 +56,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         try {
             QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
             pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+            if (isFirstRun()) {
+                getStats().setCurrentRunStartTime(now);
+            }
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -67,6 +70,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
         return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
                 agg.getBuckets().isEmpty());
+    }
+
+    protected boolean isFirstRun() {
+        return getPosition() == null;
     }
 
     /*

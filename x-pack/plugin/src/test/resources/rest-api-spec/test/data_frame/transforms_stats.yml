@@ -59,9 +59,6 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
-  - match: { transforms.0.stats.current_run_documents_processed: 0 }
-  - match: { transforms.0.stats.current_run_total_documents_to_process: 0 }
-  - match: { transforms.0.stats.documents_processed_percentage: 1.0 }
 
 ---
 "Test get transform stats on missing transform":
@@ -210,6 +207,7 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
-  - match: { transforms.0.stats.current_run_documents_processed: 0 }
-  - match: { transforms.0.stats.current_run_total_documents_to_process: 0 }
-  - match: { transforms.0.stats.documents_processed_percentage: 1.0 }
+  - is_false: transforms.0.stats.current_run_documents_processed
+  - is_false: transforms.0.stats.current_run_total_documents_to_process
+  - is_false: transforms.0.stats.current_run_start_time
+  - match: { transforms.0.stats.documents_processed_percentage: 0.0 }

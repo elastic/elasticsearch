@@ -22,7 +22,7 @@ public class DataFrameIndexerTransformStatsHlrcTests extends AbstractHlrcXConten
         return DataFrameIndexerTransformStats.withDefaultTransformId(instance.getNumPages(), instance.getNumDocuments(),
             instance.getOutputDocuments(), instance.getNumInvocations(), instance.getIndexTime(), instance.getSearchTime(),
             instance.getIndexTotal(), instance.getSearchTotal(), instance.getIndexFailures(), instance.getSearchFailures(),
-            instance.getCurrentRunDocsProcessed(), instance.getCurrentRunTotalDocsToProcess());
+            instance.getCurrentRunDocsProcessed(), instance.getCurrentRunTotalDocsToProcess(), instance.getCurrentRunStartTime());
     }
 
     @Override

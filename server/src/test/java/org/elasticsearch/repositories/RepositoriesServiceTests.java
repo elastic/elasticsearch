@@ -22,11 +22,13 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -45,6 +47,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -98,6 +101,23 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertFalse(((TestRepository) repository).isClosed);
         Repository repository2 = repositoriesService.repository(repoName);
         assertSame(repository, repository2);
+    }
+
+    public void testRegisterRejectsInvalidRepositoryNames() {
+        List<String> invalidRepoNames = new ArrayList<>();
+        invalidRepoNames.add("");
+        invalidRepoNames.add("contains#InvalidCharacter");
+        for (char c : Strings.INVALID_FILENAME_CHARS) {
+            invalidRepoNames.add("contains" + c + "InvalidCharacters");
+        }
+        for (String repoName : invalidRepoNames) {
+            doTestRegisterRejectsInvalidRepositoryNames(repoName);
+        }
+    }
+
+    private void doTestRegisterRejectsInvalidRepositoryNames(String repoName) {
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
     }
 
     private static class TestRepository implements Repository {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -51,10 +52,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     protected abstract Map<String, String> getFieldMappings();
 
     @Override
-    protected void onStartJob(long now) {
-        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-
-        pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+    protected void onStart(long now, ActionListener<Void> listener) {
+        try {
+            QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+            pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override

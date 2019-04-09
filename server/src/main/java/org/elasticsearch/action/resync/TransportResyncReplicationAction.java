@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -74,14 +73,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected void sendReplicaRequest(
-        final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
-        final DiscoveryNode node,
-        final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        super.sendReplicaRequest(replicaRequest, node, listener);
-    }
-
-    @Override
     protected ClusterBlockLevel globalBlockLevel() {
         // resync should never be blocked because it's an internal action
         return null;
@@ -94,10 +85,10 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request);
-        return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
+    protected void shardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener) {
+        ActionListener.completeWith(listener,
+            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger));
     }
 
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {

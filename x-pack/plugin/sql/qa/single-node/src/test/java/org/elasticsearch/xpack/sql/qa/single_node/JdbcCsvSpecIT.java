@@ -5,11 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40994")
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public JdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);

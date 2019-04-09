@@ -113,7 +113,18 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                         public void onFailure(Exception e) {
                             logger.warn("Failed to produce role deprecation messages", e);
                             synchronized (mutex) {
-                                workerBusy = false;
+                                final boolean hasMoreWork = workQueue.peek() != null;
+                                if (hasMoreWork) {
+                                    workerBusy = true; // just being paranoid :)
+                                    try {
+                                        threadPool.generic().execute(this);
+                                    } catch (RejectedExecutionException e1) {
+                                        workerBusy = false;
+                                        logger.warn("Failed to start working on role alias permisssion deprecation messages", e1);
+                                    }
+                                } else {
+                                    workerBusy = false;
+                                }
                             }
                         }
 

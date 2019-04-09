@@ -1,5 +1,3 @@
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'

@@ -9,7 +9,6 @@ your application to Elasticsearch 7.0.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-* <<breaking_70_notable>>
 * <<breaking_70_aggregations_changes>>
 * <<breaking_70_cluster_changes>>
 * <<breaking_70_discovery_changes>>

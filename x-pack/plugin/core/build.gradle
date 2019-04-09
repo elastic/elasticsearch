@@ -46,6 +46,7 @@ dependencies {
     testCompile "org.slf4j:slf4j-api:${versions.slf4j}"
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+    testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
     testCompile(project(':x-pack:license-tools')) {
         transitive = false

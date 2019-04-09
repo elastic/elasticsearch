@@ -138,7 +138,7 @@ public class FieldHitExtractor implements HitExtractor {
                 if (((List<?>) values).size() == 1) {
                     value = ((List<?>) values).get(0);
                 } else {
-                    // This could be a single point in [lon, lat] format or multiple points
+                    // This could be a single point in [lon, lat] or [lon, lat, alt] format or multiple points
                     if ((list.size() == 2 || list.size() == 3) && (list.get(0) instanceof Number)) {
                         // this looks like a single geo_point in the array format
                         value = values;
@@ -177,7 +177,7 @@ public class FieldHitExtractor implements HitExtractor {
             try {
                 return new GeoShape(values);
             } catch (IOException ex) {
-                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName);
             }
         }
         if (values instanceof Map) {
@@ -218,6 +218,8 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
+                    // we can only do this optimization until the last element of our pass since geo points are using arrays
+                    // and we don't want to blindly ignore the second element of array if arrayLeniency is enabled
                     if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}

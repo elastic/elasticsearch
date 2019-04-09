@@ -490,7 +490,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
         double lon = randomDoubleBetween(-180, 180, true);
         SearchHit hit = new SearchHit(1);
         XContentBuilder source = JsonXContent.contentBuilder();
-        boolean[] arrayWrap = new boolean[layers-1];
+        boolean[] arrayWrap = new boolean[layers - 1];
         source.startObject(); {
             for (int i = 0; i < layers - 1; i++) {
                 arrayWrap[i] = randomBoolean();
@@ -505,7 +505,7 @@ public class FieldHitExtractorTests extends AbstractWireSerializingTestCase<Fiel
             String name = randomAlphaOfLength(10);
             pathCombined = pathCombined + name;
             source.field(name, randomPoint(lat, lon));
-            for (int i = layers -2; i >= 0; i--) {
+            for (int i = layers - 2; i >= 0; i--) {
                 source.endObject();
                 if (arrayWrap[i]) {
                     source.endArray();

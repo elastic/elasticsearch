@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.enrich.EnrichMetadata.Policy;
 
@@ -21,7 +22,8 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
     public void testCrud() throws Exception {
         EnrichStore enrichStore = new EnrichStore(getInstanceFromNode(ClusterService.class));
 
-        Policy policy = new Policy(Policy.Type.STRING, "source_index", "query_field", Arrays.asList("field1", "field2"));
+        Policy policy = new Policy(Policy.Type.STRING, TimeValue.timeValueHours(1), "source_index", "query_field",
+            Arrays.asList("field1", "field2"));
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();

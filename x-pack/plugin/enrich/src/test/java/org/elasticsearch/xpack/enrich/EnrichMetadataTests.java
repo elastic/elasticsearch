@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
@@ -28,6 +29,7 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
         for (int i = 0; i < numPolicies; i++) {
             policies.put(randomAlphaOfLength(8), new EnrichMetadata.Policy(
                 randomFrom(EnrichMetadata.Policy.Type.values()),
+                new TimeValue(randomNonNegativeLong()),
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false))

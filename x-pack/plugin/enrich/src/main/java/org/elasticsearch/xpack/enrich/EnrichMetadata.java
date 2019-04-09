@@ -13,7 +13,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -130,6 +132,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
     public static final class Policy implements Writeable, ToXContentObject {
 
         static final ParseField TYPE = new ParseField("type");
+        static final ParseField UPDATE_INTERVAL = new ParseField("update_interval");
         static final ParseField SOURCE_INDEX = new ParseField("source_index");
         static final ParseField QUERY_FIELD = new ParseField("query_field");
         static final ParseField DECORATE_FIELDS = new ParseField("decorate_fields");
@@ -137,27 +140,39 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Policy, Void> PARSER = new ConstructingObjectParser<>(
             "policy",
-            args -> new Policy(Type.read((String) args[0]), (String) args[1], (String) args[2], (List<String>) args[3])
+            args -> {
+                return new Policy(Type.read((String) args[0]), (TimeValue) args[1], (String) args[2], (String) args[3],
+                    (List<String>) args[4]);
+            }
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> TimeValue.parseTimeValue(p.text(), UPDATE_INTERVAL.getPreferredName()),
+                UPDATE_INTERVAL, ObjectParser.ValueType.STRING);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), SOURCE_INDEX);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DECORATE_FIELDS);
         }
 
         private final Type type;
+        private final TimeValue updateInterval;
         private final String sourceIndex;
         private final String queryField;
         private final List<String> decorateFields;
 
         public Policy(StreamInput in) throws IOException {
-            this(Type.read(in.readString()), in.readString(), in.readString(), in.readStringList());
+            this(Type.read(in.readString()), in.readTimeValue(), in.readString(), in.readString(), in.readStringList());
         }
 
-        public Policy(Type type, String sourceIndex, String queryField, List<String> decorateFields) {
+        public Policy(Type type,
+                      TimeValue updateInterval,
+                      String sourceIndex,
+                      String queryField,
+                      List<String> decorateFields) {
             this.type = type;
+            this.updateInterval = updateInterval;
             this.sourceIndex = sourceIndex;
             this.queryField = queryField;
             this.decorateFields = decorateFields;
@@ -165,6 +180,10 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
 
         public Type getType() {
             return type;
+        }
+
+        public TimeValue getUpdateInterval() {
+            return updateInterval;
         }
 
         public String getSourceIndex() {
@@ -182,6 +201,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(type.toString());
+            out.writeTimeValue(updateInterval);
             out.writeString(sourceIndex);
             out.writeString(queryField);
             out.writeStringCollection(decorateFields);
@@ -190,6 +210,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(TYPE.getPreferredName(), type.toString());
+            builder.field(UPDATE_INTERVAL.getPreferredName(), updateInterval.getStringRep());
             builder.field(SOURCE_INDEX.getPreferredName(), sourceIndex);
             builder.field(QUERY_FIELD.getPreferredName(), queryField);
             builder.array(DECORATE_FIELDS.getPreferredName(), decorateFields.toArray(new String[0]));
@@ -207,6 +228,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
             if (o == null || getClass() != o.getClass()) return false;
             Policy policy = (Policy) o;
             return type == policy.type &&
+                updateInterval.equals(policy.updateInterval) &&
                 sourceIndex.equals(policy.sourceIndex) &&
                 queryField.equals(policy.queryField) &&
                 decorateFields.equals(policy.decorateFields);
@@ -214,7 +236,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, sourceIndex, queryField, decorateFields);
+            return Objects.hash(type, updateInterval, sourceIndex, queryField, decorateFields);
         }
 
         public enum Type {

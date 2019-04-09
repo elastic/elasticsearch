@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -63,10 +62,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
-    private final Map<Task, List<ElasticsearchCluster>> usedClusters = new ConcurrentHashMap<>();
-    private final Map<ElasticsearchCluster, Integer> claimsInventory = new ConcurrentHashMap<>();
-    private final Set<ElasticsearchCluster> runningClusters = Collections.synchronizedSet(new HashSet<>());
-    private volatile  ExecutorService executorService;
+    private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
+    private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
+    private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
+    private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
+    private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     @Override
     public void apply(Project project) {
@@ -211,10 +211,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 listOfClusters.forEach(elasticsearchCluster -> {
                     if (forExecution.contains(task.getPath())) {
                         elasticsearchCluster.freeze();
-                        claimsInventory.put(
-                            elasticsearchCluster,
-                            claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1
-                        );
+                        claimsInventory.compute(elasticsearchCluster, (key, value) -> value == null ? 1 :  value++);
                     }
                 }));
         });
@@ -253,11 +250,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
-                        // The downside is that with multi project builds if that other  task is in a different
-                        // project and executing right now, we may terminate the cluster while it's running it.
                         clustersUsedByTask.forEach(each -> each.stop(true));
                     } else {
-                        clustersUsedByTask.forEach(each -> claimsInventory.put(each, claimsInventory.get(each) - 1));
+                        clustersUsedByTask.forEach(
+                            each -> claimsInventory.compute(each, (key, value) -> value--)
+                        );
                         claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)
                             .filter(entry -> runningClusters.contains(entry.getKey()))
@@ -347,14 +344,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private void configureCleanupHooks(Project project) {
-        synchronized (runningClusters) {
-            if (executorService == null || executorService.isTerminated()) {
-                executorService = Executors.newSingleThreadExecutor();
-            } else {
-                throw new IllegalStateException("Trying to configure executor service twice");
-            }
-        }
         // When the Gradle daemon is used, it will interrupt all threads when the build concludes.
+        // This is our signal to clean up
         executorService.submit(() -> {
             while (true) {
                 try {
@@ -367,14 +358,18 @@ public class TestClustersPlugin implements Plugin<Project> {
             }
         });
 
-        project.getGradle().buildFinished(buildResult -> {
-            logger.info("Build finished: {}", project.getPath());
-            shutdownExecutorService();
-        });
         // When the Daemon is not used, or runs into issues, rely on a shutdown hook
         // When the daemon is used, but does not work correctly and eventually dies off (e.x. due to non interruptible
         // thread in the build) process will be stopped eventually when the daemon dies.
-        Runtime.getRuntime().addShutdownHook(new Thread(this::shutDownAllClusters));
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+
+        // When we don't run into anything out of the ordinary, and the build completes, makes sure to clean up
+        project.getGradle().buildFinished(buildResult -> {
+            shutdownExecutorService();
+            if (false == Runtime.getRuntime().removeShutdownHook(shutdownHook)) {
+                logger.info("Trying to deregister shutdown hook when it was not registered.");
+            }
+        });
     }
 
     private void shutdownExecutorService() {

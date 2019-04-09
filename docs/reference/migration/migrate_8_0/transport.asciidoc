@@ -2,6 +2,7 @@
 [[breaking_80_transport_changes]]
 === Transport changes
 
+//tag::notable-breaking-changes[]
 [float]
 ==== Removal of old transport settings
 
@@ -17,3 +18,5 @@ setting that was introduced in 6.7.
 - `transport.profiles.profile_name.reuse_address` replaced by `transport.profiles.profile_name.tcp.reuse_address`
 - `transport.profiles.profile_name.send_buffer_size` replaced by `transport.profiles.profile_name.tcp.send_buffer_size`
 - `transport.profiles.profile_name.receive_buffer_size` replaced by `transport.profiles.profile_name.tcp.receive_buffer_size`
+
+// end::notable-breaking-changes[]

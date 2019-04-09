@@ -226,7 +226,6 @@ to a red cluster health. To be more precise, nodes with `node.data: false` will
 refuse to start if they find any shard data on disk at startup, and nodes with
 both `node.master: false` and `node.data: false` will refuse to start if they
 have any index metadata on disk at startup.
-// TODO what if there's cluster metadata on disk in this second case?
 
 It is possible to change the roles of a node by adjusting its
 `elasticsearch.yml` file and restarting it. This is known as _repurposing_ a

@@ -21,7 +21,7 @@ bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster
 
 This tool has three modes:
 
-* `elasticsearch-node repurpose` can be used to delete unwanted metadata from a
+* `elasticsearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a
   <<master-node,master-eligible node>> but has been repurposed not to have one
   or other of these roles.

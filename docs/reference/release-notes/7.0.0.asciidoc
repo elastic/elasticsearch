@@ -1,8 +1,6 @@
 [[release-notes-7.0.0]]
 == {es} version 7.0.0
 
-coming[7.0.0]
-
 //These release notes include all changes made in the alpha, beta, and RC
 //releases of 7.0.0. 
 

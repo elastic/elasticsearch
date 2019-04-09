@@ -101,7 +101,7 @@ public class DataFrameAnalyticsManager {
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
                         // TODO apply previously stored model state if applicable
-                        startAnalytics(task, config);
+                        startAnalytics(task, config, true);
                         break;
                     // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
                     // We will delete the destination index, recreate, reindex
@@ -139,7 +139,7 @@ public class DataFrameAnalyticsManager {
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
         // Reindexing is complete; start analytics
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> startAnalytics(task, config),
+            refreshResponse -> startAnalytics(task, config, false),
             task::markAsFailed
         );
 
@@ -177,7 +177,7 @@ public class DataFrameAnalyticsManager {
         createDestinationIndex(config.getSource().getIndex(), config.getDest().getIndex(), config.getHeaders(), copyIndexCreatedListener);
     }
 
-    private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+    private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, boolean isTaskRestarting) {
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
@@ -201,7 +201,7 @@ public class DataFrameAnalyticsManager {
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.create(client, config, dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.create(client, config, isTaskRestarting, dataExtractorFactoryListener);
     }
 
     private void createDestinationIndex(String sourceIndex, String destinationIndex, Map<String, String> headers,

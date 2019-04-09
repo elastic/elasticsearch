@@ -122,7 +122,6 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(throttledCount, greaterThan(0L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35506")
     public void testAckAllActions() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")

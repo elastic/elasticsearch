@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
@@ -36,6 +37,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
  * That's not to say the two cannot be merged however that felt like too much of an effort
  * at this stage and, to not keep things stalling, started with this approach.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40994")
 public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     private final CsvTestCase testCase;

@@ -1075,7 +1075,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             for (Detector detector : this.analysisConfig.getDetectors()) {
                 // While testing for equality, ignore detectorIndex field as this field is auto-generated.
                 Detector canonicalDetector = new Detector.Builder(detector).setDetectorIndex(0).build();
-                if (!canonicalDetectors.add(canonicalDetector)) {
+                if (canonicalDetectors.add(canonicalDetector) == false) {
                     throw new IllegalArgumentException(
                         Messages.getMessage(Messages.JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED, detector.getDetectorDescription()));
                 }

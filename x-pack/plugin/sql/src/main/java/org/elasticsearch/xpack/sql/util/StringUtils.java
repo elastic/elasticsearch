@@ -239,6 +239,34 @@ public abstract class StringUtils {
         return wildcard.toString();
     }
 
+    public static String likeToUnescaped(String pattern, char escape) {
+        StringBuilder wildcard = new StringBuilder(pattern.length());
+
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char curr = pattern.charAt(i);
+
+            if (escaped == false && curr == escape && escape != 0) {
+                escaped = true;
+            } else {
+                if (escaped == true && (curr == '%' || curr == '_' || curr == escape)) {
+                    wildcard.append(curr);
+                } else {
+                    if (escaped) {
+                        wildcard.append(escape);
+                    }
+                    wildcard.append(curr);
+                }
+                escaped = false;
+            }
+        }
+        // corner-case when the escape char is the last char
+        if (escaped == true) {
+            wildcard.append(escape);
+        }
+        return wildcard.toString();
+    }
+
     public static String toString(SearchSourceBuilder source) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true)) {
             source.toXContent(builder, ToXContent.EMPTY_PARAMS);

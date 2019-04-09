@@ -22,4 +22,4 @@ run {
 
 // No tests yet:
 integTest.enabled = false
-unitTest.enabled = false
+test.enabled = false

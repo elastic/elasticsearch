@@ -24,6 +24,9 @@ subprojects {
     from mainProject.file('src/test/resources')
   }
 
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
+
   dependencies {
     testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
   }

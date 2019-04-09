@@ -58,9 +58,9 @@ public final class NetworkService {
         Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
+        Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope,
+            Setting.Property.Deprecated);
 
     /**
      * A custom name resolver can support custom lookup keys (my_net_key:ipv4) and also change

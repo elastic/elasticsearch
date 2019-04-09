@@ -211,7 +211,9 @@ NULLIF           |CONDITIONAL
 NVL              |CONDITIONAL
 CURDATE          |SCALAR
 CURRENT_DATE     |SCALAR
+CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
+CURTIME          |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
 DAYOFMONTH       |SCALAR         
@@ -2359,18 +2361,28 @@ SELECT WEEK(CAST('1988-01-05T09:22:10Z' AS TIMESTAMP)) AS week, ISOWEEK(CAST('19
 
 
 currentDate-Ignore
-// tag::curDate
-SELECT CURRENT_TIMESTAMP AS result;
+// tag::currentDate
+SELECT CURRENT_DATE AS result;
 
          result
 ------------------------
 2018-12-12
-// end::curDate
+// end::currentDate
 ;
 
 currentDateFunction-Ignore
+// tag::currentDateFunction
+SELECT CURRENT_DATE() AS result;
+
+         result
+------------------------
+2018-12-12
+// end::currentDateFunction
+;
+
+curDateFunction-Ignore
 // tag::curDateFunction
-SELECT CURRENT_TIMESTAMP() AS result;
+SELECT CURDATE() AS result;
 
          result
 ------------------------
@@ -2388,7 +2400,7 @@ SELECT TODAY() AS result;
 // end::todayFunction
 ;
 
-filterToday
+filterToday-Ignore
 // tag::filterToday
 SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 5;
 
@@ -2401,6 +2413,63 @@ Mayumi
 Mingsen
 // end::filterToday
 ;
+
+
+currentTime-Ignore
+// tag::currentTime
+SELECT CURRENT_TIME AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTime
+;
+
+currentTimeFunction-Ignore
+// tag::currentTimeFunction
+SELECT CURRENT_TIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::currentTimeFunction
+;
+
+curTimeFunction-Ignore
+// tag::curTimeFunction
+SELECT CURTIME() AS result;
+
+         result
+------------------------
+12:31:27.237Z
+// end::curTimeFunction
+;
+
+currentTimeFunctionPrecision-Ignore
+// tag::currentTimeFunctionPrecision
+SELECT CURRENT_TIME(1) AS result;
+
+         result
+------------------------
+12:31:27.2Z
+// end::currentTimeFunctionPrecision
+;
+
+
+filterCurrentTime-Ignore
+// tag::filterCurrentTime
+SELECT first_name FROM emp WHERE CAST(hire_date AS TIME) > CURRENT_TIME() - INTERVAL 20 MINUTES ORDER BY first_name ASC LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+// end::filterCurrentTime
+;
+
 
 currentTimestamp-Ignore
 // tag::curTs
@@ -2485,3 +2554,25 @@ SELECT first_name, last_name FROM emp WHERE last_name NOT LIKE '%a%' AND first_n
  Anoosh        |Peyn
  Arumugam      |Ossenbruggen
 ;
+
+simpleLikeOperator
+// tag::simpleLike
+SELECT author, name FROM library WHERE name LIKE 'Dune%';
+
+    author     |     name
+---------------+---------------
+Frank Herbert  |Dune
+Frank Herbert  |Dune Messiah
+// end::simpleLike
+;
+
+simpleRLikeOperator
+// tag::simpleRLike
+SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
+
+    author     |      name
+---------------+----------------
+Frank Herbert  |Children of Dune
+// end::simpleRLike
+;
+

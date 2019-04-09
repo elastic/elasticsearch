@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
@@ -66,6 +67,10 @@ class JdbcConfiguration extends ConnectionConfiguration {
         NEVER,  // never escape
         ALWAYS, // escape if the char might be escaped
         AUTO;   // escape only if the escaping char is not encountered
+
+        static EscapeWildcard parse(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
     }
     
     
@@ -172,11 +177,11 @@ class JdbcConfiguration extends ConnectionConfiguration {
         this.fieldMultiValueLeniency = parseValue(FIELD_MULTI_VALUE_LENIENCY,
                 props.getProperty(FIELD_MULTI_VALUE_LENIENCY, FIELD_MULTI_VALUE_LENIENCY_DEFAULT), Boolean::parseBoolean);
         this.escapeWildcards = parseValue(COMPAT_META_ESCAPE_WILDCARDS,
-                props.getProperty(COMPAT_META_ESCAPE_WILDCARDS, COMPAT_META_ESCAPE_WILDCARDS_DEFAULT), EscapeWildcard::valueOf);
+                props.getProperty(COMPAT_META_ESCAPE_WILDCARDS, COMPAT_META_ESCAPE_WILDCARDS_DEFAULT), EscapeWildcard::parse);
     }
 
     @Override
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return OPTION_NAMES;
     }
 
@@ -210,9 +215,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     public DriverPropertyInfo[] driverPropertyInfo() {
         List<DriverPropertyInfo> info = new ArrayList<>();
-        for (String option : OPTION_NAMES) {
-            String value = null;
-            DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
+        for (String option : optionNames()) {
+            DriverPropertyInfo prop = new DriverPropertyInfo(option, null);
             info.add(prop);
         }
 

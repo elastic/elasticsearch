@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.assertNoSearchContexts;
 
 public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
@@ -137,9 +138,10 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      */
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.put("timezone", randomKnownTimeZone());
+        connectionProperties.put(JDBC_TIMEZONE, randomKnownTimeZone());
         // in the tests, don't be lenient towards multi values
         connectionProperties.put("field.multi.value.leniency", "false");
+        connectionProperties.put("compat.meta.escape.wildcards", "never");
         return connectionProperties;
     }
 

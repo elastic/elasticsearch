@@ -44,6 +44,8 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     static Connection es(Properties properties) throws SQLException {
         Properties props = new Properties();
         props.put("timezone", randomKnownTimeZone());
+        props.put("field.multi.value.leniency", "false");
+        props.put("compat.meta.escape.wildcards", "never");
         props.putAll(properties);
         String scheme = SSL_ENABLED ? "https" : "http";
         return DriverManager.getConnection("jdbc:es://" + scheme + "://" + elasticsearchAddress(), props);
@@ -232,13 +234,13 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         public void checkNoMonitorMain(String user) throws Exception {
             // Without monitor/main the JDBC driver - ES server version comparison doesn't take place, which fails everything else
             expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)));
-            expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMajorVersion()); 
+            expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMajorVersion());
             expectUnauthorized("cluster:monitor/main", user, () -> es(userProperties(user)).getMetaData().getDatabaseMinorVersion());
-            expectUnauthorized("cluster:monitor/main", user, 
+            expectUnauthorized("cluster:monitor/main", user,
                     () -> es(userProperties(user)).createStatement().executeQuery("SELECT * FROM test"));
-            expectUnauthorized("cluster:monitor/main", user, 
+            expectUnauthorized("cluster:monitor/main", user,
                     () -> es(userProperties(user)).createStatement().executeQuery("SHOW TABLES LIKE 'test'"));
-            expectUnauthorized("cluster:monitor/main", user, 
+            expectUnauthorized("cluster:monitor/main", user,
                     () -> es(userProperties(user)).createStatement().executeQuery("DESCRIBE test"));
         }
 
@@ -292,7 +294,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         expectActionMatchesAdmin(
                 con -> con.getMetaData().getColumns(null, "%", "%t", "%"),
             "full_access",
-                con -> con.getMetaData().getColumns(null, "%", "%", "%"));
+                con -> con.getMetaData().getColumns(null, "%", "%t", "%"));
     }
 
     public void testMetaDataGetColumnsWithNoAccess() throws Exception {

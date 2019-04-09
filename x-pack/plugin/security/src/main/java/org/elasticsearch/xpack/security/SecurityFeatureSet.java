@@ -150,10 +150,18 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
-        Map<String, Object> map = new HashMap<>(2);
-        map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
-        map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
-        return map;
+        // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
+        //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
+        // But, if security has not been explicitly configured, but has defaulted to off due to the current license type,
+        // then these SSL settings are still respected (that is SSL might be enabled, while the rest of security is disabled).
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+            Map<String, Object> map = new HashMap<>(2);
+            map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+            map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
+            return map;
+        } else {
+            return Collections.emptyMap();
+        }
     }
 
     static Map<String, Object> tokenServiceUsage(Settings settings) {

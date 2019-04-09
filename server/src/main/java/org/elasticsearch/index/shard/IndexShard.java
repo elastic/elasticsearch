@@ -947,9 +947,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        DocsStats docsStats = getEngine().docStats();
-        markSearcherAccessed();
-        return docsStats;
+        return getEngine().docStats();
     }
 
     /**
@@ -1028,11 +1026,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         try {
-            CompletionStats stats = getEngine().completionStats(fields);
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            return stats;
+            return getEngine().completionStats(fields);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -2694,9 +2688,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
+        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired,
+            (delegatedListener, releasable) -> {
                 if (opPrimaryTerm < getOperationPrimaryTerm()) {
                     releasable.close();
                     final String message = String.format(
@@ -2705,7 +2698,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId,
                         opPrimaryTerm,
                         getOperationPrimaryTerm());
-                    onPermitAcquired.onFailure(new IllegalStateException(message));
+                    delegatedListener.onFailure(new IllegalStateException(message));
                 } else {
                     assert assertReplicationTarget();
                     try {
@@ -2713,18 +2706,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
                     } catch (Exception e) {
                         releasable.close();
-                        onPermitAcquired.onFailure(e);
+                        delegatedListener.onFailure(e);
                         return;
                     }
-                    onPermitAcquired.onResponse(releasable);
+                    delegatedListener.onResponse(releasable);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                onPermitAcquired.onFailure(e);
-            }
-        };
+            });
 
         if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {

@@ -2,7 +2,6 @@ import org.elasticsearch.gradle.MavenFilteringHack
 
 import java.nio.file.Files
 import java.nio.file.Paths
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask;
 
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'nebula.maven-base-publish'
@@ -48,6 +47,9 @@ dependencies {
     testCompile project(path: ':modules:reindex', configuration: 'runtime')
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+    testCompile(project(':x-pack:license-tools')) {
+        transitive = false
+    }
     testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
@@ -85,8 +87,8 @@ forbiddenPatterns {
     exclude '**/*.zip'
 }
 
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
@@ -95,11 +97,11 @@ licenseHeaders {
 }
 
 // make LicenseSigner available for testing signed licenses
-sourceSets.test.java {
-    srcDir '../../license-tools/src/main/java'
+sourceSets.test.resources {
+    srcDir 'src/main/config'
 }
 
-unitTest {
+test {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -139,6 +141,6 @@ thirdPartyAudit.ignoreMissingClasses (
 integTest.enabled = false
 
 // There are some integ tests that don't require a cluster, we still want to run those
-task internalClusterTest(type: RandomizedTestingTask) {
+task internalClusterTest(type: Test) {
     include "**/*IT.class"
 }

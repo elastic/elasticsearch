@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
-public class LinearRingEdgeTreeWriter {
+public class EdgeTreeWriter {
 
     /**
      * | minY | maxY | x1 | y1 | x2 | y2 | right_offset |
@@ -38,7 +38,7 @@ public class LinearRingEdgeTreeWriter {
     int maxY = Integer.MIN_VALUE;
     final Edge tree;
 
-    public LinearRingEdgeTreeWriter(int[] x, int[] y) throws IOException {
+    public EdgeTreeWriter(int[] x, int[] y) {
         Edge edges[] = new Edge[y.length - 1];
         for (int i = 1; i < y.length; i++) {
             int y1 = y[i-1];
@@ -120,7 +120,7 @@ public class LinearRingEdgeTreeWriter {
         return newNode;
     }
 
-    private static class Edge implements Comparable<Edge> {
+    static class Edge implements Comparable<Edge> {
         final int x1;
         final int y1;
         final int x2;

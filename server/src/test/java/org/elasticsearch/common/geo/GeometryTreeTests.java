@@ -19,28 +19,26 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geo.geometry.LinearRing;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 
-public class EdgeTreeTests extends ESTestCase {
+public class GeometryTreeTests extends ESTestCase {
 
     public void testRectangleShape() throws IOException {
         for (int i = 0; i < 1000; i++) {
             int minX = randomIntBetween(-180, 170);
             int maxX = randomIntBetween(minX + 10, 180);
-            int minY = randomIntBetween(-180, 170);
-            int maxY = randomIntBetween(minY + 10, 180);
-            int[] x = new int[]{minX, maxX, maxX, minX, minX};
-            int[] y = new int[]{minY, minY, maxY, maxY, minY};
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
+            int minY = randomIntBetween(-90, 80);
+            int maxY = randomIntBetween(minY + 10, 90);
+            double[] x = new double[]{minX, maxX, maxX, minX, minX};
+            double[] y = new double[]{minY, minY, maxY, maxY, minY};
+            GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(y, x), Collections.emptyList()));
             BytesRef bytes = writer.toBytesRef();
-            EdgeTreeReader reader = new EdgeTreeReader(bytes);
+            GeometryTreeReader reader = new GeometryTreeReader(bytes);
 
             // box-query touches bottom-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180), minX, minY));
@@ -75,39 +73,10 @@ public class EdgeTreeTests extends ESTestCase {
         }
     }
 
-    public void testSimplePolygon() throws IOException  {
-        for (int iter = 0; iter < 1000; iter++) {
-            ShapeBuilder builder = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.POLYGON);
-            Polygon geo = (Polygon) builder.buildGeometry();
-            Rectangle box = builder.buildS4J().getBoundingBox();
-            int minXBox = (int) box.getMinX();
-            int minYBox = (int) box.getMinY();
-            int maxXBox = (int) box.getMaxX();
-            int maxYBox = (int) box.getMaxY();
-
-            int[] x = asIntArray(geo.getPolygon().getLons());
-            int[] y = asIntArray(geo.getPolygon().getLats());
-
-            EdgeTreeWriter writer = new EdgeTreeWriter(x, y);
-            EdgeTreeReader reader = new EdgeTreeReader(writer.toBytesRef());
-            // polygon fully contained within box
-            assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox, maxYBox));
-            // containedInOrCrosses
-            if (maxYBox - 1 >= minYBox) {
-                assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox, maxYBox - 1));
-            }
-            if (maxXBox -1 >= minXBox) {
-                assertTrue(reader.containedInOrCrosses(minXBox, minYBox, maxXBox - 1, maxYBox));
-            }
-            // does not cross
-            assertFalse(reader.containedInOrCrosses(maxXBox + 1, maxYBox + 1, maxXBox + 10, maxYBox + 10));
-        }
-    }
-
     public void testPacMan() throws Exception {
         // pacman
-        int[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        int[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
+        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
 
         // candidate containedInOrCrosses cell
         int xMin = 2;//-5;
@@ -116,16 +85,8 @@ public class EdgeTreeTests extends ESTestCase {
         int yMax = 1;//5;
 
         // test cell crossing poly
-        EdgeTreeWriter writer = new EdgeTreeWriter(px, py);
-        EdgeTreeReader reader = new EdgeTreeReader(writer.toBytesRef());
-        assertTrue(reader.containsBottomLeft(xMin, yMin, xMax, yMax));
-    }
-
-    private int[] asIntArray(double[] doub) {
-        int[] intArr = new int[doub.length];
-        for (int i = 0; i < intArr.length; i++) {
-            intArr[i] = (int) doub[i];
-        }
-        return intArr;
+        GeometryTreeWriter writer = new GeometryTreeWriter(new Polygon(new LinearRing(py, px), Collections.emptyList()));
+        GeometryTreeReader reader = new GeometryTreeReader(writer.toBytesRef());
+        assertTrue(reader.containedInOrCrosses(xMin, yMin, xMax, yMax));
     }
 }

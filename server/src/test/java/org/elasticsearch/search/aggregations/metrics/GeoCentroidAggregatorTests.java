@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.IndexReader;

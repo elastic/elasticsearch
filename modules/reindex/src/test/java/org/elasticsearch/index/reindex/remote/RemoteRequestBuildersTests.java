@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.DEPRECATED_URL_ENCODED_INDEX_WARNING;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.clearScroll;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.initialSearch;
 import static org.elasticsearch.index.reindex.remote.RemoteRequestBuilders.scroll;
@@ -82,6 +83,8 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // pass-through if already escaped.
         searchRequest.indices("%2f", "%3a");
         assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+
+        assertWarnings(DEPRECATED_URL_ENCODED_INDEX_WARNING);
 
         // do not allow , and / if already escaped.
         searchRequest.indices("%2fcat,");

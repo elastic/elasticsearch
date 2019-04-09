@@ -21,12 +21,14 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,6 +55,13 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * because the version constants have been removed.
  */
 final class RemoteRequestBuilders {
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(RemoteRequestBuilders.class));
+
+    static final String DEPRECATED_URL_ENCODED_INDEX_WARNING =
+        "Specifying index name using URL escaped index names for reindex from remote is deprecated. " +
+        "Instead specify index name without URL escaping.";
+
     private RemoteRequestBuilders() {}
 
     static Request initialSearch(SearchRequest searchRequest, BytesReference query, Version remoteVersion) {
@@ -173,6 +182,7 @@ final class RemoteRequestBuilders {
     private static String encodeIndex(String s) {
         if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
             checkIndexOrType("Index", s);
+            DEPRECATION_LOGGER.deprecated(DEPRECATED_URL_ENCODED_INDEX_WARNING);
             return s;
         }
         try {

@@ -15,20 +15,3 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
-[[search-request-version]]
-=== Version
-
-Returns a version for each search hit.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "version": true,
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
-}
---------------------------------------------------
-// CONSOLE

@@ -315,7 +315,7 @@ a `function_score` , this new field and query can efficiently skip documents
 that no longer have competitive scores.  This speedup is enabled due to the new
 Block-max WAND support in Lucene, and can lead to astonishingly large
 speedups because large stretches of the index can now be skipped entirely.
-
+//end::notable-highlights[]
 
 //tag::notable-highlights[]
 [float]

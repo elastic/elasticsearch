@@ -441,6 +441,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         float expectedMaxScore = Float.NEGATIVE_INFINITY;
         int numIndices = requestedSize == 0 ? 0 : randomIntBetween(1, requestedSize);
         Iterator<Map.Entry<String, Index[]>> indicesIterator = randomRealisticIndices(numIndices, numResponses).entrySet().iterator();
+        boolean hasHits = false;
         for (int i = 0; i < numResponses; i++) {
             Map.Entry<String, Index[]> entry = indicesIterator.next();
             String clusterAlias = entry.getKey();
@@ -464,6 +465,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             float maxScore = scoreSort ? numDocs * scoreFactor : Float.NaN;
             SearchHit[] hits = randomSearchHitArray(numDocs, numResponses, clusterAlias, indices, maxScore, scoreFactor,
                 sortFields, priorityQueue);
+            hasHits |= hits.length > 0;
             expectedMaxScore = Math.max(expectedMaxScore, maxScore);
 
             Object[] collapseValues = null;
@@ -512,8 +514,14 @@ public class SearchResponseMergerTests extends ESTestCase {
         assertNull(searchResponse.getScrollId());
 
         SearchHits searchHits = searchResponse.getHits();
-        assertArrayEquals(sortFields, searchHits.getSortFields());
-        assertEquals(collapseField, searchHits.getCollapseField());
+        // the sort fields and the collapse field are not returned when hits are empty
+        if (hasHits) {
+            assertArrayEquals(sortFields, searchHits.getSortFields());
+            assertEquals(collapseField, searchHits.getCollapseField());
+        } else {
+            assertNull(searchHits.getSortFields());
+            assertNull(searchHits.getCollapseField());
+        }
         if (expectedTotalHits == null) {
             assertNull(searchHits.getTotalHits());
         } else {
@@ -531,7 +539,9 @@ public class SearchResponseMergerTests extends ESTestCase {
             priorityQueue.poll();
         }
         SearchHit[] hits = searchHits.getHits();
-        if (collapseField != null) {
+        if (collapseField != null
+                // the collapse field is not returned when hits are empty
+                && hasHits) {
             assertEquals(hits.length, searchHits.getCollapseValues().length);
         } else {
             assertNull(searchHits.getCollapseValues());

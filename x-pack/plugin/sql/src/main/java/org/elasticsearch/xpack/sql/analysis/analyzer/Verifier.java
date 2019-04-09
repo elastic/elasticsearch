@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -228,9 +226,6 @@ public final class Verifier {
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
-                validateInExpression(p, localFailures);
-                validateConditional(p, localFailures);
-
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures);
                 checkFilterOnGrouping(p, localFailures);
@@ -298,7 +293,8 @@ public final class Verifier {
         return checkGroupByInexactField(p, localFailures)
                 && checkGroupByAgg(p, localFailures, resolvedFunctions)
                 && checkGroupByOrder(p, localFailures, groupingFailures)
-                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions);
+                && checkGroupByHaving(p, localFailures, groupingFailures, resolvedFunctions)
+                && checkGroupByTime(p, localFailures);
     }
 
     // check whether an orderBy failed or if it occurs on a non-key
@@ -473,10 +469,26 @@ public final class Verifier {
             a.groupings().forEach(e -> e.forEachUp(c -> {
                 EsField.Exact exact = c.getExactInfo();
                 if (exact.hasExact() == false) {
-                    localFailures.add(fail(c, "Field of data type [" + c.dataType().typeName + "] cannot be used for grouping; " +
-                        exact.errorMsg()));
+                    localFailures.add(fail(c, "Field [" + c.sourceText()  + "] of data type [" + c.dataType().typeName + "] " +
+                        "cannot be used for grouping; " + exact.errorMsg()));
                 }
             }, FieldAttribute.class));
+        }
+        return true;
+    }
+
+    private static boolean checkGroupByTime(LogicalPlan p, Set<Failure> localFailures) {
+        if (p instanceof Aggregate) {
+            Aggregate a = (Aggregate) p;
+
+            // TIME data type is not allowed for grouping key
+            // https://github.com/elastic/elasticsearch/issues/40639
+            a.groupings().forEach(f -> {
+                if (f.dataType().isTimeBased()) {
+                    localFailures.add(fail(f, "Function [" + f.sourceText()  + "] with data type [" + f.dataType().typeName +
+                        "] " + "cannot be used for grouping"));
+                }
+            });
         }
         return true;
     }
@@ -705,54 +717,6 @@ public final class Verifier {
         if (!nested.isEmpty()) {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
-        }
-    }
-
-    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachExpressions(e ->
-            e.forEachUp((In in) -> {
-                    DataType dt = in.value().dataType();
-                    for (Expression value : in.list()) {
-                        if (areTypesCompatible(dt, value.dataType()) == false) {
-                            localFailures.add(fail(value, "expected data type [{}], value provided is of type [{}]",
-                                dt.typeName, value.dataType().typeName));
-                            return;
-                        }
-                    }
-                },
-                In.class));
-    }
-
-    private static void validateConditional(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachExpressions(e ->
-            e.forEachUp((ConditionalFunction cf) -> {
-                    DataType dt = DataType.NULL;
-
-                    for (Expression child : cf.children()) {
-                        if (dt == DataType.NULL) {
-                            if (Expressions.isNull(child) == false) {
-                                dt = child.dataType();
-                            }
-                        } else {
-                            if (areTypesCompatible(dt, child.dataType()) == false) {
-                                localFailures.add(fail(child, "expected data type [{}], value provided is of type [{}]",
-                                    dt.typeName, child.dataType().typeName));
-                                return;
-                            }
-                        }
-                    }
-                },
-                ConditionalFunction.class));
-    }
-
-    private static boolean areTypesCompatible(DataType left, DataType right) {
-        if (left == right) {
-            return true;
-        } else {
-            return
-                (left == DataType.NULL || right == DataType.NULL) ||
-                (left.isString() && right.isString()) ||
-                (left.isNumeric() && right.isNumeric());
         }
     }
 }

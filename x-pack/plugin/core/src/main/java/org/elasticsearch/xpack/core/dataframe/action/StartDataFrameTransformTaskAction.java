@@ -7,17 +7,15 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -39,7 +37,7 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> {
 
         private String id;
 
@@ -66,14 +64,13 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public boolean match(Task task) {
+            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override
@@ -91,13 +88,6 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StartDataFrameTransformTaskAction action) {
-            super(client, action, new Request());
         }
     }
 

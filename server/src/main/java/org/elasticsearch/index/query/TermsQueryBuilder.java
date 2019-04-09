@@ -27,7 +27,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -464,22 +463,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             ? new GetRequest(termsLookup.index(), termsLookup.id())
             : new GetRequest(termsLookup.index(), termsLookup.type(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
-        client.get(getRequest, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getResponse) {
-                List<Object> terms = new ArrayList<>();
-                if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
-                    List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
-                    terms.addAll(extractedValues);
-                }
-                actionListener.onResponse(terms);
+        client.get(getRequest, ActionListener.delegateFailure(actionListener, (delegatedListener, getResponse) -> {
+            List<Object> terms = new ArrayList<>();
+            if (getResponse.isSourceEmpty() == false) { // extract terms only if the doc source exists
+                List<Object> extractedValues = XContentMapValues.extractRawValues(termsLookup.path(), getResponse.getSourceAsMap());
+                terms.addAll(extractedValues);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+            delegatedListener.onResponse(terms);
+        }));
     }
 
     @Override

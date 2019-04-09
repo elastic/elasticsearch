@@ -1090,6 +1090,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40929")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
@@ -1145,9 +1146,9 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
         if (shouldRollback) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Collections.max(
-                Arrays.asList(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes, globalCheckpoint, globalCheckpointOnReplica))
-            ));
+            // we conservatively roll MSU forward to maxSeqNo during restoreLocalHistory, ideally it should become just
+            // currentMaxSeqNoOfUpdates
+            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         } else {
             assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes)));
         }
@@ -1460,6 +1461,12 @@ public class IndexShardTests extends IndexShardTestCase {
                     return super.listAll();
                 }
             }
+
+            // temporary override until LUCENE-8735 is integrated
+            @Override
+            public Set<String> getPendingDeletions() throws IOException {
+                return in.getPendingDeletions();
+            }
         };
 
         try (Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory)) {
@@ -1508,6 +1515,33 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "test");
         shard.writeIndexingBuffer();
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+2));
+        closeShards(shard);
+    }
+
+    public void testExternalRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L)); // refresh on: finalize and end of recovery
+        long initialTotalTime = shard.refreshStats().getExternalTotalTimeInMillis();
+        // check time advances
+        for (int i = 1; shard.refreshStats().getExternalTotalTimeInMillis() == initialTotalTime; i++) {
+            indexDoc(shard, "_doc", "test");
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i - 1));
+            shard.refresh("test");
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getExternalTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+        }
+        long externalRefreshCount = shard.refreshStats().getExternalTotal();
+
+        indexDoc(shard, "_doc", "test");
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
+            new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+            assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1));
+        }
+        indexDoc(shard, "_doc", "test");
+        shard.writeIndexingBuffer();
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
+        assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 2));
         closeShards(shard);
     }
 
@@ -2734,7 +2768,7 @@ public class IndexShardTests extends IndexShardTestCase {
             });
             long prevAccessTime = shard.getLastSearcherAccess();
             indexShard.completionStats();
-            assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
+            assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
         } finally {
             closeShards(indexShard);
         }
@@ -2764,7 +2798,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 });
                 long prevAccessTime = shard.getLastSearcherAccess();
                 final DocsStats docsStats = indexShard.docStats();
-                assertThat("searcher was not marked as accessed", shard.getLastSearcherAccess(), greaterThan(prevAccessTime));
+                assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
                 try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                     assertTrue(searcher.reader().numDocs() <= docsStats.getCount());
@@ -3147,9 +3181,13 @@ public class IndexShardTests extends IndexShardTestCase {
         int localCheckpoint = offset;
         int max = offset;
         boolean gap = false;
+        Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
             if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
-                final String id = Integer.toString(i);
+                final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
+                if (ids.add(id) == false) { // this is an update
+                    indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
+                }
                 SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "_doc", id,
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i, 1,

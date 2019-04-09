@@ -1168,4 +1168,15 @@ public abstract class EngineTestCase extends ESTestCase {
             return get();
         }
     }
+
+    public static void createEmptyIndex(EngineConfig engineConfig) throws IOException {
+        final Store store = engineConfig.getStore();
+        final Directory directory = store.directory();
+        if (Lucene.indexExists(directory) == false) {
+            store.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
+            final String translogUuid = Translog.createEmptyTranslog(engineConfig.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED, engineConfig.getShardId(), engineConfig.getPrimaryTermSupplier().getAsLong());
+            store.associateIndexWithNewTranslog(translogUuid);
+        }
+    }
 }

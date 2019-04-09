@@ -19,12 +19,13 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
@@ -133,34 +135,35 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         }
     }
 
-    public void testEnsureMaxSeqNoIsEqualToGlobalCheckpoint() throws IOException {
+    public void testEnsureNoUncommittedOperations() throws Exception {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            final int numDocs = scaledRandomIntBetween(10, 100);
+            boolean hasPendingOps = false;
+            List<Engine.Operation> ops = generateHistoryOnReplica(between(10, 500), randomBoolean(), false, randomBoolean());
+            Randomness.shuffle(ops);
+            final DocsStats docStats;
             try (InternalEngine engine = createEngine(config)) {
-                long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-                for (int i = 0; i < numDocs; i++) {
-                    ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-                    engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
-                    maxSeqNo = engine.getLocalCheckpoint();
+                for (Engine.Operation op : ops) {
+                    hasPendingOps = true;
+                    applyOperation(engine, op);
+                    if (rarely()) {
+                        engine.flush(true, true);
+                        hasPendingOps = false;
+                    }
                 }
-                globalCheckpoint.set(engine.getLocalCheckpoint() - 1);
-                engine.syncTranslog();
-                engine.flushAndClose();
-
-                IllegalStateException exception = expectThrows(IllegalStateException.class,
-                    () -> new ReadOnlyEngine(config, null, null, true, Function.identity()) {
-                        @Override
-                        protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
-                            // we don't want the assertion to trip in this test
-                            return true;
-                        }
-                    });
-                assertThat(exception.getMessage(), equalTo("Maximum sequence number [" + maxSeqNo
-                    + "] from last commit does not match global checkpoint [" + globalCheckpoint.get() + "]"));
+                engine.refresh("test");
+                docStats = engine.docStats();
+            }
+            if (hasPendingOps) {
+                AssertionError error = expectThrows(AssertionError.class,
+                    () -> new ReadOnlyEngine(config, null, null, randomBoolean(), Function.identity()));
+                assertThat(error.getMessage(), containsString("does not contain operation"));
+            } else {
+                try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, randomBoolean(), Function.identity())) {
+                    assertThat(readOnlyEngine.docStats(), equalTo(docStats));
+                }
             }
         }
     }
@@ -170,7 +173,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
+            createEmptyIndex(config);
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 Class<? extends Throwable> expectedException = LuceneTestCase.TEST_ASSERTS_ENABLED ? AssertionError.class :
                     UnsupportedOperationException.class;
@@ -191,7 +194,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            store.createEmpty(Version.CURRENT.luceneVersion);
+            createEmptyIndex(config);
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {

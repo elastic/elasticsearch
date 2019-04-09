@@ -36,11 +36,13 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.Closeable;
@@ -100,15 +102,15 @@ public class ReadOnlyEngine extends Engine {
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
-                if (seqNoStats == null) {
-                    seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
-                    ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
-                }
-                this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 reader = open(indexCommit);
                 reader = wrapReader(reader, readerWrapperFunction);
                 searcherManager = new SearcherManager(reader, searcherFactory);
+                if (seqNoStats == null) {
+                    seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
+                    ensureNoUncommittedOperation(seqNoStats, lastCommittedSegmentInfos);
+                }
+                this.seqNoStats = seqNoStats;
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
@@ -122,27 +124,40 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
-        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
-        // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
-        // checkpoint is different from the unassigned sequence number value.
-        // In addition to that we only execute the check if the index the engine belongs to has been
-        // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
-        // that guarantee that all operations have been flushed to Lucene.
-        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_1_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
-            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
-                throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
-                    + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+    /**
+     * Ensures that all operations exist in translog are committed into the given index commit. This check is mandatory
+     * so peer recovery of closed indices can skip phase 2 (i.e., not replaying translog operations) without losing data.
+     */
+    private void ensureNoUncommittedOperation(SeqNoStats seqNoStats, SegmentInfos segmentInfos) throws IOException {
+        // we can't enforce this check on an old index - should we prevent this engine as a recovery source?
+        if (config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_7_0)) {
+            return;
+        }
+        final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
+        final Translog.TranslogGeneration recoverTranslogGeneration = new Translog.TranslogGeneration(
+            translogUUID, Long.parseLong(segmentInfos.userData.get(Translog.TRANSLOG_GENERATION_KEY)));
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(Long.MAX_VALUE, Long.MAX_VALUE);
+        translogDeletionPolicy.setTranslogGenerationOfLastCommit(recoverTranslogGeneration.translogFileGeneration);
+        translogDeletionPolicy.setMinTranslogGenerationForRecovery(recoverTranslogGeneration.translogFileGeneration);
+        final LocalCheckpointTracker localCheckpointTracker;
+        try (DirectoryReader reader = DirectoryReader.open(indexCommit)) {
+            localCheckpointTracker = createLocalCheckpointTracker(engineConfig, segmentInfos, logger,
+                () -> new Searcher("build_checkpoint_tracker", new IndexSearcher(reader), () -> {}), LocalCheckpointTracker::new);
+        }
+        try (Translog translog = new Translog(engineConfig.getTranslogConfig(), translogUUID, translogDeletionPolicy,
+            engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier())) {
+            try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(recoverTranslogGeneration, Long.MAX_VALUE)) {
+                Translog.Operation op;
+                while ((op = snapshot.next()) != null) {
+                    if (localCheckpointTracker.contains(op.seqNo()) == false) {
+                        final String message = "index commit [" + segmentInfos + "] " +
+                            "seq_no_stats [" + seqNoStats + "] does not contain operation [" + op + "]";
+                        assert false : message;
+                        throw new IllegalStateException(message);
+                    }
+                }
             }
         }
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getMaxSeqNo());
-    }
-
-    protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
-        assert maxSeqNo == globalCheckpoint : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
-        return true;
     }
 
     @Override

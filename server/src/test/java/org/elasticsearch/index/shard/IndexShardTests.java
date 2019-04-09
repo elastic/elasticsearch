@@ -3831,13 +3831,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardRouting readonlyShardRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true,
             ShardRoutingState.INITIALIZING, RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final IndexShard readonlyShard = reinitShard(shard, readonlyShardRouting,
-            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, false, Function.identity()) {
-                @Override
-                protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(SeqNoStats seqNoStats) {
-                    // just like a following shard, we need to skip this check for now.
-                }
-            }
-        );
+            engineConfig -> new ReadOnlyEngine(engineConfig, null, null, false, Function.identity()));
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         readonlyShard.markAsRecovering("store", new RecoveryState(readonlyShard.routingEntry(), localNode, null));
         assertTrue(readonlyShard.recoverFromStore());

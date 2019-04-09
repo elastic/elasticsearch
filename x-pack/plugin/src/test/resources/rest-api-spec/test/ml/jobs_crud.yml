@@ -1027,7 +1027,7 @@
 "Test put job with duplicate detector configurations":
 
   - do:
-      catch: /illegal_argument_exception.*Specifying duplicate detectors is disallowed/
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
       ml.put_job:
         job_id: jobs-crud-duplicate-detectors
         body:  >
@@ -1045,7 +1045,7 @@
           }
 
   - do:
-      catch: /illegal_argument_exception.*Specifying duplicate detectors is disallowed/
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
       ml.put_job:
         job_id: jobs-crud-duplicate-detectors-with-explicit-indices
         body:  >

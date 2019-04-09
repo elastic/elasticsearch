@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -40,6 +41,11 @@ import static org.hamcrest.Matchers.greaterThan;
 public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testWatchesKeepRunning() throws Exception {
+        if (UPGRADED_FROM_VERSION.before(Version.V_6_0_0)) {
+            logger.info("Skipping test. Upgrading from before 6.0 makes this test too complicated.");
+            return;
+        }
+
         final int numWatches = 16;
 
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
@@ -88,7 +94,6 @@ public class WatcherUpgradeIT extends AbstractUpgradeTestCase {
                 }, 30, TimeUnit.SECONDS);
             }
         }
-
     }
 
     private int getWatchHistoryEntriesCount() throws IOException {

@@ -726,7 +726,7 @@ public final class TokenService {
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         if (refreshToken.length() == TOKEN_ID_LENGTH) {
             // first check if token has the old format before the new version-prepended one
-            logger.debug("Assuming an unversioned refresh token [{}}, generated for node versions"
+            logger.debug("Assuming an unversioned refresh token [{}], generated for node versions"
                     + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {

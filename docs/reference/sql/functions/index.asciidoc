@@ -49,6 +49,7 @@
 * <<sql-functions-datetime-interval, Date-Time Operators>>
 * <<sql-functions-current-date, Date-Time Functions>>
 ** <<sql-functions-current-date>>
+** <<sql-functions-current-time>>
 ** <<sql-functions-current-timestamp>>
 ** <<sql-functions-datetime-day>>
 ** <<sql-functions-datetime-dow>>

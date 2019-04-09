@@ -29,7 +29,7 @@ expression_list: expression (',' expression);
 +
 [source,Painless]
 ----
-<1> int[] x = new int[] {1, 2, 3};
+int[] x = new int[] {1, 2, 3}; <1>
 ----
 +
 <1> declare `int[] x`;
@@ -44,12 +44,12 @@ expression_list: expression (',' expression);
 +
 [source,Painless]
 ----
-<1> int i = 1;
-<2> long l = 2L;
-<3> float f = 3.0F;
-<4> double d = 4.0;
-<5> String s = "5";
-<6> def array = new def[] {i, l, f*d, s};
+int i = 1;      <1>
+long l = 2L;    <2>
+float f = 3.0F; <3>
+double d = 4.0; <4>
+String s = "5"; <5>
+def array = new def[] {i, l, f*d, s}; <6>
 ----
 +
 <1> declare `int i`;
@@ -114,12 +114,12 @@ brace_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> int[] x = new int[2];
-<2> x[0] = 2;
-<3> x[1] = 5;
-<4> int y = x[0] + x[1];
-<5> int z = 1;
-<6> int i = x[z];
+int[] x = new int[2]; <1>
+x[0] = 2;             <2>
+x[1] = 5;             <3>
+int y = x[0] + x[1];  <4>
+int z = 1;            <5>
+int i = x[z];         <6>
 ----
 +
 <1> declare `int[] x`;
@@ -149,12 +149,12 @@ brace_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> def d = new int[2];
-<2> d[0] = 2;
-<3> d[1] = 5;
-<4> def x = d[0] + d[1];
-<5> def y = 1;
-<6> def z = d[y];
+def d = new int[2];  <1>
+d[0] = 2;            <2>
+d[1] = 5;            <3>
+def x = d[0] + d[1]; <4>
+def y = 1;           <5>
+def z = d[y];        <6>
 ----
 +
 <1> declare `def d`;
@@ -199,9 +199,9 @@ brace_access: '[' expression ']'
 +
 [source,Painless]
 ----
-<1> int[][][] ia3 = new int[2][3][4];
-<2> ia3[1][2][3] = 99;
-<3> int i = ia3[1][2][3];
+int[][][] ia3 = new int[2][3][4]; <1>
+ia3[1][2][3] = 99;                <2>
+int i = ia3[1][2][3];             <3>
 ----
 +
 <1> declare `int[][][] ia`;
@@ -230,8 +230,8 @@ from an array type value.
 +
 [source,Painless]
 ----
-<1> int[] x = new int[10];
-<2> int l = x.length;
+int[] x = new int[10]; <1>
+int l = x.length;      <2>
 ----
 <1> declare `int[] x`;
     allocate `1-d int array` instance with `length [2]`
@@ -269,10 +269,10 @@ new_array: 'new' TYPE ('[' expression ']')+;
 +
 [source,Painless]
 ----
-<1> int[] x = new int[5];
-<2> x = new int[10];
-<3> int y = 2;
-<4> def z = new def[y][y*2];
+int[] x = new int[5];    <1>
+x = new int[10];         <2>
+int y = 2;               <3>
+def z = new def[y][y*2]; <4>
 ----
 +
 <1> declare `int[] x`;

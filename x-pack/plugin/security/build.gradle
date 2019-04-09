@@ -136,6 +136,11 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
+processTestResources {
+    from(project(xpackModule('core')).file('src/main/config'))
+    from(project(xpackModule('core')).file('src/test/resources'))
+}
+
 configurations {
     testArtifacts.extendsFrom testRuntime
 }
@@ -148,10 +153,7 @@ artifacts {
     archives jar
     testArtifacts testJar
 }
-sourceSets.test.resources {
-    srcDir '../core/src/test/resources'
-    srcDir '../core/src/main/config'
-}
+
 dependencyLicenses {
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
     mapping from: /http.*/, to: 'httpclient'
@@ -284,27 +286,26 @@ thirdPartyAudit {
     )
 }
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-    thirdPartyAudit.ignoreMissingClasses(
-        'javax.xml.bind.JAXBContext',
-        'javax.xml.bind.JAXBElement',
-        'javax.xml.bind.JAXBException',
-        'javax.xml.bind.Unmarshaller',
-        'javax.xml.bind.UnmarshallerHandler', 
-        'javax.activation.ActivationDataFlavor',
-        'javax.activation.DataContentHandler',
-        'javax.activation.DataHandler',
-        'javax.activation.DataSource',
-        'javax.activation.FileDataSource',
-        'javax.activation.FileTypeMap'
-    )
-}
+thirdPartyAudit.ignoreMissingClasses(
+    'javax.xml.bind.JAXBContext',
+    'javax.xml.bind.JAXBElement',
+    'javax.xml.bind.JAXBException',
+    'javax.xml.bind.Unmarshaller',
+    'javax.xml.bind.UnmarshallerHandler',
+    'javax.activation.ActivationDataFlavor',
+    'javax.activation.DataContentHandler',
+    'javax.activation.DataHandler',
+    'javax.activation.DataSource',
+    'javax.activation.FileDataSource',
+    'javax.activation.FileTypeMap'
+)
+
 
 run {
     plugin xpackModule('core')
 }
 
-unitTest {
+test {
     /*
      * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
      * other if we allow them to set the number of available processors as it's set-once in Netty.

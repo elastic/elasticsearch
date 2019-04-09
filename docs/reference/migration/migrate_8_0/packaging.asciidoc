@@ -1,0 +1,11 @@
+[float]
+[[breaking_80_packaging_changes]]
+=== Packaging changes
+
+//tag::notable-breaking-changes[]
+[float]
+==== Java 11 is required
+
+Java 11 or higher is now required to run Elasticsearch and any of its command
+line tools.
+//end::notable-breaking-changes[]

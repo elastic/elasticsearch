@@ -127,50 +127,27 @@ public class FieldHitExtractor implements HitExtractor {
         if (values == null) {
             return null;
         }
-        if (dataType == DataType.GEO_POINT) {
-            Object value;
-            if (values instanceof List) {
-                List<?> list = (List<?>) values;
-                if (list.isEmpty()) {
-                    // we get geo_points from doc values and they were not specified for this record
-                    return null;
-                }
-                if (((List<?>) values).size() == 1) {
-                    value = ((List<?>) values).get(0);
-                } else {
-                    // This could be a single point in [lon, lat] or [lon, lat, alt] format or multiple points
-                    if ((list.size() == 2 || list.size() == 3) && (list.get(0) instanceof Number)) {
-                        // this looks like a single geo_point in the array format
-                        value = values;
-                    } else {
-                        // most likely we have multiple points
-                        if (arrayLeniency) {
-                            value = list.get(0);
-                        } else {
-                            throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
-                        }
-                    }
-                }
-            } else {
-                value = values;
-            }
-            try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
-                return new GeoShape(geoPoint.lon(), geoPoint.lat());
-            } catch (ElasticsearchParseException ex) {
-                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", value, fieldName);
-            }
-        }
         if (values instanceof List) {
             List<?> list = (List<?>) values;
             if (list.isEmpty()) {
                 return null;
             } else {
-                if (arrayLeniency || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                // let's make sure first that we are not dealing with an geo_point represented as an array
+                if (isGeoPointArray(list) == false) {
+                    if (list.size() == 1 || arrayLeniency) {
+                        return unwrapMultiValue(list.get(0));
+                    } else {
+                        throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    }
                 }
+            }
+        }
+        if (dataType == DataType.GEO_POINT) {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName);
             }
         }
         if (dataType == DataType.GEO_SHAPE) {
@@ -192,6 +169,17 @@ public class FieldHitExtractor implements HitExtractor {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType != DataType.GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -96,8 +96,8 @@ licenseHeaders {
 }
 
 // make LicenseSigner available for testing signed licenses
-sourceSets.test.java {
-    srcDir '../../license-tools/src/main/java'
+sourceSets.test.resources {
+    srcDir 'src/main/config'
 }
 
 test {

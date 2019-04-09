@@ -30,6 +30,7 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         assertEquals("f%_b", escapeStringPattern("f%_b", NEVER));
         assertEquals("f\\_b", escapeStringPattern("f\\_b", NEVER));
         assertEquals(null, escapeStringPattern(null, NEVER));
+        assertEquals("f\\_b\\", escapeStringPattern("f\\_b\\", NEVER));
     }
 
     public void testEscapeWildcardAlways() {
@@ -39,6 +40,7 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         assertEquals("f\\_", escapeStringPattern("f_", ALWAYS));
         assertEquals("f\\\\_", escapeStringPattern("f\\_", ALWAYS));
         assertEquals("f\\%\\_", escapeStringPattern("f%_", ALWAYS));
+        assertEquals("f\\_b\\", escapeStringPattern("f\\_b\\", ALWAYS));
     }
 
     public void testEscapeWildcardAuto() {
@@ -52,5 +54,6 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         assertEquals("%foo\\_", escapeStringPattern("%foo\\_", AUTO));
         assertEquals("%foo\\_", escapeStringPattern("%foo_", AUTO));
         assertEquals("\\_foo\\_", escapeStringPattern("_foo_", AUTO));
+        assertEquals("f_b\\", escapeStringPattern("f\\_b\\", AUTO));
     }
 }

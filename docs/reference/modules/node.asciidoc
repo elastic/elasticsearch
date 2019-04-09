@@ -205,6 +205,49 @@ dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack,
 endif::include-xpack[]
 
 [float]
+[[change-node-role]]
+=== Changing the role of a node
+
+Each data node maintains the following data on disk:
+
+* the shard data for every shard allocated to that node,
+* the index metadata corresponding with every shard allocated to that node, and
+* the cluster-wide metadata, such as settings and index templates.
+
+Similarly, each master-eligible node maintains the following data on disk:
+
+* the index metadata for every index in the cluster, and
+* the cluster-wide metadata, such as settings and index templates.
+
+Each node checks the contents of its data path at startup. If it discovers
+unexpected data then it will refuse to start. This is to avoid importing
+unwanted <<modules-gateway-dangling-indices,dangling indices>> which can lead
+to a red cluster health. To be more precise, nodes with `node.data: false` will
+refuse to start if they find any shard data on disk at startup, and nodes with
+both `node.master: false` and `node.data: false` will refuse to start if they
+have any index metadata on disk at startup.
+
+It is possible to change the roles of a node by adjusting its
+`elasticsearch.yml` file and restarting it. This is known as _repurposing_ a
+node. In order to satisfy the checks for unexpected data described above, you
+must perform some extra steps to prepare a node for repurposing when setting
+its `node.data` or `node.master` roles to `false`:
+
+* If you want to repurpose a data node by changing `node.data` to `false` then
+  you should first use an <<allocation-filtering,allocation filter>> to safely
+  migrate all the shard data onto other nodes in the cluster.
+
+* If you want to repurpose a node to have both `node.master: false` and
+  `node.data: false` then it is simplest to start a brand-new node with an
+  empty data path and the desired roles. You may find it safest to use an
+  <<allocation-filtering,allocation filter>> to migrate the shard data
+  elsewhere in the cluster first.
+
+If it is not possible to follow these extra steps then you may be able to use
+the <<node-tool-repurpose,`elasticsearch-node repurpose`>> tool to delete any
+excess data that prevents a node from starting.
+
+[float]
 == Node data path settings
 
 [float]

@@ -29,7 +29,7 @@ check {
   dependsOn 'qa:gce:check'
 }
 
-unitTest {
+test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name 
 }

@@ -91,6 +91,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("shard", shardId());
         builder.field("index", index());
         builder.field("status", status.name());
@@ -99,6 +100,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
             ElasticsearchException.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

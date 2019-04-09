@@ -21,7 +21,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -58,7 +59,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         return Response::new;
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
         private String id;
 
         public Request(String id) {

@@ -69,10 +69,10 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(TIME, to);
             assertNull(conversion.convert(null));
-            assertEquals("00:02:03.456", conversion.convert(asTimeOnly(123456L)));
-            assertEquals("21:33:09.101", conversion.convert(asTimeOnly(123456789101L)));
-            assertEquals("23:57:56.544", conversion.convert(asTimeOnly(-123456L)));
-            assertEquals("02:26:50.899", conversion.convert(asTimeOnly(-123456789101L)));
+            assertEquals("00:02:03.456Z", conversion.convert(asTimeOnly(123456L)));
+            assertEquals("21:33:09.101Z", conversion.convert(asTimeOnly(123456789101L)));
+            assertEquals("23:57:56.544Z", conversion.convert(asTimeOnly(-123456L)));
+            assertEquals("02:26:50.899Z", conversion.convert(asTimeOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);

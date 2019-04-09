@@ -68,10 +68,6 @@ dependencies {
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
 }
 
-// TODO: stop using LanguageIdentifier...
-compileJava.options.compilerArgs << "-Xlint:-deprecation"
-
-
 dependencyLicenses {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }

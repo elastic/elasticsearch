@@ -27,7 +27,9 @@
   - match: { type: "Bearer" }
   - is_true: access_token
   - set: { access_token: token }
-  - match: { expires_in: 1200 }
+  - is_true: refresh_token
+  - set: { refresh_token: refresh_token }
+  - match: { expires_in: 3600 }
   - is_false: scope
 
   - do:

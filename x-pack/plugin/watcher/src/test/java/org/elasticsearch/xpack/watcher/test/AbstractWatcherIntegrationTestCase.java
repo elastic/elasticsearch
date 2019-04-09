@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -580,6 +582,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected static class TimeWarp {
+        private static final Logger logger = LogManager.getLogger(TimeWarp.class);
 
         private final List<ScheduleTriggerEngineMock> schedulers;
         private final ClockMock clock;
@@ -598,9 +601,14 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
 
         public void trigger(String watchId, int times, TimeValue timeValue) {
-            boolean isTriggered = schedulers.stream().anyMatch(scheduler -> scheduler.trigger(watchId, times, timeValue));
-            String msg = String.format(Locale.ROOT, "could not find watch [%s] to trigger", watchId);
-            assertThat(msg, isTriggered, is(true));
+            long triggeredCount = schedulers.stream()
+                .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
+                .count();
+            String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+            if (triggeredCount > 1) {
+                logger.warn(msg);
+            }
+            assertThat(msg, triggeredCount, greaterThanOrEqualTo(1L));
         }
     }
 

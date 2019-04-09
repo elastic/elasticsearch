@@ -524,7 +524,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 )));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::validateDetectorsAreUnique);
-        assertThat(e.getMessage(), containsString("Duplicate detectors are not allowed, see 'mean(responsetime)'"));
+        assertThat(e.getMessage(), containsString("Duplicate detectors are not allowed: [mean(responsetime)]"));
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {

@@ -106,9 +106,12 @@ subprojects {
     }
   }
 
-  licenseHeaders {
-    approvedLicenses << 'Apache'
+  processTestResources {
+    from mainProject.file('src/test/resources')
   }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/system_key'

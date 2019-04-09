@@ -97,6 +97,9 @@ subprojects {
     }
   }
 
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
+
   forbiddenPatterns {
     exclude '**/system_key'
   }

@@ -38,6 +38,10 @@ public class XPackSettings {
         throw new IllegalStateException("Utility class should not be instantiated");
     }
 
+    /**
+     * Setting for controlling whether or not enrich is enabled.
+     */
+    public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true, Property.NodeScope);
 
     /**
      * Setting for controlling whether or not CCR is enabled.

@@ -279,7 +279,7 @@ shard will be allocated upon reopening the index.
 [float]
 === Use two phase commit for Cluster State publishing (STATUS: DONE, v5.0.0)
 
-A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#fault-detection[monitors the cluster nodes]
+A master node in Elasticsearch continuously https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster-fault-detection.html[monitors the cluster nodes]
 and removes any node from the cluster that doesn't respond to its pings in a timely
 fashion. If the master is left with fewer nodes than the `discovery.zen.minimum_master_nodes`
 settings, it will step down and a new master election will start.
@@ -296,7 +296,7 @@ the change, it is committed and commit messages are sent to the nodes. See {GIT}
 
 During master election each node pings in order to discover other nodes and validate the liveness of existing
 nodes. Based on this information the node either discovers an existing master or, if enough nodes are found
-(see https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-zen.html#master-election[`discovery.zen.minimum_master_nodes`]) a new master will be elected. Currently, the node that is
+(`discovery.zen.minimum_master_nodes`) a new master will be elected. Currently, the node that is
 elected as master will update the cluster state to indicate the result of the election. Other nodes will submit
 a join request to the newly elected master node. Instead of immediately processing the election result, the elected master
 node should wait for the incoming joins from other nodes, thus validating that the result of the election is properly applied. As soon as enough

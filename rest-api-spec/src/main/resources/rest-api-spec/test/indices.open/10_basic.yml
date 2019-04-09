@@ -62,8 +62,9 @@
 ---
 "Close index with wait_for_active_shards set to all":
   - skip:
-      version: " - 7.0.99"
-      reason:  "closed indices are replicated starting version 7.1.0"
+      version: " - ,
+"
+      reason:  "closed indices are replicated starting version 7.2.0"
 
   - do:
       indices.create:

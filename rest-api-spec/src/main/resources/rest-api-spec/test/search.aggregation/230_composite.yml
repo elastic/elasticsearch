@@ -487,8 +487,8 @@ setup:
 ---
 "Missing source":
   - skip:
-      version: " - 7.0.99"
-      reason:  null/empty sources disallowed in 7.1
+      version: " - 7.1.99"
+      reason:  null/empty sources disallowed in 7.2
 
   - do:
         catch: /Composite \[sources\] cannot be null or empty/
@@ -516,8 +516,8 @@ setup:
 ---
 "Duplicate sources":
   - skip:
-      version: " - 7.0.99"
-      reason:  duplicate names disallowed in 7.1
+      version: " - 7.1.99"
+      reason:  duplicate names disallowed in 7.2
 
   - do:
         catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/

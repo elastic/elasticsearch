@@ -161,8 +161,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 IllegalStateException exception = expectThrows(IllegalStateException.class,
                     () -> new ReadOnlyEngine(engine.engineConfig, null, null, true, Function.identity()) {
                         @Override
-                        protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+                        protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
                             // we don't want the assertion to trip in this test
+                            return true;
                         }
                     });
                 assertThat(exception.getMessage(), equalTo("Maximum sequence number [" + maxSeqNo

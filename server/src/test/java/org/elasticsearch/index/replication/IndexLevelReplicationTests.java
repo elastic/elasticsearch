@@ -164,7 +164,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(1)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
-                return config -> new InternalEngine(config) {
+                return EngineFactory.newReadWriteEngineFactory(config -> new InternalEngine(config) {
                     @Override
                     public IndexResult index(Index op) throws IOException {
                         IndexResult result = super.index(op);
@@ -180,7 +180,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                         }
                         return result;
                     }
-                };
+                });
             }
         }) {
             shards.startAll();
@@ -417,23 +417,24 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
      */
     public void testDocumentFailureReplication() throws Exception {
         final IOException indexException = new IOException("simulated indexing failure");
-        final EngineFactory engineFactory = config -> InternalEngineTests.createInternalEngine((dir, iwc) ->
-            new IndexWriter(dir, iwc) {
-                @Override
-                public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-                    boolean isTombstone = false;
-                    for (IndexableField field : doc) {
-                        if (SeqNoFieldMapper.TOMBSTONE_NAME.equals(field.name())) {
-                            isTombstone = true;
+        final EngineFactory engineFactory = EngineFactory.newReadWriteEngineFactory(
+            config -> InternalEngineTests.createInternalEngine((dir, iwc) ->
+                new IndexWriter(dir, iwc) {
+                    @Override
+                    public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
+                        boolean isTombstone = false;
+                        for (IndexableField field : doc) {
+                            if (SeqNoFieldMapper.TOMBSTONE_NAME.equals(field.name())) {
+                                isTombstone = true;
+                            }
+                        }
+                        if (isTombstone) {
+                            return super.addDocument(doc); // allow to add Noop
+                        } else {
+                            throw indexException;
                         }
                     }
-                    if (isTombstone) {
-                        return super.addDocument(doc); // allow to add Noop
-                    } else {
-                        throw indexException;
-                    }
-                }
-            }, null, null, config);
+                }, null, null, config));
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetaData(0)) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) { return engineFactory; }}) {

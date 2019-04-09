@@ -1439,12 +1439,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
             + "] but got " + getRetentionLeases();
-        trimUnsafeCommits();
+        // don't trim anything if we are going to open a read only engine.
+        if (engineFactory.isReadOnlyEngineFactory() == false) {
+            trimUnsafeCommits();
+        }
         synchronized (mutex) {
             verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine newEngine = engineFactory.newReadWriteEngine(config);
+            final Engine newEngine = engineFactory.newEngine(config);
             onNewEngine(newEngine);
             currentEngineReference.set(newEngine);
             // We set active because we are now writing operations to the engine; this way,
@@ -3104,7 +3107,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (mutex) {
                 verifyNotClosed();
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-                newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
+                newEngine = engineFactory.newEngine(newEngineConfig());
                 onNewEngine(newEngine);
             }
             newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(globalCheckpoint);

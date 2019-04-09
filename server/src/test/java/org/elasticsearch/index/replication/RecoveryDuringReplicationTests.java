@@ -900,7 +900,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public Engine newReadWriteEngine(final EngineConfig config) {
+        public Engine newEngine(final EngineConfig config) {
             return InternalEngineTests.createInternalEngine(
                     (directory, writerConfig) ->
                             new IndexWriter(directory, writerConfig) {
@@ -924,6 +924,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     null,
                     null,
                     config);
+        }
+
+        @Override
+        public boolean isReadOnlyEngineFactory() {
+            return false;
         }
 
         @Override

@@ -21,7 +21,11 @@ package org.elasticsearch.index.engine;
 
 public class InternalEngineFactory implements EngineFactory {
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
+    public Engine newEngine(EngineConfig config) {
         return new InternalEngine(config);
+    }
+    @Override
+    public boolean isReadOnlyEngineFactory() {
+        return false;
     }
 }

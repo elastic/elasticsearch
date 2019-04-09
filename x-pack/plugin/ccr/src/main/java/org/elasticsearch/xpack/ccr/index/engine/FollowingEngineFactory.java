@@ -15,8 +15,12 @@ import org.elasticsearch.index.engine.EngineFactory;
 public final class FollowingEngineFactory implements EngineFactory {
 
     @Override
-    public Engine newReadWriteEngine(final EngineConfig config) {
+    public Engine newEngine(final EngineConfig config) {
         return new FollowingEngine(config);
     }
 
+    @Override
+    public boolean isReadOnlyEngineFactory() {
+        return false;
+    }
 }

@@ -147,14 +147,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      * Returns an {@link EngineFactory} for the source only snapshots.
      */
     public static EngineFactory getEngineFactory() {
-        return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            reader -> {
-                try {
-                    return SeqIdGeneratingFilterReader.wrap(reader, config.getPrimaryTermSupplier().getAsLong());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+        return EngineFactory.newReadOnlyEngineFactory(
+            config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
+                reader -> {
+                    try {
+                        return SeqIdGeneratingFilterReader.wrap(reader, config.getPrimaryTermSupplier().getAsLong());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }));
     }
 
     /**

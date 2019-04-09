@@ -32,7 +32,12 @@ public final class MockEngineFactory implements EngineFactory {
     }
 
     @Override
-    public Engine newReadWriteEngine(EngineConfig config) {
+    public Engine newEngine(EngineConfig config) {
         return new MockInternalEngine(config, wrapper);
+    }
+
+    @Override
+    public boolean isReadOnlyEngineFactory() {
+        return false;
     }
 }

@@ -78,7 +78,7 @@ PUT /customer/_doc/1
 --------------------------------------------------
 // CONSOLE
 
-You can confirm {es} used your ID by checking the `\_id` field of the response.
+You can confirm {es} used your ID by checking the `_id` field of the response.
 Here's an example response, formatted to be more readable.
 
 [source, js]
@@ -124,7 +124,7 @@ POST /customer/_doc
 // CONSOLE
 // TEST[continued]
 
-{es} provides the generated ID in `\_id` field of the response. Here's an
+{es} provides the generated ID in `_id` field of the response. Here's an
 example response, formatted to be more readable.
 
 [source, js]

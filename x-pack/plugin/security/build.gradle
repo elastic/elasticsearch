@@ -325,3 +325,8 @@ gradle.projectsEvaluated {
             .each { check.dependsOn it.check }
 }
 
+if (inFipsJvm){
+    // Disable jarHell in FIPS as we bundle the BC FIPS Provider for the tests and there are libraries (opensaml) that
+    // depend on the plain BC Provider
+    jarHell.enabled = false
+}

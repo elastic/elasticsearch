@@ -150,9 +150,8 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome)
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
-
-            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            // Java home name checking is fragile, but we control the environment
+            boolean inFipsJvm = runtimeJavaHome.contains("fips")
 
             // Build debugging info
             println '======================================='
@@ -895,6 +894,16 @@ class BuildPlugin implements Plugin<Project> {
 
     static void applyCommonTestConfig(Project project) {
         project.tasks.withType(RandomizedTestingTask) {task ->
+            RepositoryHandler repos = project.repositories
+            if (project.ext.inFipsJvm) {
+                repos.ivy {
+                    url "https://downloads.bouncycastle.org"
+                    patternLayout {
+                        artifact 'fips-java/[module]-[revision].[ext]'
+                    }
+                }
+                project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1:jar")
+            }
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
             ifNoTests 'fail'

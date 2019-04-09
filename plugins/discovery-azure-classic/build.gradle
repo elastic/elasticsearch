@@ -48,7 +48,7 @@ dependencies {
   compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
   compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
-  compile 'org.codehaus.jackson:jackson-xc:1.9.2'  
+  compile 'org.codehaus.jackson:jackson-xc:1.9.2'
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell 
@@ -63,6 +63,7 @@ File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
 // generate the keystore
 task createKey(type: LoggedExec) {
+  onlyIf { inFipsJvm == false }
   doFirst {
     project.delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
@@ -133,3 +134,8 @@ thirdPartyAudit.ignoreMissingClasses (
   'com.sun.xml.fastinfoset.stax.StAXDocumentParser', 
   'com.sun.xml.fastinfoset.stax.StAXDocumentSerializer'
 )
+
+if (inFipsJvm) {
+  // We do not run integ tests in FIPS mode as these use a JKS keystore for the azure settings
+  integTest.enabled = false
+}

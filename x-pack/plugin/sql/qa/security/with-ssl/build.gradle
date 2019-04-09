@@ -208,8 +208,7 @@ integTestCluster {
   }
 }
 Closure notRunningFips = {
-  Boolean.parseBoolean(BuildPlugin.runJavaAsScript(project, project.runtimeJavaHome,
-          'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));')) == false
+  inFipsJvm == false
 }
 
 // Do not attempt to form a cluster in a FIPS JVM, as doing so with a JKS keystore will fail.
@@ -219,6 +218,12 @@ tasks.matching({ it.name == "integTestCluster#init" }).all { onlyIf notRunningFi
 tasks.matching({ it.name == "integTestCluster#start" }).all { onlyIf notRunningFips }
 tasks.matching({ it.name == "integTestCluster#wait" }).all { onlyIf notRunningFips }
 tasks.matching({ it.name == "integTestRunner" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "createNodeKeyStore" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "createClientKeyStore" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "exportNodeCertificate" }).all { onlyIf notRunningFips }
+tasks.matching({ it.name == "exportClientCertificate" }).all { onlyIf  notRunningFips }
+tasks.matching({ it.name == "importNodeCertificateInClientKeyStore" }).all { onlyIf notRunningFips}
+tasks.matching({ it.name == "importClientCertificateInNodeKeyStore" }).all { onlyIf notRunningFips}
 
 /** A lazy evaluator to find the san to use for certificate generation. */
 class SanEvaluator {

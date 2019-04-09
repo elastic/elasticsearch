@@ -50,7 +50,10 @@ dependencies {
   compile "org.apache.pdfbox:jempbox:1.8.16"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  if (inFipsJvm == false) {
+    // In FIPS JVMs we add bc fips provider as a testRuntimeOnly dependency
+    compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  }
   compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   // OpenOffice
   compile "org.apache.poi:poi-ooxml:${versions.poi}"
@@ -85,7 +88,6 @@ thirdPartyAudit{
 }
 
 if (project.inFipsJvm) {
-    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-    // rather than provide a long list of exclusions, disable the check on FIPS.
-    thirdPartyAudit.enabled = false
+  // Unused license bcprov-jdk15on-LICENSE.txt when not adding bcprov as compile dependency
+  dependencyLicenses.enabled = false
 }

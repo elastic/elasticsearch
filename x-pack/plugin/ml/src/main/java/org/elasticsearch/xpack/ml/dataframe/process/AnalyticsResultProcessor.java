@@ -39,12 +39,12 @@ public class AnalyticsResultProcessor {
     }
 
     public void process(AnalyticsProcess process) {
-
-        try {
+        // TODO When java 9 features can be used, we will not need the local variable here
+        try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();
             while (iterator.hasNext()) {
                 AnalyticsResult result = iterator.next();
-                processResult(result);
+                processResult(result, resultsJoiner);
             }
         } catch (Exception e) {
             LOGGER.error("Error parsing data frame analytics output", e);
@@ -54,10 +54,10 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    private void processResult(AnalyticsResult result) {
+    private void processResult(AnalyticsResult result, DataFrameRowsJoiner resultsJoiner) {
         RowResults rowResults = result.getRowResults();
         if (rowResults != null) {
-            dataFrameRowsJoiner.processRowResults(rowResults);
+            resultsJoiner.processRowResults(rowResults);
         }
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {

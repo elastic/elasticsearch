@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +38,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
 
+        verify(dataFrameRowsJoiner).close();
         verifyNoMoreInteractions(dataFrameRowsJoiner);
     }
 
@@ -47,6 +49,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         resultProcessor.process(process);
         resultProcessor.awaitForCompletion();
 
+        verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
     }
 

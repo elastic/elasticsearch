@@ -2,7 +2,11 @@
 [[breaking_70_api_changes]]
 === API changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
+
 [float]
 ==== Internal Versioning is no longer supported for optimistic concurrency control
 

@@ -2,7 +2,11 @@
 [[breaking_70_settings_changes]]
 === Settings changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
+
 [float]
 ==== The default for `node.name` is now the hostname
 
@@ -94,9 +98,9 @@ Moreover, `xpack.security.audit.logfile.emit_node_name` has changed its default
 from `true` to `false`. All other settings mentioned before, have kept their
 default value of `false`.
 
+//tag::notable-breaking-changes[]
 [float]
 [[include-realm-type-in-setting]]
-//tag::notable-breaking-changes-7.0
 ==== Security realms settings
 
 The settings for all security realms must now include the realm type as part
@@ -124,7 +128,7 @@ xpack.security.authc.realms:
 Any realm specific secure settings that have been stored in the elasticsearch
 keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
 in a similar way.
-//end::notable-breaking-changes-7.0
+//end::notable-breaking-changes[]
 
 [float]
 [[tls-setting-fallback]]

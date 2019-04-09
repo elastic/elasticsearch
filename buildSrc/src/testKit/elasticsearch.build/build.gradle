@@ -27,7 +27,7 @@ forbiddenApisTest.enabled = false
 // requires dependency on testing fw
 jarHell.enabled = false
 // we don't have tests for now
-unitTest.enabled = false
+test.enabled = false
 
 task hello {
     doFirst {

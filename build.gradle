@@ -338,14 +338,6 @@ gradle.projectsEvaluated {
       integTest.mustRunAfter test
     }
     configurations.all { Configuration configuration ->
-      /*
-       * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
-       * featureAwarePlugin configuration. The below task ordering logic would force :x-pack:plugin:core:test
-       * :x-pack:test:feature-aware:test to depend on each other circularly. We break that cycle here.
-       */
-      if (configuration.name == "featureAwarePlugin") {
-        return
-      }
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
@@ -357,7 +349,7 @@ gradle.projectsEvaluated {
             Task task = project.tasks.findByName(taskName)
             Task upstreamTask = upstreamProject.tasks.findByName(taskName)
             if (task != null && upstreamTask != null) {
-              task.mustRunAfter(upstreamTask)
+              task.shouldRunAfter(upstreamTask)
             }
           }
         }
@@ -382,21 +374,6 @@ allprojects {
       // also ignore other possible build dirs
       excludeDirs += file('build')
       excludeDirs += file('build-eclipse')
-
-      iml {
-        // fix so that Gradle idea plugin properly generates support for resource folders
-        // see also https://issues.gradle.org/browse/GRADLE-2975
-        withXml {
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-resource')
-          }
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-test-resource')
-          }
-        }
-      }
     }
   }
 
@@ -413,14 +390,6 @@ idea {
   project {
     vcs = 'Git'
   }
-}
-// Make sure gradle idea was run before running anything in intellij (including import).
-File ideaMarker = new File(projectDir, '.local-idea-is-configured')
-tasks.idea.doLast {
-  ideaMarker.setText('', 'UTF-8')
-}
-if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run `./gradlew idea` from the root of elasticsearch before importing into IntelliJ')
 }
 
 // eclipse configuration

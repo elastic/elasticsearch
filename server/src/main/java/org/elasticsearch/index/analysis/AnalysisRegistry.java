@@ -293,13 +293,13 @@ public final class AnalysisRegistry implements Closeable {
                 T factory = null;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {
-                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
+                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     } else {
                         throw new IllegalArgumentException(component + " [" + name + "] " +
                             "must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
-                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
+                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                 }
                 if (factory != null) {
                     factories.put(name, factory);
@@ -430,8 +430,10 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            processAnalyzerFactory(indexSettings, entry.getKey(), entry.getValue(), analyzers,
-                tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+            analyzers.merge(entry.getKey(), produceAnalyzer(entry.getKey(), entry.getValue(), tokenFilterFactoryFactories,
+                    charFilterFactoryFactories, tokenizerFactoryFactories), (k, v) -> {
+                        throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                    });
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
@@ -441,9 +443,9 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null,
-                    "default", Settings.Builder.EMPTY_SETTINGS),
-                analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+            NamedAnalyzer defaultAnalyzer = produceAnalyzer("default", new StandardAnalyzerProvider(indexSettings, null, "default",
+                    Settings.Builder.EMPTY_SETTINGS), tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+            analyzers.put("default", defaultAnalyzer);
         }
         if (!analyzers.containsKey("default_search")) {
             analyzers.put("default_search", analyzers.get("default"));
@@ -473,11 +475,9 @@ public final class AnalysisRegistry implements Closeable {
                 whitespaceNormalizers);
     }
 
-    private void processAnalyzerFactory(IndexSettings indexSettings,
-                                        String name,
-                                        AnalyzerProvider<?> analyzerFactory,
-                                        Map<String, NamedAnalyzer> analyzers, Map<String, TokenFilterFactory> tokenFilters,
-                                        Map<String, CharFilterFactory> charFilters, Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
+            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
+            Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -511,15 +511,7 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
-        if (analyzers.containsKey(name)) {
-            throw new IllegalStateException("already registered analyzer with name: " + name);
-        }
-        analyzers.put(name, analyzer);
-        // TODO: remove alias support completely when we no longer support pre 5.0 indices
-        final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
-        if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-            throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
-        }
+        return analyzer;
     }
 
     private void processNormalizerFactory(

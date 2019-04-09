@@ -1,3 +1,10 @@
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
 [float]
 [[breaking_70_java_time_changes]]
 === Replacing Joda-Time with java time

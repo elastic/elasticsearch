@@ -24,6 +24,9 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
+/**
+ * @deprecated Use {@link AbstractResponseTestCase} instead of this class.
+ */
 // TODO: Remove and change subclasses to use AbstractResponseTestCase instead
 @Deprecated
 public abstract class AbstractHlrcXContentTestCase<T extends ToXContent, H> extends AbstractXContentTestCase<T> {

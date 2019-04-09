@@ -21,12 +21,15 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -110,9 +113,16 @@ public interface Processor {
          */
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
+        /**
+         * Provides access to an engine searcher of a locally allocated index specified for the provided index.
+         *
+         * The locally allocated index must be have a single primary shard.
+         */
+        public final Function<Index, Engine.Searcher> searcherProvider;
+
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-            IngestService ingestService) {
+                          IngestService ingestService, Function<Index, Engine.Searcher> searcherProvider) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -120,6 +130,7 @@ public interface Processor {
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
             this.ingestService = ingestService;
+            this.searcherProvider = searcherProvider;
         }
 
     }

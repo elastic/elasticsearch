@@ -45,8 +45,11 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +89,7 @@ public class IngestService implements ClusterStateApplier {
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
-                         List<IngestPlugin> ingestPlugins) {
+                         List<IngestPlugin> ingestPlugins, IndicesService indicesService) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.processorFactories = processorFactories(
@@ -96,7 +99,19 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
-                ), this
+                ), this, index -> {
+                    IndexService indexService = indicesService.indexService(index);
+                    if (indexService == null) {
+                        throw new ResourceNotFoundException("index [" + index + "] not locally allocated");
+                    }
+                    int numShards = indexService.getMetaData().getNumberOfShards();
+                    if (numShards != 1) {
+                        throw new IllegalStateException("index [" + index + "] must have 1 shard, but has " + numShards + " shards");
+                    }
+
+                    IndexShard indexShard = indexService.getShard(0);
+                    return indexShard.acquireSearcher("ingest");
+                }
             )
         );
         this.threadPool = threadPool;

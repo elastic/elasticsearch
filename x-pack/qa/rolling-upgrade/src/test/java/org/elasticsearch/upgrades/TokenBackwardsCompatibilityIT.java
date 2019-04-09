@@ -20,25 +20,37 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
-    private Map<Version, RestClient> clientsByVersion = null;
+    private Collection<RestClient> twoClients = null;
 
     @Before
     private void collateClientsByVersion() throws IOException {
-        clientsByVersion = getRestClientByVersion();
+        Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
+        if (clientsByVersion.size() == 2) {
+            // usual case, clients have different versions
+            twoClients = clientsByVersion.values();
+        } else {
+            assert clientsByVersion.size() == 1 : "A rolling upgrade has a maximum of two distinct node versions, found: "
+                    + clientsByVersion.keySet();
+            // tests assumes exactly two clients to simplify some logic
+            twoClients = new ArrayList<>();
+            twoClients.add(clientsByVersion.values().iterator().next());
+            twoClients.add(clientsByVersion.values().iterator().next());
+        }
     }
 
     @After
     private void closeClientsByVersion() throws IOException {
-        for (RestClient client : clientsByVersion.values()) {
+        for (RestClient client : twoClients) {
             client.close();
         }
-        clientsByVersion = null;
+        twoClients = null;
     }
 
     public void testGeneratingTokensInOldCluster() throws Exception {
@@ -131,8 +143,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         // Creates two access and refresh tokens and stores them in the token_backwards_compatibility_it index to be used for tests in the
         // mixed/upgraded clusters
         int generatedTokenIdxDuringMixed = 10;
-        assert clientsByVersion.size() == 2 : "A rolling upgrade has only two versions of nodes, found: " + clientsByVersion.keySet();
-        for (RestClient client : clientsByVersion.values()) {
+        for (RestClient client : twoClients) {
             Map<String, Object> responseMap = createTokens(client, "test_user", "x-pack-test-password");
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
@@ -156,15 +167,14 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testRefreshingTokensInMixedCluster() throws Exception {
         // verify new nodes can refresh tokens from the old cluster
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        assert clientsByVersion.size() == 2 : "A rolling upgrade has only two versions of nodes, found: " + clientsByVersion.keySet();
-        for (RestClient client1 : clientsByVersion.values()) {
+        for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");
             String accessToken = (String) responseMap.get("access_token");
             assertNotNull(accessToken);
             assertAccessTokenWorks(accessToken);
             String refreshToken = (String) responseMap.get("refresh_token");
             assertNotNull(refreshToken);
-            for (RestClient client2 : clientsByVersion.values()) {
+            for (RestClient client2 : twoClients) {
                 responseMap = refreshToken(client2, refreshToken);
                 accessToken = (String) responseMap.get("access_token");
                 assertNotNull(accessToken);
@@ -246,7 +256,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertAccessTokenWorks(String token) throws IOException {
-        for (RestClient client : clientsByVersion.values()) {
+        for (RestClient client : twoClients) {
             Request request = new Request("GET", "/_security/_authenticate");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
@@ -258,7 +268,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertAccessTokenDoesNotWork(String token) throws IOException {
-        for (RestClient client : clientsByVersion.values()) {
+        for (RestClient client : twoClients) {
             Request request = new Request("GET", "/_security/_authenticate");
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
@@ -272,7 +282,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     private void assertRefreshTokenInvalidated(String refreshToken) throws IOException {
-        for (RestClient client : clientsByVersion.values()) {
+        for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
             refreshTokenRequest.setJsonEntity(
                     "{\n" +

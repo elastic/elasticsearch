@@ -2,6 +2,14 @@
 [[breaking_70_aggregations_changes]]
 === Aggregations changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+
 [float]
 ==== Deprecated `global_ordinals_hash` and `global_ordinals_low_cardinality` execution hints for terms aggregations have been removed
 

@@ -2,6 +2,13 @@
 [[breaking_70_node_changes]]
 === Node start up
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
 [float]
 ==== Nodes with left-behind data or metadata refuse to start
 Repurposing an existing node by changing node.master or node.data to false can leave lingering on-disk metadata and

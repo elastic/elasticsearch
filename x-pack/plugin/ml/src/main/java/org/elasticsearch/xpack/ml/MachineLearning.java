@@ -461,8 +461,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager, memoryTracker);
 
-        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
+        final InvalidLicenseEnforcer enforcer =
+                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        enforcer.listenForLicenseStateChanges();
 
         // run node startup tasks
         autodetectProcessManager.onNodeStartup();

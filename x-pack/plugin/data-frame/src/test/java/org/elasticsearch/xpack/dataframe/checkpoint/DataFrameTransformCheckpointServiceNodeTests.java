@@ -39,12 +39,12 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 import org.junit.After;
 import org.junit.Before;
 
@@ -189,26 +189,28 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
 
-        DataFrameTransformTask task = mock(DataFrameTransformTask.class);
-        when(task.getCheckpoint()).thenReturn(1L);
-        when(task.getInProgressCheckpoint()).thenReturn(2L);
-        when(task.getTransformId()).thenReturn(transformId);
-
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 20, 20, 20)));
-        DataFrameTransformCheckpointingInfo checkpointInfo = transformsCheckpointService.getCheckpointStats(task);
+        DataFrameTransformCheckpointingInfo checkpointInfo = new DataFrameTransformCheckpointingInfo(
+                new DataFrameTransformCheckpointStats(timestamp, 0L),
+                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
+                30L);
 
-        assertEquals(timestamp, checkpointInfo.getCurrent().getTimestampMillis());
-        assertEquals(timestamp + 100L, checkpointInfo.getInProgress().getTimestampMillis());
-        assertEquals(30L, checkpointInfo.getOperationsBehind());
+        assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
-        checkpointInfo = transformsCheckpointService.getCheckpointStats(task);
-        assertEquals(63L, checkpointInfo.getOperationsBehind());
+        checkpointInfo = new DataFrameTransformCheckpointingInfo(
+                new DataFrameTransformCheckpointStats(timestamp, 0L),
+                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
+                63L);
+        assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
 
         // same as current
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 10, 10)));
-        checkpointInfo = transformsCheckpointService.getCheckpointStats(task);
-        assertEquals(0L, checkpointInfo.getOperationsBehind());
+        checkpointInfo = new DataFrameTransformCheckpointingInfo(
+                new DataFrameTransformCheckpointStats(timestamp, 0L),
+                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
+                0L);
+        assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
     }
 
     private static Map<String, long[]> createCheckPointMap(String index, long checkpointShard1, long checkpointShard2,

@@ -26,6 +26,11 @@ import java.util.Objects;
  */
 public class DataFrameTransformCheckpointingInfo implements Writeable, ToXContentObject {
 
+    public static DataFrameTransformCheckpointingInfo EMPTY = new DataFrameTransformCheckpointingInfo(
+            DataFrameTransformCheckpointStats.EMPTY,
+            DataFrameTransformCheckpointStats.EMPTY,
+            0L);
+
     public static final ParseField CURRENT_CHECKPOINT = new ParseField("current");
     public static final ParseField IN_PROGRESS_CHECKPOINT = new ParseField("in_progress");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
@@ -94,10 +99,8 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         if (inProgress.getTimestampMillis() > 0) {
             builder.field(IN_PROGRESS_CHECKPOINT.getPreferredName(), inProgress);
         }
-        // special meaning: operations could be -1 (not able to calculate)
-        if (operationsBehind >= 0) {
-            builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
-        }
+
+        builder.field(OPERATIONS_BEHIND.getPreferredName(), operationsBehind);
         builder.endObject();
         return builder;
     }

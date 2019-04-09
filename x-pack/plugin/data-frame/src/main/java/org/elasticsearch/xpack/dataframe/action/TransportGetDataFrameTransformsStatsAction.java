@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
@@ -98,16 +99,22 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     @Override
     protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
-        List<DataFrameTransformStateAndStats> transformsStateAndStats = Collections.emptyList();
-
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         if (task.isCancelled() == false) {
-            DataFrameTransformStateAndStats transformStateAndStats = new DataFrameTransformStateAndStats(task.getTransformId(),
-                    task.getState(), task.getStats(), transformsCheckpointService.getCheckpointStats(task));
-            transformsStateAndStats = Collections.singletonList(transformStateAndStats);
+            transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
+                    ActionListener.wrap(checkpointStats -> {
+                        listener.onResponse(new Response(Collections.singletonList(
+                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats))));
+            }, e -> {
+                    listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
+                                task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
+                        Collections.emptyList(),
+                        Collections.singletonList(new ElasticsearchException("Failed to retrieve checkpointing info", e))));
+            }));
+        } else {
+            listener.onResponse(new Response(Collections.emptyList()));
         }
-
-        listener.onResponse(new Response(transformsStateAndStats));
     }
 
     @Override

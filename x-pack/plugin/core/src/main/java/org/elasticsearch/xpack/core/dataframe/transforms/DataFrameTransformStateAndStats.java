@@ -55,8 +55,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         return new DataFrameTransformStateAndStats(id,
             new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
             indexerTransformStats,
-            // TODO: needs refactoring, returns empty stats for dataframes without tasks
-            new DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats.EMPTY, DataFrameTransformCheckpointStats.EMPTY, 0L));
+            DataFrameTransformCheckpointingInfo.EMPTY);
     }
 
     public DataFrameTransformStateAndStats(String id, DataFrameTransformState state, DataFrameIndexerTransformStats stats,
@@ -125,6 +124,10 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public DataFrameTransformState getTransformState() {
         return transformState;
+    }
+
+    public DataFrameTransformCheckpointingInfo getCheckpointingInfo() {
+        return checkpointingInfo;
     }
 
     @Override

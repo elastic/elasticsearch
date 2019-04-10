@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class DataFrameTransformStateAndStatsHlrcTests extends AbstractHlrcXContentTestCase<DataFrameTransformStateAndStats,
+public class DataFrameTransformStateAndStatsTests extends AbstractHlrcXContentTestCase<DataFrameTransformStateAndStats,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats> {
 
     @Override
@@ -40,15 +40,15 @@ public class DataFrameTransformStateAndStatsHlrcTests extends AbstractHlrcXConte
     public DataFrameTransformStateAndStats convertHlrcToInternal(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats instance) {
         return new DataFrameTransformStateAndStats(instance.getId(),
-                DataFrameTransformStateHlrcTests.fromHlrc(instance.getTransformState()),
-                DataFrameIndexerTransformStatsHlrcTests.fromHlrc(instance.getTransformStats()),
-                DataFrameTransformCheckpointingInfoHlrcTests.fromHlrc(instance.getCheckpointingInfo()));
+                DataFrameTransformStateTests.fromHlrc(instance.getTransformState()),
+                DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
+                DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
     }
 
     @Override
     protected DataFrameTransformStateAndStats createTestInstance() {
         // the transform id is not part of HLRC as it's only to a field for internal storage, therefore use a default id
-        return DataFrameTransformStateHlrcTests
+        return DataFrameTransformStateTests
                 .randomDataFrameTransformStateAndStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
     }
 

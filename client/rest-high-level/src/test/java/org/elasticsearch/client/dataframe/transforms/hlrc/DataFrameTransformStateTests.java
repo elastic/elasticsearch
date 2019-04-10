@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCase<DataFrameTransformState,
+public class DataFrameTransformStateTests extends AbstractHlrcXContentTestCase<DataFrameTransformState,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformState> {
 
     public static DataFrameTransformState fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformState instance) {
@@ -74,26 +74,23 @@ public class DataFrameTransformStateHlrcTests extends AbstractHlrcXContentTestCa
         return field -> field.equals("current_position");
     }
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats
-    randomDataFrameTransformStateAndStats(String id) {
+    public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
         return new DataFrameTransformStateAndStats(id,
             randomDataFrameTransformState(),
             randomStats(id),
             randomDataFrameTransformCheckpointingInfo());
     }
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo
-        randomDataFrameTransformCheckpointingInfo() {
+    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
         return new DataFrameTransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
             randomDataFrameTransformCheckpointStats(), randomNonNegativeLong());
     }
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats
-        randomDataFrameTransformCheckpointStats() {
+    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
         return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats randomStats(String transformId) {
+    public static DataFrameIndexerTransformStats randomStats(String transformId) {
         return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),

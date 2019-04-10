@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
@@ -25,15 +25,15 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 
 import java.io.IOException;
 
-public class DataFrameTransformCheckpointingInfoHlrcTests  extends AbstractHlrcXContentTestCase<
+public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXContentTestCase<
         DataFrameTransformCheckpointingInfo,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo> {
 
     public static DataFrameTransformCheckpointingInfo fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointingInfo instance) {
         return new DataFrameTransformCheckpointingInfo(
-                DataFrameTransformCheckpointStatsHlrcTests.fromHlrc(instance.getCurrent()),
-                DataFrameTransformCheckpointStatsHlrcTests.fromHlrc(instance.getInProgress()),
+                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getCurrent()),
+                DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getInProgress()),
                 instance.getOperationsBehind());
     }
 
@@ -51,7 +51,7 @@ public class DataFrameTransformCheckpointingInfoHlrcTests  extends AbstractHlrcX
 
     @Override
     protected DataFrameTransformCheckpointingInfo createTestInstance() {
-        return DataFrameTransformStateHlrcTests.randomDataFrameTransformCheckpointingInfo();
+        return DataFrameTransformStateTests.randomDataFrameTransformCheckpointingInfo();
     }
 
     @Override

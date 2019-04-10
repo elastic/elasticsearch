@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.watcher;
+package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class PutWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
-    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, org.elasticsearch.client.watcher.PutWatchResponse> {
+public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
+    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, PutWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createTestInstance() {
@@ -43,13 +44,12 @@ public class PutWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    public org.elasticsearch.client.watcher.PutWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+    public PutWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
         return org.elasticsearch.client.watcher.PutWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(
-        org.elasticsearch.client.watcher.PutWatchResponse instance) {
+    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(PutWatchResponse instance) {
         return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(instance.getId(), instance.getVersion(),
             instance.getSeqNo(), instance.getPrimaryTerm(), instance.isCreated());
     }

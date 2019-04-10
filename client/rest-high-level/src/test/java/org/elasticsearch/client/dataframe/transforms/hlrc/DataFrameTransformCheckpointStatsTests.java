@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 
 import java.io.IOException;
 
-public class DataFrameTransformCheckpointStatsHlrcTests extends AbstractHlrcXContentTestCase<
+public class DataFrameTransformCheckpointStatsTests extends AbstractHlrcXContentTestCase<
         DataFrameTransformCheckpointStats,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats> {
 
@@ -48,7 +48,7 @@ public class DataFrameTransformCheckpointStatsHlrcTests extends AbstractHlrcXCon
 
     @Override
     protected DataFrameTransformCheckpointStats createTestInstance() {
-        return DataFrameTransformStateHlrcTests.randomDataFrameTransformCheckpointStats();
+        return DataFrameTransformStateTests.randomDataFrameTransformCheckpointStats();
     }
 
     @Override

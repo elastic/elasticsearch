@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 
 import java.io.IOException;
 
-public class DataFrameIndexerTransformStatsHlrcTests extends AbstractHlrcXContentTestCase<
+public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTestCase<
         DataFrameIndexerTransformStats,
         org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats> {
 
@@ -50,7 +50,7 @@ public class DataFrameIndexerTransformStatsHlrcTests extends AbstractHlrcXConten
 
     @Override
     protected DataFrameIndexerTransformStats createTestInstance() {
-        return DataFrameTransformStateHlrcTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
+        return DataFrameTransformStateTests.randomStats(DataFrameIndexerTransformStats.DEFAULT_TRANSFORM_ID);
     }
 
     @Override

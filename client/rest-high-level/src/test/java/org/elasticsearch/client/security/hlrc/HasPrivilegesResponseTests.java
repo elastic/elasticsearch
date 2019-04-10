@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security;
+package org.elasticsearch.client.security.hlrc;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -51,9 +52,9 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class HasPrivilegesResponseHlrcTests extends AbstractHlrcStreamableXContentTestCase<
+public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTestCase<
     org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse,
-    org.elasticsearch.client.security.HasPrivilegesResponse> {
+    HasPrivilegesResponse> {
 
     public void testSerializationV64OrV65() throws IOException {
         final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original = randomResponse();
@@ -126,13 +127,12 @@ public class HasPrivilegesResponseHlrcTests extends AbstractHlrcStreamableXConte
     }
 
     @Override
-    public org.elasticsearch.client.security.HasPrivilegesResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.security.HasPrivilegesResponse.fromXContent(parser);
+    public HasPrivilegesResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return HasPrivilegesResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse convertHlrcToInternal(
-        org.elasticsearch.client.security.HasPrivilegesResponse hlrc) {
+    public org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse convertHlrcToInternal(HasPrivilegesResponse hlrc) {
         return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
             hlrc.getUsername(),
             hlrc.hasAllRequested(),

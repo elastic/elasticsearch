@@ -16,14 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.graph;
+package org.elasticsearch.client.graph.hlrc;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.graph.Connection;
+import org.elasticsearch.client.graph.GraphExploreResponse;
+import org.elasticsearch.client.graph.Vertex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
@@ -41,58 +45,51 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GraphExploreResponseHlrcTests extends
-        AbstractHlrcXContentTestCase<org.elasticsearch.protocol.xpack.graph.GraphExploreResponse,
-            org.elasticsearch.client.graph.GraphExploreResponse> {
+public class GraphExploreResponseTests extends AbstractHlrcXContentTestCase<
+    org.elasticsearch.protocol.xpack.graph.GraphExploreResponse,
+    GraphExploreResponse> {
 
-    static final Function<org.elasticsearch.client.graph.Vertex.VertexId,
-        org.elasticsearch.protocol.xpack.graph.Vertex.VertexId> VERTEX_ID_FUNCTION =
+    static final Function<Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex.VertexId> VERTEX_ID_FUNCTION =
         vId -> new org.elasticsearch.protocol.xpack.graph.Vertex.VertexId(vId.getField(), vId.getTerm());
-    static final Function<org.elasticsearch.client.graph.Vertex,
-        org.elasticsearch.protocol.xpack.graph.Vertex> VERTEX_FUNCTION =
+    static final Function<Vertex, org.elasticsearch.protocol.xpack.graph.Vertex> VERTEX_FUNCTION =
         v -> new org.elasticsearch.protocol.xpack.graph.Vertex(v.getField(), v.getTerm(), v.getWeight(),
             v.getHopDepth(), v.getBg(), v.getFg());
 
     @Override
-    public org.elasticsearch.client.graph.GraphExploreResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.graph.GraphExploreResponse.fromXContent(parser);
+    public GraphExploreResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return GraphExploreResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.graph.GraphExploreResponse convertHlrcToInternal(
-        org.elasticsearch.client.graph.GraphExploreResponse instance) {
+    public org.elasticsearch.protocol.xpack.graph.GraphExploreResponse convertHlrcToInternal(GraphExploreResponse instance) {
         return new org.elasticsearch.protocol.xpack.graph.GraphExploreResponse(instance.getTookInMillis(), instance.isTimedOut(),
             instance.getShardFailures(), convertVertices(instance), convertConnections(instance), instance.isReturnDetailedInfo());
     }
 
     public Map<org.elasticsearch.protocol.xpack.graph.Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex> convertVertices(
-        org.elasticsearch.client.graph.GraphExploreResponse instance) {
-        final Collection<org.elasticsearch.client.graph.Vertex.VertexId> vertexIds = instance.getVertexIds();
+        GraphExploreResponse instance) {
+        final Collection<Vertex.VertexId> vertexIds = instance.getVertexIds();
         final Map<org.elasticsearch.protocol.xpack.graph.Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex> vertexMap =
             new LinkedHashMap<>(vertexIds.size());
 
-        for (org.elasticsearch.client.graph.Vertex.VertexId vertexId : vertexIds) {
-            final org.elasticsearch.client.graph.Vertex vertex = instance.getVertex(vertexId);
+        for (Vertex.VertexId vertexId : vertexIds) {
+            final Vertex vertex = instance.getVertex(vertexId);
 
             vertexMap.put(VERTEX_ID_FUNCTION.apply(vertexId), VERTEX_FUNCTION.apply(vertex));
         }
         return vertexMap;
     }
 
-    public Map<org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId, org.elasticsearch.protocol.xpack.graph.Connection>
-    convertConnections(org.elasticsearch.client.graph.GraphExploreResponse instance) {
-        final Collection<org.elasticsearch.client.graph.Connection.ConnectionId> connectionIds = instance.getConnectionIds();
-        final Map<org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId,
-            org.elasticsearch.protocol.xpack.graph.Connection> connectionMap = new LinkedHashMap<>(connectionIds.size());
-        for (org.elasticsearch.client.graph.Connection.ConnectionId connectionId : connectionIds) {
-            final org.elasticsearch.client.graph.Connection connection = instance.getConnection(connectionId);
-            final org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId connectionId1 =
-                new org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId(VERTEX_ID_FUNCTION.apply(connectionId.getSource()),
+    public Map<ConnectionId, org.elasticsearch.protocol.xpack.graph.Connection> convertConnections(GraphExploreResponse instance) {
+        final Collection<Connection.ConnectionId> connectionIds = instance.getConnectionIds();
+        final Map<ConnectionId,org.elasticsearch.protocol.xpack.graph.Connection> connectionMap= new LinkedHashMap<>(connectionIds.size());
+        for (Connection.ConnectionId connectionId : connectionIds) {
+            final Connection connection = instance.getConnection(connectionId);
+            final ConnectionId connectionId1 = new ConnectionId(VERTEX_ID_FUNCTION.apply(connectionId.getSource()),
                     VERTEX_ID_FUNCTION.apply(connectionId.getTarget()));
-            final org.elasticsearch.protocol.xpack.graph.Connection connection1 =
-                new org.elasticsearch.protocol.xpack.graph.Connection(VERTEX_FUNCTION.apply(connection.getFrom()),
-                VERTEX_FUNCTION.apply(connection.getTo()),
-                connection.getWeight(), connection.getDocCount());
+            final org.elasticsearch.protocol.xpack.graph.Connection connection1 = new org.elasticsearch.protocol.xpack.graph.Connection(
+                VERTEX_FUNCTION.apply(connection.getFrom()), VERTEX_FUNCTION.apply(connection.getTo()), connection.getWeight(),
+                connection.getDocCount());
             connectionMap.put(connectionId1, connection1);
         }
         return connectionMap;
@@ -110,7 +107,7 @@ public class GraphExploreResponseHlrcTests extends
         long overallTookInMillis = ESTestCase.randomNonNegativeLong();
         Map<org.elasticsearch.protocol.xpack.graph.Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex> vertices =
             new HashMap<>();
-        Map<org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId,
+        Map<ConnectionId,
             org.elasticsearch.protocol.xpack.graph.Connection> connections = new HashMap<>();
         ShardOperationFailedException [] failures = new ShardOperationFailedException [numFailures];
         for (int i = 0; i < failures.length; i++) {
@@ -211,7 +208,7 @@ public class GraphExploreResponseHlrcTests extends
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<org.elasticsearch.protocol.xpack.graph.GraphExploreResponse> instanceSupplier =
-            GraphExploreResponseHlrcTests::createTestInstanceWithFailures;
+            GraphExploreResponseTests::createTestInstanceWithFailures;
         //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
         //but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;

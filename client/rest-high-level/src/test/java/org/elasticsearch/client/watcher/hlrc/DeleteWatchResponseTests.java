@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.watcher;
+package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class DeleteWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
-    org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, org.elasticsearch.client.watcher.DeleteWatchResponse> {
+public class DeleteWatchResponseTests extends AbstractHlrcXContentTestCase<
+    org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, DeleteWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createTestInstance() {
@@ -41,13 +42,12 @@ public class DeleteWatchResponseHlrcTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    public org.elasticsearch.client.watcher.DeleteWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.watcher.DeleteWatchResponse.fromXContent(parser);
+    public DeleteWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+        return DeleteWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse convertHlrcToInternal(
-        org.elasticsearch.client.watcher.DeleteWatchResponse instance) {
+    public org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse convertHlrcToInternal(DeleteWatchResponse instance) {
         return new org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse(instance.getId(), instance.getVersion(),
             instance.isFound());
     }

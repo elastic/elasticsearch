@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.watcher;
+package org.elasticsearch.client.watcher.hlrc;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWat
 
 import java.io.IOException;
 
-public class ExecuteWatchResponseHlrcTests
+public class ExecuteWatchResponseTests
     extends AbstractHlrcXContentTestCase<ExecuteWatchResponse, org.elasticsearch.client.watcher.ExecuteWatchResponse> {
 
     @Override

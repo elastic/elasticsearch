@@ -64,17 +64,17 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(WatcherIndexTemplateRegistry.class);
 
-    private final Settings settings;
+    private final Settings nodeSettings;
     private final Client client;
     private final ThreadPool threadPool;
     private final NamedXContentRegistry xContentRegistry;
     private final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     private final AtomicBoolean historyPolicyCreationInProgress = new AtomicBoolean();
 
-    public WatcherIndexTemplateRegistry(Settings clusterSettings, ClusterService clusterService,
+    public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService,
                                         ThreadPool threadPool, Client client,
                                         NamedXContentRegistry xContentRegistry) {
-        this.settings = clusterSettings;
+        this.nodeSettings = nodeSettings;
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
@@ -108,7 +108,7 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addTemplatesIfMissing(ClusterState state) {
-        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(this.settings);
+        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(this.nodeSettings);
         final TemplateConfig[] indexTemplates = ilmSupported ? TEMPLATE_CONFIGS : TEMPLATE_CONFIGS_NO_ILM;
         for (TemplateConfig template : indexTemplates) {
             final String templateName = template.getTemplateName();
@@ -157,7 +157,7 @@ public class WatcherIndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addIndexLifecyclePolicyIfMissing(ClusterState state) {
-        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(this.settings);
+        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(this.nodeSettings);
         if (ilmSupported && historyPolicyCreationInProgress.compareAndSet(false, true)) {
             final LifecyclePolicy policyOnDisk = loadWatcherHistoryPolicy();
 

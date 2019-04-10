@@ -113,25 +113,25 @@ task buildIntegTestZip(type: Zip) {
 task buildWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(false), 'zip', 'windows', false, true)
+  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', false, true)
 }
 
 task buildOssWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'windows-x86_64'
-  with archiveFiles(modulesFiles(true), 'zip', 'windows', true, true)
+  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', true, true)
 }
 
 task buildNoJdkWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(false), 'zip', 'windows', false, false)
+  with archiveFiles(modulesFiles(false, 'windows'), 'zip', 'windows', false, false)
 }
 
 task buildOssNoJdkWindowsZip(type: Zip) {
   configure(commonZipConfig)
   archiveClassifier = 'no-jdk-windows-x86_64'
-  with archiveFiles(modulesFiles(true), 'zip', 'windows', true, false)
+  with archiveFiles(modulesFiles(true, 'windows'), 'zip', 'windows', true, false)
 }
 
 Closure commonTarConfig = {
@@ -144,49 +144,49 @@ Closure commonTarConfig = {
 task buildDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', 'darwin', false, true)
+  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, true)
 }
 
 task buildOssDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', 'darwin', true, true)
+  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, true)
 }
 
 task buildNoJdkDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', 'darwin', false, false)
+  with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, false)
 }
 
 task buildOssNoJdkDarwinTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', 'darwin', true, false)
+  with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, false)
 }
 
 task buildLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', 'linux', false, true)
+  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, true)
 }
 
 task buildOssLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', 'linux', true, true)
+  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, true)
 }
 
 task buildNoJdkLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(false), 'tar', 'linux', false, false)
+  with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, false)
 }
 
 task buildOssNoJdkLinuxTar(type: Tar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
-  with archiveFiles(modulesFiles(true), 'tar', 'linux', true, false)
+  with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, false)
 }
 
 Closure tarExists = { it -> new File('/bin/tar').exists() || new File('/usr/bin/tar').exists() || new File('/usr/local/bin/tar').exists() }

@@ -139,7 +139,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
         with libFiles(oss)
       }
       into('modules') {
-        with modulesFiles(oss)
+        with modulesFiles(oss, 'linux')
       }
       if (jdk) {
         into('jdk') {

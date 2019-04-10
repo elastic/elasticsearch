@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: "nebula.maven-scm"
 
 esplugin {
     description 'The nio transport.'
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
+    hasClientJar = true
 }
-
-compileJava.options.compilerArgs << "-Xlint:-try"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 dependencies {
     compile "org.elasticsearch:elasticsearch-nio:${version}"

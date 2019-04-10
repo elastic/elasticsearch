@@ -18,6 +18,7 @@
 
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.redline_rpm.header.Flags
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -60,22 +61,23 @@ buildscript {
   }
 }
 
-void addProcessFilesTask(String type, boolean oss) {
-  String packagingFiles = "build/packaging/${ oss ? 'oss-' : ''}${type}"
+void addProcessFilesTask(String type, boolean oss, boolean jdk) {
+  String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
-  task("process${oss ? 'Oss' : ''}${type.capitalize()}Files", type: Copy) {
+  String taskName = "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
+  task(taskName, type: Copy) {
     into packagingFiles
 
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+      MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
     }
 
     into('etc/elasticsearch') {
-      with configFiles(type, oss)
+      with configFiles(type, oss, jdk)
     }
-    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss))
+    MavenFilteringHack.filter(it, expansionsForDistribution(type, oss, jdk))
 
     doLast {
       // create empty dirs, we set the permissions when configuring the packages
@@ -89,25 +91,30 @@ void addProcessFilesTask(String type, boolean oss) {
     }
   }
 }
-addProcessFilesTask('deb', true)
-addProcessFilesTask('deb', false)
-addProcessFilesTask('rpm', true)
-addProcessFilesTask('rpm', false)
+addProcessFilesTask('deb', true, true)
+addProcessFilesTask('deb', true, false)
+addProcessFilesTask('deb', false, true)
+addProcessFilesTask('deb', false, false)
+addProcessFilesTask('rpm', true, true)
+addProcessFilesTask('rpm', true, false)
+addProcessFilesTask('rpm', false, true)
+addProcessFilesTask('rpm', false, false)
 
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
-Closure commonPackageConfig(String type, boolean oss) {
+Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
   return {
-    dependsOn "process${oss ? 'Oss' : ''}${type.capitalize()}Files"
+    dependsOn "process${oss ? 'Oss' : ''}${jdk ? '' : 'NoJdk'}${type.capitalize()}Files"
     packageName "elasticsearch${oss ? '-oss' : ''}"
     arch (type == 'deb' ? 'amd64' : 'X86_64')
     // Follow elasticsearch's file naming convention
-    archiveName "${packageName}-${project.version}-${archString}.${type}"
+    String jdkString = jdk ? "" : "no-jdk-"
+    archiveName "${packageName}-${project.version}-${jdkString}${archString}.${type}"
 
-    String prefix = "${oss ? 'oss-' : ''}${type}"
+    String prefix = "${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
     destinationDir = file("${prefix}/build/distributions")
-    String packagingFiles = "build/packaging/${prefix}"
+    String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
     String scripts = "${packagingFiles}/scripts"
     preInstall file("${scripts}/preinst")
@@ -122,7 +129,7 @@ Closure commonPackageConfig(String type, boolean oss) {
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, oss)
+        with binFiles(type, oss, jdk)
       }
       from(rootProject.projectDir) {
         include 'README.textile'
@@ -134,6 +141,11 @@ Closure commonPackageConfig(String type, boolean oss) {
       into('modules') {
         with modulesFiles(oss)
       }
+      if (jdk) {
+        into('jdk') {
+          with jdkFiles('linux')
+        }
+      }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
       // directory are fine
@@ -141,7 +153,7 @@ Closure commonPackageConfig(String type, boolean oss) {
         String[] segments = fcp.relativePath.segments
         for (int i = segments.length - 2; i > 2; --i) {
           directory('/' + segments[0..i].join('/'), 0755)
-          if (segments[-2] == 'bin') {
+          if (segments[-2] == 'bin' || segments[-1] == 'jspawnhelper') {
             fcp.mode = 0755
           } else {
             fcp.mode = 0644
@@ -194,7 +206,7 @@ Closure commonPackageConfig(String type, boolean oss) {
       createDirectoryEntry true
       fileType CONFIG | NOREPLACE
     }
-    String envFile = expansionsForDistribution(type, false)['path.env']
+    String envFile = expansionsForDistribution(type, oss, jdk)['path.env']
     configurationFile envFile
     into(new File(envFile).getParent()) {
       fileType CONFIG | NOREPLACE
@@ -248,6 +260,9 @@ Closure commonPackageConfig(String type, boolean oss) {
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch' + (oss ? '' : '-oss'))
+
+    into '/usr/share/elasticsearch'
+    with noticeFile(oss, jdk)
   }
 }
 
@@ -282,12 +297,11 @@ ospackage {
   permissionGroup 'root'
 
   into '/usr/share/elasticsearch'
-  with noticeFile
 }
 
-Closure commonDebConfig(boolean oss) {
+Closure commonDebConfig(boolean oss, boolean jdk) {
   return {
-    configure(commonPackageConfig('deb', oss))
+    configure(commonPackageConfig('deb', oss, jdk))
 
     // jdeb does not provide a way to set the License control attribute, and ospackage
     // silently ignores setting it. Instead, we set the license as "custom field"
@@ -310,16 +324,24 @@ Closure commonDebConfig(boolean oss) {
 }
 
 task buildDeb(type: Deb) {
-  configure(commonDebConfig(false))
+  configure(commonDebConfig(false, true))
 }
 
 task buildOssDeb(type: Deb) {
-  configure(commonDebConfig(true))
+  configure(commonDebConfig(true, true))
 }
 
-Closure commonRpmConfig(boolean oss) {
+task buildNoJdkDeb(type: Deb) {
+  configure(commonDebConfig(false, false))
+}
+
+task buildOssNoJdkDeb(type: Deb) {
+  configure(commonDebConfig(true, false))
+}
+
+Closure commonRpmConfig(boolean oss, boolean jdk) {
   return {
-    configure(commonPackageConfig('rpm', oss))
+    configure(commonPackageConfig('rpm', oss, jdk))
 
     if (oss) {
       license 'ASL 2.0'
@@ -329,6 +351,8 @@ Closure commonRpmConfig(boolean oss) {
 
     packageGroup 'Application/Internet'
     requires '/bin/bash'
+
+    obsoletes packageName, '7.0.0', Flags.LESS
 
     prefix '/usr'
     packager 'Elasticsearch'
@@ -345,11 +369,19 @@ Closure commonRpmConfig(boolean oss) {
 }
 
 task buildRpm(type: Rpm) {
-  configure(commonRpmConfig(false))
+  configure(commonRpmConfig(false, true))
 }
 
 task buildOssRpm(type: Rpm) {
-  configure(commonRpmConfig(true))
+  configure(commonRpmConfig(true, true))
+}
+
+task buildNoJdkRpm(type: Rpm) {
+  configure(commonRpmConfig(false, false))
+}
+
+task buildOssNoJdkRpm(type: Rpm) {
+  configure(commonRpmConfig(true, false))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }

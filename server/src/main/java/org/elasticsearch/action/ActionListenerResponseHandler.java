@@ -68,4 +68,9 @@ public class ActionListenerResponseHandler<Response extends TransportResponse> i
     public Response read(StreamInput in) throws IOException {
         return reader.read(in);
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + "/" + listener;
+    }
 }

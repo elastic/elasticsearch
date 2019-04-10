@@ -7,14 +7,16 @@ package org.elasticsearch.xpack.restart;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -55,13 +57,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     @Before
     public void waitForMlTemplates() throws Exception {
         List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
-
-        // If upgrading from a version prior to v6.6.0 the set of templates
-        // to wait for is different
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
-                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
-        }
-
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
@@ -72,9 +67,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 "\"airline\": {\"type\": \"keyword\"}," +
                 "\"responsetime\": {\"type\": \"float\"}" +
                 "}}}}");
-        RequestOptions.Builder options = createTestIndex.getOptions().toBuilder();
-        options.setWarningsHandler(WarningsHandler.PERMISSIVE);
-        createTestIndex.setOptions(options);
+        createTestIndex.setOptions(allowTypesRemovalWarnings());
         client().performRequest(createTestIndex);
     }
 
@@ -104,9 +97,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(putClosedJob);
 
         DatafeedConfig.Builder stoppedDfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_CLOSED_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            stoppedDfBuilder.setDelayedDataCheckConfig(null);
-        }
         stoppedDfBuilder.setIndices(Collections.singletonList("airline-data"));
 
         Request putStoppedDatafeed = new Request("PUT", "/_xpack/ml/datafeeds/" + OLD_CLUSTER_STOPPED_DATAFEED_ID);
@@ -125,10 +115,8 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         client().performRequest(openOpenJob);
 
         DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(OLD_CLUSTER_STARTED_DATAFEED_ID, OLD_CLUSTER_OPEN_JOB_ID);
-        if (getOldClusterVersion().before(Version.V_6_6_0)) {
-            dfBuilder.setDelayedDataCheckConfig(null);
-        }
         dfBuilder.setIndices(Collections.singletonList("airline-data"));
+        addAggregations(dfBuilder);
 
         Request putDatafeed = new Request("PUT", "_xpack/ml/datafeeds/" + OLD_CLUSTER_STARTED_DATAFEED_ID);
         putDatafeed.setJsonEntity(Strings.toString(dfBuilder.build()));
@@ -261,5 +249,12 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
                 .filter(id -> id.equals(jobId)).findFirst();
         assertFalse(config.isPresent());
+    }
+
+    private void addAggregations(DatafeedConfig.Builder dfBuilder) {
+        TermsAggregationBuilder airline = AggregationBuilders.terms("airline");
+        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time").subAggregation(airline);
+        dfBuilder.setParsedAggregations(AggregatorFactories.builder().addAggregator(
+                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
     }
 }

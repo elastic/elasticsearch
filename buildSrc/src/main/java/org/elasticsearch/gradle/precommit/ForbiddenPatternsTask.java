@@ -111,13 +111,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .collect(Collectors.toList());
 
             String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
-            failures = invalidLines.stream()
+            failures.addAll(invalidLines.stream()
                 .map(l -> new AbstractMap.SimpleEntry<>(l+1, lines.get(l)))
                 .flatMap(kv -> patterns.entrySet().stream()
                     .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
                     .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
                 )
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
         }
         if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));

@@ -324,7 +324,9 @@ public class IndexResolver {
                 // if the name wasn't added before
                 final InvalidMappedField invalidF = invalidField;
                 final FieldCapabilities fieldCapab = fieldCap;
-                if (!flattedMapping.containsKey(name)) {
+                
+                EsField esField = flattedMapping.get(name);
+                if (esField == null || (invalidF != null && (esField instanceof InvalidMappedField) == false)) {
                     createField(name, fieldCaps, hierarchicalMapping, flattedMapping, s -> {
                         return invalidF != null ? invalidF : createField(s, fieldCapab.getType(), emptyMap(), fieldCapab.isAggregatable());
                     });
@@ -413,6 +415,8 @@ public class IndexResolver {
         GetIndexRequest getIndexRequest = createGetIndexRequest(indexWildcard);
         client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.getMappings();
+            ImmutableOpenMap<String, List<AliasMetaData>> aliases = getIndexResponse.getAliases();
+
             List<EsIndex> results = new ArrayList<>(mappings.size());
             Pattern pattern = javaRegex != null ? Pattern.compile(javaRegex) : null;
             for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexMappings : mappings) {
@@ -423,7 +427,20 @@ public class IndexResolver {
                  * and not the concrete index: there is a well known information leak of the concrete index name in the response.
                  */
                 String concreteIndex = indexMappings.key;
-                if (pattern == null || pattern.matcher(concreteIndex).matches()) {
+
+                // take into account aliases
+                List<AliasMetaData> aliasMetadata = aliases.get(concreteIndex);
+                boolean matchesAlias = false;
+                if (pattern != null && aliasMetadata != null) {
+                    for (AliasMetaData aliasMeta : aliasMetadata) {
+                        if (pattern.matcher(aliasMeta.alias()).matches()) {
+                            matchesAlias = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (pattern == null || matchesAlias || pattern.matcher(concreteIndex).matches()) {
                     IndexResolution getIndexResult = buildGetIndexResult(concreteIndex, concreteIndex, indexMappings.value);
                     if (getIndexResult.isValid()) {
                         results.add(getIndexResult.get());

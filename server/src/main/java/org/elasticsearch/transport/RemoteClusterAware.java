@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -45,7 +46,6 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -144,8 +144,6 @@ public abstract class RemoteClusterAware {
 
     /**
      * A proxy address for the remote cluster.
-     * NOTE: this settings is undocumented until we have at last one transport that supports passing
-     * on the hostname via a mechanism like SNI.
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
             "cluster.remote.",
@@ -245,36 +243,19 @@ public abstract class RemoteClusterAware {
      *
      * @param remoteClusterNames the remote cluster names
      * @param requestIndices the indices in the search request to filter
-     * @param indexExists a predicate that can test if a certain index or alias exists in the local cluster
      *
      * @return a map of grouped remote and local indices
      */
-    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices,
-                                                            Predicate<String> indexExists) {
+    protected Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
         Map<String, List<String>> perClusterIndices = new HashMap<>();
         for (String index : requestIndices) {
             int i = index.indexOf(RemoteClusterService.REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 String remoteClusterName = index.substring(0, i);
                 List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
-                if (clusters.isEmpty() == false) {
-                    if (indexExists.test(index)) {
-                        //We use ":" as a separator for remote clusters. There may be a conflict if there is an index that is named
-                        //remote_cluster_alias:index_name - for this case we fail the request. The user can easily change the cluster alias
-                        //if that happens. Note that indices and aliases can be created with ":" in their names names up to 6.last, which
-                        //means such names need to be supported until 7.last. It will be possible to remove this check from 8.0 on.
-                        throw new IllegalArgumentException("Can not filter indices; index " + index +
-                                " exists but there is also a remote cluster named: " + remoteClusterName);
-                    }
-                    String indexName = index.substring(i + 1);
-                    for (String clusterName : clusters) {
-                        perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
-                    }
-                } else {
-                    //Indices and aliases can be created with ":" in their names up to 6.last (although deprecated), and still be
-                    //around in 7.x. That's why we need to be lenient here and treat the index as local although it contains ":".
-                    //It will be possible to remove such leniency and assume that no local indices contain ":" only from 8.0 on.
-                    perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
+                String indexName = index.substring(i + 1);
+                for (String clusterName : clusters) {
+                    perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
                 }
             } else {
                 perClusterIndices.computeIfAbsent(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, k -> new ArrayList<>()).add(index);
@@ -283,21 +264,38 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
+    void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy) {
+        Boolean compress = TransportSettings.TRANSPORT_COMPRESS.get(settings);
+        TimeValue pingSchedule = TransportSettings.PING_SCHEDULE.get(settings);
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    }
+
+    void updateRemoteCluster(String clusterAlias, Settings settings) {
+        String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        List<String> addresses = REMOTE_CLUSTERS_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        Boolean compress = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+        TimeValue pingSchedule = RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE
+            .getConcreteSettingForNamespace(clusterAlias)
+            .get(settings);
+
+        updateRemoteCluster(clusterAlias, addresses, proxy, compress, pingSchedule);
+    }
+
     /**
      * Subclasses must implement this to receive information about updated cluster aliases. If the given address list is
      * empty the cluster alias is unregistered and should be removed.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy);
+    protected abstract void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxy, boolean compressionEnabled,
+                                                TimeValue pingSchedule);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        clusterSettings.addAffixUpdateConsumer(
-                RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-                RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-                (key, value) -> updateRemoteCluster(key, value.v2(), value.v1()),
-                (namespace, value) -> {});
+        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
+            RemoteClusterAware.REMOTE_CLUSTERS_SEEDS, RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE);
+        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::updateRemoteCluster);
         clusterSettings.addAffixUpdateConsumer(
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
                 RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,

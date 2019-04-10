@@ -49,11 +49,6 @@ public interface RecoveryTargetHandler {
     void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener);
 
     /**
-     * Blockingly waits for cluster state with at least clusterStateVersion to be available
-     */
-    void ensureClusterStateVersion(long clusterStateVersion);
-
-    /**
      * Handoff the primary context between the relocation source and the relocation target.
      *
      * @param primaryContext the primary context from the relocation source
@@ -93,10 +88,12 @@ public interface RecoveryTargetHandler {
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
      * files that are not part of the source store
+     *
      * @param totalTranslogOps an update number of translog operations that will be replayed later on
-     * @param sourceMetaData meta data of the source store
+     * @param globalCheckpoint the global checkpoint on the primary
+     * @param sourceMetaData   meta data of the source store
      */
-    void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException;
+    void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException;
 
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,

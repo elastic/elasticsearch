@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -133,7 +134,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_GC_DELETES_SETTING,
         IndexSettings.INDEX_SOFT_DELETES_SETTING,
         IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
-        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
         IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
         UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
         EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
@@ -153,15 +154,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
+        MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
         IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
+        Store.FORCE_RAM_TERM_DICT,
         EngineConfig.INDEX_CODEC_SETTING,
-        EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         IndexSettings.DEFAULT_PIPELINE,
+        MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

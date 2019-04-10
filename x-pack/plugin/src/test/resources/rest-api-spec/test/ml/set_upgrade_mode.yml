@@ -206,19 +206,17 @@ teardown:
       ml.get_datafeed_stats:
         datafeed_id: set-upgrade-mode-job-datafeed
   - match: { datafeeds.0.state: "started" }
-  - match: { datafeeds.0.assignment_explanation: "" }
+  # The datafeed will not be assigned until the job has updated its status on the node it's assigned
+  # to, and that probably won't happen in time for this assertion.  That is indicated by an assignment
+  # reason ending "state is stale".  However, the datafeed should NOT be unassigned with a reason of
+  # "upgrade mode is enabled" - that reason should have gone away before this test.
+  - match: { datafeeds.0.assignment_explanation: /(^$|.+job.+state.is.stale)/ }
 
   - do:
       cat.tasks: {}
   - match:
       $body: |
         /.+job.+/
-
-  - do:
-      cat.tasks: {}
-  - match:
-      $body: |
-        /.+datafeed.+/
 
 ---
 "Attempt to open job when upgrade_mode is enabled":

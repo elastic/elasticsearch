@@ -47,7 +47,7 @@ public interface DateFormatter {
      * Parse the given input into millis-since-epoch.
      */
     default long parseMillis(String input) {
-        return Instant.from(parse(input)).toEpochMilli();
+        return DateFormatters.from(parse(input)).toInstant().toEpochMilli();
     }
 
     /**

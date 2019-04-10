@@ -35,13 +35,13 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
     public void startWatcher() throws Exception {
         assertBusy(() -> {
             ClientYamlTestResponse response =
-                getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
             String state = (String) response.evaluate("stats.0.watcher_state");
 
             switch (state) {
                 case "stopped":
                     ClientYamlTestResponse startResponse =
-                        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
                     boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until stopped state reached started state");
@@ -70,7 +70,7 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
     public void stopWatcher() throws Exception {
         assertBusy(() -> {
             ClientYamlTestResponse response =
-                getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
             String state = (String) response.evaluate("stats.0.watcher_state");
 
             switch (state) {
@@ -83,7 +83,7 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
                     ClientYamlTestResponse stopResponse =
-                        getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
+                        getAdminExecutionContext().callApi("watcher.stop", emptyMap(), emptyList(), emptyMap());
                     boolean isAcknowledged = (boolean) stopResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until started state reached stopped state");

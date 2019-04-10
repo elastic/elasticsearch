@@ -27,7 +27,7 @@ import java.util.Objects;
 
 public class RetentionLeaseAlreadyExistsException extends ResourceAlreadyExistsException {
 
-    RetentionLeaseAlreadyExistsException(final String id) {
+    public RetentionLeaseAlreadyExistsException(final String id) {
         super("retention lease with ID [" + Objects.requireNonNull(id) + "] already exists");
     }
 

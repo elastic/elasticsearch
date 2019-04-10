@@ -155,10 +155,12 @@ Will return, for example:
          "max_uptime_in_millis": 13737,
          "versions": [
             {
-               "version": "1.8.0_74",
-               "vm_name": "Java HotSpot(TM) 64-Bit Server VM",
-               "vm_version": "25.74-b02",
+               "version": "12",
+               "vm_name": "OpenJDK 64-Bit Server VM",
+               "vm_version": "12+33",
                "vm_vendor": "Oracle Corporation",
+               "bundled_jdk": true,
+               "using_bundled_jdk": true,
                "count": 1
             }
          ],
@@ -200,6 +202,7 @@ Will return, for example:
 // TESTRESPONSE[s/"plugins": \[[^\]]*\]/"plugins": $body.$_path/]
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
+// TESTRESPONSE[s/: true|false/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // These replacements do a few things:

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.hamcrest.Matcher;
 
 import javax.mail.internet.AddressException;
 import java.io.IOException;
@@ -69,6 +71,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.hamcrest.Matchers.is;
 
 public final class WatcherTestUtils {
 
@@ -187,5 +190,14 @@ public final class WatcherTestUtils {
 
     public static SearchType getRandomSupportedSearchType() {
         return randomFrom(SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
+    }
+
+    public static Matcher<String> isSameDate(ZonedDateTime zonedDateTime) {
+        /*
+        When comparing timestamps returned from _search/.watcher-history* the same format of date has to be used
+        during serialisation to json on index time.
+        The toString of ZonedDateTime is omitting the millisecond part when is 0. This was not the case in joda.
+         */
+        return is(WatcherDateTimeUtils.formatDate(zonedDateTime));
     }
 }

@@ -3,7 +3,7 @@
 //
 
 currentDateKeywordWithDivision
-SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
+SELECT YEAR(CURRENT_DATE) / 1000 AS result;
 
     result
 ---------------
@@ -11,7 +11,7 @@ SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
 ;
 
 currentDateFunctionNoArgsWithDivision
-SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
+SELECT YEAR(CURRENT_DATE()) / 1000 AS result;
 
     result
 ---------------
@@ -35,7 +35,7 @@ SELECT TRUNCATE(YEAR(TODAY() - INTERVAL 50 YEARS) / 1000) AS result;
 ;
 
 
-currentDateFilter
+currentDateFilter-Ignore
 SELECT first_name FROM test_emp WHERE hire_date > CURRENT_DATE() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 10;
 
     first_name

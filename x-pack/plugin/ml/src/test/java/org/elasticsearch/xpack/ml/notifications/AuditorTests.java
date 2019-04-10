@@ -51,7 +51,6 @@ public class AuditorTests extends ESTestCase {
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertArrayEquals(new String[] {".ml-notifications"}, indexRequest.indices());
-        assertEquals("audit_message", indexRequest.type());
         assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
         AuditMessage auditMessage = parseAuditMessage(indexRequest.source());
         assertEquals("foo", auditMessage.getJobId());
@@ -66,7 +65,6 @@ public class AuditorTests extends ESTestCase {
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertArrayEquals(new String[] {".ml-notifications"}, indexRequest.indices());
-        assertEquals("audit_message", indexRequest.type());
         assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
         AuditMessage auditMessage = parseAuditMessage(indexRequest.source());
         assertEquals("bar", auditMessage.getJobId());
@@ -81,7 +79,6 @@ public class AuditorTests extends ESTestCase {
         verify(client).index(indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertArrayEquals(new String[] {".ml-notifications"}, indexRequest.indices());
-        assertEquals("audit_message", indexRequest.type());
         assertEquals(TimeValue.timeValueSeconds(5), indexRequest.timeout());
         AuditMessage auditMessage = parseAuditMessage(indexRequest.source());
         assertEquals("foobar", auditMessage.getJobId());

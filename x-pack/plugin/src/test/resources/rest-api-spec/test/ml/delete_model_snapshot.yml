@@ -39,7 +39,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-delete-model-snapshot
-        type:   doc
         id:     "delete-model-snapshot_model_snapshot_inactive-snapshot"
         body: >
           {
@@ -57,7 +56,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "delete-model-snapshot_model_state_inactive-snapshot#1"
         body: >
           {
@@ -69,7 +67,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index:  .ml-state
-        type:   doc
         id:     "delete-model-snapshot_model_state_inactive-snapshot#2"
         body: >
           {
@@ -82,7 +79,6 @@ setup:
         Content-Type: application/json
       index:
         index:  .ml-anomalies-delete-model-snapshot
-        type:   doc
         id:     "delete-model-snapshot_model_snapshot_active-snapshot"
         body: >
           {
@@ -158,7 +154,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
         index: .ml-state
-        type: doc
 
   - match: { count: 3 }
 
@@ -191,7 +186,6 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       count:
         index: .ml-state
-        type: doc
 
   - match: { count: 1 }
 

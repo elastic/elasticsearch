@@ -136,6 +136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public IndexService(
             IndexSettings indexSettings,
+            IndexCreationContext indexCreationContext,
             NodeEnvironment nodeEnv,
             NamedXContentRegistry xContentRegistry,
             SimilarityService similarityService,
@@ -162,21 +163,36 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
-        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
-            mapperRegistry,
-            // we parse all percolator queries as they would be parsed on shard 0
-            () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
-        this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
-        if (indexSettings.getIndexSortConfig().hasIndexSort()) {
-            // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
-            // The sort order is validated right after the merge of the mapping later in the process.
-            this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
-                mapperService::fullName,
-                indexFieldData::getForField
-            );
-        } else {
+        if (indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE &&
+            indexCreationContext == IndexCreationContext.CREATE_INDEX) { // metadata verification needs a mapper service
+            this.mapperService = null;
+            this.indexFieldData = null;
             this.indexSortSupplier = () -> null;
+            this.bitsetFilterCache = null;
+            this.warmer = null;
+            this.indexCache = null;
+        } else {
+            this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
+                mapperRegistry,
+                // we parse all percolator queries as they would be parsed on shard 0
+                () -> newQueryShardContext(0, null, System::currentTimeMillis, null));
+            this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
+            if (indexSettings.getIndexSortConfig().hasIndexSort()) {
+                // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
+                // The sort order is validated right after the merge of the mapping later in the process.
+                this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
+                    mapperService::fullName,
+                    indexFieldData::getForField
+                );
+            } else {
+                this.indexSortSupplier = () -> null;
+            }
+            indexFieldData.setListener(new FieldDataCacheListener(this));
+            this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
+            this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
+            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         }
+
         this.shardStoreDeleter = shardStoreDeleter;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
@@ -185,10 +201,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.indexStore = indexStore;
-        indexFieldData.setListener(new FieldDataCacheListener(this));
-        this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-        this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-        this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
@@ -199,7 +211,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
-        rescheduleFsyncTask(indexSettings.getTranslogDurability());
+        updateFsyncTaskIfNecessary();
+    }
+
+    public enum IndexCreationContext {
+        CREATE_INDEX,
+        META_DATA_VERIFICATION
     }
 
     public int numberOfShards() {
@@ -334,7 +351,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexShard indexShard = null;
         ShardLock lock = null;
         try {
-            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+            lock = nodeEnv.shardLock(shardId, "shard creation", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
@@ -388,6 +405,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             DirectoryService directoryService = indexStore.newDirectoryService(path);
             store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
+            eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                     routing,
                     this.indexSettings,
@@ -547,7 +565,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
-        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
+        if (mapperService == null) {
+            return false;
+        }
+        return mapperService.updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -639,8 +660,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
-        final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
-
         final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
 
         if (Assertions.ENABLED
@@ -672,7 +691,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // once we change the refresh interval we schedule yet another refresh
                 // to ensure we are in a clean and predictable state.
                 // it doesn't matter if we move from or to <code>-1</code>  in both cases we want
-                // docs to become visible immediately. This also flushes all pending indexing / search reqeusts
+                // docs to become visible immediately. This also flushes all pending indexing / search requests
                 // that are waiting for a refresh.
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(new AbstractRunnable() {
                     @Override
@@ -692,20 +711,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 });
                 rescheduleRefreshTasks();
             }
-            final Translog.Durability durability = indexSettings.getTranslogDurability();
-            if (durability != oldTranslogDurability) {
-                rescheduleFsyncTask(durability);
-            }
+            updateFsyncTaskIfNecessary();
         }
     }
 
-    private void rescheduleFsyncTask(Translog.Durability durability) {
-        try {
-            if (fsyncTask != null) {
-                fsyncTask.close();
+    private void updateFsyncTaskIfNecessary() {
+        if (indexSettings.getTranslogDurability() == Translog.Durability.REQUEST) {
+            try {
+                if (fsyncTask != null) {
+                    fsyncTask.close();
+                }
+            } finally {
+                fsyncTask = null;
             }
-        } finally {
-            fsyncTask = durability == Translog.Durability.REQUEST ? null : new AsyncTranslogFSync(this);
+        } else if (fsyncTask == null) {
+            fsyncTask = new AsyncTranslogFSync(this);
+        } else {
+            fsyncTask.updateIfNeeded();
         }
     }
 
@@ -789,7 +811,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void syncRetentionLeases() {
-        sync(IndexShard::syncRetentionLeases, "retention lease");
+        if (indexSettings.isSoftDeleteEnabled()) {
+            sync(IndexShard::syncRetentionLeases, "retention lease");
+        }
     }
 
     private void sync(final Consumer<IndexShard> sync, final String source) {
@@ -806,7 +830,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> sync.accept(shard),
+                                    () -> {
+                                        if (shard.isRelocatedPrimary() == false) {
+                                            sync.accept(shard);
+                                        }
+                                    },
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
                                                 && e instanceof IndexShardClosedException == false) {
@@ -829,17 +857,20 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
+
         protected final IndexService indexService;
 
-        BaseAsyncTask(IndexService indexService, TimeValue interval) {
+        BaseAsyncTask(final IndexService indexService, final TimeValue interval) {
             super(indexService.logger, indexService.threadPool, interval, true);
             this.indexService = indexService;
             rescheduleIfNecessary();
         }
 
+        @Override
         protected boolean mustReschedule() {
-            // don't re-schedule if its closed or if we don't have a single shard here..., we are done
-            return indexService.closed.get() == false;
+            // don't re-schedule if the IndexService instance is closed or if the index is closed
+            return indexService.closed.get() == false
+                && indexService.indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN;
         }
     }
 
@@ -860,6 +891,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected void runInternal() {
             indexService.maybeFSyncTranslogs();
+        }
+
+        void updateIfNeeded() {
+            final TimeValue newInterval = indexService.getIndexSettings().getTranslogSyncInterval();
+            if (newInterval.equals(getInterval()) == false) {
+                setInterval(newInterval);
+            }
         }
 
         @Override
@@ -926,7 +964,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public static final Setting<TimeValue> RETENTION_LEASE_SYNC_INTERVAL_SETTING =
             Setting.timeSetting(
                     "index.soft_deletes.retention_lease.sync_interval",
-                    new TimeValue(5, TimeUnit.MINUTES),
+                    new TimeValue(30, TimeUnit.SECONDS),
                     new TimeValue(0, TimeUnit.MILLISECONDS),
                     Property.Dynamic,
                     Property.IndexScope);

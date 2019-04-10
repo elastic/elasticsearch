@@ -47,6 +47,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
         RoleDescriptor bRole = new RoleDescriptor("b", null,
                 new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() }, null);
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -59,7 +61,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .putAlias(new AliasMetaData.Builder("ab").build())
                         .putAlias(new AliasMetaData.Builder("ba").build())
                         .build(), true)
-                .put(new IndexMetaData.Builder(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -75,7 +77,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
         assertFalse(list.contains("ba"));
-        assertThat(list, not(contains(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)));
+        assertThat(list, not(contains(internalSecurityIndex)));
         assertThat(list, not(contains(RestrictedIndicesNames.SECURITY_INDEX_NAME)));
     }
 
@@ -99,10 +101,13 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .cluster(ClusterPrivilege.ALL)
                 .build();
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)
+                .put(new IndexMetaData.Builder(
+                    internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -113,7 +118,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         List<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index"));
-        assertThat(authorizedIndices, not(contains(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)));
+        assertThat(authorizedIndices, not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices, not(contains(RestrictedIndicesNames.SECURITY_INDEX_NAME)));
     }
 
@@ -123,10 +128,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .cluster(ClusterPrivilege.ALL)
                 .build();
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("an-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("another-index").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetaData.Builder(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX)
+                .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
@@ -137,11 +144,11 @@ public class AuthorizedIndicesTests extends ESTestCase {
         List<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(authorizedIndices, containsInAnyOrder(
-            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, internalSecurityIndex));
 
         List<String> authorizedIndicesSuperUser =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, SearchAction.NAME, metaData.getAliasAndIndexLookup());
         assertThat(authorizedIndicesSuperUser, containsInAnyOrder(
-            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+            "an-index", "another-index", SecurityIndexManager.SECURITY_INDEX_NAME, internalSecurityIndex));
     }
 }

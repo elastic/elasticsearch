@@ -1,0 +1,30 @@
+{
+  "data_frame.get_data_frame_transform": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_data_frame/transforms/{transform_id}",
+      "paths": [ "/_data_frame/transforms/{transform_id}", "/_data_frame/transforms"],
+      "parts": {
+        "transform_id": {
+          "type": "string",
+          "required": false,
+          "description": "The id or comma delimited list of id expressions of the transforms to get, '_all' or '*' implies get all transforms"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "int",
+          "required": false,
+          "description": "skips a number of transform configs, defaults to 0"
+        },
+        "size": {
+          "type": "int",
+          "required": false,
+          "description": "specifies a max number of transforms to get, defaults to 100"
+        }
+      }
+    },
+    "body": null
+  }
+}

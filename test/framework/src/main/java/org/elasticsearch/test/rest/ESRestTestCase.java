@@ -52,6 +52,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -72,6 +73,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -256,13 +258,13 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static RequestOptions expectWarnings(String... warnings) {
         return expectVersionSpecificWarnings(consumer -> consumer.current(warnings));
     }
-    
+
     /**
-     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else 
+     * Creates RequestOptions designed to ignore [types removal] warnings but nothing else
      * @deprecated this method is only required while we deprecate types and can be removed in 8.0
      */
     @Deprecated
-    public static RequestOptions allowTypeRemovalWarnings() {
+    public static RequestOptions allowTypesRemovalWarnings() {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(new WarningsHandler() {
                 @Override
@@ -277,7 +279,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
             });
         return builder.build();
-    }    
+    }
 
     /**
      * Construct an HttpHost from the given host and port
@@ -292,6 +294,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     @After
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             logIfThereAreRunningTasks();
@@ -458,6 +461,17 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
+
+        // Cleanup rollup before deleting indices.  A rollup job might have bulks in-flight,
+        // so we need to fully shut them down first otherwise a job might stall waiting
+        // for a bulk to finish against a non-existing index (and then fail tests)
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
+        }
+
+        final Map<String, List<Map<?,?>>> inProgressSnapshots = wipeSnapshots();
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -498,29 +512,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         }
 
-        wipeSnapshots();
-
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
-            waitForPendingRollupTasks();
-        }
-
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
             deleteAllPolicies();
         }
+
+        assertTrue("Found in progress snapshots [" + inProgressSnapshots + "].", inProgressSnapshots.isEmpty());
     }
 
     /**
      * Wipe fs snapshots we created one by one and all repositories so that the next test can create the repositories fresh and they'll
      * start empty. There isn't an API to delete all snapshots. There is an API to delete all snapshot repositories but that leaves all of
      * the snapshots intact in the repository.
+     * @return Map of repository name to list of snapshots found in unfinished state
      */
-    private void wipeSnapshots() throws IOException {
+    private Map<String, List<Map<?, ?>>> wipeSnapshots() throws IOException {
+        final Map<String, List<Map<?, ?>>> inProgressSnapshots = new HashMap<>();
         for (Map.Entry<String, ?> repo : entityAsMap(adminClient.performRequest(new Request("GET", "/_snapshot/_all"))).entrySet()) {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
@@ -533,6 +544,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
+                    if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
+                        inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
+                    }
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);
                     adminClient().performRequest(new Request("DELETE", "/_snapshot/" + repoName + "/" + name));
                 }
@@ -542,6 +556,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 adminClient().performRequest(new Request("DELETE", "_snapshot/" + repoName));
             }
         }
+        return inProgressSnapshots;
     }
 
     /**
@@ -790,7 +805,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
-        client().performRequest(request);
+        try {
+            client().performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                try {
+                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state"));
+                    fail("timed out waiting for green state for index [" + index + "] " +
+                        "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+            }
+            throw e;
+        }
     }
 
     /**
@@ -802,7 +830,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         request.addParameter("wait_for_no_initializing_shards", "true");
         request.addParameter("timeout", "70s");
         request.addParameter("level", "shards");
-        client().performRequest(request);
+        adminClient().performRequest(request);
     }
 
     protected static void createIndex(String name, Settings settings) throws IOException {

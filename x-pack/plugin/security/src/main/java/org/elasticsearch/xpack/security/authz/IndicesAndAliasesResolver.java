@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -438,7 +439,8 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
+        protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
+                                           TimeValue pingSchedule) {
             if (addresses.isEmpty()) {
                 clusters.remove(clusterAlias);
             } else {
@@ -447,7 +449,7 @@ class IndicesAndAliasesResolver {
         }
 
         ResolvedIndices splitLocalAndRemoteIndexNames(String... indices) {
-            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices, exists -> false);
+            final Map<String, List<String>> map = super.groupClusterIndices(clusters, indices);
             final List<String> local = map.remove(LOCAL_CLUSTER_GROUP_KEY);
             final List<String> remote = map.entrySet().stream()
                     .flatMap(e -> e.getValue().stream().map(v -> e.getKey() + REMOTE_CLUSTER_INDEX_SEPARATOR + v))

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
@@ -26,6 +27,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -37,6 +40,9 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -213,5 +219,34 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(date1, date2, true, true, null, null, null, context));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testDateNanoDocValues() throws IOException {
+        // Create an index with some docValues
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        Document doc = new Document();
+        NumericDocValuesField docValuesField = new NumericDocValuesField("my_date", 1444608000000L);
+        doc.add(docValuesField);
+        w.addDocument(doc);
+        docValuesField.setLongValue(1459641600000L);
+        w.addDocument(doc);
+        // Create the doc values reader
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IndexSettings indexSettings =  new IndexSettings(IndexMetaData.builder("foo").settings(settings).build(), settings);
+        SortedNumericDVIndexFieldData fieldData = new SortedNumericDVIndexFieldData(indexSettings.getIndex(), "my_date",
+            IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
+        // Read index and check the doc values
+        DirectoryReader reader = DirectoryReader.open(w);
+        assertTrue(reader.leaves().size() > 0);
+        AtomicNumericFieldData a = fieldData.load(reader.leaves().get(0).reader().getContext());
+        SortedNumericDocValues docValues = a.getLongValues();
+        assertEquals(0, docValues.nextDoc());
+        assertEquals(1, docValues.nextDoc());
+        assertEquals(DocIdSetIterator.NO_MORE_DOCS, docValues.nextDoc());
+        reader.close();
+        w.close();
+        dir.close();
     }
 }

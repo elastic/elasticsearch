@@ -390,7 +390,7 @@ existing index meets one of the rollover conditions.
 [options="header"]
 |======
 | Name       | Required  | Default             | Description
-| `max_size` | no        | -                   | max index storage size.
+| `max_size` | no        | -                   | max primary shard index storage size.
                                                  See <<byte-units, Byte Units>>
                                                  for formatting
 | `max_docs` | no        | -                   | max number of documents an

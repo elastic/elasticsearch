@@ -17,18 +17,17 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.input.Input;
-import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.hamcrest.Matcher;
 
-import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -100,16 +99,19 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").addTypes("doc").get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get("doc").source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
+            .addTypes(SINGLE_MAPPING_NAME).get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
         // lets make sure the body fields are disabled
         if (useChained) {
-            String chainedPath = "doc.properties.result.properties.input.properties.chain.properties.chained.properties.search" +
+            String chainedPath = SINGLE_MAPPING_NAME +
+                ".properties.result.properties.input.properties.chain.properties.chained.properties.search" +
                     ".properties.request.properties.body.enabled";
             assertThat(source.getValue(chainedPath), is(false));
         } else {
-            String path = "doc.properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
+            String path = SINGLE_MAPPING_NAME +
+                ".properties.result.properties.input.properties.search.properties.request.properties.body.enabled";
             assertThat(source.getValue(path), is(false));
         }
     }
@@ -138,21 +140,22 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertHitCount(searchResponse, 1);
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").addTypes("doc").get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get("doc").source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
+            .addTypes(SINGLE_MAPPING_NAME).get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
         XContentSource source = new XContentSource(new BytesArray(bytes), XContentType.JSON);
 
         // lets make sure the body fields are disabled
         if (useChained) {
-            String path = "doc.properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
+            String path = SINGLE_MAPPING_NAME +
+                ".properties.result.properties.input.properties.chain.properties.chained.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));
         } else {
-            String path = "doc.properties.result.properties.input.properties.payload.enabled";
+            String path = SINGLE_MAPPING_NAME + ".properties.result.properties.input.properties.payload.enabled";
             assertThat(source.getValue(path), is(false));
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38693")
     public void testThatHistoryContainsStatus() throws Exception {
         watcherClient().preparePutWatch("test_watch")
                 .setSource(watchBuilder()
@@ -176,10 +179,12 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(active, is(status.state().isActive()));
 
         String timestamp = source.getValue("status.state.timestamp");
-        assertThat(timestamp, isSameDate(status.state().getTimestamp()));
+        assertThat(timestamp, WatcherTestUtils.isSameDate(status.state().getTimestamp()));
 
         String lastChecked = source.getValue("status.last_checked");
-        assertThat(lastChecked, isSameDate(status.lastChecked()));
+        assertThat(lastChecked, WatcherTestUtils.isSameDate(status.lastChecked()));
+        String lastMetCondition = source.getValue("status.last_met_condition");
+        assertThat(lastMetCondition, WatcherTestUtils.isSameDate(status.lastMetCondition()));
 
         Integer version = source.getValue("status.version");
         int expectedVersion = (int) (status.version() - 1);
@@ -193,21 +198,14 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
         assertThat(lastExecutionSuccesful, is(actionStatus.lastExecution().successful()));
 
         // also ensure that the status field is disabled in the watch history
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").addTypes("doc").get();
-        byte[] bytes = response.getMappings().values().iterator().next().value.get("doc").source().uncompressed();
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*")
+            .addTypes(SINGLE_MAPPING_NAME).get();
+        byte[] bytes = response.getMappings().values().iterator().next().value.get(SINGLE_MAPPING_NAME).source().uncompressed();
         XContentSource mappingSource = new XContentSource(new BytesArray(bytes), XContentType.JSON);
-        assertThat(mappingSource.getValue("doc.properties.status.enabled"), is(false));
-        assertThat(mappingSource.getValue("doc.properties.status.properties.status"), is(nullValue()));
-        assertThat(mappingSource.getValue("doc.properties.status.properties.status.properties.active"), is(nullValue()));
+        assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.enabled"), is(false));
+        assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status"), is(nullValue()));
+        assertThat(mappingSource.getValue(SINGLE_MAPPING_NAME + ".properties.status.properties.status.properties.active"), is(nullValue()));
     }
 
 
-    private Matcher<String> isSameDate(ZonedDateTime zonedDateTime) {
-        /*
-        When comparing timestamps returned from _search/.watcher-history* the same format of date has to be used
-        during serialisation to json on index time.
-        The toString of ZonedDateTime is omitting the millisecond part when is 0. This was not the case in joda.
-         */
-        return is(WatcherDateTimeUtils.formatDate(zonedDateTime));
-    }
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,19 +77,13 @@ public class DocValueFieldsContext {
         /** Serialization constructor. */
         public FieldAndFormat(StreamInput in) throws IOException {
             this.field = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-                format = in.readOptionalString();
-            } else {
-                format = null;
-            }
+            format = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(field);
-            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-                out.writeOptionalString(format);
-            }
+            out.writeOptionalString(format);
         }
 
         @Override

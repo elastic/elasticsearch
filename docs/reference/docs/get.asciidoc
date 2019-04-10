@@ -34,7 +34,7 @@ The result of the above get operation is:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-The above result includes the `_index`, `_id` and `_version`
+The above result includes the `_index`, `_id`, and `_version`
 of the document we wish to retrieve, including the actual `_source`
 of the document if it could be found (as indicated by the `found`
 field in the response).
@@ -76,7 +76,7 @@ GET twitter/_doc/0?_source=false
 // TEST[setup:twitter]
 
 If you only need one or two fields from the complete `_source`, you can use the `_source_includes`
-& `_source_excludes` parameters to include or filter out that parts you need. This can be especially helpful
+and `_source_excludes` parameters to include or filter out the parts you need. This can be especially helpful
 with large documents where partial retrieval can save on network overhead. Both parameters take a comma separated list
 of fields or wildcard expressions. Example:
 
@@ -138,7 +138,7 @@ PUT twitter/_doc/1
 // CONSOLE
 // TEST[continued]
 
-... and try to retrieve it:
+And then try to retrieve it:
 
 [source,js]
 --------------------------------------------------
@@ -236,7 +236,7 @@ You can also use the same source filtering parameters to control which parts of 
 
 [source,js]
 --------------------------------------------------
-GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities'
+GET twitter/_source/1/?_source_includes=*.id&_source_excludes=entities
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -266,7 +266,7 @@ GET twitter/_doc/2?routing=user1
 // TEST[continued]
 
 The above will get a tweet with id `2`, but will be routed based on the
-user. Note, issuing a get without the correct routing, will cause the
+user. Note that issuing a get without the correct routing will cause the
 document not to be fetched.
 
 [float]
@@ -307,7 +307,7 @@ indexing).
 The get operation gets hashed into a specific shard id. It then gets
 redirected to one of the replicas within that shard id and returns the
 result. The replicas are the primary shard and its replicas within that
-shard id group. This means that the more replicas we will have, the
+shard id group. This means that the more replicas we have, the
 better GET scaling we will have.
 
 

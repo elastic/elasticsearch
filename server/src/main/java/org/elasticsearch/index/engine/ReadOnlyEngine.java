@@ -34,6 +34,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -102,15 +103,16 @@ public class ReadOnlyEngine extends Engine {
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
-                    // During a peer-recovery the global checkpoint is not known and up to date when the engine
-                    // is created, so we only check the max seq no / global checkpoint coherency when the global
+                    // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+                    // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
                     // checkpoint is different from the unassigned sequence number value.
                     // In addition to that we only execute the check if the index the engine belongs to has been
                     // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
                     // that guarantee that all operations have been flushed to Lucene.
                     final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-                    if (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
+                    final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
+                    if (indexVersionCreated.onOrAfter(Version.V_8_0_0) ||
+                        (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
                         if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
                             assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), globalCheckpoint);
                             throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
@@ -272,7 +274,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         return () -> {};
     }
 
@@ -287,18 +289,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public Translog.Snapshot readHistoryOperations(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() { }
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
+        return newEmptySnapshot();
     }
 
     @Override
@@ -309,6 +300,11 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         return false;
+    }
+
+    @Override
+    public long getMinRetainedSeqNo() {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -324,10 +320,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public long getLocalCheckpoint() {
         return seqNoStats.getLocalCheckpoint();
-    }
-
-    @Override
-    public void waitForOpsToComplete(long seqNo) {
     }
 
     @Override
@@ -354,6 +346,11 @@ public class ReadOnlyEngine extends Engine {
     public void refresh(String source) {
         // we could allow refreshes if we want down the road the searcher manager will then reflect changes to a rw-engine
         // opened side-by-side
+    }
+
+    @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        return false;
     }
 
     @Override
@@ -424,7 +421,15 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) {
+    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
+                translogRecoveryRunner.run(this, snapshot);
+            } catch (final Exception e) {
+                throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
+            }
+        }
         return this;
     }
 
@@ -451,7 +456,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
+    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
         advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
     }
 
@@ -462,5 +467,23 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
+    }
+
+    private Translog.Snapshot newEmptySnapshot() {
+        return new Translog.Snapshot() {
+            @Override
+            public void close() {
+            }
+
+            @Override
+            public int totalOperations() {
+                return 0;
+            }
+
+            @Override
+            public Translog.Operation next() {
+                return null;
+            }
+        };
     }
 }

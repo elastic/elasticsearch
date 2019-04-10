@@ -33,8 +33,8 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'com.fasterxml.jackson.core:jackson-databind:2.6.7.1'
-  compile 'com.fasterxml.jackson.core:jackson-annotations:2.6.0'
+  compile 'com.fasterxml.jackson.core:jackson-databind:2.8.11.3'
+  compile "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
 }
 
 dependencyLicenses {
@@ -64,7 +64,7 @@ task writeTestJavaPolicy {
   }
 }
 
-unitTest {
+test {
   dependsOn writeTestJavaPolicy
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
@@ -108,9 +108,7 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.apache.log.Logger'
 )
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreMissingClasses (
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.JAXBContext'
-  )
-}
+thirdPartyAudit.ignoreMissingClasses (
+  'javax.xml.bind.DatatypeConverter',
+  'javax.xml.bind.JAXBContext'
+)

@@ -1,9 +1,7 @@
 ---
 "Delete result field":
 
- - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
+
 
  - do:
       index:

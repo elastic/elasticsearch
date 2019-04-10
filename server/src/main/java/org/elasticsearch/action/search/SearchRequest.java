@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -142,19 +141,19 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      *
      * @param originalSearchRequest the original search request
      * @param indices the indices to search against
-     * @param localClusterAlias the alias to prefix index names with in the returned search results
+     * @param clusterAlias the alias to prefix index names with in the returned search results
      * @param absoluteStartMillis the absolute start time to be used on the remote clusters to ensure that the same value is used
      * @param finalReduce whether the reduction should be final or not
      */
-    static SearchRequest withLocalReduction(SearchRequest originalSearchRequest, String[] indices,
-                                            String localClusterAlias, long absoluteStartMillis, boolean finalReduce) {
+    static SearchRequest crossClusterSearch(SearchRequest originalSearchRequest, String[] indices,
+                                            String clusterAlias, long absoluteStartMillis, boolean finalReduce) {
         Objects.requireNonNull(originalSearchRequest, "search request must not be null");
         validateIndices(indices);
-        Objects.requireNonNull(localClusterAlias, "cluster alias must not be null");
+        Objects.requireNonNull(clusterAlias, "cluster alias must not be null");
         if (absoluteStartMillis < 0) {
             throw new IllegalArgumentException("absoluteStartMillis must not be negative but was [" + absoluteStartMillis + "]");
         }
-        return new SearchRequest(originalSearchRequest, indices, localClusterAlias, absoluteStartMillis, finalReduce);
+        return new SearchRequest(originalSearchRequest, indices, clusterAlias, absoluteStartMillis, finalReduce);
     }
 
     private SearchRequest(SearchRequest searchRequest, String[] indices, String localClusterAlias, long absoluteStartMillis,
@@ -198,26 +197,16 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         batchedReduceSize = in.readVInt();
         maxConcurrentShardRequests = in.readVInt();
         preFilterShardSize = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            allowPartialSearchResults = in.readOptionalBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            localClusterAlias = in.readOptionalString();
-            if (localClusterAlias != null) {
-                absoluteStartMillis = in.readVLong();
-                finalReduce = in.readBoolean();
-            } else {
-                absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
-                finalReduce = true;
-            }
+        allowPartialSearchResults = in.readOptionalBoolean();
+        localClusterAlias = in.readOptionalString();
+        if (localClusterAlias != null) {
+            absoluteStartMillis = in.readVLong();
+            finalReduce = in.readBoolean();
         } else {
-            localClusterAlias = null;
             absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
             finalReduce = true;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            ccsMinimizeRoundtrips = in.readBoolean();
-        }
+        ccsMinimizeRoundtrips = in.readBoolean();
     }
 
     @Override
@@ -235,19 +224,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeVInt(batchedReduceSize);
         out.writeVInt(maxConcurrentShardRequests);
         out.writeVInt(preFilterShardSize);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalString(localClusterAlias);
+        if (localClusterAlias != null) {
+            out.writeVLong(absoluteStartMillis);
+            out.writeBoolean(finalReduce);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeOptionalString(localClusterAlias);
-            if (localClusterAlias != null) {
-                out.writeVLong(absoluteStartMillis);
-                out.writeBoolean(finalReduce);
-            }
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
-        }
+        out.writeBoolean(ccsMinimizeRoundtrips);
+
     }
 
     @Override
@@ -300,7 +284,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the current time in milliseconds from the time epoch, to be used for the execution of this search request. Used to
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
-     * request. When created through {@link #withLocalReduction(SearchRequest, String[], String, long, boolean)}, this method returns
+     * request. When created through {@link #crossClusterSearch(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      *
      */

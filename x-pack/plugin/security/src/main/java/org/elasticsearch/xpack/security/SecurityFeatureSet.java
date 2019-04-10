@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.core.XPackSettings.TOKEN_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 /**
@@ -93,6 +95,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         Map<String, Object> sslUsage = sslUsage(settings);
+        Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
+        Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
@@ -103,9 +107,9 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(),
-                        rolesUsageRef.get(), roleMappingUsageRef.get(),
-                        sslUsage, auditUsage, ipFilterUsage, anonymousUsage));
+                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
+                        roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
+                        apiKeyServiceUsage));
             }
         };
 
@@ -146,10 +150,26 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
-        Map<String, Object> map = new HashMap<>(2);
-        map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
-        map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
-        return map;
+        // If security has been explicitly disabled in the settings, then SSL is also explicitly disabled, and we don't want to report
+        //  these http/transport settings as they would be misleading (they could report `true` even though they were ignored)
+        // But, if security has not been explicitly configured, but has defaulted to off due to the current license type,
+        // then these SSL settings are still respected (that is SSL might be enabled, while the rest of security is disabled).
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+            Map<String, Object> map = new HashMap<>(2);
+            map.put("http", singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+            map.put("transport", singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
+            return map;
+        } else {
+            return Collections.emptyMap();
+        }
+    }
+
+    static Map<String, Object> tokenServiceUsage(Settings settings) {
+        return singletonMap("enabled", TOKEN_SERVICE_ENABLED_SETTING.get(settings));
+    }
+
+    static Map<String, Object> apiKeyServiceUsage(Settings settings) {
+        return singletonMap("enabled", API_KEY_SERVICE_ENABLED_SETTING.get(settings));
     }
 
     static Map<String, Object> auditUsage(Settings settings) {

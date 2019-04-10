@@ -32,6 +32,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -318,6 +321,48 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
     }
 
+    /**
+     * Loads the latest retention leases from their dedicated state file.
+     *
+     * @param path the path to the directory containing the state file
+     * @return the retention leases
+     * @throws IOException if an I/O exception occurs reading the retention leases
+     */
+    public RetentionLeases loadRetentionLeases(final Path path) throws IOException {
+        final RetentionLeases retentionLeases = RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
+
+        // TODO after backporting we expect this never to happen in 8.x, so adjust this to throw an exception instead.
+        assert Version.CURRENT.major <= 8 : "throw an exception instead of returning EMPTY on null";
+        if (retentionLeases == null) {
+            return RetentionLeases.EMPTY;
+        }
+        return retentionLeases;
+    }
+
+    private final Object retentionLeasePersistenceLock = new Object();
+
+    /**
+     * Persists the current retention leases to their dedicated state file.
+     *
+     * @param path the path to the directory containing the state file
+     * @throws WriteStateException if an exception occurs writing the state file
+     */
+    public void persistRetentionLeases(final Path path) throws WriteStateException {
+        synchronized (retentionLeasePersistenceLock) {
+            final RetentionLeases currentRetentionLeases;
+            synchronized (this) {
+                currentRetentionLeases = retentionLeases;
+            }
+            logger.trace("persisting retention leases [{}]", currentRetentionLeases);
+            RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
+        }
+    }
+
+    public boolean assertRetentionLeasesPersisted(final Path path) throws IOException {
+        assert RetentionLeases.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path) != null;
+        return true;
+    }
+
     public static class CheckpointState implements Writeable {
 
         /**
@@ -351,16 +396,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             this.localCheckpoint = in.readZLong();
             this.globalCheckpoint = in.readZLong();
             this.inSync = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-                this.tracked = in.readBoolean();
-            } else {
-                // Every in-sync shard copy is also tracked (see invariant). This was the case even in earlier ES versions.
-                // Non in-sync shard copies might be tracked or not. As this information here is only serialized during relocation hand-off,
-                // after which replica recoveries cannot complete anymore (i.e. they cannot move from in-sync == false to in-sync == true),
-                // we can treat non in-sync replica shard copies as untracked. They will go through a fresh recovery against the new
-                // primary and will become tracked again under this primary before they are marked as in-sync.
-                this.tracked = inSync;
-            }
+            this.tracked = in.readBoolean();
         }
 
         @Override
@@ -368,9 +404,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
             out.writeBoolean(inSync);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-                out.writeBoolean(tracked);
-            }
+            out.writeBoolean(tracked);
         }
 
         /**

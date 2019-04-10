@@ -27,7 +27,7 @@ import java.util.Objects;
 
 public class RetentionLeaseNotFoundException extends ResourceNotFoundException {
 
-    RetentionLeaseNotFoundException(final String id) {
+    public RetentionLeaseNotFoundException(final String id) {
         super("retention lease with ID [" + Objects.requireNonNull(id) + "] not found");
     }
 

@@ -280,10 +280,6 @@ public class ElasticsearchAssertions {
         assertSearchHit(searchResponse, 4, matcher);
     }
 
-    public static void assertFifthHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
-        assertSearchHit(searchResponse, 5, matcher);
-    }
-
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
@@ -655,14 +651,6 @@ public class ElasticsearchAssertions {
      */
     public static void assertFileNotExists(Path file) {
         assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
-    }
-
-    /**
-     * Check if a directory exists
-     */
-    public static void assertDirectoryExists(Path dir) {
-        assertFileExists(dir);
-        assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
     }
 
     /**

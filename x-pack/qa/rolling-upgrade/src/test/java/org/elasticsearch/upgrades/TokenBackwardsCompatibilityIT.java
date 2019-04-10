@@ -24,7 +24,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testGeneratingTokenInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-
+        // Create a couple of tokens and store them in the token_backwards_compatibility_it index to be used for tests in the mixed/upgraded
+        // clusters
         Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
                 "{\n" +
@@ -44,8 +45,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
                 "}");
-        client().performRequest(indexRequest1);
-
+        Response indexResponse1 = client().performRequest(indexRequest1);
+        assertOK(indexResponse1);
         Request createSecondTokenRequest = new Request("POST", "/_security/oauth2/token");
         createSecondTokenRequest.setEntity(createTokenRequest.getEntity());
         response = client().performRequest(createSecondTokenRequest);
@@ -58,12 +59,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 "{\n" +
                 "    \"token\": \"" + token + "\"\n" +
                 "}");
-        client().performRequest(indexRequest2);
+        Response indexResponse2 = client().performRequest(indexRequest2);
+        assertOK(indexResponse2);
     }
 
-    public void testTokenWorksInMixedOrUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the mixed or upgraded cluster",
-                CLUSTER_TYPE == ClusterType.MIXED || CLUSTER_TYPE == ClusterType.UPGRADED);
+    public void testTokenWorksInMixedCluster() throws Exception {
+        // Verify that an old token continues to work during all stages of the rolling upgrade
+        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
@@ -71,21 +73,26 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertTokenWorks((String) source.get("token"));
     }
 
-    public void testMixedCluster() throws Exception {
+    public void testInvalidatingTokenInMixedCluster() throws Exception {
+        // Verify that we can invalidate a token in a mixed cluster
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
-        assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
-
         Response getResponse = client().performRequest(getRequest);
+        assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
-        final String token = (String) source.get("token");
-        assertTokenWorks(token);
-
+        String token = (String) source.get("token");
+        // The token might be already invalidated by running testInvalidatingTokenInMixedCluster in a previous stage
+        // we don't try to assert it works before invalidating. This case is handled by testTokenWorksInMixedCluster
         Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         client().performRequest(invalidateRequest);
         assertTokenDoesNotWork(token);
+    }
+
+    public void testMixedClusterWithUpgradedMaster() throws Exception {
+        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
+        assumeTrue("the master must be on the latest version before we can write", isMasterOnLatestVersion());
 
         // create token and refresh on version that supports it
         Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
@@ -120,64 +127,34 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTokenWorks(accessToken);
             assertNotEquals(accessToken, updatedAccessToken);
             assertNotEquals(refreshToken, updatedRefreshToken);
+            // Invalidate the new access token and ensure that it no longer works
+            Request invalidateTokenRequest = new Request("DELETE", "/_security/oauth2/token");
+            invalidateTokenRequest.setJsonEntity(
+                "{\n" +
+                    "    \"token\": \"" + updatedAccessToken + "\"\n" +
+                    "}");
+            Response invalidateTokenResponse = client.performRequest(invalidateTokenRequest);
+            assertOK(invalidateTokenResponse);
+            assertTokenDoesNotWork(updatedAccessToken);
         }
     }
 
     public void testUpgradedCluster() throws Exception {
-        assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
-        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token2");
+        assumeTrue("this test should only run against the upgraded cluster", CLUSTER_TYPE == ClusterType.UPGRADED);
 
+        // Use an old token to authenticate, then invalidate it and verify that it can no longer be used
+        Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
         Response getResponse = client().performRequest(getRequest);
         assertOK(getResponse);
         Map<String, Object> source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
         final String token = (String) source.get("token");
 
-        // invalidate again since this may not have been invalidated in the mixed cluster
         Request invalidateRequest = new Request("DELETE", "/_security/oauth2/token");
         invalidateRequest.setJsonEntity("{\"token\": \"" + token + "\"}");
         invalidateRequest.addParameter("error_trace", "true");
         Response invalidationResponse = client().performRequest(invalidateRequest);
         assertOK(invalidationResponse);
         assertTokenDoesNotWork(token);
-
-        getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token1");
-
-        getResponse = client().performRequest(getRequest);
-        source = (Map<String, Object>) entityAsMap(getResponse).get("_source");
-        final String workingToken = (String) source.get("token");
-        assertTokenWorks(workingToken);
-
-        Request getTokenRequest = new Request("POST", "/_security/oauth2/token");
-        getTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"username\": \"test_user\",\n" +
-                "    \"password\": \"x-pack-test-password\",\n" +
-                "    \"grant_type\": \"password\"\n" +
-                "}");
-        Response response = client().performRequest(getTokenRequest);
-        Map<String, Object> responseMap = entityAsMap(response);
-        String accessToken = (String) responseMap.get("access_token");
-        String refreshToken = (String) responseMap.get("refresh_token");
-        assertNotNull(accessToken);
-        assertNotNull(refreshToken);
-        assertTokenWorks(accessToken);
-
-        Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"refresh_token\": \"" + refreshToken + "\",\n" +
-                "    \"grant_type\": \"refresh_token\"\n" +
-                "}");
-        response = client().performRequest(refreshTokenRequest);
-        responseMap = entityAsMap(response);
-        String updatedAccessToken = (String) responseMap.get("access_token");
-        String updatedRefreshToken = (String) responseMap.get("refresh_token");
-        assertNotNull(updatedAccessToken);
-        assertNotNull(updatedRefreshToken);
-        assertTokenWorks(updatedAccessToken);
-        assertTokenWorks(accessToken);
-        assertNotEquals(accessToken, updatedAccessToken);
-        assertNotEquals(refreshToken, updatedRefreshToken);
     }
 
     private void assertTokenWorks(String token) throws IOException {
@@ -209,6 +186,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        logger.info("Master node is on version: " + objectPath.evaluate("nodes." + masterNodeId + ".version"));
         return Version.CURRENT.equals(Version.fromString(objectPath.evaluate("nodes." + masterNodeId + ".version")));
     }
 

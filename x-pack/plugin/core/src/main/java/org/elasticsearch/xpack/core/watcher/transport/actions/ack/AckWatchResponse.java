@@ -38,7 +38,7 @@ public class AckWatchResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        status = in.readBoolean() ? WatchStatus.read(in) : null;
+        status = in.readBoolean() ? new WatchStatus(in) : null;
     }
 
     @Override

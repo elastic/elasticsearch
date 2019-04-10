@@ -118,6 +118,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testClearVotingTombstonesNotWaitingForRemoval() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
@@ -131,6 +132,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testClearVotingTombstonesWaitingForRemoval() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
         Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodeToWithdraw));
@@ -145,6 +147,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testFailsOnUnknownNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         internalCluster().startNodes(3);
+        ensureStableCluster(3);
         RestClient restClient = getRestClient();
         try {
             restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/invalid"));

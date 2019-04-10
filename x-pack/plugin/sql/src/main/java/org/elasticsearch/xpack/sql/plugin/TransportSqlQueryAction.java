@@ -72,14 +72,15 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter(), request.mode(), request.clientId(), username, clusterName);
+                request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency());
 
         if (Strings.hasText(request.cursor()) == false) {
             planExecutor.sql(cfg, request.query(), request.params(),
                     wrap(rowSet -> listener.onResponse(createResponse(request, rowSet)), listener::onFailure));
         } else {
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    wrap(rowSet -> listener.onResponse(createResponse(request.mode(), rowSet, null)), listener::onFailure));
+                    wrap(rowSet -> listener.onResponse(createResponse(request.mode(), request.columnar(), rowSet, null)),
+                            listener::onFailure));
         }
     }
 
@@ -93,10 +94,10 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request.mode(), rowSet, columns);
+        return createResponse(request.mode(), request.columnar(), rowSet, columns);
     }
 
-    static SqlQueryResponse createResponse(Mode mode, RowSet rowSet, List<ColumnInfo> columns) {
+    static SqlQueryResponse createResponse(Mode mode, boolean columnar, RowSet rowSet, List<ColumnInfo> columns) {
         List<List<Object>> rows = new ArrayList<>();
         rowSet.forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -107,6 +108,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         return new SqlQueryResponse(
                 Cursors.encodeToString(Version.CURRENT, rowSet.nextPageCursor()),
                 mode,
+                columnar,
                 columns,
                 rows);
     }

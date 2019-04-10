@@ -1,11 +1,11 @@
 [[removal-of-types]]
 == Removal of mapping types
 
-IMPORTANT: Indices created in Elasticsearch 6.0.0 or later may only contain a
-single <<mapping-type,mapping type>>.  Indices created in 5.x with multiple
-mapping types will continue to function as before in Elasticsearch 6.x.
-Types will be deprecated in APIs in Elasticsearch 7.0.0, and completely
-removed in 8.0.0.
+IMPORTANT: Indices created in Elasticsearch 7.0.0 or later no longer accept a
+`_default_` mapping. Indices created in 6.x will continue to function as before
+in Elasticsearch 6.x. Types are deprecated in APIs in 7.0, with breaking changes
+to the index creation, put mapping, get mapping, put template, get template and
+get field mappings APIs.
 
 [float]
 === What are mapping types?

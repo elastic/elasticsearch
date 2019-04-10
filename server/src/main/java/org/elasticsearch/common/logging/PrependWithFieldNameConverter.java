@@ -60,8 +60,6 @@ public final class PrependWithFieldNameConverter extends LogEventPatternConverte
     }
 
 
-    /**
-     */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
 

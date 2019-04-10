@@ -38,9 +38,12 @@ public class DeprecatedMessage extends ParameterizedMessage {
     @Override
     public String getFormattedMessage() {
         String formattedMessage = super.getFormattedMessage();
-        StringBuilder toAppendTo = new StringBuilder(formattedMessage);
-        StringBuilders.escapeJson(toAppendTo, 0);
+        StringBuilder escapedMessage = new StringBuilder(formattedMessage);
+        StringBuilders.escapeJson(escapedMessage, 0);
 
-        return "\"message\": \""+ toAppendTo +"\", \"x-opaque-id\": \""+xOpaqueId+"\"";
+        StringBuilder escapedXOpaqueId = new StringBuilder(xOpaqueId);
+        StringBuilders.escapeJson(escapedXOpaqueId, 0);
+
+        return "\"message\": \"" + escapedMessage + "\", \"x-opaque-id\": \"" + escapedXOpaqueId + "\"";
     }
 }

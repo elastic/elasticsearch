@@ -45,7 +45,9 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Request;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
@@ -71,14 +73,18 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     private final Client client;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    private final DataFrameTransformsCheckpointService transformsCheckpointService;
+
     @Inject
     public TransportGetDataFrameTransformsStatsAction(TransportService transportService, ActionFilters actionFilters,
                                                       ClusterService clusterService, Client client,
-                                                      DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
+                                                      DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                                      DataFrameTransformsCheckpointService transformsCheckpointService) {
         super(GetDataFrameTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
                 Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
+        this.transformsCheckpointService = transformsCheckpointService;
     }
 
     @Override
@@ -93,16 +99,22 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     @Override
     protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
-        List<DataFrameTransformStateAndStats> transformsStateAndStats = Collections.emptyList();
-
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         if (task.isCancelled() == false) {
-            DataFrameTransformStateAndStats transformStateAndStats = new DataFrameTransformStateAndStats(task.getTransformId(),
-                    task.getState(), task.getStats());
-            transformsStateAndStats = Collections.singletonList(transformStateAndStats);
+            transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
+                    ActionListener.wrap(checkpointStats -> {
+                        listener.onResponse(new Response(Collections.singletonList(
+                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats))));
+            }, e -> {
+                    listener.onResponse(new Response(
+                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
+                                task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
+                        Collections.emptyList(),
+                        Collections.singletonList(new ElasticsearchException("Failed to retrieve checkpointing info", e))));
+            }));
+        } else {
+            listener.onResponse(new Response(Collections.emptyList()));
         }
-
-        listener.onResponse(new Response(transformsStateAndStats));
     }
 
     @Override

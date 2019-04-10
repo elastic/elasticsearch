@@ -147,6 +147,8 @@ public final class Messages {
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +
                     "current usage [{0}], update had [{1}]";
+    public static final String JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED =
+            "Duplicate detectors are not allowed: [{0}]";
     public static final String JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME =
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =

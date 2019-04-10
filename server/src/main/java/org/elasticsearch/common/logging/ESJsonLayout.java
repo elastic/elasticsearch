@@ -66,9 +66,21 @@ public class ESJsonLayout extends AbstractStringLayout {
         "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
         "\"node.name\": \"%node_name\", " +
         "%notEmpty{%node_and_cluster_id, } " +
-        "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\" " +
+        "%prepend{message}{%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}}" +
         "%exceptionAsJson " +
         "}%n";
+//private static final String PATTERN = "{" +
+//        "\"type\": \"${TYPE}\", " +
+//        "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ}\", " +
+//        "\"level\": \"%p\", " +
+//        "\"component\": \"%c{1.}\", " +
+//        "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+//        "\"node.name\": \"%node_name\"" +
+//        "%notEmpty{, %node_and_cluster_id, }" +
+//        "%notEmpty{, \"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"}" +
+//        "%notEmpty{, \"%X{customJsonPart}\" }" +
+//        "%exceptionAsJson " +
+//        "}%n";
 
     private final PatternLayout patternLayout;
 

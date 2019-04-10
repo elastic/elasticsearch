@@ -25,6 +25,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.security.AccessController;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A logger that logs deprecation notices.
@@ -223,7 +225,6 @@ public class DeprecationLogger {
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
-
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
@@ -244,12 +245,24 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    logger.warn(message, params);
+                    String opaqueIds = threadContexts.stream()
+                                                     .map(t -> t.isClosed() ? "" : t.getHeader(Task.X_OPAQUE_ID))
+                                                     .collect(Collectors.joining(" "));
+
+                    logger.warn(new DeprecatedMessage(message,opaqueIds, params));
                     return null;
                 }
             });
         }
     }
+    /**
+     *    String opaqueIds = threadContexts.stream()
+     *                                                      .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+     *                                                      .collect(Collectors.joining(" "));
+     *                     try (final CloseableThreadContext.Instance ctc = CloseableThreadContext.put("x-opaque-id",opaqueIds)) {
+     *                         logger.warn(message, params);
+     *                     }
+     */
 
     /**
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,

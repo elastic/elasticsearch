@@ -21,18 +21,30 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static java.util.Arrays.asList;
 
 public final class SearchSlowLog implements SearchOperationListener {
     private long queryWarnThreshold;
@@ -124,30 +136,30 @@ public final class SearchSlowLog implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.warn(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.info(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.debug(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.trace(new SlowLogSearchContextPrinter(context, tookInNanos));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.warn(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.info(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.debug(new SlowLogSearchContextPrinter(context, tookInNanos));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace("{}", new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.trace(new SlowLogSearchContextPrinter(context, tookInNanos));
         }
     }
 
-    static final class SlowLogSearchContextPrinter {
+    static final class SlowLogSearchContextPrinter implements Message, StringBuilderFormattable {
         private final SearchContext context;
         private final long tookInNanos;
 
@@ -158,6 +170,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         @Override
         public String toString() {
+
             StringBuilder sb = new StringBuilder();
             sb.append(context.indexShard().shardId())
                     .append(" ")
@@ -197,6 +210,77 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("id[], ");
             }
             return sb.toString();
+        }
+
+        @Override
+        public String getFormattedMessage() {
+            StringJoiner sb = new StringJoiner(",");
+            sb.add(keyValue("message",context.indexShard().shardId()));
+            sb.add(keyValue("took",TimeValue.timeValueNanos(tookInNanos)));
+            sb.add(keyValue("took_millis",TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
+            if (context.queryResult().getTotalHits() != null) {
+                sb.add(keyValue("total_hits",context.queryResult().getTotalHits()));
+            } else {
+                sb.add(keyValue("total_hits","-1"));
+            }
+            sb.add(keyValue("types",context.getQueryShardContext().getTypes()));
+            sb.add(keyValue("stats",context.groupStats()));
+            sb.add(keyValue("search_type",context.searchType()));
+            sb.add(keyValue("total_shards",context.numberOfShards()));
+            if (context.request().source() != null) {
+                sb.add(keyValue("source",context.request().source().toString(FORMAT_PARAMS)));
+            } else {
+                sb.add(keyValue("source",""));
+            }
+            sb.add(keyValue("id",context.getTask().getHeader(Task.X_OPAQUE_ID)));
+            return sb.toString();
+        }
+
+        private String keyValue(String key, Object value) {
+            return wrapWithQuotes(key)+ ": " + wrapWithQuotes(value);
+        }
+
+        private String wrapWithQuotes(Object value) {
+            if(value == null)
+                return "\"\"";
+            return "\"" + value + "\"";
+        }
+
+        private String keyValue(String key, String[] value) {
+            return keyValue(key, asList(value));
+        }
+
+        private String keyValue(String key, Collection<String> value) {
+            String array;
+            if (value == null) {
+                array = "";
+            } else {
+                array = value.stream().map(s -> wrapWithQuotes(s)).collect(Collectors.joining(", "));
+            }
+            return "\"" + key + "\": [" + array + "]";
+        }
+
+
+        @Override
+        public String getFormat() {
+            return "JSON_FORMATTED";
+        }
+
+        @Override
+        public Object[] getParameters() {
+            return new Object[0];
+        }
+
+        @Override
+        public Throwable getThrowable() {
+            return null;
+        }
+
+        @Override
+        public void formatTo(StringBuilder buffer) {
+            //refactor to not use string joiner
+            String formattedMessage = getFormattedMessage();
+            buffer.append(formattedMessage);
         }
     }
 

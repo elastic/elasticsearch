@@ -20,10 +20,14 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.log4j.Level;
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.message.StringFormattedMessage;
+import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +42,8 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,6 +52,7 @@ import java.util.stream.Stream;
  * It has to be in a <code>org.elasticsearch.common.logging</code> package to use <code>PrefixLogger</code>
  */
 public class JsonLoggerTests extends ESTestCase {
+
     private static final String LINE_SEPARATOR = System.lineSeparator();
 
     @BeforeClass
@@ -68,6 +75,41 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testCustomMessage() throws IOException {
+        final Logger testLogger = LogManager.getLogger("test");
+        testLogger.info(new Message() {
+
+            @Override
+            public String getFormattedMessage() {
+                return "\"message\": \"asdf\"";
+            }
+
+            @Override
+            public String getFormat() {
+                return "JSON_FORMATTED";
+            }
+
+            @Override
+            public Object[] getParameters() {
+                return new Object[0];
+            }
+
+            @Override
+            public Throwable getThrowable() {
+                return null;
+            }
+        });
+
+        final Path path = clusterLogsPath();
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
+            List<JsonLogLine> jsonLogs = collectLines(stream);
+
+            assertThat(jsonLogs, Matchers.contains(
+                logLine("file", Level.INFO, "sample-name", "test", "asdf")
+            ));
+        }
+    }
+
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
@@ -211,11 +253,11 @@ public class JsonLoggerTests extends ESTestCase {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return actual.type().equals(type) &&
-                    actual.level().equals(level.toString()) &&
-                    actual.nodeName().equals(nodeName) &&
-                    actual.component().equals(component) &&
-                    actual.message().equals(message);
+                return Objects.equals(actual.type(), type) &&
+                    Objects.equals(actual.level(), level.toString()) &&
+                    Objects.equals(actual.nodeName(), nodeName) &&
+                    Objects.equals(actual.component(), component) &&
+                    Objects.equals(actual.message(), message);
             }
         };
     }

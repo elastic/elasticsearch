@@ -392,7 +392,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Returns <code>true</code> if the context is closed, otherwise <code>true</code>
      */
-    boolean isClosed() {
+    public boolean isClosed() {
         return threadLocal.closed.get();
     }
 

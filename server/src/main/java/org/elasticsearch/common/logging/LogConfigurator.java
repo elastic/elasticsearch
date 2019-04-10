@@ -131,6 +131,7 @@ public class LogConfigurator {
      * Load logging plugins so we can have {@code node_name} in the pattern.
      */
     public static void loadLog4jPlugins() {
+//        System.setPrp
         PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
     }
 

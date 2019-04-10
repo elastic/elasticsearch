@@ -1,10 +1,24 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.protocol.xpack.watcher;
+package org.elasticsearch.client.watcher;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -15,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
+import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -88,7 +102,7 @@ public class GetWatchResponseTests extends
     @Override
     protected GetWatchResponse createTestInstance() {
         String id = randomAlphaOfLength(10);
-        if (rarely()) {
+        if (LuceneTestCase.rarely()) {
             return new GetWatchResponse(id);
         }
         long version = randomLongBetween(0, 10);
@@ -126,8 +140,8 @@ public class GetWatchResponseTests extends
         long version = randomLongBetween(-1, Long.MAX_VALUE);
         WatchStatus.State state = new WatchStatus.State(randomBoolean(), DateUtils.nowWithMillisResolution());
         ExecutionState executionState = randomFrom(ExecutionState.values());
-        ZonedDateTime lastChecked = rarely() ? null : DateUtils.nowWithMillisResolution();
-        ZonedDateTime lastMetCondition = rarely() ? null : DateUtils.nowWithMillisResolution();
+        ZonedDateTime lastChecked = LuceneTestCase.rarely() ? null : DateUtils.nowWithMillisResolution();
+        ZonedDateTime lastMetCondition = LuceneTestCase.rarely() ? null : DateUtils.nowWithMillisResolution();
         int size = randomIntBetween(0, 5);
         Map<String, ActionStatus> actionMap = new HashMap<>();
         for (int i = 0; i < size; i++) {

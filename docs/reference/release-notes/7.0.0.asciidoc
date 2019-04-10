@@ -32,9 +32,6 @@ Authorization::
 * Remove aliases resolution limitations when security is enabled {pull}31952[#31952] (issue: {issue}31516[#31516])
 * Remove implicit index monitor privilege {pull}37774[#37774]
 
-CCR::
-* Change get autofollow patterns API response format {pull}36203[#36203] (issue: {issue}36049[#36049])
-
 Circuit Breakers::
 * Lower fielddata circuit breaker's default limit {pull}27162[#27162] (issue: {issue}27130[#27130])
 

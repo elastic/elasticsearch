@@ -18,8 +18,8 @@ setup:
         transform_id: "airline-transform-start-stop"
         body: >
           {
-            "source": "airline-data",
-            "dest": "airline-data-by-airline-start-stop",
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -59,9 +59,50 @@ teardown:
   - match: { started: true }
 
   - do:
-      catch: /Cannot start task for data frame transform \[airline-transform-start-stop\], because state was \[STARTED\]/
+      catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
+
+---
+"Test start/stop/start transform":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { stopped: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.task_state: "started" }
 
 ---
 "Test stop missing transform":
@@ -76,3 +117,65 @@ teardown:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
   - match: { stopped: true }
+
+---
+"Test start/stop only starts/stops specified transform":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-start-later" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-stop"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-stop" }
+  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-later"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-later" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+  - match: { started: true }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { stopped: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "airline-transform-start-later"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "airline-transform-start-later" }
+  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.task_state: "started" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "airline-transform-start-later"
+  - match: { stopped: true }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "airline-transform-start-later"

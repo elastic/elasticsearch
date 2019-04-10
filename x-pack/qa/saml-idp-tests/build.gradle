@@ -1,9 +1,9 @@
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 evaluationDependsOn(idpFixtureProject.path)
 
-apply plugin: 'elasticsearch.vagrantsupport'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -12,24 +12,36 @@ dependencies {
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile 'com.google.jimfs:jimfs:1.1'
 }
+testFixtures.useFixture ":x-pack:test:idp-fixture"
 
-task idpFixture {
-    dependsOn "vagrantCheckVersion", "virtualboxCheckVersion", idpFixtureProject.up
-}
 
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"
-task copyIdpCertificate(type: Copy) {
-    from idpFixtureProject.file('src/main/resources/certs/ca.crt');
+task copyIdpFiles(type: Copy) {
+    from idpFixtureProject.files('idp/shibboleth-idp/credentials/idp-browser.pem', 'idp/shibboleth-idp/metadata/idp-metadata.xml');
     into outputDir
 }
-if (project.rootProject.vagrantSupported) {
-  project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpCertificate)
-  integTestCluster.dependsOn idpFixture, copyIdpCertificate
-  integTest.finalizedBy idpFixtureProject.halt
-} else {
-  integTest.enabled = false
-  testingConventions.enabled = false
+project.sourceSets.test.output.dir(outputDir, builtBy: copyIdpFiles)
+
+task setupPorts {
+    dependsOn copyIdpFiles, idpFixtureProject.postProcessFixture
+    doLast {
+        String portString = idpFixtureProject.postProcessFixture.ext."test.fixtures.shibboleth-idp.tcp.4443"
+        int ephemeralPort = Integer.valueOf(portString)
+        File idpMetaFile = file(outputDir + '/idp-metadata.xml')
+        List<String> lines = idpMetaFile.readLines("UTF-8")
+        StringBuilder content = new StringBuilder()
+        for (String line : lines) {
+            content.append(line.replace("localhost:4443", "localhost:" + ephemeralPort))
+        }
+        idpMetaFile.delete()
+        idpMetaFile.createNewFile()
+        idpMetaFile.write(content.toString(), "UTF-8")
+    }
 }
+// Don't attempt to get ephemeral ports when Docker is not available
+setupPorts.onlyIf { idpFixtureProject.postProcessFixture.enabled }
+
+integTestCluster.dependsOn setupPorts
 
 integTestCluster {
   setting 'xpack.license.self_generated.type', 'trial'
@@ -59,8 +71,9 @@ integTestCluster {
   setting 'xpack.security.authc.realms.native.native.order', '3'
 
   setting 'xpack.ml.enabled', 'false'
+  setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
 
-  extraConfigFile 'idp-metadata.xml', idpFixtureProject.file("src/main/resources/provision/generated/idp-metadata.xml")
+  extraConfigFile 'idp-metadata.xml', file(outputDir + "/idp-metadata.xml")
 
   setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"

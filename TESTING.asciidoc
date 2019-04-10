@@ -340,13 +340,13 @@ be downloaded again unless they have been updated to a new version.
 +
 . Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
-on ubuntu-1404 and centos-7. We chose those two distributions as the default
+on ubuntu-1604 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
 You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. All of
 the valid options for this property are:
 
-* `sample` - The default, only chooses ubuntu-1404 and centos-7
+* `sample` - The default, only chooses ubuntu-1604 and centos-7
 * List of box names, comma separated (e.g. `oel-7,fedora-28`) - Chooses exactly the boxes listed.
 * `linux-all` - All linux boxes.
 * `windows-all` - All Windows boxes. If there are any Windows boxes which do not
@@ -364,11 +364,10 @@ will remain running and you'll have to stop them manually with `./gradlew stop` 
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
-`vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404`.
+`vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
 
 These are the linux flavors supported, all of which we provide images for
 
-* ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
 * ubuntu-1804 aka bionic beaver
 * debian-8 aka jessie
@@ -422,13 +421,13 @@ It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
 
 ----------------------------------------------------
-vagrant ssh ubuntu-1404 -c 'sudo rm -rf /bin'; echo oops
+vagrant ssh ubuntu-1604 -c 'sudo rm -rf /bin'; echo oops
 ----------------------------------------------------
 
 All you've got to do to get another one is
 
 ----------------------------------------------
-vagrant destroy -f ubuntu-1404 && vagrant up ubuntu-1404 --provider virtualbox
+vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
 ----------------------------------------------
 
 The whole process takes a minute and a half on a modern laptop, two and a half
@@ -498,8 +497,8 @@ sudo bash $PACKAGING_TESTS/run-tests.sh
 
 # run specific test cases
 sudo bash $PACKAGING_TESTS/run-tests.sh \
-  org.elasticsearch.packaging.test.DefaultZipTests \
-  org.elasticsearch.packaging.test.OssZipTests
+  org.elasticsearch.packaging.test.DefaultWindowsZipTests \
+  org.elasticsearch.packaging.test.OssWindowsZipTests
 --------------------------------------------
 
 or on Windows, from a terminal running as Administrator
@@ -510,8 +509,8 @@ powershell -File $Env:PACKAGING_TESTS/run-tests.ps1
 
 # run specific test cases
 powershell -File $Env:PACKAGING_TESTS/run-tests.ps1 `
-  org.elasticsearch.packaging.test.DefaultZipTests `
-  org.elasticsearch.packaging.test.OssZipTests
+  org.elasticsearch.packaging.test.DefaultWindowsZipTests `
+  org.elasticsearch.packaging.test.OssWindowsZipTests
 --------------------------------------------
 
 Note that on Windows boxes when running from inside the GUI, you may have to log out and
@@ -585,6 +584,87 @@ For some BWC testing scenarios, you want to use the local clone of the
 repository without fetching latest. For these use cases, you can set the system
 property `tests.bwc.git_fetch_latest` to `false` and the BWC builds will skip
 fetching the latest from the remote.
+
+== How to write good tests?
+
+=== Base classes for test cases
+
+There are multiple base classes for tests:
+
+* **`ESTestCase`**: The base class of all tests. It is typically extended
+  directly by unit tests.
+* **`ESSingleNodeTestCase`**: This test case sets up a cluster that has a
+  single node.
+* **`ESIntegTestCase`**: An integration test case that creates a cluster that
+  might have multiple nodes.
+* **`ESRestTestCase`**: An integration tests that interacts with an external
+  cluster via the REST API. For instance, YAML tests run via sub classes of
+  `ESRestTestCase`.
+
+=== Good practices
+
+==== What kind of tests should I write?
+
+Unit tests are the preferred way to test some functionality: most of the time
+they are simpler to understand, more likely to reproduce, and unlikely to be
+affected by changes that are unrelated to the piece of functionality that is
+being tested.
+
+The reason why `ESSingleNodeTestCase` exists is that all our components used to
+be very hard to set up in isolation, which had led us to having a number of
+integration tests but close to no unit tests. `ESSingleNodeTestCase` is a
+workaround for this issue which provides an easy way to spin up a node and get
+access to components that are hard to instantiate like `IndicesService`.
+Whenever practical, you should prefer unit tests.
+
+Many tests extend `ESIntegTestCase`, mostly because this is how most tests used
+to work in the early days of Elasticsearch. However the complexity of these
+tests tends to make them hard to debug. Whenever the functionality that is
+being tested isn't intimately dependent on how Elasticsearch behaves as a
+cluster, it is recommended to write unit tests or REST tests instead.
+
+In short, most new functionality should come with unit tests, and optionally
+REST tests to test integration.
+
+==== Refactor code to make it easier to test
+
+Unfortunately, a large part of our code base is still hard to unit test.
+Sometimes because some classes have lots of dependencies that make them hard to
+instantiate. Sometimes because API contracts make tests hard to write. Code
+refactors that make functionality easier to unit test are encouraged. If this
+sounds very abstract to you, you can have a look at
+https://github.com/elastic/elasticsearch/pull/16610[this pull request] for
+instance, which is a good example. It refactors `IndicesRequestCache` in such
+a way that:
+ - it no longer depends on objects that are hard to instantiate such as
+   `IndexShard` or `SearchContext`,
+ - time-based eviction is applied on top of the cache rather than internally,
+   which makes it easier to assert on what the cache is expected to contain at
+   a given time.
+
+=== Bad practices
+
+==== Use randomized-testing for coverage
+
+In general, randomization should be used for parameters that are not expected
+to affect the behavior of the functionality that is being tested. For instance
+the number of shards should not impact `date_histogram` aggregations, and the
+choice of the `store` type (`niofs` vs `mmapfs`) does not affect the results of
+a query. Such randomization helps improve confidence that we are not relying on
+implementation details of one component or specifics of some setup.
+
+However it should not be used for coverage. For instance if you are testing a
+piece of functionality that enters different code paths depending on whether
+the index has 1 shards or 2+ shards, then we shouldn't just test against an
+index with a random number of shards: there should be one test for the 1-shard
+case, and another test for the 2+ shards case.
+
+==== Abuse randomization in multi-threaded tests
+
+Multi-threaded tests are often not reproducible due to the fact that there is
+no guarantee on the order in which operations occur across threads. Adding
+randomization to the mix usually makes things worse and should be done with
+care.
 
 == Test coverage analysis
 

@@ -46,12 +46,6 @@ Vagrant.configure(2) do |config|
   PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
   config.vm.synced_folder PROJECT_DIR, '/project'
 
-  'ubuntu-1404'.tap do |box|
-    config.vm.define box, define_opts do |config|
-      config.vm.box = 'elastic/ubuntu-14.04-x86_64'
-      deb_common config, box
-    end
-  end
   'ubuntu-1604'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/ubuntu-16.04-x86_64'
@@ -252,6 +246,10 @@ def linux_common(config,
     touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
+  config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
+    curl -sSL https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
+  SHELL
+
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
   config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
@@ -348,8 +346,10 @@ def sh_install_deps(config,
     }
     cat \<\<JAVA > /etc/profile.d/java_home.sh
 if [ -z "\\\$JAVA_HOME" ]; then
-  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+  export JAVA_HOME=/opt/jdk-11.0.2
 fi
+export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+unset JAVA_HOME
 JAVA
     ensure tar
     ensure curl
@@ -388,6 +388,7 @@ Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
 Defaults   env_keep += "JAVA_HOME"
+Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
     chmod 0440 /etc/sudoers.d/elasticsearch_vars
   SHELL
@@ -408,6 +409,9 @@ def windows_common(config, name)
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    $javaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Machine")
+    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", $javaHome, "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
+    [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL
 end

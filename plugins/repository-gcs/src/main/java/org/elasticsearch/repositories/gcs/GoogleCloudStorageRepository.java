@@ -25,18 +25,17 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property;
-import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.simpleString;
 
@@ -53,13 +52,10 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             simpleString("bucket", Property.NodeScope, Property.Dynamic);
     static final Setting<String> BASE_PATH =
             simpleString("base_path", Property.NodeScope, Property.Dynamic);
-    static final Setting<Boolean> COMPRESS =
-            boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
     static final Setting<ByteSizeValue> CHUNK_SIZE =
             byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
 
-    private final Settings settings;
     private final GoogleCloudStorageService storageService;
     private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
@@ -68,9 +64,8 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         NamedXContentRegistry namedXContentRegistry,
-                                        GoogleCloudStorageService storageService) {
-        super(metadata, environment.settings(), getSetting(COMPRESS, metadata), namedXContentRegistry);
-        this.settings = environment.settings();
+                                        GoogleCloudStorageService storageService, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());

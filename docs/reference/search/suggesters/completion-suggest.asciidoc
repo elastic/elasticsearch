@@ -2,7 +2,9 @@
 === Completion Suggester
 
 NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first.
+read the <<search-suggesters>> page first. For more flexible
+search-as-you-type searches that do not use suggesters, see the
+<<search-as-you-type,`search_as_you_type` field type>>.
 
 The `completion` suggester provides auto-complete/search-as-you-type
 functionality. This is a navigational feature to guide users to
@@ -46,10 +48,6 @@ Mapping supports the following parameters:
 [horizontal]
 `analyzer`::
     The index analyzer to use, defaults to `simple`.
-    In case you are wondering why we did not opt for the `standard`
-    analyzer: We try to have easy to understand behaviour here, and if you
-    index the field content `At the Drive-in`, you will not get any
-    suggestions for `a`, nor for `d` (the first non stopword).
 
 `search_analyzer`::
     The search analyzer to use, defaults to value of `analyzer`.

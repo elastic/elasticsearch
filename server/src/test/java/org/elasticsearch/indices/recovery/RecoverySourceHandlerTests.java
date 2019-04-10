@@ -240,10 +240,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                                                 RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
                 checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
-                maybeExecuteAsync(() -> listener.onResponse(checkpointOnTarget.get()));
-            }
+                listener.onResponse(checkpointOnTarget.get());            }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
+        RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), request, fileChunkSizeInBytes, between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
             randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
@@ -274,14 +274,15 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
                                                 long msu, RetentionLeases retentionLeases, ActionListener<Long> listener) {
                 if (randomBoolean()) {
-                    maybeExecuteAsync(() -> listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED));
+                    listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED);
                 } else {
-                    maybeExecuteAsync(() -> listener.onFailure(new RuntimeException("test - failed to index")));
+                    listener.onFailure(new RuntimeException("test - failed to index"));
                     wasFailed.set(true);
                 }
             }
         };
-        RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, request, fileChunkSizeInBytes, between(1, 10));
+        RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), request, fileChunkSizeInBytes, between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
@@ -454,7 +455,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
-        when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
+        when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
         when(shard.acquireSafeIndexCommit()).thenReturn(mock(Engine.IndexCommitRef.class));
         doAnswer(invocation -> {
@@ -472,9 +473,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 8)) {
 
             @Override
-            public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+            public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
-                return super.phase1(snapshot, translogOps);
+                return super.phase1(snapshot, globalCheckpoint, translogOps);
             }
 
             @Override
@@ -695,10 +696,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void ensureClusterStateVersion(long clusterStateVersion) {
-        }
-
-        @Override
         public void handoffPrimaryContext(ReplicationTracker.PrimaryContext primaryContext) {
         }
 
@@ -718,7 +715,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) {
+        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) {
         }
 
         @Override
@@ -760,13 +757,5 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
             }
         };
-    }
-
-    private void maybeExecuteAsync(Runnable runnable) {
-        if (randomBoolean()) {
-            threadPool.generic().execute(runnable);
-        } else {
-            runnable.run();
-        }
     }
 }

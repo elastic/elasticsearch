@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZonedDateTime;
 
-public class CurrentDateTime extends CurrentFunction {
+public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
 
     private final Expression precision;
 
@@ -34,7 +34,7 @@ public class CurrentDateTime extends CurrentFunction {
     }
 
     static ZonedDateTime nanoPrecision(ZonedDateTime zdt, Expression precisionExpression) {
-        int precision = precisionExpression != null ? Foldables.intValueOf(precisionExpression) : 0;
+        int precision = precisionExpression != null ? Foldables.intValueOf(precisionExpression) : 3;
         int nano = zdt.getNano();
         if (precision >= 0 && precision < 10) {
             // remove the remainder

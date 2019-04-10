@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -40,6 +39,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -67,12 +67,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     // the reason for this plug-in is to drop any assertSnapshotOrGenericThread as mostly all access in this test goes from test threads
-    public static class FsLikeRepoPlugin extends org.elasticsearch.plugins.Plugin implements RepositoryPlugin {
+    public static class FsLikeRepoPlugin extends Plugin implements RepositoryPlugin {
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                               ThreadPool threadPool) {
             return Collections.singletonMap(REPO_TYPE,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry) {
+                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, threadPool) {
                     @Override
                     protected void assertSnapshotOrGenericThread() {
                         // eliminate thread name check as we access blobStore on test/main threads
@@ -248,33 +249,20 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 .get());
     }
 
-    public void testFsRepositoryCompressDeprecated() {
-        final Path location = ESIntegTestCase.randomRepoPath(node().settings());
-        final Settings settings = Settings.builder().put(node().settings()).put("location", location).build();
-        final RepositoryMetaData metaData = new RepositoryMetaData("test-repo", REPO_TYPE, settings);
-
-        Settings useCompressSettings = Settings.builder()
-            .put(node().getEnvironment().settings())
-            .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), true)
-            .build();
-        Environment useCompressEnvironment =
-            new Environment(useCompressSettings, node().getEnvironment().configFile());
-
-        new FsRepository(metaData, useCompressEnvironment, null);
-
-        assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
-            " See the breaking changes documentation for the next major version.");
-    }
-
     private BlobStoreRepository setupRepo() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
         final String repositoryName = "test-repo";
 
+        Settings.Builder repoSettings = Settings.builder().put(node().settings()).put("location", location);
+        boolean compress = randomBoolean();
+        if (compress == false) {
+            repoSettings.put(BlobStoreRepository.COMPRESS_SETTING.getKey(), false);
+        }
         AcknowledgedResponse putRepositoryResponse =
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
-                                    .setSettings(Settings.builder().put(node().settings()).put("location", location))
+                                    .setSettings(repoSettings)
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -282,6 +270,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repository =
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         assertThat("getBlobContainer has to be lazy initialized", repository.getBlobContainer(), nullValue());
+        assertEquals("Compress must be set to", compress, repository.isCompress());
         return repository;
     }
 

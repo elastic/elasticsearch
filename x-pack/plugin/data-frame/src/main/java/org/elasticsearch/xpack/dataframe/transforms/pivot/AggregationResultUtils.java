@@ -13,12 +13,18 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
 
 final class AggregationResultUtils {
     private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
@@ -29,29 +35,47 @@ final class AggregationResultUtils {
      * @param agg The aggregation result
      * @param groups The original groupings used for querying
      * @param aggregationBuilders the aggregation used for querying
-     * @param dataFrameIndexerTransformStats stats collector
+     * @param fieldTypeMap A Map containing "field-name": "type" entries to determine the appropriate type for the aggregation results.
+     * @param stats stats collector
      * @return a map containing the results of the aggregation in a consumable way
      */
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
-            GroupConfig groups, Collection<AggregationBuilder> aggregationBuilders,
-            DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                                                 GroupConfig groups,
+                                                                                 Collection<AggregationBuilder> aggregationBuilders,
+                                                                                 Map<String, String> fieldTypeMap,
+                                                                                 DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
-            dataFrameIndexerTransformStats.incrementNumDocuments(bucket.getDocCount());
-
+            stats.incrementNumDocuments(bucket.getDocCount());
             Map<String, Object> document = new HashMap<>();
+            // generator to create unique but deterministic document ids, so we
+            // - do not create duplicates if we re-run after failure
+            // - update documents
+            IDGenerator idGen = new IDGenerator();
+
             groups.getGroups().keySet().forEach(destinationFieldName -> {
-                document.put(destinationFieldName, bucket.getKey().get(destinationFieldName));
+                Object value = bucket.getKey().get(destinationFieldName);
+                idGen.add(destinationFieldName, value);
+                document.put(destinationFieldName, value);
             });
 
             for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
                 String aggName = aggregationBuilder.getName();
+                final String fieldType = fieldTypeMap.get(aggName);
 
                 // TODO: support other aggregation types
                 Aggregation aggResult = bucket.getAggregations().get(aggName);
 
                 if (aggResult instanceof NumericMetricsAggregation.SingleValue) {
                     NumericMetricsAggregation.SingleValue aggResultSingleValue = (SingleValue) aggResult;
-                    document.put(aggName, aggResultSingleValue.value());
+                    // If the type is numeric, simply gather the `value` type, otherwise utilize `getValueAsString` so we don't lose
+                    // formatted outputs.
+                    if (isNumericType(fieldType)) {
+                        document.put(aggName, aggResultSingleValue.value());
+                    } else {
+                        document.put(aggName, aggResultSingleValue.getValueAsString());
+                    }
+                } else if (aggResult instanceof ScriptedMetric) {
+                    document.put(aggName, ((ScriptedMetric) aggResult).aggregation());
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible
@@ -59,6 +83,9 @@ final class AggregationResultUtils {
                     assert false;
                 }
             }
+
+            document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());
+
             return document;
         });
     }

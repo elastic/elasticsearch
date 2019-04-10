@@ -400,7 +400,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(Delete delete) throws IOException;
 
-    public abstract NoOpResult noOp(NoOp noOp);
+    public abstract NoOpResult noOp(NoOp noOp) throws IOException;
 
     /**
      * Base class for index and delete operation results
@@ -633,14 +633,14 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
                 Releasables.close(searcher);
-                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                throw new VersionConflictEngineException(shardId, get.id(),
                         get.versionType().explainConflictForReads(docIdAndVersion.version, get.version()));
             }
             if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                 get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm
             )) {
                 Releasables.close(searcher);
-                throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                throw new VersionConflictEngineException(shardId, get.id(),
                     get.getIfSeqNo(), get.getIfPrimaryTerm(), docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
         }
@@ -821,7 +821,7 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes) {
+    public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
@@ -845,7 +845,7 @@ public abstract class Engine implements Closeable {
         return stats;
     }
 
-    private void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
+    protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
         stats.add(1, segmentReader.ramBytesUsed());
         stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
         stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
@@ -1052,6 +1052,15 @@ public abstract class Engine implements Closeable {
      */
     @Nullable
     public abstract void refresh(String source) throws EngineException;
+
+    /**
+     * Synchronously refreshes the engine for new search operations to reflect the latest
+     * changes unless another thread is already refreshing the engine concurrently.
+     *
+     * @return <code>true</code> if the a refresh happened. Otherwise <code>false</code>
+     */
+    @Nullable
+    public abstract boolean maybeRefresh(String source) throws EngineException;
 
     /**
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
@@ -1952,7 +1961,7 @@ public abstract class Engine implements Closeable {
      * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
      * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
-     * @see #initializeMaxSeqNoOfUpdatesOrDeletes()
+     * @see #reinitializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
     public final long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -1960,10 +1969,10 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * A primary shard calls this method once to initialize the max_seq_no_of_updates marker using the
+     * A primary shard calls this method to re-initialize the max_seq_no_of_updates marker using the
      * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
      */
-    public abstract void initializeMaxSeqNoOfUpdatesOrDeletes();
+    public abstract void reinitializeMaxSeqNoOfUpdatesOrDeletes();
 
     /**
      * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method

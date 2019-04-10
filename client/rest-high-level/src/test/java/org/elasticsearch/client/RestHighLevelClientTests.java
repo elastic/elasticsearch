@@ -33,20 +33,18 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.main.MainRequest;
-import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.core.MainRequest;
+import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.indexlifecycle.AllocateAction;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
@@ -57,7 +55,6 @@ import org.elasticsearch.client.indexlifecycle.RolloverAction;
 import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.UnfollowAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -176,9 +173,28 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        MainResponse testInfo = new MainResponse("nodeName", Version.CURRENT, new ClusterName("clusterName"), "clusterUuid",
-                Build.CURRENT);
-        mockResponse(testInfo);
+        MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildFlavor", "buildType", "buildHash",
+            "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
+            "clusterName", "clusterUuid", "You Know, for Search");
+        mockResponse((builder, params) -> {
+            // taken from the server side MainResponse
+            builder.field("name", testInfo.getNodeName());
+            builder.field("cluster_name", testInfo.getClusterName());
+            builder.field("cluster_uuid", testInfo.getClusterUuid());
+            builder.startObject("version")
+                .field("number", testInfo.getVersion().getNumber())
+                .field("build_flavor", testInfo.getVersion().getBuildFlavor())
+                .field("build_type", testInfo.getVersion().getBuildType())
+                .field("build_hash", testInfo.getVersion().getBuildHash())
+                .field("build_date", testInfo.getVersion().getBuildDate())
+                .field("build_snapshot", testInfo.getVersion().isSnapshot())
+                .field("lucene_version", testInfo.getVersion().getLuceneVersion())
+                .field("minimum_wire_compatibility_version", testInfo.getVersion().getMinimumWireCompatibilityVersion())
+                .field("minimum_index_compatibility_version", testInfo.getVersion().getMinimumIndexCompatibilityVersion())
+                .endObject();
+            builder.field("tagline", testInfo.getTagline());
+            return builder;
+        });
         MainResponse receivedInfo = restHighLevelClient.info(RequestOptions.DEFAULT);
         assertEquals(testInfo, receivedInfo);
     }
@@ -713,6 +729,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",
+            "scripts_painless_context",
             "search_shards",
         };
         List<String> booleanReturnMethods = Arrays.asList(
@@ -784,8 +801,9 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("security.") == false &&
                                 apiName.startsWith("index_lifecycle.") == false &&
                                 apiName.startsWith("ccr.") == false &&
+                                apiName.startsWith("data_frame") == false &&
                                 apiName.endsWith("freeze") == false &&
-                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we 
+                                // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
                                 apiName.equals("indices.get_index_template") == false) {
                                 apiNotFound.add(apiName);

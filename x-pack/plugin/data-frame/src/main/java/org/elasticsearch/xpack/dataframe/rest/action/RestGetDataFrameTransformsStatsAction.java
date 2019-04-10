@@ -12,13 +12,15 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
 
 public class RestGetDataFrameTransformsStatsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsStatsAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS + "_stats", this);
         controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stats", this);
     }
 
@@ -26,6 +28,11 @@ public class RestGetDataFrameTransformsStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(DataFrameField.ID.getPreferredName());
         GetDataFrameTransformsStatsAction.Request request = new GetDataFrameTransformsStatsAction.Request(id);
+        if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
+            request.setPageParams(
+                new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+        }
         return channel -> client.execute(GetDataFrameTransformsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

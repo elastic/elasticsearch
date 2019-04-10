@@ -1,13 +1,12 @@
 [role="xpack"]
 [[notification-settings]]
-=== {watcher} Settings in Elasticsearch
+=== {watcher} settings in Elasticsearch
 ++++
-<titleabbrev>{watcher} Settings</titleabbrev>
+<titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
 You configure {watcher} settings to set up {watcher} and send notifications via
 <<email-notification-settings,email>>,
-<<hipchat-notification-settings,HipChat>>,
 <<slack-notification-settings,Slack>>, and
 <<pagerduty-notification-settings, PagerDuty>>.
 
@@ -67,10 +66,10 @@ Specifies the maximum size an HTTP response is allowed to have, defaults to
 
 `xpack.http.whitelist`::
 A list of URLs, that the internal HTTP client is allowed to connect to. This
-client is used in the HTTP input, the webhook, the slack, pagerduty, hipchat
+client is used in the HTTP input, the webhook, the slack, pagerduty,
 and jira actions. This setting can be updated dynamically.  It defaults to `*`
 allowing everything. Note: If you configure this setting and you are using one
-of the slack/pagerduty/hipchat actions, you have to ensure that the
+of the slack/pagerduty actions, you have to ensure that the
 corresponding endpoints are whitelisted as well.
 
 [[ssl-notification-settings]]
@@ -206,54 +205,6 @@ HTML feature groups>>.
 `xpack.notification.email.html.sanitization.enabled` ::
 Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
-
-[float]
-[[hipchat-notification-settings]]
-==== HipChat Notification Settings
-You can configure the following HipChat notification settings in
-`elasticsearch.yml`. For more information about sending notifications
-via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
-
-`xpack.notification.hipchat` ::
-Specifies account information for sending notifications
-via HipChat. You can specify the following HipChat account attributes:
-
-[[hipchat-account-attributes]]
-  `profile`;;
-  The HipChat account profile to use: `integration`,
-                      `user`, or `v1`. Required.
-
-  `secure_auth_token` (<<secure-settings,Secure>>);;
-  The authentication token to use to access the HipChat API. Required.
-
-  `host`;;
-  The HipChat server hostname. Defaults to `api.hipchat.com`.
-
-  `port`;;
-  The HipChat server port number. Defaults to 443.
-
-  `room`;;
-  The room you want to send messages to. Must be specified
-                      if the `profile` is set to `integration`. Not valid for
-                      the `user` or `vi` profiles.
-
-  `user`;;
-  The HipChat user account to use to send messages.
-                      Specified as an email address. Must be specified if the
-                      `profile` is set to `user`. Not valid for the `integration`
-                      or `v1` profiles.
-
-  `message.format`;;
-  The format of the message: `text` or `html`.
-                      Defaults to `html`.
-
-  `message.color`;;
-  The background color of the notification in the room.
-                      Defaults to  `yellow`.
-  `message.notify`;;
-  Indicates whether people in the room should be
-                      actively notified. Defaults to `false`.
-
 
 [float]
 [[slack-notification-settings]]

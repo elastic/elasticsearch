@@ -177,10 +177,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            NamedXContentRegistry registry,
                                            boolean allowExplicitIndex) throws IOException {
         int from = 0;
-        int length = data.length();
         byte marker = xContent.streamSeparator();
         while (true) {
-            int nextMarker = findNextMarker(marker, from, data, length);
+            int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -261,7 +260,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // move pointers
             from = nextMarker + 1;
             // now for the body
-            nextMarker = findNextMarker(marker, from, data, length);
+            nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
             }
@@ -275,13 +274,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
     }
 
-    private static int findNextMarker(byte marker, int from, BytesReference data, int length) {
-        for (int i = from; i < length; i++) {
-            if (data.get(i) == marker) {
-                return i;
-            }
+    private static int findNextMarker(byte marker, int from, BytesReference data) {
+        final int res = data.indexOf(marker, from);
+        if (res != -1) {
+            assert res >= 0;
+            return res;
         }
-        if (from != length) {
+        if (from != data.length()) {
             throw new IllegalArgumentException("The msearch request must be terminated by a newline [\n]");
         }
         return -1;

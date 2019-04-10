@@ -502,6 +502,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String VM_NAME = "vm_name";
             static final String VM_VERSION = "vm_version";
             static final String VM_VENDOR = "vm_vendor";
+            static final String BUNDLED_JDK = "bundled_jdk";
+            static final String USING_BUNDLED_JDK = "using_bundled_jdk";
             static final String COUNT = "count";
             static final String THREADS = "threads";
             static final String MAX_UPTIME = "max_uptime";
@@ -524,6 +526,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 builder.field(Fields.VM_NAME, v.key.vmName);
                 builder.field(Fields.VM_VERSION, v.key.vmVersion);
                 builder.field(Fields.VM_VENDOR, v.key.vmVendor);
+                builder.field(Fields.BUNDLED_JDK, v.key.bundledJdk);
+                builder.field(Fields.USING_BUNDLED_JDK, v.key.usingBundledJdk);
                 builder.field(Fields.COUNT, v.value);
                 builder.endObject();
             }
@@ -543,12 +547,16 @@ public class ClusterStatsNodes implements ToXContentFragment {
         String vmName;
         String vmVersion;
         String vmVendor;
+        boolean bundledJdk;
+        Boolean usingBundledJdk;
 
         JvmVersion(JvmInfo jvmInfo) {
             version = jvmInfo.version();
             vmName = jvmInfo.getVmName();
             vmVersion = jvmInfo.getVmVersion();
             vmVendor = jvmInfo.getVmVendor();
+            bundledJdk = jvmInfo.getBundledJdk();
+            usingBundledJdk = jvmInfo.getUsingBundledJdk();
         }
 
         @Override

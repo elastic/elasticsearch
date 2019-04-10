@@ -23,7 +23,9 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,13 +38,13 @@ public class Pivot {
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
     private final PivotConfig config;
-    private final String source;
+    private final String[] source;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
     private final SearchRequest cachedSearchRequest;
 
-    public Pivot(String source, QueryBuilder query, PivotConfig config) {
+    public Pivot(String[] source, QueryBuilder query, PivotConfig config) {
         this.source = source;
         this.config = config;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
@@ -75,12 +77,17 @@ public class Pivot {
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
-            DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
+                                                      Map<String, String> fieldTypeMap,
+                                                      DataFrameIndexerTransformStats dataFrameIndexerTransformStats) {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
 
-        return AggregationResultUtils.extractCompositeAggregationResults(agg, groups, aggregationBuilders, dataFrameIndexerTransformStats);
+        return AggregationResultUtils.extractCompositeAggregationResults(agg,
+            groups,
+            aggregationBuilders,
+            fieldTypeMap,
+            dataFrameIndexerTransformStats);
     }
 
     private void runTestQuery(Client client, final ActionListener<Boolean> listener) {
@@ -97,11 +104,11 @@ public class Pivot {
             }
             listener.onResponse(true);
         }, e->{
-            listener.onFailure(new RuntimeException("Failed to test query",e));
+            listener.onFailure(new RuntimeException("Failed to test query", e));
         }));
     }
 
-    private static SearchRequest createSearchRequest(String index, QueryBuilder query, CompositeAggregationBuilder compositeAggregation) {
+    private static SearchRequest createSearchRequest(String[] index, QueryBuilder query, CompositeAggregationBuilder compositeAggregation) {
         SearchRequest searchRequest = new SearchRequest(index);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.aggregation(compositeAggregation);

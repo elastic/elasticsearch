@@ -81,7 +81,7 @@ public class MockTransport implements Transport, LifecycleComponent {
                                                    Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
                                                    @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ConnectionManager(settings, this),
-            settings, this, threadPool);
+            settings, this);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> nodeConnected(discoveryNode));
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders,
@@ -264,20 +264,11 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
         this.listener = listener;
-    }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        if (listener == this.listener) {
-            this.listener = null;
-            return true;
-        }
-        return false;
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

@@ -16,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -37,6 +39,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
@@ -401,6 +404,97 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             fail("unexpected target cluster [" + targetCluster + "]");
         }
 
+    }
+
+    public void testILMUnfollowFailsToRemoveRetentionLeases() throws Exception {
+        final String leaderIndex = "leader";
+        final String followerIndex = "follower";
+        final String policyName = "unfollow_only_policy";
+
+        if ("leader".equals(targetCluster)) {
+            Settings indexSettings = Settings.builder()
+                .put("index.soft_deletes.enabled", true)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+                .build();
+            createIndex(leaderIndex, indexSettings, "", "");
+            ensureGreen(leaderIndex);
+        } else if ("follow".equals(targetCluster)) {
+            try (RestClient leaderClient = buildLeaderClient()) {
+                String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
+                configureRemoteClusters("other_remote", leaderRemoteClusterSeed);
+                assertBusy(() -> {
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                        .performRequest(new Request("GET", "/_remote/info")))
+                        .get("other_remote");
+                    assertThat(localConnection, notNullValue());
+                    assertThat(localConnection.get("connected"), is(true));
+                });
+                putUnfollowOnlyPolicy(client(), policyName);
+                // Set up the follower
+                followIndex("other_remote", leaderIndex, followerIndex);
+                ensureGreen(followerIndex);
+                // Pause ILM so that this policy doesn't proceed until we want it to
+                client().performRequest(new Request("POST", "/_ilm/stop"));
+
+                // Set indexing complete and wait for it to be replicated
+                updateIndexSettings(leaderClient, leaderIndex, Settings.builder()
+                    .put("index.lifecycle.indexing_complete", true)
+                    .build()
+                );
+                assertBusy(() -> {
+                    assertThat(getIndexSetting(client(), followerIndex, "index.lifecycle.indexing_complete"), is("true"));
+                });
+
+                // Remove remote cluster alias:
+                configureRemoteClusters("other_remote", null);
+                assertBusy(() -> {
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                        .performRequest(new Request("GET", "/_remote/info")))
+                        .get("other_remote");
+                    assertThat(localConnection, nullValue());
+                });
+                // Then add it back with an incorrect seed node:
+                // (unfollow api needs a remote cluster alias)
+                configureRemoteClusters("other_remote", "localhost:9999");
+                assertBusy(() -> {
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
+                        .performRequest(new Request("GET", "/_remote/info")))
+                        .get("other_remote");
+                    assertThat(localConnection, notNullValue());
+                    assertThat(localConnection.get("connected"), is(false));
+
+                    Request statsRequest = new Request("GET", "/" + followerIndex + "/_ccr/stats");
+                    Map<?, ?> response = toMap(client().performRequest(statsRequest));
+                    logger.info("follow shards response={}", response);
+                    String expectedIndex = ObjectPath.eval("indices.0.index", response);
+                    assertThat(expectedIndex, equalTo(followerIndex));
+                    Object fatalError = ObjectPath.eval("indices.0.shards.0.read_exceptions.0", response);
+                    assertThat(fatalError, notNullValue());
+                });
+
+                // Start ILM back up and let it unfollow
+                client().performRequest(new Request("POST", "/_ilm/start"));
+                // Wait for the policy to be complete
+                assertBusy(() -> {
+                    assertILMPolicy(client(), followerIndex, policyName, "completed", "completed", "completed");
+                });
+
+                // Ensure the "follower" index has successfully unfollowed
+                assertBusy(() -> {
+                    assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue());
+                });
+            }
+        }
+    }
+
+    private void configureRemoteClusters(String name, String leaderRemoteClusterSeed) throws IOException {
+        logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("{\"persistent\": {\"cluster.remote." + name + ".seeds\": " +
+            (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null) + "}}");
+        assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
     }
 
     private static void putILMPolicy(String name, String maxSize, Integer maxDocs, TimeValue maxAge) throws IOException {

@@ -78,12 +78,13 @@ node of {es}:
 
 [source,js]
 --------------------------------------------------
-GET /_xpack/certificates
+GET /_ssl/certificates
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:todo]
+// TEST
 
 The API returns the following results:
+
 [source,js]
 ----
 [

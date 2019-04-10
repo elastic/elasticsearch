@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -49,6 +50,10 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
+        }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
     }
 

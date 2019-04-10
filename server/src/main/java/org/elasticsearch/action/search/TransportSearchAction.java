@@ -80,6 +80,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 
 public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
@@ -115,9 +116,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
                                                               Index[] concreteIndices, Map<String, AliasFilter> remoteAliasMap) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), request.indices());
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
@@ -203,7 +205,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(searchRequest.indicesOptions(),
-                searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
+                searchRequest.indices());
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(task, timeProvider, searchRequest, localIndices, clusterState, listener);
@@ -248,6 +250,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.scroll() != null) {
             return false;
         }
+        if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+            return false;
+        }
         SearchSourceBuilder source = searchRequest.source();
         return source == null || source.collapse() == null || source.collapse().getInnerHits() == null ||
             source.collapse().getInnerHits().isEmpty();
@@ -265,7 +270,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            SearchRequest ccsSearchRequest = SearchRequest.withLocalReduction(searchRequest, indices.indices(),
+            SearchRequest ccsSearchRequest = SearchRequest.crossClusterSearch(searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
@@ -301,7 +306,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                SearchRequest ccsSearchRequest = SearchRequest.withLocalReduction(searchRequest, indices.indices(),
+                SearchRequest ccsSearchRequest = SearchRequest.crossClusterSearch(searchRequest, indices.indices(),
                     clusterAlias, timeProvider.getAbsoluteStartMillis(), false);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
                     skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
@@ -311,9 +316,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
-                //here we provide the empty string a cluster alias, which means no prefix in index name,
-                //but the coord node will perform non final reduce as it's not null.
-                SearchRequest ccsLocalSearchRequest = SearchRequest.withLocalReduction(searchRequest, localIndices.indices(),
+                SearchRequest ccsLocalSearchRequest = SearchRequest.crossClusterSearch(searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
             }

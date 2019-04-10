@@ -6,9 +6,8 @@
 package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -17,14 +16,19 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
 import java.util.List;
 
+import static org.elasticsearch.ExceptionsHelper.convertToElastic;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class TransportStopDataFrameTransformAction extends
@@ -33,25 +37,40 @@ public class TransportStopDataFrameTransformAction extends
 
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
     private final ThreadPool threadPool;
+    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
 
     @Inject
     public TransportStopDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
-            ClusterService clusterService, ThreadPool threadPool) {
+                                                 ClusterService clusterService, ThreadPool threadPool,
+                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
         super(StopDataFrameTransformAction.NAME, clusterService, transportService, actionFilters, StopDataFrameTransformAction.Request::new,
                 StopDataFrameTransformAction.Response::new, StopDataFrameTransformAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
+        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
     }
 
     @Override
     protected void doExecute(Task task, StopDataFrameTransformAction.Request request,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
-        super.doExecute(task, request, listener);
+        // Need to verify that the config actually exists
+        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), ActionListener.wrap(
+            config -> super.doExecute(task, request, listener),
+            listener::onFailure
+        ));
     }
 
     @Override
     protected void taskOperation(StopDataFrameTransformAction.Request request, DataFrameTransformTask transformTask,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
+            if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+                listener.onFailure(
+                    new ElasticsearchStatusException("Unable to stop data frame transform [" + request.getId()
+                        + "] as it is in a failed state with reason: [" + transformTask.getState().getReason() +
+                        "]. Use force stop to stop the data frame transform.",
+                        RestStatus.CONFLICT));
+                return;
+            }
             if (request.waitForCompletion() == false) {
                 transformTask.stop(listener);
             } else {
@@ -100,16 +119,23 @@ public class TransportStopDataFrameTransformAction extends
             List<FailedNodeException> failedNodeExceptions) {
 
         if (taskOperationFailures.isEmpty() == false) {
-            throw ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw convertToElastic(failedNodeExceptions.get(0));
         }
 
         // Either the transform doesn't exist (the user didn't create it yet) or was deleted
         // after the Stop API executed.
         // In either case, let the user know
         if (tasks.size() == 0) {
-            throw new ResourceNotFoundException("Task for Data Frame transform [" + request.getId() + "] not found");
+            if (taskOperationFailures.isEmpty() == false) {
+                throw convertToElastic(taskOperationFailures.get(0).getCause());
+            } else if (failedNodeExceptions.isEmpty() == false) {
+                throw convertToElastic(failedNodeExceptions.get(0));
+            } else {
+                // This can happen we the actual task in the node no longer exists, or was never started
+                return new StopDataFrameTransformAction.Response(true);
+            }
         }
 
         assert tasks.size() == 1;

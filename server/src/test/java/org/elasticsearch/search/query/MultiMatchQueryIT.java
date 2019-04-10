@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -703,7 +704,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(idx)
                 .setExplain(true)
                 .setQuery(multiMatchQuery("foo").field("title", 100).field("body")
-                        .fuzziness(0)
+                        .fuzziness(Fuzziness.ZERO)
                         ).get();
         SearchHit[] hits = searchResponse.getHits().getHits();
         assertNotEquals("both documents should be on different shards", hits[0].getShard().getShardId(), hits[1].getShard().getShardId());

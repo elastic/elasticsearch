@@ -50,11 +50,24 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     private final ScoreScript.LeafFactory script;
 
+    private final int shardId;
+    private final String indexName;
+
 
     public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
         this.script = script;
+        this.indexName = null;
+        this.shardId = -1;
+    }
+
+    public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, String indexName, int shardId) {
+        super(CombineFunction.REPLACE);
+        this.sScript = sScript;
+        this.script = script;
+        this.indexName = indexName;
+        this.shardId = shardId;
     }
 
     @Override
@@ -62,6 +75,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         final ScoreScript leafScript = script.newInstance(ctx);
         final CannedScorer scorer = new CannedScorer();
         leafScript.setScorer(scorer);
+        leafScript._setIndexName(indexName);
+        leafScript._setShard(shardId);
         return new LeafScoreFunction() {
             @Override
             public double score(int docId, float subQueryScore) throws IOException {

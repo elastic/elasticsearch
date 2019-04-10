@@ -75,7 +75,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -83,7 +82,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -440,17 +438,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    @TestLogging(
-            "_root:DEBUG,"
-                    + "org.elasticsearch.action.bulk:TRACE,"
-                    + "org.elasticsearch.action.get:TRACE,"
-                    + "org.elasticsearch.cluster.service:TRACE,"
-                    + "org.elasticsearch.discovery:TRACE,"
-                    + "org.elasticsearch.indices.cluster:TRACE,"
-                    + "org.elasticsearch.indices.recovery:TRACE,"
-                    + "org.elasticsearch.index.seqno:TRACE,"
-                    + "org.elasticsearch.index.shard:TRACE")
-    public void testWaitForPendingSeqNo() throws Exception {
+    public void testDoNotWaitForPendingSeqNo() throws Exception {
         IndexMetaData metaData = buildIndexMetaData(1);
 
         final int pendingDocs = randomIntBetween(1, 5);
@@ -500,20 +488,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean opsSent = new AtomicBoolean(false);
+            AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                return new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
-                    public void indexTranslogOperations(
-                            final List<Translog.Operation> operations,
-                            final int totalTranslogOps,
-                            final long maxSeenAutoIdTimestamp,
-                            final long msu,
-                            final RetentionLeases retentionLeases,
-                            final ActionListener<Long> listener) {
-                        opsSent.set(true);
-                        super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu, retentionLeases, listener);
+                    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                        recoveryDone.set(true);
+                        super.finalizeRecovery(globalCheckpoint, listener);
                     }
                 };
             });
@@ -524,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int indexedDuringRecovery = shards.indexDocs(randomInt(5));
             docs += indexedDuringRecovery;
 
-            assertFalse("recovery should wait on pending docs", opsSent.get());
+            assertBusy(() -> assertTrue("recovery should not wait for on pending docs", recoveryDone.get()));
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();
@@ -533,10 +515,6 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             recoveryFuture.get();
 
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
-            assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(),
-                // we don't know which of the inflight operations made it into the translog range we re-play
-                both(greaterThanOrEqualTo(docs-indexedDuringRecovery)).and(lessThanOrEqualTo(docs)));
-
             shards.assertAllEqual(docs);
         } finally {
             primaryEngineFactory.close();
@@ -578,7 +556,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                     replica,
-                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
                         @Override
                         public void indexTranslogOperations(
                                 final List<Translog.Operation> operations,
@@ -833,7 +811,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery,
                               IndexShard shard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                               Logger logger) {
-            super(shard, sourceNode, listener, version -> {});
+            super(shard, sourceNode, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
@@ -875,9 +853,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
             blockIfNeeded(RecoveryState.Stage.INDEX);
-            super.cleanFiles(totalTranslogOps, sourceMetaData);
+            super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
         }
 
         @Override

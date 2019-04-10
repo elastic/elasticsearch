@@ -28,6 +28,9 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Aggregations.AggregationType;
 import org.junit.After;
 import org.junit.Before;
@@ -80,13 +83,13 @@ public class PivotTests extends ESTestCase {
     }
 
     public void testValidateExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertValidTransform(client, pivot);
     }
 
     public void testValidateNonExistingIndex() throws Exception {
-        Pivot pivot = new Pivot("non_existing_source_index", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"non_existing_source_index"}, new MatchAllQueryBuilder(), getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -94,7 +97,9 @@ public class PivotTests extends ESTestCase {
     public void testSearchFailure() throws Exception {
         // test a failure during the search operation, transform creation fails if
         // search has failures although they might just be temporary
-        Pivot pivot = new Pivot("existing_source_index_with_failing_shards", new MatchAllQueryBuilder(), getValidPivotConfig());
+        Pivot pivot = new Pivot(new String[]{"existing_source_index_with_failing_shards"},
+            new MatchAllQueryBuilder(),
+            getValidPivotConfig());
 
         assertInvalidTransform(client, pivot);
     }
@@ -103,8 +108,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : supportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
             assertValidTransform(client, pivot);
         }
     }
@@ -113,8 +117,7 @@ public class PivotTests extends ESTestCase {
         for (String agg : unsupportedAggregations) {
             AggregationConfig aggregationConfig = getAggregationConfig(agg);
 
-            Pivot pivot = new Pivot("existing_source", new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
-
+            Pivot pivot = new Pivot(new String[]{"existing_source"}, new MatchAllQueryBuilder(), getValidPivotConfig(aggregationConfig));
             assertInvalidTransform(client, pivot);
         }
     }
@@ -171,6 +174,16 @@ public class PivotTests extends ESTestCase {
     }
 
     private AggregationConfig getAggregationConfig(String agg) throws IOException {
+        if (agg.equals(AggregationType.SCRIPTED_METRIC.getName())) {
+            return parseAggregations("{\"pivot_scripted_metric\": {\n" +
+                "\"scripted_metric\": {\n" +
+                "    \"init_script\" : \"state.transactions = []\",\n" +
+                "    \"map_script\" : \"state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)\", \n" +
+                "    \"combine_script\" : \"double profit = 0; for (t in state.transactions) { profit += t } return profit\",\n" +
+                "    \"reduce_script\" : \"double profit = 0; for (a in states) { profit += a } return profit\"\n" +
+                "  }\n" +
+                "}}");
+        }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
     }

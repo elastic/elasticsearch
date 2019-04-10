@@ -488,8 +488,13 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         }
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
-            throw new InvalidShapeException("Self-intersection at or near point ["
-                + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
+            if (partitionPoint[2] == Double.NaN) {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "]");
+            } else {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
+            }
         }
         return coordinates;
     }

@@ -109,7 +109,7 @@ public class JsonLoggerTests extends ESTestCase {
             ));
         }
     }
-
+    @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 

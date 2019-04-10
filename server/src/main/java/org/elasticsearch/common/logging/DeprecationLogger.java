@@ -255,14 +255,6 @@ public class DeprecationLogger {
             });
         }
     }
-    /**
-     *    String opaqueIds = threadContexts.stream()
-     *                                                      .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-     *                                                      .collect(Collectors.joining(" "));
-     *                     try (final CloseableThreadContext.Instance ctc = CloseableThreadContext.put("x-opaque-id",opaqueIds)) {
-     *                         logger.warn(message, params);
-     *                     }
-     */
 
     /**
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,

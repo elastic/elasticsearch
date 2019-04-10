@@ -96,7 +96,7 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
     static class TestProcessor extends AbstractProcessor {
 
-        final static String NAME = "test_processor";
+        static final String NAME = "test_processor";
 
         private final Function<Index, Engine.Searcher> searchProvider;
         private final Function<String, Index> resolveIndexFunction;

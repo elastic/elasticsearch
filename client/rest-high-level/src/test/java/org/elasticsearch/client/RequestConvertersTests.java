@@ -1772,6 +1772,38 @@ public class RequestConvertersTests extends ESTestCase {
                     .addPathPartAsIs("cache/clear");
             assertEquals("/index1,index2/cache/clear", endpointBuilder.build());
         }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo");
+            assertEquals("/%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo");
+            assertEquals("/%2F%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("///foo");
+            assertEquals("/%2F%2F%2Ffoo", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo/bar");
+            assertEquals("/%2Ffoo%2Fbar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo/bar");
+            assertEquals("/%2F%2Ffoo%2Fbar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/foo@bar");
+            assertEquals("/%2Ffoo@bar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("//foo@bar");
+            assertEquals("/%2F%2Ffoo@bar", endpointBuilder.build());
+        }
+        {
+            EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("/part1").addPathPart("//part2").addPathPart("///part3");
+            assertEquals("/%2Fpart1/%2F%2Fpart2/%2F%2F%2Fpart3", endpointBuilder.build());
+        }
     }
 
     public void testEndpoint() {

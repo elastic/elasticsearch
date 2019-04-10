@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,6 +40,19 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     private final GeoPoint centroid;
     private final long count;
 
+    public static long encodeLatLon(double lat, double lon) {
+        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) |
+                    Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
+    public static double decodeLatitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLatitude((int) (encodedLatLon >>> 32));
+    }
+
+    public static double decodeLongitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
+    }
+
     InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
@@ -55,7 +69,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
-            centroid = new GeoPoint(in.readDouble(), in.readDouble());
+            final long hash = in.readLong();
+            centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
         } else {
             centroid = null;
         }
@@ -66,8 +81,8 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            out.writeDouble(centroid.lat());
-            out.writeDouble(centroid.lon());
+            // should we just write lat and lon separately?
+            out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
         } else {
             out.writeBoolean(false);
         }

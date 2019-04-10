@@ -211,12 +211,12 @@ cluster, as was the case in 6.
 ==== Changes to thread pool naming in Node and Cat APIs
 The `thread_pool` information returned from the Nodes and Cat APIs has been
 standardized to use the same terminology as the thread pool configurations.
-This means the response will aligns with the configuration instead of being
+This means the response will align with the configuration instead of being
 the same across all the thread pools, regardless of type.
 
 [float]
 ==== Return 200 when cluster has valid read-only blocks
-If the cluster was configured with `no_master_block: write` and lost it's master,
+If the cluster was configured with `no_master_block: write` and lost its master,
 it would return a `503` status code from a main request (`GET /`) even though
 there are viable read-only nodes available.  The cluster now returns 200 status
 in this situation.

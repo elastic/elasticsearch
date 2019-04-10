@@ -754,22 +754,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(con.cfg, columnInfo("SCHEMATA",
-                                    "TABLE_SCHEM",
-                                    "TABLE_CATALOG"), data);
+        return emptySet(con.cfg, "SCHEMATA",
+                "TABLE_SCHEM",
+                "TABLE_CATALOG");
     }
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        List<JdbcColumnInfo> info = columnInfo("SCHEMATA",
-                                           "TABLE_SCHEM",
-                                           "TABLE_CATALOG");
-        if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(con.cfg, info);
-        }
-        Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(con.cfg, info, data);
+        return getSchemas();
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -1049,9 +1048,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ActionListener<ApiKeyRoleDescriptors> listener = (ActionListener<ApiKeyRoleDescriptors>) invocationOnMock.getArguments()[1];
             listener.onResponse(new ApiKeyRoleDescriptors("keyId",
-                Collections.singletonList(new RoleDescriptor("a-role", new String[] { ClusterPrivilegeName.ALL }, null, null)),
+                Collections.singletonList(new RoleDescriptor("a-role", new String[] {"all"}, null, null)),
                 Collections.singletonList(
-                    new RoleDescriptor("scoped-role", new String[] { ClusterPrivilegeName.MANAGE_SECURITY }, null, null))));
+                    new RoleDescriptor("scoped-role", new String[] {"manage_security"}, null, null))));
             return Void.TYPE;
         }).when(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
 

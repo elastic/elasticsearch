@@ -20,6 +20,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +43,9 @@ public class EnrichPlugin extends Plugin implements IngestPlugin {
                                                Environment environment,
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry) {
-        return Collections.singleton(new EnrichStore(clusterService));
+        return Arrays.asList(
+            new EnrichStore(clusterService),
+            new EnrichPolicyRunner(clusterService, client, System::currentTimeMillis));
     }
 
     @Override

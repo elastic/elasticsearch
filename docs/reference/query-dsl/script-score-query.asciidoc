@@ -50,7 +50,7 @@ document.
 
 ==== Predefined functions within a Painless script
 You can use any of the available
-<<painless-contexts-api-reference, painless functions>> in the painless script.
+<<painless-api-reference, painless functions>> in the painless script.
 Besides these functions, there are a number of predefined functions
 that can help you with scoring. We suggest you to use them instead of
 rewriting equivalent functions of your own, as these functions try

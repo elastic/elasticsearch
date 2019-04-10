@@ -12,7 +12,7 @@ provides:
 run several times faster] than the alternatives.
 
 * Safety: Fine-grained whitelist with method call/field granularity. See the
-{painless}/painless-contexts-api-reference.html[Painless API Reference] for a
+{painless}/painless-api-reference.html[Painless API Reference] for a
 complete list of available classes and methods.
 
 * Optional typing: Variables and parameters can use explicit types or the

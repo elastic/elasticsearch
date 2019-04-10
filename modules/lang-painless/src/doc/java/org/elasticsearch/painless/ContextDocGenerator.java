@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 
 import java.io.PrintStream;
@@ -58,52 +59,53 @@ public class ContextDocGenerator {
             ((HttpURLConnection)getContextInfo).disconnect();
         }
 
-        Path apiRootPath = PathUtils.get("../../docs/painless/painless-contexts-api-reference");
+        Path apiRootPath = PathUtils.get("../../docs/painless/painless-api-reference");
         IOUtils.rm(apiRootPath);
         Files.createDirectories(apiRootPath);
-
-        Path indexPath = apiRootPath.resolve("index.asciidoc");
+        Path apiIndexPath = apiRootPath.resolve("index.asciidoc");
+        List<String> contextApiHeaders = new ArrayList<>();
 
         try (PrintStream indexStream = new PrintStream(
-                Files.newOutputStream(indexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                Files.newOutputStream(apiIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
 
-            indexStream.println("[options=\"header\",cols=\"<2,<1\"]");
-            indexStream.println("|====");
-            indexStream.println("| Name | API");
-
             for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
-                String header = "painless-context-api-" + painlessContextInfo.name.replace(" ", "").replace("_", "-");
+                String contextApiHeader = "painless-api-reference-" + painlessContextInfo.name.replace(" ", "").replace("_", "-");
+                contextApiHeaders.add(contextApiHeader);
                 String[] split = painlessContextInfo.name.split("[_-]");
-                StringBuilder name = new StringBuilder();
+                StringBuilder contextNameBuilder = new StringBuilder();
 
                 for (String part : split) {
-                    name.append(Character.toUpperCase(part.charAt(0)));
-                    name.append(part.substring(1));
-                    name.append(' ');
+                    contextNameBuilder.append(Character.toUpperCase(part.charAt(0)));
+                    contextNameBuilder.append(part.substring(1));
+                    contextNameBuilder.append(' ');
                 }
 
-                indexStream.println("| " + name.substring(0, name.length() - 1) + " | <<" + header + ", API>>");
+                String contextName = contextNameBuilder.substring(0, contextNameBuilder.length() - 1);
+                indexStream.println("* <<" + contextApiHeader + ", " + contextName  + ">>");
 
-                Path contextPath = apiRootPath.resolve(header + ".asciidoc");
+                Path contextApiRootPath = apiRootPath.resolve(contextApiHeader);
+                Files.createDirectories(contextApiRootPath);
+                Path contextApiIndexPath = contextApiRootPath.resolve("index.asciidoc");
 
-                try (PrintStream contextStream = new PrintStream(
-                        Files.newOutputStream(contextPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                try (PrintStream contextApiIndexStream = new PrintStream(
+                        Files.newOutputStream(contextApiIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                         false, StandardCharsets.UTF_8.name())) {
 
-                    contextStream.println("[[" + header  + "]]");
-                    contextStream.println("=== " + name + " API");
-                    contextStream.println("test");
+                    contextApiIndexStream.println("[[" + contextApiHeader  + "]]");
+                    contextApiIndexStream.println("=== " + contextName + " API");
+                    contextApiIndexStream.println();
+
+                    for (PainlessContextClassInfo painlessContextClassInfo : painlessContextInfo.classes) {
+                        contextApiIndexStream.println("* " + painlessContextClassInfo.name);
+                        contextApiIndexStream.println();
+                    }
                 }
             }
 
-            indexStream.println("|====");
-
-            for (PainlessContextInfo painlessContextInfo : painlessContextInfoList) {
-                String header = "painless-context-api-" + painlessContextInfo.name.replace(" ", "").replace("_", "-");
-
+            for (String contextApiHeader : contextApiHeaders) {
                 indexStream.println();
-                indexStream.println("include::" + header + ".asciidoc[]");
+                indexStream.println("include::" + contextApiHeader + "/index.asciidoc[]");
             }
         }
     }

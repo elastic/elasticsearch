@@ -13,7 +13,9 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_cluster_changes>>
 * <<breaking_70_discovery_changes>>
 * <<breaking_70_indices_changes>>
+* <<breaking_70_ingest_changes>>
 * <<breaking_70_mappings_changes>>
+* <<breaking_70_ml_changes>>
 * <<breaking_70_search_changes>>
 * <<breaking_70_suggesters_changes>>
 * <<breaking_70_packaging_changes>>

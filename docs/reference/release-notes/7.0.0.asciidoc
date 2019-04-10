@@ -173,7 +173,6 @@ Store::
 Suggesters::
 * Fix threshold frequency computation in Suggesters {pull}34312[#34312] (issue: {issue}34282[#34282])
 * Make Geo Context Mapping Parsing More Strict {pull}32821[#32821] (issues: {issue}32202[#32202], {issue}32412[#32412])
-*  Make Geo Context Parsing More Strict {pull}32412[#32412] (issue: {issue}32202[#32202])
 * Remove the ability to index or query context suggestions without context {pull}31007[#31007] (issue: {issue}30712[#30712])
 
 ZenDiscovery::

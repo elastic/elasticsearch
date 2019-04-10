@@ -14,6 +14,7 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('security'), configuration: 'runtime')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
+  testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->

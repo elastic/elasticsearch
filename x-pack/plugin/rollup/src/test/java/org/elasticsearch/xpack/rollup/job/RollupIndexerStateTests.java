@@ -256,7 +256,6 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41046")
     public void testIndexing() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -267,8 +266,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
-                        isFinished.set(true);
                         listener.onResponse(r);
+                        isFinished.set(true);
                     }, listener::onFailure));
                 }
             };
@@ -316,8 +315,8 @@ public class RollupIndexerStateTests extends ESTestCase {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
-                        isFinished.set(true);
                         listener.onResponse(r);
+                        isFinished.set(true);
                     }, listener::onFailure));
                 }
             };

@@ -42,15 +42,17 @@ public class DataFrameTransformState {
     private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
     private static final ParseField TASK_STATE = new ParseField("task_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
-    private static final ParseField GENERATION = new ParseField("generation");
+    private static final ParseField CHECKPOINT = new ParseField("checkpoint");
+    private static final ParseField REASON = new ParseField("reason");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER =
-            new ConstructingObjectParser<>("data_frame_transform_state",
+            new ConstructingObjectParser<>("data_frame_transform_state", true,
                     args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
                         (IndexerState) args[1],
                         (HashMap<String, Object>) args[2],
-                        (long) args[3]));
+                        (long) args[3],
+                        (String) args[4]));
 
     static {
         PARSER.declareField(constructorArg(),
@@ -67,7 +69,8 @@ public class DataFrameTransformState {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), GENERATION);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 
     public static DataFrameTransformState fromXContent(XContentParser parser) throws IOException {
@@ -76,17 +79,20 @@ public class DataFrameTransformState {
 
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
-    private final long generation;
+    private final long checkpoint;
     private final SortedMap<String, Object> currentPosition;
+    private final String reason;
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
-                                   long generation) {
+                                   long checkpoint,
+                                   @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
-        this.generation = generation;
+        this.checkpoint = checkpoint;
+        this.reason = reason;
     }
 
     public IndexerState getIndexerState() {
@@ -102,8 +108,13 @@ public class DataFrameTransformState {
         return currentPosition;
     }
 
-    public long getGeneration() {
-        return generation;
+    public long getCheckpoint() {
+        return checkpoint;
+    }
+
+    @Nullable
+    public String getReason() {
+        return reason;
     }
 
     @Override
@@ -121,11 +132,13 @@ public class DataFrameTransformState {
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
             Objects.equals(this.currentPosition, that.currentPosition) &&
-            this.generation == that.generation;
+            this.checkpoint == that.checkpoint &&
+            Objects.equals(this.reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, generation);
+        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason);
     }
+
 }

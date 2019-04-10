@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -75,7 +76,21 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      */
     RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
             AtomicBoolean upgradedDocumentID) {
-        super(executor, initialState, initialPosition, new RollupIndexerJobStats());
+        this(executor, job, initialState, initialPosition, upgradedDocumentID, new RollupIndexerJobStats());
+    }
+
+    /**
+     * Ctr
+     * @param executor Executor to use to fire the first request of a background job.
+     * @param job The rollup job
+     * @param initialState Initial state for the indexer
+     * @param initialPosition The last indexed bucket of the task
+     * @param upgradedDocumentID whether job has updated IDs (for BWC)
+     * @param jobStats jobstats instance for collecting stats
+     */
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
+            AtomicBoolean upgradedDocumentID, RollupIndexerJobStats jobStats) {
+        super(executor, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
         this.upgradedDocumentID = upgradedDocumentID;
@@ -94,15 +109,20 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     }
 
     @Override
-    protected void onStartJob(long now) {
-        // this is needed to exclude buckets that can still receive new documents.
-        DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
-        long rounded = dateHisto.createRounding().round(now);
-        if (dateHisto.getDelay() != null) {
-            // if the job has a delay we filter all documents that appear before it.
-            maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
-        } else {
-            maxBoundary = rounded;
+    protected void onStart(long now, ActionListener<Void> listener) {
+        try {
+            // this is needed to exclude buckets that can still receive new documents.
+            DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
+            long rounded = dateHisto.createRounding().round(now);
+            if (dateHisto.getDelay() != null) {
+                // if the job has a delay we filter all documents that appear before it.
+                maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
+            } else {
+                maxBoundary = rounded;
+            }
+            listener.onResponse(null);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

@@ -35,6 +35,7 @@ s|SQL-92
 |`CONVERT`                    |reserved      |reserved
 |`CURRENT_DATE`               |reserved      |reserved
 |`CURRENT_TIMESTAMP`          |reserved      |reserved
+|`CURRENT_TIME`               |reserved      |reserved
 |`DAY`                        |reserved      |reserved
 |`DAYS`                       |              |
 |`DESC`                       |reserved      |reserved

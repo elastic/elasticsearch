@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZonedDateTime;
 
-public class CurrentDateTime extends CurrentFunction {
+public class CurrentDateTime extends CurrentFunction<ZonedDateTime> {
 
     private final Expression precision;
 

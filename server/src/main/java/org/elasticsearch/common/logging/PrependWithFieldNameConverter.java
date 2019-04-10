@@ -34,8 +34,8 @@ import java.util.List;
 /**
  * Pattern converter to format ...
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "prepend")
-@ConverterKeys({"prepend"})
+@Plugin(category = PatternConverter.CATEGORY, name = "prependIfAbsent")
+@ConverterKeys({"prependIfAbsent"})
 public final class PrependWithFieldNameConverter extends LogEventPatternConverter {
 
     private String fieldPrefix;
@@ -54,7 +54,7 @@ public final class PrependWithFieldNameConverter extends LogEventPatternConverte
     }
 
     public PrependWithFieldNameConverter(String fieldPrefix, List<PatternFormatter> formatters) {
-        super("mm", "mm");
+        super("prependIfAbsent", "prependIfAbsent");
         this.fieldPrefix = fieldPrefix;
         this.formatters = formatters;
     }

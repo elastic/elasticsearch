@@ -133,16 +133,29 @@ public class PermissionsIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
     }
 
-    public void testILMPolicyWithRolloverActionWhereUserRoleIsLimitedByAliasOfIndex() throws IOException, InterruptedException {
+    /**
+     * Tests when the user is limited by alias of an index is able to write to index
+     * which was rolled over by an ILM policy.
+     */
+    public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy() throws IOException, InterruptedException {
+        /*
+         * Setup:
+         * - ILM policy to rollover index when max docs condition is met
+         * - Index template to which the ILM policy applies and create Index
+         * - Create role with just write and manage privileges on alias
+         * - Create user and assign newly created role.
+         */
         createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, 2L));
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
         createUser("test_user", "x-pack-test-password", "foo_alias_role");
 
+        // test_user: index docs using alias in the newly created index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 2);
         refresh("foo_alias");
 
+        // wait so the ILM policy triggers rollover action, verify that the new index exists
         assertThat(awaitBusy(() -> {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
             int status;
@@ -154,9 +167,11 @@ public class PermissionsIT extends ESRestTestCase {
             return status == 200;
         }), is(true));
 
+        // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
         refresh("foo_alias");
 
+        // verify that the doc has been indexed into new write index
         awaitBusy(() -> {
             Request request = new Request("GET", "/foo-logs-000002/_search");
             Response response;

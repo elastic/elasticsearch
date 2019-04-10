@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -100,6 +101,7 @@ public class CompositeRolesStore {
     private final NativeRolesStore nativeRolesStore;
     private final NativePrivilegeStore privilegeStore;
     private final XPackLicenseState licenseState;
+    private final Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final Cache<RoleKey, Role> roleCache;
     private final Cache<String, Boolean> negativeLookupCache;
@@ -115,7 +117,7 @@ public class CompositeRolesStore {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
-                               ApiKeyService apiKeyService) {
+                               ApiKeyService apiKeyService, Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
         this.fileRolesStore = fileRolesStore;
         fileRolesStore.addListener(this::invalidate);
         this.nativeRolesStore = nativeRolesStore;
@@ -123,6 +125,7 @@ public class CompositeRolesStore {
         this.licenseState = licenseState;
         this.fieldPermissionsCache = fieldPermissionsCache;
         this.apiKeyService = apiKeyService;
+        this.effectiveRoleDescriptorsConsumer = effectiveRoleDescriptorsConsumer;
         CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
@@ -161,9 +164,9 @@ public class CompositeRolesStore {
                     rolesRetrievalResult -> {
                         final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
                         if (missingRoles) {
-                            logger.debug("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles());
+                            logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}",
+                                    rolesRetrievalResult.getMissingRoles()));
                         }
-
                         final Set<RoleDescriptor> effectiveDescriptors;
                         if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
                             effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
@@ -172,6 +175,11 @@ public class CompositeRolesStore {
                                     .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
                                     .collect(Collectors.toSet());
                         }
+                        logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
+                                effectiveDescriptors, roleNames));
+                        effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
+                        logger.trace(() -> new ParameterizedMessage("Building role from descriptors [{}] for role names [{}]",
+                                effectiveDescriptors, roleNames));
                         buildThenMaybeCacheRole(roleKey, effectiveDescriptors, rolesRetrievalResult.getMissingRoles(),
                             rolesRetrievalResult.isSuccess(), invalidationCounter, roleActionListener);
                     },
@@ -287,7 +295,7 @@ public class CompositeRolesStore {
     private void roleDescriptors(Set<String> roleNames, ActionListener<RolesRetrievalResult> rolesResultListener) {
         final Set<String> filteredRoleNames = roleNames.stream().filter((s) -> {
             if (negativeLookupCache.get(s) != null) {
-                logger.debug("Requested role [{}] does not exist (cached)", s);
+                logger.debug(() -> new ParameterizedMessage("Requested role [{}] does not exist (cached)", s));
                 return false;
             } else {
                 return true;

@@ -48,6 +48,9 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
+        // Max allowed duration: 10 years
+        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
+
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
@@ -100,6 +103,10 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
             if (this.duration.compareTo(TimeValue.ZERO) <= 0) {
                 throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be positive: ["
                         + duration.getStringRep() + "]");
+            }
+            if (this.duration.compareTo(MAX_DURATION) > 0) {
+                throw new IllegalArgumentException("[" + DURATION.getPreferredName() + "] must be "
+                        + MAX_DURATION.getStringRep() + " or less: [" + duration.getStringRep() + "]");
             }
         }
 

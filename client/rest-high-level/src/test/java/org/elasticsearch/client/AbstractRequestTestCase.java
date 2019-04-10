@@ -31,35 +31,35 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 /**
- * Base class for HLRC response parsing tests.
+ * Base class for HLRC request parsing tests.
  *
- * This case class facilitates generating server side reponse test instances and
- * verifies that they are correctly parsed into HLRC response instances.
+ * This case class facilitates generating client side request test instances and
+ * verifies that they are correctly parsed into server side request instances.
  *
- * @param <S> The class representing the response on the server side.
- * @param <C> The class representing the response on the client side.
+ * @param <C> The class representing the request on the client side.
+ * @param <S> The class representing the request on the server side.
  */
-public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends ESTestCase {
+public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends ESTestCase {
 
     public final void testFromXContent() throws IOException {
-        final S serverTestInstance = createServerTestInstance();
+        final C clientTestInstance = createClientTestInstance();
 
         final XContentType xContentType = randomFrom(XContentType.values());
-        final BytesReference bytes = toShuffledXContent(serverTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+        final BytesReference bytes = toShuffledXContent(clientTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
             bytes.streamInput());
-        final C clientInstance = doParseToClientInstance(parser);
-        assertInstances(serverTestInstance, clientInstance);
+        final S serverInstance = doParseToServerInstance(parser);
+        assertInstances(serverInstance, clientTestInstance);
     }
 
-    protected abstract S createServerTestInstance();
+    protected abstract C createClientTestInstance();
 
-    protected abstract C doParseToClientInstance(XContentParser parser) throws IOException;
+    protected abstract S doParseToServerInstance(XContentParser parser) throws IOException;
 
-    protected abstract void assertInstances(S serverTestInstance, C clientInstance);
+    protected abstract void assertInstances(S serverInstance, C clientTestInstance);
 
 }

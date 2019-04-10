@@ -31,6 +31,9 @@ dependencies {
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
 
     // watcher deps
@@ -47,7 +50,7 @@ dependencies {
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
-thirdPartyAudit { 
+thirdPartyAudit {
     ignoreViolations (
         // uses internal java api: sun.misc.Unsafe
         'com.google.common.cache.Striped64',

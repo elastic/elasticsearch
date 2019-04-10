@@ -300,7 +300,7 @@ WAND: Faster Retrieval of Top Hits in Elasticsearch].
 
 //tag::notable-highlights[]
 [float]
-=== Faster Boosting with Feature Fields
+=== Faster boosting with feature fields
 
 The Query DSL provides a multitude of ways to boost or modulate how documents are
 scored.  But a common scenario is boosting an entire document based on some kind

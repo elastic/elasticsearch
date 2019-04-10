@@ -10,6 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
@@ -85,6 +88,31 @@ public class ClusterDeprecationChecks {
                     "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                     "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
                     "multi_match to fail if fields are not explicitly specified in the query.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {
+        String pollIntervalString = state.metaData().settings().get(LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+        if (Strings.isNullOrEmpty(pollIntervalString)) {
+            return null;
+        }
+
+        TimeValue pollInterval;
+        try {
+            pollInterval = TimeValue.parseTimeValue(pollIntervalString, LIFECYCLE_POLL_INTERVAL_SETTING.getKey());
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to parse [{}] value: [{}]", LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollIntervalString);
+            return null;
+        }
+
+        if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Index Lifecycle Management poll interval is set too low",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                    "#ilm-poll-interval-limit",
+                "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
+                    "currently set to [" + pollIntervalString + "], but must be 1s or greater");
         }
         return null;
     }

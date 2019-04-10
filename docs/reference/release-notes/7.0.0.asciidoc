@@ -26,7 +26,6 @@ Audit::
 
 Authentication::
 * Security: remove wrapping in put user response {pull}33512[#33512] (issue: {issue}32332[#32332])
-* Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
 * Remove bwc logic for token invalidation {pull}36893[#36893] (issue: {issue}36727[#36727])
 
 Authorization::
@@ -35,7 +34,6 @@ Authorization::
 
 CCR::
 * Change get autofollow patterns API response format {pull}36203[#36203] (issue: {issue}36049[#36049])
-* Follow stats api should return a 404 when requesting stats for a non existing index {pull}37220[#37220] (issue: {issue}37021[#37021])
 
 Circuit Breakers::
 * Lower fielddata circuit breaker's default limit {pull}27162[#27162] (issue: {issue}27130[#27130])

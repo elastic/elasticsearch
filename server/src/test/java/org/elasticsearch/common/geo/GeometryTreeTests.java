@@ -49,18 +49,23 @@ public class GeometryTreeTests extends ESTestCase {
             // box-query touches top-left corner
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), maxY, minX, maxY + randomIntBetween(1, 180)));
             // box-query fully-enclosed inside rectangle
-            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
+            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+                (3 * maxY + minY) / 4));
             // box-query fully-contains poly
             assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 180), minY - randomIntBetween(1, 180),
                 maxX + randomIntBetween(1, 180), maxY + randomIntBetween(1, 180)));
             // box-query half-in-half-out-right
-            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
+                (3 * maxY + minY) / 4));
             // box-query half-in-half-out-left
-            assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4, (3 * maxY + minY) / 4));
+            assertTrue(reader.containedInOrCrosses(minX - randomIntBetween(1, 1000), (3 * minY + maxY) / 4, (3 * maxX + minX) / 4,
+                (3 * maxY + minY) / 4));
             // box-query half-in-half-out-top
-            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),  maxY + randomIntBetween(1, 1000)));
+            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, (3 * minY + maxY) / 4, maxX + randomIntBetween(1, 1000),
+                maxY + randomIntBetween(1, 1000)));
             // box-query half-in-half-out-bottom
-            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000), maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
+            assertTrue(reader.containedInOrCrosses((3 * minX + maxX) / 4, minY - randomIntBetween(1, 1000),
+                maxX + randomIntBetween(1, 1000), (3 * maxY + minY) / 4));
 
             // box-query outside to the right
             assertFalse(reader.containedInOrCrosses(maxX + randomIntBetween(1, 1000), minY, maxX + randomIntBetween(1001, 2000), maxY));

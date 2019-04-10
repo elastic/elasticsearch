@@ -20,7 +20,6 @@ package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -37,7 +36,6 @@ import org.elasticsearch.geo.geometry.ShapeType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class GeometryTreeWriter {
@@ -108,8 +106,10 @@ public class GeometryTreeWriter {
 
         @Override
         public Void visit(Rectangle r) {
-            int[] lats = new int[] { (int) r.getMinLat(), (int) r.getMinLat(), (int) r.getMaxLat(), (int) r.getMaxLat(), (int) r.getMinLat()};
-            int[] lons = new int[] { (int) r.getMinLon(), (int) r.getMaxLon(), (int) r.getMaxLon(), (int) r.getMinLon(), (int) r.getMinLon()};
+            int[] lats = new int[] { (int) r.getMinLat(), (int) r.getMinLat(), (int) r.getMaxLat(), (int) r.getMaxLat(),
+                (int) r.getMinLat()};
+            int[] lons = new int[] { (int) r.getMinLon(), (int) r.getMaxLon(), (int) r.getMaxLon(), (int) r.getMinLon(),
+                (int) r.getMinLon()};
             shapeWriters.add(new EdgeTreeWriter(lons, lats));
             return null;
         }

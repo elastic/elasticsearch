@@ -21,7 +21,6 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -115,7 +114,8 @@ public class EdgeTreeReader {
         if (root.maxY >= minY) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
-            if (lineRelateLine(root.x1, root.y1, root.x2, root.y2, minX, minY, Integer.MAX_VALUE, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY) {
+            if (lineRelateLine(root.x1, root.y1, root.x2, root.y2,minX, minY,
+                    Integer.MAX_VALUE, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY) {
                 res = true;
             }
 

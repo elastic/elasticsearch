@@ -127,43 +127,34 @@ public class FieldHitExtractor implements HitExtractor {
         if (values == null) {
             return null;
         }
-        if (dataType == DataType.GEO_POINT) {
-            Object value;
-            if (values instanceof List && ((List<?>) values).size() == 1) {
-                    value = ((List<?>) values).get(0);
-            } else {
-                value = values;
-            }
-            try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
-                return new GeoShape(geoPoint.lon(), geoPoint.lat());
-            } catch (ElasticsearchParseException ex) {
-                throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
-            }
-        }
-        if (dataType == DataType.GEO_SHAPE) {
-            Object value;
-            if (values instanceof List && ((List<?>) values).size() == 1) {
-                value = ((List<?>) values).get(0);
-            } else {
-                value = values;
-            }
-            try {
-                return new GeoShape(value);
-            } catch (IOException ex) {
-                throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
-            }
-        }
         if (values instanceof List) {
             List<?> list = (List<?>) values;
             if (list.isEmpty()) {
                 return null;
             } else {
-                if (arrayLeniency || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                // let's make sure first that we are not dealing with an geo_point represented as an array
+                if (isGeoPointArray(list) == false) {
+                    if (list.size() == 1 || arrayLeniency) {
+                        return unwrapMultiValue(list.get(0));
+                    } else {
+                        throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    }
                 }
+            }
+        }
+        if (dataType == DataType.GEO_POINT) {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName);
+            }
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName);
             }
         }
         if (values instanceof Map) {
@@ -178,6 +169,17 @@ public class FieldHitExtractor implements HitExtractor {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType != DataType.GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -204,7 +206,9 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1 || arrayLeniency) {
+                    // we can only do this optimization until the last element of our pass since geo points are using arrays
+                    // and we don't want to blindly ignore the second element of array if arrayLeniency is enabled
+                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
                         // in case of being lenient about arrays, just extract the first value in the array

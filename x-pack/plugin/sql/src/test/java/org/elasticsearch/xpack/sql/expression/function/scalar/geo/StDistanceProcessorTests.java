@@ -44,6 +44,11 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         assertEquals(GeoUtils.arcDistance(20, 10, 40, 30), (double) result, 0.000001);
     }
 
+    public void testNullHandling() {
+        assertNull(new StDistance(EMPTY, l(new GeoShape(1, 2)), l(null)).makePipe().asProcessor().process(null));
+        assertNull(new StDistance(EMPTY, l(null), l(new GeoShape(1, 2))).makePipe().asProcessor().process(null));
+    }
+
     public void testTypeCheck() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new StDistance(EMPTY, l("foo"), l(new GeoShape(1, 2))).makePipe().asProcessor().process(null));
@@ -52,14 +57,6 @@ public class StDistanceProcessorTests extends AbstractWireSerializingTestCase<St
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new StDistance(EMPTY, l(new GeoShape(1, 2)), l("bar")).makePipe().asProcessor().process(null));
         assertEquals("A geo_point or geo_shape with type point is required; received [bar]", siae.getMessage());
-
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new StDistance(EMPTY, l(new GeoShape(1, 2)), l(null)).makePipe().asProcessor().process(null));
-        assertEquals("A geo_point or geo_shape with type point is required; received [null]", siae.getMessage());
-
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new StDistance(EMPTY, l(null), l(new GeoShape(1, 2))).makePipe().asProcessor().process(null));
-        assertEquals("A geo_point or geo_shape with type point is required; received [null]", siae.getMessage());
     }
 
     @Override

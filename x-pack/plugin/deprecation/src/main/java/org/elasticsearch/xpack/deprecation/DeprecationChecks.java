@@ -40,7 +40,7 @@ public class DeprecationChecks {
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB
+            NodeDeprecationChecks::javaVersionCheck
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =

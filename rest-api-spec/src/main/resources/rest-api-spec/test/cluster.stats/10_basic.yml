@@ -82,4 +82,4 @@
   - do:
       cluster.stats: {}
 
-  - is_true: nodes.discovery_types
+  - is_true: nodes.packaging_types

@@ -1068,6 +1068,21 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
 
         /**
+         * Validates that the Detector configs are unique up to detectorIndex field (which is ignored).
+         */
+        public void validateDetectorsAreUnique() {
+            Set<Detector> canonicalDetectors = new HashSet<>();
+            for (Detector detector : this.analysisConfig.getDetectors()) {
+                // While testing for equality, ignore detectorIndex field as this field is auto-generated.
+                Detector canonicalDetector = new Detector.Builder(detector).setDetectorIndex(0).build();
+                if (canonicalDetectors.add(canonicalDetector) == false) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED, detector.getDetectorDescription()));
+                }
+            }
+        }
+
+        /**
          * Builds a job with the given {@code createTime} and the current version.
          * This should be used when a new job is created as opposed to {@link #build()}.
          *

@@ -29,7 +29,8 @@ public class DataFrameTransformStateAndStatsHlrcTests extends AbstractHlrcXConte
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats instance) {
         return new DataFrameTransformStateAndStats(instance.getId(),
                 DataFrameTransformStateHlrcTests.fromHlrc(instance.getTransformState()),
-                DataFrameIndexerTransformStatsHlrcTests.fromHlrc(instance.getTransformStats()));
+                DataFrameIndexerTransformStatsHlrcTests.fromHlrc(instance.getTransformStats()),
+                DataFrameTransformCheckpointingInfoHlrcTests.fromHlrc(instance.getCheckpointingInfo()));
     }
 
     @Override

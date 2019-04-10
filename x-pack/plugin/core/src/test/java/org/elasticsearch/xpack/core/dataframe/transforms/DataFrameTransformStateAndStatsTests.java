@@ -22,7 +22,8 @@ public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDat
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
         return new DataFrameTransformStateAndStats(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
-                DataFrameIndexerTransformStatsTests.randomStats(id));
+                DataFrameIndexerTransformStatsTests.randomStats(id),
+                DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {

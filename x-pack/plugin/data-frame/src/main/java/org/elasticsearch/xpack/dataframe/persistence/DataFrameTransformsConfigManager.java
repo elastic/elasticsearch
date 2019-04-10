@@ -45,8 +45,8 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -148,6 +148,7 @@ public class DataFrameTransformsConfigManager {
 
             if (getResponse.isExists() == false) {
                 // do not fail if checkpoint does not exist but return an empty checkpoint
+                logger.trace("found no checkpoint for transform [" + transformId + "], returning empty checkpoint");
                 resultListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
                 return;
             }

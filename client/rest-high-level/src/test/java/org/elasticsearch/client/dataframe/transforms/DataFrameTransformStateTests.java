@@ -56,7 +56,7 @@ public class DataFrameTransformStateTests extends ESTestCase {
         if (state.getPosition() != null) {
             builder.field("current_position", state.getPosition());
         }
-        builder.field("generation", state.getGeneration());
+        builder.field("checkpoint", state.getCheckpoint());
         if (state.getReason() != null) {
             builder.field("reason", state.getReason());
         }

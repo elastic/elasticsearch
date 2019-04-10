@@ -196,7 +196,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         // start the transform
         startDataframeTransform(transformId, false, authHeader);
         // wait until the dataframe has been created and all data is available
-        waitForDataFrameGeneration(transformId);
+        waitForDataFrameCheckpoint(transformId);
         refreshIndex(dataFrameIndex);
     }
 
@@ -212,10 +212,10 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return request;
     }
 
-    void waitForDataFrameGeneration(String transformId) throws Exception {
+    void waitForDataFrameCheckpoint(String transformId) throws Exception {
         assertBusy(() -> {
-            long generation = getDataFrameGeneration(transformId);
-            assertEquals(1, generation);
+            long checkpoint = getDataFrameCheckpoint(transformId);
+            assertEquals(1, checkpoint);
         }, 30, TimeUnit.SECONDS);
     }
 
@@ -321,11 +321,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         }
     }
 
-    static int getDataFrameGeneration(String transformId) throws IOException {
+    static int getDataFrameCheckpoint(String transformId) throws IOException {
         Response statsResponse = client().performRequest(new Request("GET", DATAFRAME_ENDPOINT + transformId + "/_stats"));
 
         Map<?, ?> transformStatsAsMap = (Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("transforms")).get(0);
-        return (int) XContentMapValues.extractValue("state.generation", transformStatsAsMap);
+        return (int) XContentMapValues.extractValue("state.checkpoint", transformStatsAsMap);
     }
 
     protected void setupDataAccessRole(String role, String... indices) throws IOException {

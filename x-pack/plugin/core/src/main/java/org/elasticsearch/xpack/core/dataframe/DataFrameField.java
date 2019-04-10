@@ -28,6 +28,17 @@ public final class DataFrameField {
     public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField FORCE = new ParseField("force");
 
+    /**
+     * Fields for checkpointing
+     */
+    // the timestamp of the checkpoint, mandatory
+    public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    // checkpoint for for time based sync
+    // TODO: consider a lower bound for usecases where you want to transform on a window of a stream
+    public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
+    public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
+
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH = "/_data_frame/";

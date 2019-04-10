@@ -190,7 +190,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             DATA_FRAME_ORIGIN,
             DataFrameAuditMessage.builder()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
-        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
 
         return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }

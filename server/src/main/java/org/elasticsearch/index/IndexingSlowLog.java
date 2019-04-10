@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.elasticsearch.common.Booleans;
@@ -255,7 +255,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
                 sj.add(keyValue("source", Strings.cleanTruncate(source, maxSourceCharsToLog).trim()));
             } catch (IOException e) {
-                sj.add(keyValue("source", "_failed_to_convert_ " + e.getMessage()));
+                sj.add(keyValue("source", "_failed_to_convert_[" + e.getMessage()+"]"));
                 /*
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.

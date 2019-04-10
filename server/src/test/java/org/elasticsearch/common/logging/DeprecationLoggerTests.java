@@ -26,10 +26,8 @@ import org.apache.logging.log4j.simple.SimpleLoggerContextFactory;
 import org.apache.logging.log4j.spi.ExtendedLogger;
 import org.apache.logging.log4j.spi.LoggerContext;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 import org.hamcrest.core.IsSame;
@@ -78,10 +76,6 @@ public class DeprecationLoggerTests extends ESTestCase {
         return false;
     }
 
-    public void testxxx() throws IOException {
-        String s = Strings.toString(XContentFactory.jsonBuilder().startObject().field("type", "Polygon").endObject());
-        System.out.println(s);
-    }
     public void testAddsHeaderWithThreadContext() throws IOException {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);

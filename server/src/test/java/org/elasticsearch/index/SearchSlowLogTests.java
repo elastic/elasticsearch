@@ -163,10 +163,10 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
-        assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
+        assertThat(p.getFormattedMessage(), startsWith("\"message\": \"[foo][0]\""));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));
-        assertThat(p.getFormattedMessage(), endsWith("id[my_id], "));
+        assertThat(p.getFormattedMessage(), endsWith("\"id\": \"my_id\""));
     }
 
     public void testLevelSetting() {

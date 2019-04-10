@@ -54,20 +54,20 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
-        assertThat(p.toString(), not(containsString("source[")));
+        assertThat(p.getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.toString(), containsString("source[{\"foo\":\"bar\"}]"));
+        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"foo\":\"bar\"}\""));
 
         // And you can truncate the source
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
-        assertThat(p.toString(), containsString("source[{\"f]"));
+        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"f\""));
 
         // And you can truncate the source
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
-        assertThat(p.toString(), containsString("source[{\"f]"));
-        assertThat(p.toString(), startsWith("[foo/123] took"));
+        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"f\""));
+        assertThat(p.getFormattedMessage(), startsWith("\"message\": \"[foo/123]\",\"took\": \""));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");
@@ -76,7 +76,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", null, null, source, XContentType.JSON, null);
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
 
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, p::toString);
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class, p::getFormattedMessage);
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\n"
             + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
@@ -137,10 +137,10 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
         // Turning off reformatting so the document is in logs as provided
         SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, false, 1000);
-        String logLine = p.toString();
+        String logLine = p.getFormattedMessage();
 
         //expect the new lines and white characters to be trimmed
-        assertThat(logLine, containsString("source[{"));
+        assertThat(logLine, containsString("\"source\": \"{ \"fieldName\": 123 }\""));
         assertThat(logLine.split("\n").length, equalTo(1));
     }
 

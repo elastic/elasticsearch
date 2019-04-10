@@ -3,9 +3,9 @@
 
 IMPORTANT: Indices created in Elasticsearch 7.0.0 or later no longer accept a
 `_default_` mapping. Indices created in 6.x will continue to function as before
-in Elasticsearch 6.x. Types are getting deprecated in APIs in Elasticsearch 7.0,
-including breaking changes to the index creation, put mapping, get mapping, put
-template, get template and get field mappings APIs.
+in Elasticsearch 6.x. Types are deprecated in APIs in 7.0, with breaking changes
+to the index creation, put mapping, get mapping, put template, get template and
+get field mappings APIs.
 
 [float]
 === What are mapping types?

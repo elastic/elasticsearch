@@ -1,0 +1,19 @@
+# This file is used as part of a matrix build in Jenkins where the
+# values below are included as an axis of the matrix.
+
+# This axis of the build matrix represents the distros on which the
+# tests will be run. Valid entries are Jenkins label expressions.
+
+OS:
+  - amazon
+  - centos-6
+  - "centos-7&&immutable"
+  - debian-8
+  - debian-9
+  - fedora-28
+  - opensuse
+  - oraclelinux-7
+  - oraclelinux-6
+  - sles-12
+  - "ubuntu-16.04&&immutable"
+  - "ubuntu-18.04&&immutable"

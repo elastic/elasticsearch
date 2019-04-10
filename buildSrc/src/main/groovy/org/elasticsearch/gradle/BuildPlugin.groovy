@@ -23,6 +23,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
+import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
 import org.gradle.api.GradleException
@@ -54,6 +55,7 @@ import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.testing.Test
 import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.internal.jvm.Jvm
+import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
@@ -99,7 +101,6 @@ class BuildPlugin implements Plugin<Project> {
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
 
         setupSeed(project)
-        globalBuildInfo(project)
         configureRepositories(project)
         project.ext.versions = VersionProperties.versions
         configureSourceSets(project)
@@ -110,135 +111,6 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
-    }
-
-
-
-    /** Performs checks on the build environment and prints information about the build environment. */
-    static void globalBuildInfo(Project project) {
-        if (project.rootProject.ext.has('buildChecksDone') == false) {
-            JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(
-                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumRuntimeVersion").text.trim()
-            )
-            JavaVersion minimumCompilerVersion = JavaVersion.toVersion(
-                    BuildPlugin.class.getClassLoader().getResourceAsStream("minimumCompilerVersion").text.trim()
-            )
-            String compilerJavaHome = findCompilerJavaHome()
-            String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
-            File gradleJavaHome = Jvm.current().javaHome
-
-            final Map<Integer, String> javaVersions = [:]
-            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
-                    javaVersions.put(version, findJavaHome(version.toString()));
-                }
-            }
-
-            String javaVendor = System.getProperty('java.vendor')
-            String gradleJavaVersion = System.getProperty('java.version')
-            String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
-                " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
-
-            String compilerJavaVersionDetails = gradleJavaVersionDetails
-            JavaVersion compilerJavaVersionEnum = JavaVersion.current()
-            if (new File(compilerJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                compilerJavaVersionDetails = findJavaVersionDetails(project, compilerJavaHome)
-                compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, compilerJavaHome))
-            }
-
-            String runtimeJavaVersionDetails = gradleJavaVersionDetails
-            JavaVersion runtimeJavaVersionEnum = JavaVersion.current()
-            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
-                runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome)
-                runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
-            }
-
-            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
-
-            // Build debugging info
-            println '======================================='
-            println 'Elasticsearch Build Hamster says Hello!'
-            println "  Gradle Version        : ${project.gradle.gradleVersion}"
-            println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
-            if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  Compiler JDK Version  : ${compilerJavaVersionEnum} (${compilerJavaVersionDetails})"
-                println "  Compiler java.home    : ${compilerJavaHome}"
-                println "  Runtime JDK Version   : ${runtimeJavaVersionEnum} (${runtimeJavaVersionDetails})"
-                println "  Runtime java.home     : ${runtimeJavaHome}"
-                println "  Gradle JDK Version    : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
-                println "  Gradle java.home      : ${gradleJavaHome}"
-            } else {
-                println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
-                println "  JAVA_HOME             : ${gradleJavaHome}"
-            }
-            println "  Random Testing Seed   : ${project.testSeed}"
-            println '======================================='
-
-            // enforce Java version
-            if (compilerJavaVersionEnum < minimumCompilerVersion) {
-                final String message =
-                        "the compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
-                                " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]"
-                throw new GradleException(message)
-            }
-
-            if (runtimeJavaVersionEnum < minimumRuntimeVersion) {
-                final String message =
-                        "the runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
-                                " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]"
-                throw new GradleException(message)
-            }
-
-            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
-                final String javaHome = javaVersionEntry.getValue()
-                if (javaHome == null) {
-                    continue
-                }
-                JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                final JavaVersion expectedJavaVersionEnum
-                final int version = javaVersionEntry.getKey()
-                if (version < 9) {
-                    expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
-                } else {
-                    expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version))
-                }
-                if (javaVersionEnum != expectedJavaVersionEnum) {
-                    final String message =
-                            "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                                    " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
-                    throw new GradleException(message)
-                }
-            }
-
-            project.rootProject.ext.compilerJavaHome = compilerJavaHome
-            project.rootProject.ext.runtimeJavaHome = runtimeJavaHome
-            project.rootProject.ext.compilerJavaVersion = compilerJavaVersionEnum
-            project.rootProject.ext.runtimeJavaVersion = runtimeJavaVersionEnum
-            project.rootProject.ext.isRuntimeJavaHomeSet = compilerJavaHome.equals(runtimeJavaHome) == false
-            project.rootProject.ext.javaVersions = javaVersions
-            project.rootProject.ext.buildChecksDone = true
-            project.rootProject.ext.minimumCompilerVersion = minimumCompilerVersion
-            project.rootProject.ext.minimumRuntimeVersion = minimumRuntimeVersion
-            project.rootProject.ext.inFipsJvm = inFipsJvm
-            project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
-            project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
-            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
-        }
-
-        project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
-        project.sourceCompatibility = project.rootProject.ext.minimumRuntimeVersion
-
-        // set java home for each project, so they dont have to find it in the root project
-        project.ext.compilerJavaHome = project.rootProject.ext.compilerJavaHome
-        project.ext.runtimeJavaHome = project.rootProject.ext.runtimeJavaHome
-        project.ext.compilerJavaVersion = project.rootProject.ext.compilerJavaVersion
-        project.ext.runtimeJavaVersion = project.rootProject.ext.runtimeJavaVersion
-        project.ext.isRuntimeJavaHomeSet = project.rootProject.ext.isRuntimeJavaHomeSet
-        project.ext.javaVersions = project.rootProject.ext.javaVersions
-        project.ext.inFipsJvm = project.rootProject.ext.inFipsJvm
-        project.ext.gradleJavaVersion = project.rootProject.ext.gradleJavaVersion
-        project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
     static void requireDocker(final Task task) {
@@ -420,7 +292,8 @@ class BuildPlugin implements Plugin<Project> {
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
-        return task.project.javaVersions.get(version)
+        def javaVersions = task.project.javaVersions as List<JavaHome>
+        return javaVersions.find { it.version == version }
     }
 
     private static String findRuntimeJavaHome(final String compilerJavaHome) {
@@ -728,13 +601,12 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(JavaCompile) {
                 final JavaVersion targetCompatibilityVersion = JavaVersion.toVersion(it.targetCompatibility)
-                final compilerJavaHomeFile = new File(project.compilerJavaHome)
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                if (project.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
                     options.fork = false
                 } else {
                     options.fork = true
-                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    options.forkOptions.javaHome = project.compilerJavaHome
                 }
                 /*
                  * -path because gradle will send in paths that don't always exist.
@@ -758,13 +630,12 @@ class BuildPlugin implements Plugin<Project> {
             }
             // also apply release flag to groovy, which is used in build-tools
             project.tasks.withType(GroovyCompile) {
-                final compilerJavaHomeFile = new File(project.compilerJavaHome)
                 // we only fork if the Gradle JDK is not the same as the compiler JDK
-                if (compilerJavaHomeFile.canonicalPath == Jvm.current().javaHome.canonicalPath) {
+                if (project.compilerJavaHome.canonicalPath == Jvm.current().javaHome.canonicalPath) {
                     options.fork = false
                 } else {
                     options.fork = true
-                    options.forkOptions.javaHome = compilerJavaHomeFile
+                    options.forkOptions.javaHome = project.compilerJavaHome
                     options.compilerArgs << '--release' << JavaVersion.toVersion(it.targetCompatibility).majorVersion
                 }
             }
@@ -914,10 +785,24 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(test.workingDir)
                 }
 
-                def listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
+                ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
                 test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
                 addTestOutputListener(listener)
                 addTestListener(listener)
+
+                /*
+                 * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
+                 * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
+                 * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
+                 * to the GStrings containing references to non-serializable objects.
+                 *
+                 * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
+                 * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
+                 * build cache key or up to date checking.
+                 */
+                SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
+                test.jvmArgumentProviders.add(nonInputProperties)
+                test.ext.nonInputProperties = nonInputProperties
 
                 executable = "${project.runtimeJavaHome}/bin/java"
                 workingDir = project.file("${project.buildDir}/testrun/${test.name}")
@@ -928,11 +813,9 @@ class BuildPlugin implements Plugin<Project> {
                 jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
                         '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir"
+                        "-XX:HeapDumpPath=$heapdumpDir",
+                        '--illegal-access=warn'
 
-                if (project.runtimeJavaVersion >= JavaVersion.VERSION_1_9) {
-                    jvmArgs '--illegal-access=warn'
-                }
 
                 if (System.getProperty('tests.jvm.argline')) {
                     jvmArgs System.getProperty('tests.jvm.argline').split(" ")
@@ -953,13 +836,14 @@ class BuildPlugin implements Plugin<Project> {
                         'tests.task': path,
                         'tests.security.manager': 'true',
                         'tests.seed': project.testSeed,
-                        'jna.nosys': 'true',
-                        'compiler.java': project.ext.compilerJavaVersion.getMajorVersion()
+                        'jna.nosys': 'true'
+
+                nonInputProperties.systemProperty('compiler.java', "${-> project.ext.compilerJavaVersion.getMajorVersion()}")
 
                 if (project.ext.inFipsJvm) {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion() + "FIPS"
+                    nonInputProperties.systemProperty('runtime.java', "${-> project.ext.runtimeJavaVersion.getMajorVersion()} FIPS")
                 } else {
-                    systemProperty 'runtime.java', project.ext.runtimeJavaVersion.getMajorVersion()
+                    nonInputProperties.systemProperty('runtime.java', "${-> project.ext.runtimeJavaVersion.getMajorVersion()}")
                 }
                 // TODO: remove setting logging level via system property
                 systemProperty 'tests.logger.level', 'WARN'
@@ -993,41 +877,6 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-    }
-
-    private static int findDefaultParallel(Project project) {
-        if (project.file("/proc/cpuinfo").exists()) {
-            // Count physical cores on any Linux distro ( don't count hyper-threading )
-            Map<String, Integer> socketToCore = [:]
-            String currentID = ""
-            project.file("/proc/cpuinfo").readLines().forEach({ line ->
-                if (line.contains(":")) {
-                    List<String> parts = line.split(":", 2).collect({it.trim()})
-                    String name = parts[0], value = parts[1]
-                    // the ID of the CPU socket
-                    if (name == "physical id") {
-                        currentID = value
-                    }
-                    // Number  of cores not including hyper-threading
-                    if (name == "cpu cores") {
-                        assert currentID.isEmpty() == false
-                        socketToCore[currentID] = Integer.valueOf(value)
-                        currentID = ""
-                    }
-                }
-            })
-            return socketToCore.values().sum()
-        } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
-            // Ask macOS to count physical CPUs for us
-            ByteArrayOutputStream stdout = new ByteArrayOutputStream()
-            project.exec {
-                executable 'sysctl'
-                args '-n', 'hw.physicalcpu'
-                standardOutput = stdout
-            }
-            return Integer.parseInt(stdout.toString('UTF-8').trim())
-        }
-        return Runtime.getRuntime().availableProcessors() / 2
     }
 
     private static configurePrecommit(Project project) {
@@ -1109,6 +958,21 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
+        }
+    }
+
+    private static class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
+        private final Map<String, Object> systemProperties = [:]
+
+        void systemProperty(String key, Object value) {
+            systemProperties.put(key, value)
+        }
+
+        @Override
+        Iterable<String> asArguments() {
+            return systemProperties.collect { key, value ->
+                "-D${key}=${value.toString()}".toString()
+            }
         }
     }
 }

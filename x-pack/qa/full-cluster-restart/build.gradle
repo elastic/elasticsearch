@@ -233,8 +233,3 @@ task copyXPackPluginProps(type: Copy) {
     into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
-
-if (inFipsJvm){
-    // Disable jarHell in FIPS as we add the BC FIPS Provider as a dependency for the tests
-    jarHell.enabled = false
-}

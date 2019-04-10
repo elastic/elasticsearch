@@ -111,6 +111,11 @@ class PrecommitTasks {
         }
         task.dependsOn(project.sourceSets.test.classesTaskName)
         task.javaHome = project.runtimeJavaHome
+
+        // Java home name checking is fragile, but we control the environment
+        if (project.runtimeJavaHome.contains("fips")){
+            task.enabled = false
+        }
         return task
     }
 

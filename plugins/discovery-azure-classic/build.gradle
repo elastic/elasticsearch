@@ -138,4 +138,5 @@ thirdPartyAudit.ignoreMissingClasses (
 if (inFipsJvm) {
   // We do not run integ tests in FIPS mode as these use a JKS keystore for the azure settings
   integTest.enabled = false
+  testingConventions.enabled = false
 }

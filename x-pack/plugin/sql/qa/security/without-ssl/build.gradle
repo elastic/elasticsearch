@@ -15,3 +15,6 @@ integTestCluster {
     return tmpFile.exists()
   }
 }
+if (project.inFipsJvm) {
+  testingConventions.enabled = false
+}

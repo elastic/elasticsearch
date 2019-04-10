@@ -74,8 +74,3 @@ task copyKeytabToGeneratedResources(type: Copy) {
     dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture
 }
 project.sourceSets.test.output.dir(generatedResources, builtBy:copyKeytabToGeneratedResources)
-
-if (inFipsJvm){
-    // Disable jarHell in FIPS as we add the BC FIPS Provider as a dependency for the tests
-    jarHell.enabled = false
-}

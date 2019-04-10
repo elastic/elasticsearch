@@ -225,6 +225,10 @@ tasks.matching({ it.name == "exportClientCertificate" }).all { onlyIf  notRunnin
 tasks.matching({ it.name == "importNodeCertificateInClientKeyStore" }).all { onlyIf notRunningFips}
 tasks.matching({ it.name == "importClientCertificateInNodeKeyStore" }).all { onlyIf notRunningFips}
 
+if (project.inFipsJvm) {
+  testingConventions.enabled = false
+}
+
 /** A lazy evaluator to find the san to use for certificate generation. */
 class SanEvaluator {
 

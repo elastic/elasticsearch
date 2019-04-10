@@ -39,8 +39,3 @@ test {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
 }
-
-if (inFipsJvm){
-  // Disable jarHell in FIPS as we add the BC FIPS Provider as a dependency for the tests
-  jarHell.enabled = false
-}

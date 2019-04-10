@@ -21,8 +21,3 @@ forbiddenPatterns {
 
 // these are just tests, no need to audit
 thirdPartyAudit.enabled = false
-
-if (inFipsJvm){
-  // Disable jarHell in FIPS as we add the BC FIPS Provider as a dependency for the tests
-  jarHell.enabled = false
-}

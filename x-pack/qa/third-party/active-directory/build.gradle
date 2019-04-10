@@ -31,8 +31,3 @@ test {
   include '**/*IT.class'
   include '**/*Tests.class'
 }
-
-if (inFipsJvm){
-  // Disable jarHell in FIPS as we add the BC FIPS Provider as a dependency for the tests
-  jarHell.enabled = false
-}

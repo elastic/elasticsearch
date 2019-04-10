@@ -98,6 +98,7 @@ dependencies {
 // Issue tracked in https://github.com/elastic/elasticsearch/issues/40904
 if (project.inFipsJvm) {
   integTest.enabled = false
+  testingConventions.enabled = false
 }
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {

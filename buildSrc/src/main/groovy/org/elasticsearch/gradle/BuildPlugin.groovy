@@ -589,6 +589,16 @@ class BuildPlugin implements Plugin<Project> {
                 url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
+        String compilerJavaHome = findCompilerJavaHome()
+        String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
+        if (runtimeJavaHome.contains("fips")) {
+            repos.ivy {
+                url "https://downloads.bouncycastle.org"
+                patternLayout {
+                    artifact 'fips-java/[module]-[revision].[ext]'
+                }
+            }
+        }
     }
 
     /**
@@ -907,12 +917,6 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(Test) { Test test ->
                 RepositoryHandler repos = project.repositories
                 if (project.ext.inFipsJvm) {
-                    repos.ivy {
-                        url "https://downloads.bouncycastle.org"
-                        patternLayout {
-                            artifact 'fips-java/[module]-[revision].[ext]'
-                        }
-                    }
                     project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1:jar")
                 }
                 File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")

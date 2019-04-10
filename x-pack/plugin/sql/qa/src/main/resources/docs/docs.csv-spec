@@ -2400,17 +2400,17 @@ SELECT TODAY() AS result;
 // end::todayFunction
 ;
 
-filterToday-Ignore
+filterToday
 // tag::filterToday
-SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 25 YEARS ORDER BY first_name ASC LIMIT 5;
+SELECT first_name FROM emp WHERE hire_date > TODAY() - INTERVAL 35 YEARS ORDER BY first_name ASC LIMIT 5;
 
  first_name
 ------------
-Kazuhito
-Kenroku
-Lillian
-Mayumi
-Mingsen
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
 // end::filterToday
 ;
 

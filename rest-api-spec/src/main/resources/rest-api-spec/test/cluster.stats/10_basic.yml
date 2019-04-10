@@ -71,3 +71,15 @@
       cluster.stats: {}
 
   - is_true: nodes.discovery_types
+
+---
+"get cluster stats returns packaging types":
+
+  - skip:
+      version: " - 7.99.99"
+      reason:  "packaging types are added for v8.0.0"
+
+  - do:
+      cluster.stats: {}
+
+  - is_true: nodes.packaging_types

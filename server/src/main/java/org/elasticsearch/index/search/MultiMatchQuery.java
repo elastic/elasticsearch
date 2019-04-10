@@ -38,12 +38,16 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
+import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
 public class MultiMatchQuery extends MatchQuery {
 
@@ -59,6 +63,12 @@ public class MultiMatchQuery extends MatchQuery {
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
                        Object value, String minimumShouldMatch) throws IOException {
+        boolean hasMappedField = fieldNames.keySet().stream()
+            .anyMatch(k -> context.fieldMapper(k) != null);
+        if (hasMappedField == false) {
+            // all query fields are unmapped
+            return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+        }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries;
         switch (type) {
@@ -91,7 +101,7 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     private List<Query> buildFieldQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                          Object value, String minimumShouldMatch) throws IOException{
+                                          Object value, String minimumShouldMatch) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
             if (context.fieldMapper(fieldName) == null) {

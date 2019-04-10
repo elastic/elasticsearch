@@ -49,3 +49,11 @@ explicitly defining how their data is processed.
 The `percentiles` and `percentile_ranks` aggregations used to return `NaN` in
 the response if they were applied to an empty set of values. Because `NaN` is
 not officially supported by JSON, it has been replaced with `null`.
+
+[float]
+==== `stats` and `extended_stats` now return 0 instead of `null` for zero docs
+
+When the `stats` and `extended_stats` aggregations collected zero docs (`doc_count: 0`),
+their value would be `null`.  This was in contrast with the `sum` aggregation which
+would return `0`.  The `stats` and `extended_stats` aggs are now consistent with
+`sum` and also return zero.

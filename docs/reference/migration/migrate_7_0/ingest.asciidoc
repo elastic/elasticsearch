@@ -1,0 +1,27 @@
+[float]
+[[breaking_70_ingest_changes]]
+=== API changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+[float]
+==== Ingest configuration exception information is now transmitted in metadata field
+
+Previously, some ingest configuration exception information about ingest processors
+was sent to the client in the HTTP headers, which is inconsistent with how
+exceptions are conveyed in other parts of Elasticsearch.
+
+Configuration exception information is now conveyed as a field in the response
+body.
+//end::notable-breaking-changes[]
+[float]
+==== Ingest plugin special handling has been removed
+There was some special handling for installing and removing the `ingest-geoip` and
+`ingest-user-agent` plugins after they were converted to modules. This special handling
+was done to minimize breaking users in a minor release, and would exit with a status code
+zero to avoid breaking automation.
+
+This special handling has now been removed.

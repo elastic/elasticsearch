@@ -225,7 +225,7 @@ match and `relation` indicates whether the value is accurate (`eq`) or a lower b
 --------------------------------------------------
 {
     "hits": {
-        "total": {  
+        "total": {
             "value": 1000,
             "relation": "eq"
         },
@@ -284,3 +284,21 @@ documents. If the total number of hits that match the query is greater than this
 You can force the count to always be accurate by setting `"track_total_hits`
 to true explicitly in the search request.
 //end::notable-breaking-changes[]
+
+[float]
+==== Limitations on Similarities
+Lucene 8 introduced more constraints on similarities, in particular:
+
+- scores must not be negative,
+- scores must not decrease when term freq increases,
+- scores must not increase when norm (interpreted as an unsigned long) increases.
+
+[float]
+==== Weights in Function Score must be positive
+Negative `weight` parameters in the `function_score` are no longer allowed.
+
+[float]
+==== Query string and Simple query string limit expansion of fields to 1024
+The number of automatically expanded fields for the "all fields"
+mode (`"default_field": "*"`) for the query_string and simple_query_string
+queries is now 1024 fields.

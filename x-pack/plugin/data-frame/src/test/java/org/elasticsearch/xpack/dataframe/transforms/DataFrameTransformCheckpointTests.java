@@ -91,6 +91,7 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
                 .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/41076")
     public void testGetBehind() {
         String id = randomAlphaOfLengthBetween(1, 10);
         long timestamp = randomNonNegativeLong();

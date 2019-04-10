@@ -59,6 +59,10 @@ public class PutJobAction extends Action<PutJobAction.Response> {
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
             jobBuilder.validateInputFields();
+            // Validate that detector configs are unique.
+            // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
+            // would occur when parsing an old job config that already had duplicate detectors.
+            jobBuilder.validateDetectorsAreUnique();
 
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();

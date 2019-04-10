@@ -302,19 +302,20 @@ WAND: Faster Retrieval of Top Hits in Elasticsearch].
 [float]
 === Faster boosting with feature fields
 
-The Query DSL provides a multitude of ways to boost or modulate how documents are
-scored.  But a common scenario is boosting an entire document based on some kind
-of static criteria recorded on the document itself.  A common example is a pre-computed
-scoring factor (PageRank-esque metric, global popularity score, etc), or 
-metadata about the data itself.
+The Query DSL provides a multitude of ways to boost or modulate how documents
+are scored. But a common scenario is boosting an entire document based on some
+kind of static criteria recorded on the document itself. A common example is a
+pre-computed scoring factor (PageRank-esque metric, global popularity score,
+etc), or  metadata about the data itself. 
 
-Elasticsearch now exposes a new `feature` field type, which can be used to index
-a numeric value dedicated to scoring.  At query time, a `feature` can make use of this field
-to boost the relevance of the entire document.  But unlike using query boosts or
-a `function_score` , this new field and query can efficiently skip documents
-that no longer have competitive scores.  This speedup is enabled due to the new
-Block-max WAND support in Lucene, and can lead to astonishingly large
-speedups because large stretches of the index can now be skipped entirely.
+Elasticsearch now exposes a new `feature` field type, which can be used to
+index a numeric value dedicated to scoring. At query time, a `feature` can
+make use of this field to boost the relevance of the entire document. But
+unlike using query boosts or a `function_score`, this new field and query can
+efficiently skip documents that no longer have competitive scores. This
+speedup is enabled due to the new Block-max WAND support in Lucene, and can
+lead to astonishingly large speedups because large stretches of the index can
+now be skipped entirely.
 //end::notable-highlights[]
 
 //tag::notable-highlights[]

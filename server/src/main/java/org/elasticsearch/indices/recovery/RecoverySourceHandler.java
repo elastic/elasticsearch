@@ -219,8 +219,9 @@ public class RecoverySourceHandler {
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
                 final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
                 final RetentionLeases retentionLeases = shard.getRetentionLeases();
+                final long mappingVersion = shard.indexSettings().getIndexMetaData().getMappingVersion();
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases, sendSnapshotStep);
+                    retentionLeases, mappingVersion, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
                     r -> IOUtils.close(phase2Snapshot),
                     e -> {
@@ -511,6 +512,7 @@ public class RecoverySourceHandler {
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersion,
             final ActionListener<SendSnapshotResult> listener) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
@@ -572,6 +574,7 @@ public class RecoverySourceHandler {
                 maxSeenAutoIdTimestamp,
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
+                mappingVersion,
                 batchedListener);
     }
 
@@ -583,6 +586,7 @@ public class RecoverySourceHandler {
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersion,
             final ActionListener<Long> listener) throws IOException {
         assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
         final List<Translog.Operation> operations = nextBatch.get();
@@ -595,6 +599,7 @@ public class RecoverySourceHandler {
                         maxSeenAutoIdTimestamp,
                         maxSeqNoOfUpdatesOrDeletes,
                         retentionLeases,
+                        mappingVersion,
                         ActionListener.wrap(
                                 newCheckpoint -> {
                                     sendBatch(
@@ -605,6 +610,7 @@ public class RecoverySourceHandler {
                                             maxSeenAutoIdTimestamp,
                                             maxSeqNoOfUpdatesOrDeletes,
                                             retentionLeases,
+                                            mappingVersion,
                                             listener);
                                 },
                                 listener::onFailure

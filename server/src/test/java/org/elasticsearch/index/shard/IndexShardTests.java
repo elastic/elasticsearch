@@ -2469,6 +2469,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         final long maxSeenAutoIdTimestamp,
                         final long maxSeqNoOfUpdatesOrDeletes,
                         final RetentionLeases retentionLeases,
+                        final long mappingVersion,
                         final ActionListener<Long> listener){
                     super.indexTranslogOperations(
                             operations,
@@ -2476,6 +2477,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxSeenAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
+                            mappingVersion,
                             ActionListener.wrap(
                                 r -> {
                                     assertFalse(replica.isSyncNeeded());
@@ -2591,6 +2593,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         final long maxAutoIdTimestamp,
                         final long maxSeqNoOfUpdatesOrDeletes,
                         final RetentionLeases retentionLeases,
+                        final long mappingVersion,
                         final ActionListener<Long> listener){
                     super.indexTranslogOperations(
                             operations,
@@ -2598,6 +2601,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
+                            mappingVersion,
                             ActionListener.wrap(
                                     checkpoint -> {
                                         listener.onResponse(checkpoint);
@@ -2656,6 +2660,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         final long maxAutoIdTimestamp,
                         final long maxSeqNoOfUpdatesOrDeletes,
                         final RetentionLeases retentionLeases,
+                        final long mappingVersion,
                         final ActionListener<Long> listener)  {
                     super.indexTranslogOperations(
                             operations,
@@ -2663,6 +2668,7 @@ public class IndexShardTests extends IndexShardTestCase {
                             maxAutoIdTimestamp,
                             maxSeqNoOfUpdatesOrDeletes,
                             retentionLeases,
+                            mappingVersion,
                             ActionListener.wrap(
                                 r -> {
                                     assertListenerCalled.accept(replica);

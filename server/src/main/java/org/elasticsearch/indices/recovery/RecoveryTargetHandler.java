@@ -74,6 +74,7 @@ public interface RecoveryTargetHandler {
             long maxSeenAutoIdTimestampOnPrimary,
             long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             RetentionLeases retentionLeases,
+            long mappingVersion,
             ActionListener<Long> listener);
 
     /**

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -320,6 +319,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
             final RetentionLeases retentionLeases,
+            final long mappingVersion,
             final ActionListener<Long> listener) {
         ActionListener.completeWith(listener, () -> {
             final RecoveryState.Translog translog = state().getTranslog();
@@ -351,9 +351,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
                 if (result.getFailure() != null) {
-                    if (Assertions.ENABLED) {
-                        throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
-                    }
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
                 }
             }

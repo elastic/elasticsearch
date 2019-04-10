@@ -237,7 +237,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
-                                                RetentionLeases retentionLeases, ActionListener<Long> listener) {
+                                                RetentionLeases retentionLeases, long mappingVersion, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
                 checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
                 listener.onResponse(checkpointOnTarget.get());            }
@@ -246,7 +246,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), request, fileChunkSizeInBytes, between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.totalOperations, equalTo(expectedOps));
@@ -272,7 +272,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
-                                                long msu, RetentionLeases retentionLeases, ActionListener<Long> listener) {
+                                                long msu, RetentionLeases retentionLeases, long mappingVersion,
+                                                ActionListener<Long> listener) {
                 if (randomBoolean()) {
                     listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED);
                 } else {
@@ -287,7 +288,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(ops, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         if (wasFailed.get()) {
             assertThat(expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(), equalTo("test - failed to index"));
         }
@@ -487,10 +488,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             @Override
             void phase2(long startingSeqNo, long endingSeqNo, Translog.Snapshot snapshot,
                         long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes, RetentionLeases retentionLeases,
-                        ActionListener<SendSnapshotResult> listener) throws IOException {
+                        long mappingVersion, ActionListener<SendSnapshotResult> listener) throws IOException {
                 phase2Called.set(true);
                 super.phase2(startingSeqNo, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases, listener);
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases, mappingVersion, listener);
             }
 
         };
@@ -706,6 +707,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 final long timestamp,
                 final long msu,
                 final RetentionLeases retentionLeases,
+                final long mappingVersion,
                 final ActionListener<Long> listener) {
         }
 

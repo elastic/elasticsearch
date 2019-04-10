@@ -26,6 +26,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -119,8 +121,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
-                new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
+            new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(
@@ -501,16 +503,24 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
+                final IndexMetaData indexMetaData = clusterService.state().metaData().index(request.shardId().getIndex());
+                final long mappingVersionOnTarget = indexMetaData != null ? indexMetaData.getMappingVersion() : 0L;
                 recoveryTarget.indexTranslogOperations(
                         request.operations(),
                         request.totalTranslogOps(),
                         request.maxSeenAutoIdTimestampOnPrimary(),
                         request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
                         request.retentionLeases(),
+                        request.mappingVersion(),
                         ActionListener.wrap(
                                 checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
-                                    if (e instanceof MapperException) {
+                                    if (Assertions.ENABLED) {
+                                        if (e instanceof MapperException == false) {
+                                            throw new AssertionError("unexpected failure while replicating translog entry", e);
+                                        }
+                                    }
+                                    if (mappingVersionOnTarget < request.mappingVersion() && e instanceof MapperException) {
                                         retryOnMappingException.accept(e);
                                     } else {
                                         listener.onFailure(e);

@@ -83,16 +83,15 @@ public class IndicesStatsResponse extends BroadcastResponse {
             return indicesStats;
         }
 
-        final Map<String, IndexStatsBuilder> indicesStatsBuilder = new HashMap<>();
+        final Map<String, IndexStatsBuilder> indexToIndexStatsBuilder = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
-            String indexName = index.getName();
-            IndexStatsBuilder indicesStatsBuildr = indicesStatsBuilder.computeIfAbsent(indexName,
+            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(index.getName(),
                     k -> new IndexStatsBuilder(k, index.getUUID()));
-            indicesStatsBuildr.add(shard);
+            indexStatsBuilder.add(shard);
         }
 
-        indicesStats = indicesStatsBuilder.entrySet().stream()
+        indicesStats = indexToIndexStatsBuilder.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().build()));
         return indicesStats;
     }

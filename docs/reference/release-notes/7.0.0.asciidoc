@@ -119,7 +119,6 @@ Mapping::
 * Remove the `update_all_types` option. {pull}28288[#28288]
 * Remove the `_default_` mapping. {pull}28248[#28248]
 * Reject the `index_options` parameter for numeric fields {pull}26668[#26668] (issue: {issue}21475[#21475])
-* Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])
 * Update the default for include_type_name to false. {pull}37285[#37285]
 * Support 'include_type_name' in RestGetIndicesAction {pull}37149[#37149]
 
@@ -1388,6 +1387,7 @@ Mapping::
 * Stop automatically nesting mappings in index creation requests. {pull}36924[#36924]
 * Rewrite SourceToParse with resolved docType {pull}36921[#36921] (issues: {issue}35790[#35790], {issue}36769[#36769])
 * Optimise rejection of out-of-range `long` values {pull}40325[#40325] (issues: {issue}26137[#26137], {issue}40323[#40323])
+* Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])
 
 Network::
 * Adjust SSLDriver behavior for JDK11 changes {pull}32145[#32145] (issues: {issue}32122[#32122], {issue}32144[#32144])

@@ -882,6 +882,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         waitForJobToClose(jobId);
 
+        long prevJobTimeStamp = System.currentTimeMillis() / 1000;
+
+        // Check that the current timestamp component, in seconds, differs from previously.
+        // Note that we used to use an 'awaitBusy(() -> false, 1, TimeUnit.SECONDS);'
+        // for the same purpose but the new approach...
+        // a) explicitly checks that the timestamps, in seconds, are actually different and
+        // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
+        assertBusy(() -> {
+            long timeNow = System.currentTimeMillis() / 1000;
+            assertFalse(prevJobTimeStamp >= timeNow);
+        });
+
         // Update snapshot timestamp to force it out of snapshot retention window
         long oneDayAgo = nowMillis - TimeValue.timeValueHours(24).getMillis() - 1;
         updateModelSnapshotTimestamp(jobId, String.valueOf(oneDayAgo));
@@ -1422,6 +1434,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private void updateModelSnapshotTimestamp(String jobId, String timestamp) throws Exception {
+
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
@@ -1439,9 +1452,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "doc", documentId);
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
-
-        // Wait a second to ensure subsequent model snapshots will have a different ID (it depends on epoch seconds)
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
     }
 
 

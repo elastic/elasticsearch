@@ -386,6 +386,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41047")
     public void testCannotJoinIfMasterLostDataFolder() throws Exception {
         String masterNode = internalCluster().startMasterOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();

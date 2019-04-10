@@ -296,7 +296,7 @@ public class AllocationService {
     /**
      * Reset failed allocation counter for unassigned shards
      */
-    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
+    private RoutingAllocation resetFailedAllocationCounter(ClusterState oldState, RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
@@ -307,6 +307,9 @@ public class AllocationService {
                 unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
                 unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
         }
+        ClusterState newState = buildResult(oldState, allocation);
+        return new RoutingAllocation(allocationDeciders, getMutableRoutingNodes(newState), newState,
+            clusterInfoService.getClusterInfo(), allocation.getCurrentNanoTime());
     }
 
     /**
@@ -337,16 +340,16 @@ public class AllocationService {
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
         allocation.ignoreDisable(true);
+
+        if (retryFailed) {
+            allocation = resetFailedAllocationCounter(clusterState, allocation);
+        }
+
         RoutingExplanations explanations = commands.execute(allocation, explain);
         // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-
-        if (retryFailed) {
-            resetFailedAllocationCounter(allocation);
-        }
-
         reroute(allocation);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }

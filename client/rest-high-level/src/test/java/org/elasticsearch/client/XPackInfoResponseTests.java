@@ -86,8 +86,8 @@ public class XPackInfoResponseTests extends
     @Override
     protected ToXContent.Params getToXContentParams() {
         Map<String, String> params = new HashMap<>();
-        if (ESTestCase.randomBoolean()) {
-            params.put("human", ESTestCase.randomBoolean() ? "true" : "false");
+        if (randomBoolean()) {
+            params.put("human", randomBoolean() ? "true" : "false");
         }
         if (ESTestCase.randomBoolean()) {
             params.put("categories", "_none");
@@ -98,15 +98,15 @@ public class XPackInfoResponseTests extends
     @Override
     protected XPackInfoResponse createTestInstance() {
         return new XPackInfoResponse(
-            ESTestCase.randomBoolean() ? null : randomBuildInfo(),
-            ESTestCase.randomBoolean() ? null : randomLicenseInfo(),
-            ESTestCase.randomBoolean() ? null : randomFeatureSetsInfo());
+            randomBoolean() ? null : randomBuildInfo(),
+            randomBoolean() ? null : randomLicenseInfo(),
+            randomBoolean() ? null : randomFeatureSetsInfo());
     }
 
     @Override
     protected XPackInfoResponse mutateInstance(XPackInfoResponse response) {
         @SuppressWarnings("unchecked")
-        Function<XPackInfoResponse, XPackInfoResponse> mutator = ESTestCase.randomFrom(
+        Function<XPackInfoResponse, XPackInfoResponse> mutator = randomFrom(
             r -> new XPackInfoResponse(
                     mutateBuildInfo(r.getBuildInfo()),
                     r.getLicenseInfo(),
@@ -124,8 +124,8 @@ public class XPackInfoResponseTests extends
 
     private BuildInfo randomBuildInfo() {
         return new BuildInfo(
-            ESTestCase.randomAlphaOfLength(10),
-            ESTestCase.randomAlphaOfLength(15));
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(15));
     }
 
     private BuildInfo mutateBuildInfo(BuildInfo buildInfo) {
@@ -137,11 +137,11 @@ public class XPackInfoResponseTests extends
 
     private LicenseInfo randomLicenseInfo() {
         return new LicenseInfo(
-            ESTestCase.randomAlphaOfLength(10),
-            ESTestCase.randomAlphaOfLength(4),
-            ESTestCase.randomAlphaOfLength(5),
-            ESTestCase.randomFrom(LicenseStatus.values()),
-            ESTestCase.randomLong());
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(5),
+            randomFrom(LicenseStatus.values()),
+            randomLong());
     }
 
     private LicenseInfo mutateLicenseInfo(LicenseInfo licenseInfo) {
@@ -152,7 +152,7 @@ public class XPackInfoResponseTests extends
     }
 
     private FeatureSetsInfo randomFeatureSetsInfo() {
-        int size = ESTestCase.between(0, 10);
+        int size = between(0, 10);
         Set<FeatureSet> featureSets = new HashSet<>(size);
         while (featureSets.size() < size) {
             featureSets.add(randomFeatureSet());
@@ -169,21 +169,21 @@ public class XPackInfoResponseTests extends
 
     private FeatureSet randomFeatureSet() {
         return new FeatureSet(
-            ESTestCase.randomAlphaOfLength(5),
-            ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(20),
-            ESTestCase.randomBoolean(),
-            ESTestCase.randomBoolean(),
+            randomAlphaOfLength(5),
+            randomBoolean() ? null : randomAlphaOfLength(20),
+            randomBoolean(),
+            randomBoolean(),
             randomNativeCodeInfo());
     }
 
     private Map<String, Object> randomNativeCodeInfo() {
-        if (ESTestCase.randomBoolean()) {
+        if (randomBoolean()) {
             return null;
         }
-        int size = ESTestCase.between(0, 10);
+        int size = between(0, 10);
         Map<String, Object> nativeCodeInfo = new HashMap<>(size);
         while (nativeCodeInfo.size() < size) {
-            nativeCodeInfo.put(ESTestCase.randomAlphaOfLength(5), ESTestCase.randomAlphaOfLength(5));
+            nativeCodeInfo.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
         }
         return nativeCodeInfo;
     }

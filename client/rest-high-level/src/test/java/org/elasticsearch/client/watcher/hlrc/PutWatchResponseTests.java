@@ -21,7 +21,6 @@ package org.elasticsearch.client.watcher.hlrc;
 import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -30,11 +29,11 @@ public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createTestInstance() {
-        String id = ESTestCase.randomAlphaOfLength(10);
-        long seqNo = ESTestCase.randomNonNegativeLong();
-        long primaryTerm = ESTestCase.randomLongBetween(1, 20);
-        long version = ESTestCase.randomLongBetween(1, 10);
-        boolean created = ESTestCase.randomBoolean();
+        String id = randomAlphaOfLength(10);
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomLongBetween(1, 20);
+        long version = randomLongBetween(1, 10);
+        boolean created = randomBoolean();
         return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(id, version, seqNo, primaryTerm, created);
     }
 

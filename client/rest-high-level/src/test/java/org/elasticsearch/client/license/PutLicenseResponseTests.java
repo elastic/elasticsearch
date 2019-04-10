@@ -21,7 +21,6 @@ package org.elasticsearch.client.license;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,15 +59,15 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
 
     @Override
     protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createTestInstance() {
-        boolean acknowledged = ESTestCase.randomBoolean();
+        boolean acknowledged = randomBoolean();
         org.elasticsearch.protocol.xpack.license.LicensesStatus status =
-            ESTestCase.randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID,
+            randomFrom(org.elasticsearch.protocol.xpack.license.LicensesStatus.VALID,
                 org.elasticsearch.protocol.xpack.license.LicensesStatus.INVALID,
                 org.elasticsearch.protocol.xpack.license.LicensesStatus.EXPIRED);
         String messageHeader;
         Map<String, String[]> ackMessages;
-        if (ESTestCase.randomBoolean()) {
-            messageHeader = ESTestCase.randomAlphaOfLength(10);
+        if (randomBoolean()) {
+            messageHeader = randomAlphaOfLength(10);
             ackMessages = randomAckMessages();
         } else {
             messageHeader = null;
@@ -79,16 +78,16 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
     }
 
     private static Map<String, String[]> randomAckMessages() {
-        int nFeatures = ESTestCase.randomIntBetween(1, 5);
+        int nFeatures = randomIntBetween(1, 5);
 
         Map<String, String[]> ackMessages = new HashMap<>();
 
         for (int i = 0; i < nFeatures; i++) {
-            String feature = ESTestCase.randomAlphaOfLengthBetween(9, 15);
-            int nMessages = ESTestCase.randomIntBetween(1, 5);
+            String feature = randomAlphaOfLengthBetween(9, 15);
+            int nMessages = randomIntBetween(1, 5);
             String[] messages = new String[nMessages];
             for (int j = 0; j < nMessages; j++) {
-                messages[j] = ESTestCase.randomAlphaOfLengthBetween(10, 30);
+                messages[j] = randomAlphaOfLengthBetween(10, 30);
             }
             ackMessages.put(feature, messages);
         }
@@ -106,7 +105,7 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
         org.elasticsearch.protocol.xpack.license.PutLicenseResponse response) {
         @SuppressWarnings("unchecked")
         Function<org.elasticsearch.protocol.xpack.license.PutLicenseResponse,
-            org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = ESTestCase.randomFrom(
+            org.elasticsearch.protocol.xpack.license.PutLicenseResponse> mutator = randomFrom(
             r -> new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
                 r.isAcknowledged() == false,
                 r.status(),
@@ -122,7 +121,7 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
                     return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse(
                         r.isAcknowledged(),
                         r.status(),
-                        ESTestCase.randomAlphaOfLength(10),
+                        randomAlphaOfLength(10),
                         randomAckMessages()
                     );
                 } else {
@@ -136,6 +135,6 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
 
     private org.elasticsearch.protocol.xpack.license.LicensesStatus mutateStatus(
         org.elasticsearch.protocol.xpack.license.LicensesStatus status) {
-        return ESTestCase.randomValueOtherThan(status, () -> ESTestCase.randomFrom(LicensesStatus.values()));
+        return randomValueOtherThan(status, () -> randomFrom(LicensesStatus.values()));
     }
 }

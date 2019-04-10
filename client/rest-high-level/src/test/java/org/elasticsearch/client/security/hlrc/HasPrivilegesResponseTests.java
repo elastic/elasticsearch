@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.hamcrest.Matchers;
@@ -166,29 +165,29 @@ public class HasPrivilegesResponseTests extends AbstractHlrcStreamableXContentTe
     }
 
     private org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse randomResponse() {
-        final String username = ESTestCase.randomAlphaOfLengthBetween(4, 12);
+        final String username = randomAlphaOfLengthBetween(4, 12);
         final Map<String, Boolean> cluster = new HashMap<>();
-        for (String priv : ESTestCase.randomArray(1, 6, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 12))) {
-            cluster.put(priv, ESTestCase.randomBoolean());
+        for (String priv : randomArray(1, 6, String[]::new, () -> randomAlphaOfLengthBetween(3, 12))) {
+            cluster.put(priv, randomBoolean());
         }
         final Collection<ResourcePrivileges> index = randomResourcePrivileges();
         final Map<String, Collection<ResourcePrivileges>> application = new HashMap<>();
-        for (String app : ESTestCase.randomArray(1, 3, String[]::new,
-            () -> ESTestCase.randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT))) {
+        for (String app : randomArray(1, 3, String[]::new,
+            () -> randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT))) {
             application.put(app, randomResourcePrivileges());
         }
-        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(username, ESTestCase.randomBoolean(),
+        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(username, randomBoolean(),
             cluster, index, application);
     }
 
     private Collection<ResourcePrivileges> randomResourcePrivileges() {
         final Collection<ResourcePrivileges> list = new ArrayList<>();
         // Use hash set to force a unique set of resources
-        for (String resource : Sets.newHashSet(ESTestCase.randomArray(1, 3, String[]::new,
-            () -> ESTestCase.randomAlphaOfLengthBetween(2, 6)))) {
+        for (String resource : Sets.newHashSet(randomArray(1, 3, String[]::new,
+            () -> randomAlphaOfLengthBetween(2, 6)))) {
             final Map<String, Boolean> privileges = new HashMap<>();
-            for (String priv : ESTestCase.randomArray(1, 5, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))) {
-                privileges.put(priv, ESTestCase.randomBoolean());
+            for (String priv : randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))) {
+                privileges.put(priv, randomBoolean());
             }
             list.add(ResourcePrivileges.builder(resource).addPrivileges(privileges).build());
         }

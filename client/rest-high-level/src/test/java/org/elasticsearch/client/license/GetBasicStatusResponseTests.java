@@ -20,7 +20,6 @@ package org.elasticsearch.client.license;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 public class GetBasicStatusResponseTests
     extends AbstractHlrcStreamableXContentTestCase<org.elasticsearch.license.GetBasicStatusResponse, GetBasicStatusResponse> {
@@ -41,6 +40,6 @@ public class GetBasicStatusResponseTests
 
     @Override
     protected org.elasticsearch.license.GetBasicStatusResponse createTestInstance() {
-        return new org.elasticsearch.license.GetBasicStatusResponse(ESTestCase.randomBoolean());
+        return new org.elasticsearch.license.GetBasicStatusResponse(randomBoolean());
     }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -101,10 +100,10 @@ public class GraphExploreResponseTests extends AbstractHlrcXContentTestCase<
     }
 
     private static org.elasticsearch.protocol.xpack.graph.GraphExploreResponse createInstance(int numFailures) {
-        int numItems = ESTestCase.randomIntBetween(4, 128);
-        boolean timedOut = ESTestCase.randomBoolean();
-        boolean showDetails = ESTestCase.randomBoolean();
-        long overallTookInMillis = ESTestCase.randomNonNegativeLong();
+        int numItems = randomIntBetween(4, 128);
+        boolean timedOut = randomBoolean();
+        boolean showDetails = randomBoolean();
+        long overallTookInMillis = randomNonNegativeLong();
         Map<org.elasticsearch.protocol.xpack.graph.Vertex.VertexId, org.elasticsearch.protocol.xpack.graph.Vertex> vertices =
             new HashMap<>();
         Map<ConnectionId,
@@ -117,9 +116,9 @@ public class GraphExploreResponseTests extends AbstractHlrcXContentTestCase<
         //Create random set of vertices
         for (int i = 0; i < numItems; i++) {
             org.elasticsearch.protocol.xpack.graph.Vertex v = new org.elasticsearch.protocol.xpack.graph.Vertex("field1",
-                ESTestCase.randomAlphaOfLength(5), ESTestCase.randomDouble(), 0,
-                    showDetails? ESTestCase.randomIntBetween(100, 200):0,
-                    showDetails? ESTestCase.randomIntBetween(1, 100):0);
+                randomAlphaOfLength(5), randomDouble(), 0,
+                    showDetails? randomIntBetween(100, 200):0,
+                    showDetails? randomIntBetween(1, 100):0);
             vertices.put(v.getId(), v);
         }
         
@@ -127,11 +126,11 @@ public class GraphExploreResponseTests extends AbstractHlrcXContentTestCase<
         org.elasticsearch.protocol.xpack.graph.Vertex[] vs =
             vertices.values().toArray(new org.elasticsearch.protocol.xpack.graph.Vertex[vertices.size()]);
         for (int i = 0; i < numItems/2; i++) {
-            org.elasticsearch.protocol.xpack.graph.Vertex v1 = vs[ESTestCase.randomIntBetween(0, vs.length-1)];
-            org.elasticsearch.protocol.xpack.graph.Vertex v2 = vs[ESTestCase.randomIntBetween(0, vs.length-1)];
+            org.elasticsearch.protocol.xpack.graph.Vertex v1 = vs[randomIntBetween(0, vs.length-1)];
+            org.elasticsearch.protocol.xpack.graph.Vertex v2 = vs[randomIntBetween(0, vs.length-1)];
             if(v1 != v2) {
                 org.elasticsearch.protocol.xpack.graph.Connection conn = new org.elasticsearch.protocol.xpack.graph.Connection(v1, v2,
-                    ESTestCase.randomDouble(), ESTestCase.randomLongBetween(1, 10));
+                    randomDouble(), randomLongBetween(1, 10));
                 connections.put(conn.getId(), conn);
             }
         }
@@ -141,7 +140,7 @@ public class GraphExploreResponseTests extends AbstractHlrcXContentTestCase<
     
 
     private static org.elasticsearch.protocol.xpack.graph.GraphExploreResponse createTestInstanceWithFailures() {
-        return createInstance(ESTestCase.randomIntBetween(1, 128));
+        return createInstance(randomIntBetween(1, 128));
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.client.watcher.hlrc;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -30,9 +29,9 @@ public class DeleteWatchResponseTests extends AbstractHlrcXContentTestCase<
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createTestInstance() {
-        String id = ESTestCase.randomAlphaOfLength(10);
-        long version = ESTestCase.randomLongBetween(1, 10);
-        boolean found = ESTestCase.randomBoolean();
+        String id = randomAlphaOfLength(10);
+        long version = randomLongBetween(1, 10);
+        boolean found = randomBoolean();
         return new org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse(id, version, found);
     }
 

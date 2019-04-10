@@ -22,7 +22,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.PostStartBasicResponse;
 import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,11 +62,11 @@ public class StartBasicResponseTests extends
 
     @Override
     protected PostStartBasicResponse createTestInstance() {
-        PostStartBasicResponse.Status status = ESTestCase.randomFrom(PostStartBasicResponse.Status.values());
+        PostStartBasicResponse.Status status = randomFrom(PostStartBasicResponse.Status.values());
         String acknowledgeMessage = null;
         Map<String, String[]> ackMessages = Collections.emptyMap();
         if (status != PostStartBasicResponse.Status.GENERATED_BASIC) {
-            acknowledgeMessage = ESTestCase.randomAlphaOfLength(10);
+            acknowledgeMessage = randomAlphaOfLength(10);
             ackMessages = randomAckMessages();
         }
         final PostStartBasicResponse postStartBasicResponse = new PostStartBasicResponse(status, ackMessages, acknowledgeMessage);
@@ -76,16 +75,16 @@ public class StartBasicResponseTests extends
     }
 
     private static Map<String, String[]> randomAckMessages() {
-        int nFeatures = ESTestCase.randomIntBetween(1, 5);
+        int nFeatures = randomIntBetween(1, 5);
 
         Map<String, String[]> ackMessages = new HashMap<>();
 
         for (int i = 0; i < nFeatures; i++) {
-            String feature = ESTestCase.randomAlphaOfLengthBetween(9, 15);
-            int nMessages = ESTestCase.randomIntBetween(1, 5);
+            String feature = randomAlphaOfLengthBetween(9, 15);
+            int nMessages = randomIntBetween(1, 5);
             String[] messages = new String[nMessages];
             for (int j = 0; j < nMessages; j++) {
-                messages[j] = ESTestCase.randomAlphaOfLengthBetween(10, 30);
+                messages[j] = randomAlphaOfLengthBetween(10, 30);
             }
             ackMessages.put(feature, messages);
         }

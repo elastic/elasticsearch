@@ -43,7 +43,7 @@ import java.util.Map;
  */
 final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;
-    private DoubleArray lonAvg, latAvg;
+    private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
     private LongArray counts;
 
     GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
@@ -53,8 +53,10 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
-            latAvg = bigArrays.newDoubleArray(1, true);
-            lonAvg = bigArrays.newDoubleArray(1, true);
+            lonSum = bigArrays.newDoubleArray(1, true);
+            lonCompensations = bigArrays.newDoubleArray(1, true);
+            latSum = bigArrays.newDoubleArray(1, true);
+            latCompensations = bigArrays.newDoubleArray(1, true);
             counts = bigArrays.newLongArray(1, true);
         }
     }
@@ -69,31 +71,41 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                latAvg = bigArrays.grow(latAvg, bucket + 1);
-                lonAvg = bigArrays.grow(lonAvg, bucket + 1);
+                latSum = bigArrays.grow(latSum, bucket + 1);
+                lonSum = bigArrays.grow(lonSum, bucket + 1);
+                lonCompensations = bigArrays.grow(lonCompensations, bucket + 1);
+                latCompensations = bigArrays.grow(latCompensations, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
-                    double[] pt = new double[2];
-                    // get the previously accumulated number of counts
-                    long prevCounts = counts.get(bucket);
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
-                    // get the previous GeoPoint if a moving avg was
-                    // computed
-                    if (prevCounts > 0) {
-                        pt[0] = lonAvg.get(bucket);
-                        pt[1] = latAvg.get(bucket);
-                    }
-                    // update the moving average
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    double sumLat = latSum.get(bucket);
+                    double compensationLat = latCompensations.get(bucket);
+                    double sumLon = lonSum.get(bucket);
+                    double compensationLon = lonCompensations.get(bucket);
+
+                    // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         GeoPoint value = values.nextValue();
-                        pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
-                        pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
+                        //latitude
+                        double correctedLat = value.getLat() - compensationLat;
+                        double newSumLat = sumLat + correctedLat;
+                        compensationLat = (newSumLat - sumLat) - correctedLat;
+                        sumLat = newSumLat;
+                        //longitude
+                        double correctedLon = value.getLon() - compensationLon;
+                        double newSumLon = sumLon + correctedLon;
+                        compensationLon = (newSumLon - sumLon) - correctedLon;
+                        sumLon = newSumLon;
                     }
-                    lonAvg.set(bucket, pt[0]);
-                    latAvg.set(bucket, pt[1]);
+                    lonSum.set(bucket, sumLon);
+                    lonCompensations.set(bucket, compensationLon);
+                    latSum.set(bucket, sumLat);
+                    latCompensations.set(bucket, compensationLat);
                 }
             }
         };
@@ -106,7 +118,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(latAvg.get(bucket), lonAvg.get(bucket))
+                ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket)/ bucketCount)
                 : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }
@@ -118,6 +130,6 @@ final class GeoCentroidAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(latAvg, lonAvg, counts);
+        Releasables.close(latSum, latCompensations, lonSum, lonCompensations, counts);
     }
 }

@@ -104,7 +104,6 @@ Infra/REST API::
 Infra/Scripting::
 * Remove support for deprecated StoredScript contexts {pull}31394[#31394] (issues: {issue}27612[#27612], {issue}28939[#28939])
 * Remove getDate methods from ScriptDocValues {pull}30690[#30690]
-* Handle missing and multiple values in script {pull}29611[#29611] (issue: {issue}29286[#29286])
 * Drop `ScriptDocValues#date` and `ScriptDocValues#dates` in 7.0.0 {pull}30690[#30690] (issue: {issue}23008[#23008])
 
 Infra/Settings::

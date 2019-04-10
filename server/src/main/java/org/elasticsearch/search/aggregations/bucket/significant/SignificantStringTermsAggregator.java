@@ -53,12 +53,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, DocValueFormat format,
             BucketCountThresholds bucketCountThresholds, IncludeExclude.StringFilter includeExclude, SearchContext aggregationContext,
-            Aggregator parent, SubAggCollectionMode subAggCollectMode, SignificanceHeuristic significanceHeuristic,
-            SignificantTermsAggregatorFactory termsAggFactory, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
+            Aggregator parent, SignificanceHeuristic significanceHeuristic, SignificantTermsAggregatorFactory termsAggFactory,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, aggregationContext, parent,
-                subAggCollectMode, false, pipelineAggregators, metaData);
+                SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
     }
@@ -114,12 +113,20 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
+        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantStringTerms.Bucket bucket = ordered.pop();
-            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
+            survivingBucketOrds[i] = bucket.bucketOrd;
+            list[i] = bucket;
+        }
+
+        runDeferredCollections(survivingBucketOrds);
+
+        for (SignificantStringTerms.Bucket bucket : list) {
+            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be
+            // recycled at some point
             bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
         }
 
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),

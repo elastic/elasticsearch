@@ -542,12 +542,6 @@ It is possible (although rarely required) to filter the values for which buckets
 `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features
 described in the <<search-aggregations-bucket-terms-aggregation,terms aggregation>> documentation.
 
-==== Collect Mode
-
-It is possible to defer calculation of child aggregations.
-For more information, see
-<<search-aggregations-bucket-terms-aggregation-collect,`Terms aggregation collection mode`>>.
-
 ==== Execution hint
 
 There are different mechanisms by which terms aggregations can be executed:

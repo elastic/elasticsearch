@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -113,9 +112,6 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
         }
         if (randomBoolean()) {
             factory.backgroundFilter(QueryBuilders.termsQuery("foo", "bar"));
-        }
-        if (randomBoolean()) {
-            factory.collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()));
         }
         return factory;
     }

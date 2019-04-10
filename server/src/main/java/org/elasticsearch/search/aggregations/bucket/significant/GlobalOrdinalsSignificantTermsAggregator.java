@@ -59,14 +59,13 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                                                     IncludeExclude.OrdinalsFilter includeExclude,
                                                     SearchContext context,
                                                     Aggregator parent,
-                                                    SubAggCollectionMode subAggCollectMode,
                                                     boolean forceRemapGlobalOrds,
                                                     SignificanceHeuristic significanceHeuristic,
                                                     SignificantTermsAggregatorFactory termsAggFactory,
                                                     List<PipelineAggregator> pipelineAggregators,
                                                     Map<String, Object> metaData) throws IOException {
         super(name, factories, valuesSource, null, format, bucketCountThresholds, includeExclude, context, parent,
-            forceRemapGlobalOrds, subAggCollectMode, false, pipelineAggregators, metaData);
+            forceRemapGlobalOrds, SubAggCollectionMode.BREADTH_FIRST, false, pipelineAggregators, metaData);
         this.significanceHeuristic = significanceHeuristic;
         this.termsAggFactory = termsAggFactory;
         this.numCollectedDocs = 0;
@@ -147,12 +146,19 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
+        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantStringTerms.Bucket bucket = ordered.pop();
+            survivingBucketOrds[i] = bucket.bucketOrd;
+            list[i] = bucket;
+        }
+
+        runDeferredCollections(survivingBucketOrds);
+
+        for (SignificantStringTerms.Bucket bucket : list) {
             // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
             bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
         }
 
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),

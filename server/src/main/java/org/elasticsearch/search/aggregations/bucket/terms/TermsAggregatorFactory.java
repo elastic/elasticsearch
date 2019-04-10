@@ -192,6 +192,33 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                 + "]. It can only be applied to numeric or string fields.");
     }
 
+    // return the SubAggCollectionMode that this aggregation should use based on the expected size
+    // and the cardinality of the field
+    static SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {
+        if (expectedSize == Integer.MAX_VALUE) {
+            // return all buckets
+            return SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (maxOrd == -1 || maxOrd > expectedSize) {
+            // use breadth_first if the cardinality is bigger than the expected size or unknown (-1)
+            return SubAggCollectionMode.BREADTH_FIRST;
+        }
+        return SubAggCollectionMode.DEPTH_FIRST;
+    }
+
+    /**
+     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
+     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
+     */
+    static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
+        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
+            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
+            return valueSourceWithOrdinals.globalMaxOrd(searcher);
+        } else {
+            return -1;
+        }
+    }
+
     public enum ExecutionMode {
 
         MAP(new ParseField("map")) {

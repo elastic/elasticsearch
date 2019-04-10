@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -49,33 +48,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
             return createUnmapped(parent, pipelineAggregators, metaData);
         }
         return doCreateInternal(vs, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
-    }
-
-    // return the SubAggCollectionMode that this aggregation should use based on the expected size
-    // and the cardinality of the field
-    public static Aggregator.SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {
-        if (expectedSize == Integer.MAX_VALUE) {
-            // return all buckets
-            return Aggregator.SubAggCollectionMode.DEPTH_FIRST;
-        }
-        if (maxOrd == -1 || maxOrd > expectedSize) {
-            // use breadth_first if the cardinality is bigger than the expected size or unknown (-1)
-            return Aggregator.SubAggCollectionMode.BREADTH_FIRST;
-        }
-        return Aggregator.SubAggCollectionMode.DEPTH_FIRST;
-    }
-
-    /**
-     * Get the maximum global ordinal value for the provided {@link ValuesSource} or -1
-     * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
-     */
-    protected static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
-        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
-            return valueSourceWithOrdinals.globalMaxOrd(searcher);
-        } else {
-            return -1;
-        }
     }
 
     protected abstract Aggregator createUnmapped(Aggregator parent,

@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
@@ -38,8 +39,8 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
@@ -514,7 +515,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                     .addAggregation(terms("class").field("class").subAggregation(significantTerms("mySignificantTerms")
                             .field("text")
                             .executionHint(randomExecutionHint())
-                            .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .significanceHeuristic(heuristic)
                             .minDocCount(1).shardSize(1000).size(1000)));
         }else
@@ -542,6 +542,37 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             SignificantTerms.Bucket classBBucket = classBBucketIterator.next();
             assertThat(classABucket.getKey(), equalTo(classBBucket.getKey()));
             assertThat(classABucket.getSignificanceScore(), closeTo(classBBucket.getSignificanceScore(), 1.e-5));
+        }
+    }
+
+    /**
+     * A simple test that adds a sub-aggregation to a significant terms aggregation,
+     * to help check that sub-aggregation collection is handled correctly.
+     */
+    public void testSubAggregations() throws Exception {
+        indexEqualTestData();
+
+        QueryBuilder query = QueryBuilders.termsQuery("text", "a", "b");
+        AggregationBuilder subAgg = terms("class").field("class");
+        AggregationBuilder agg = significantTerms("significant_terms")
+            .field("text")
+            .executionHint(randomExecutionHint())
+            .significanceHeuristic(new ChiSquare(true, true))
+            .minDocCount(1).shardSize(1000).size(1000)
+            .subAggregation(subAgg);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(query)
+            .addAggregation(agg)
+            .get();
+        assertSearchResponse(response);
+
+        SignificantTerms sigTerms = response.getAggregations().get("significant_terms");
+        assertThat(sigTerms.getBuckets().size(), equalTo(2));
+
+        for (SignificantTerms.Bucket bucket : sigTerms) {
+            StringTerms terms = bucket.getAggregations().get("class");
+            assertThat(terms.getBuckets().size(), equalTo(2));
         }
     }
 
@@ -599,7 +630,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                             .subAggregation(significantTerms("mySignificantTerms")
                             .field(TEXT_FIELD)
                             .executionHint(randomExecutionHint())
-                            .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .significanceHeuristic(scriptHeuristic)
                             .minDocCount(1).shardSize(2).size(2)));
         }

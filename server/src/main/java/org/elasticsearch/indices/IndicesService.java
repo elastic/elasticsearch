@@ -559,7 +559,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexMetaData indexMetaData = idxSettings.getIndexMetaData();
         if (indexMetaData != null && indexMetaData.getState() == IndexMetaData.State.CLOSE) {
             // NoOpEngine takes precedence as long as the index is closed
-            return EngineFactory.newReadOnlyEngineFactory(NoOpEngine::new);
+            return NoOpEngine::new;
         }
 
         final List<Optional<EngineFactory>> engineFactories =

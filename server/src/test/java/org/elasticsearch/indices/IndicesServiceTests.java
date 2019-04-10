@@ -118,14 +118,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         static class FooEngineFactory implements EngineFactory {
 
             @Override
-            public Engine newEngine(final EngineConfig config) {
+            public Engine newReadWriteEngine(final EngineConfig config) {
                 return new InternalEngine(config);
             }
 
-            @Override
-            public boolean isReadOnlyEngineFactory() {
-                return false;
-            }
         }
 
         private static final Setting<Boolean> FOO_INDEX_SETTING =
@@ -139,7 +135,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         @Override
         public Optional<EngineFactory> getEngineFactory(final IndexSettings indexSettings) {
             if (FOO_INDEX_SETTING.get(indexSettings.getSettings())) {
-                return Optional.of(EngineFactory.newReadWriteEngineFactory(InternalEngine::new));
+                return Optional.of(new FooEngineFactory());
             } else {
                 return Optional.empty();
             }
@@ -152,14 +148,10 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         static class BarEngineFactory implements EngineFactory {
 
             @Override
-            public Engine newEngine(final EngineConfig config) {
+            public Engine newReadWriteEngine(final EngineConfig config) {
                 return new InternalEngine(config);
             }
 
-            @Override
-            public boolean isReadOnlyEngineFactory() {
-                return false;
-            }
         }
 
         private static final Setting<Boolean> BAR_INDEX_SETTING =

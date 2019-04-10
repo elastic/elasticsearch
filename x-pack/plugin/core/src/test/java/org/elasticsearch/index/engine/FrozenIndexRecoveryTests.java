@@ -30,12 +30,12 @@ public class FrozenIndexRecoveryTests extends IndexShardTestCase {
         final ShardRouting shardRouting = indexShard.routingEntry();
         IndexShard frozenShard = reinitShard(indexShard, ShardRoutingHelper.initWithSameId(shardRouting,
             shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-        ), EngineFactory.newReadOnlyEngineFactory(FrozenEngine::new));
+        ), FrozenEngine::new);
         recoverShardFromStore(frozenShard);
         assertThat(frozenShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(frozenShard.seqNoStats().getMaxSeqNo()));
         assertDocCount(frozenShard, 3);
 
-        IndexShard replica = newShard(false, Settings.EMPTY, EngineFactory.newReadOnlyEngineFactory(FrozenEngine::new));
+        IndexShard replica = newShard(false, Settings.EMPTY, FrozenEngine::new);
         recoverReplica(replica, frozenShard, true);
         assertDocCount(replica, 3);
         closeShards(frozenShard, replica);

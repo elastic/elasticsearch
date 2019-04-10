@@ -368,7 +368,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         } else if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN)) {
-            return Optional.of(EngineFactory.newReadOnlyEngineFactory(FrozenEngine::new));
+            return Optional.of(FrozenEngine::new);
         }
 
         return Optional.empty();

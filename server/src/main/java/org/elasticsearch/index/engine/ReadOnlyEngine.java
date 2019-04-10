@@ -101,7 +101,7 @@ public class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
-                    seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
+                    seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
@@ -199,12 +199,12 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    public static SeqNoStats buildSeqNoStats(SegmentInfos infos) {
+    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
         final SequenceNumbers.CommitInfo seqNoStats =
             SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
         long maxSeqNo = seqNoStats.maxSeqNo;
         long localCheckpoint = seqNoStats.localCheckpoint;
-        return new SeqNoStats(maxSeqNo, localCheckpoint, localCheckpoint);
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
     @Override

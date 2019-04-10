@@ -18,45 +18,12 @@
  */
 package org.elasticsearch.index.engine;
 
-import java.util.function.Function;
-
 /**
  * Simple Engine Factory
  */
+@FunctionalInterface
 public interface EngineFactory {
-    /**
-     * Creates a new engine with the given engine config
-     */
-    Engine newEngine(EngineConfig config);
 
-    /**
-     * Returns true if this engine factory creates only read-only engine (i.e, instances of {@link ReadOnlyEngine}).
-     */
-    boolean isReadOnlyEngineFactory();
+    Engine newReadWriteEngine(EngineConfig config);
 
-    static EngineFactory newReadWriteEngineFactory(Function<EngineConfig, ? extends InternalEngine> factoryFn) {
-        return new EngineFactory() {
-            @Override
-            public InternalEngine newEngine(EngineConfig config) {
-                return factoryFn.apply(config);
-            }
-            @Override
-            public boolean isReadOnlyEngineFactory() {
-                return false;
-            }
-        };
-    }
-
-    static EngineFactory newReadOnlyEngineFactory(Function<EngineConfig, ? extends ReadOnlyEngine> factoryFn) {
-        return new EngineFactory() {
-            @Override
-            public ReadOnlyEngine newEngine(EngineConfig config) {
-                return factoryFn.apply(config);
-            }
-            @Override
-            public boolean isReadOnlyEngineFactory() {
-                return true;
-            }
-        };
-    }
 }

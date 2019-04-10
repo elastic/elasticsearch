@@ -57,7 +57,6 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
     public void testRemoveWhenAwaitsFixIsResolved() {
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/40948")
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject().

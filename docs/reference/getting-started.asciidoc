@@ -545,7 +545,7 @@ For the curious, I generated this data from http://www.json-generator.com/[`www.
 [float]
 === Loading the Sample Dataset
 
-You can download the sample dataset (accounts.json) from https://raw.githubusercontent.com/elastic/elasticsearch/master/docs/src/test/resources/accounts.json[here]. Extract it to our current directory and let's load it into our cluster as follows:
+You can download the sample dataset (accounts.json) from https://github.com/elastic/elasticsearch/blob/master/docs/src/test/resources/accounts.json?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
 
 [source,sh]
 --------------------------------------------------

@@ -26,7 +26,6 @@ import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -89,7 +88,7 @@ public class XPackInfoResponseTests extends
         if (randomBoolean()) {
             params.put("human", randomBoolean() ? "true" : "false");
         }
-        if (ESTestCase.randomBoolean()) {
+        if (randomBoolean()) {
             params.put("categories", "_none");
         }
         return new ToXContent.MapParams(params);

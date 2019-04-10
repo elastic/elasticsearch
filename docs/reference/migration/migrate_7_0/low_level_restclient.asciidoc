@@ -29,3 +29,8 @@ backwards compatibility.
 
 We deprecated `setHosts` in 6.4.0 in favor of `setNodes` because it supports
 host metadata used by the `NodeSelector`.
+
+[float]
+==== Minimum compiler version change
+The minimum compiler version on the low-level REST client has been bumped
+to JDK 8.

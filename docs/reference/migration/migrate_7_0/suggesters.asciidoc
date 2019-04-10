@@ -14,3 +14,8 @@
 
 Plugins must now explicitly indicate the type of suggestion that they produce.
 
+[float]
+==== Phrase suggester now multiples alpha
+Previously, the laplace smoothing used by the phrase suggester added `alpha`,
+when it should instead multiply.  This behavior has been changed and will
+affect suggester scores.

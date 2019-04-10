@@ -87,7 +87,10 @@ public class DataFrameTransformStateTests extends AbstractHlrcXContentTestCase<D
     }
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
+        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     public static DataFrameIndexerTransformStats randomStats(String transformId) {

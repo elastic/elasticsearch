@@ -11,10 +11,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+
 public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointStats>
 {
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
+        return new DataFrameTransformCheckpointStats(randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     @Override
@@ -32,4 +38,17 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingD
         return DataFrameTransformCheckpointStats::new;
     }
 
+    public void testPercentageComplete() {
+        DataFrameTransformCheckpointStats stats = new DataFrameTransformCheckpointStats(0L, 0L, 0L, 0L);
+        assertThat(stats.getPercentageCompleted(), equalTo(1.0));
+
+        stats = new DataFrameTransformCheckpointStats(0L, 0L, 100L, 0L);
+        assertThat(stats.getPercentageCompleted(), equalTo(0.0));
+
+        stats = new DataFrameTransformCheckpointStats(0L, 0L, 100L, 50L);
+        assertThat(stats.getPercentageCompleted(), closeTo(0.5, 0.0000001));
+
+        stats = new DataFrameTransformCheckpointStats(0L, 0L, 0L, 50L);
+        assertThat(stats.getPercentageCompleted(), equalTo(1.0));
+    }
 }

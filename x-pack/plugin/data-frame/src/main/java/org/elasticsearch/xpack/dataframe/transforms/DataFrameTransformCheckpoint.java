@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -28,6 +30,8 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.COMPLETED_DOCS;
+import static org.elasticsearch.xpack.core.dataframe.DataFrameField.TOTAL_DOCS;
 
 /**
  * Checkpoint document to store the checkpoint of a data frame transform
@@ -42,13 +46,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject {
 
-    public static DataFrameTransformCheckpoint EMPTY = new DataFrameTransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
+    public static DataFrameTransformCheckpoint EMPTY =
+        new DataFrameTransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L, 0L, 0L);
 
     // the own checkpoint
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
 
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
+
+    // Document information to determine progress
 
     private static final String NAME = "data_frame_transform_checkpoint";
 
@@ -60,6 +67,8 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
     private final long checkpoint;
     private final Map<String, long[]> indicesCheckpoints;
     private final long timeUpperBoundMillis;
+    private final long totalDocs;
+    private long completedDocs;
 
     private static ConstructingObjectParser<DataFrameTransformCheckpoint, Void> createParser(boolean lenient) {
         ConstructingObjectParser<DataFrameTransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
@@ -72,9 +81,17 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
                     Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
 
                     Long timestamp_checkpoint = (Long) args[4];
+                    long totalDocs = args[5] == null ? 0L : (Long) args[5];
+                    long completedDocs = args[6] == null ? 0L : (Long) args[6];
 
                     // ignored, only for internal storage: String docType = (String) args[5];
-                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timestamp_checkpoint);
+                    return new DataFrameTransformCheckpoint(id,
+                        timestamp,
+                        checkpoint,
+                        checkpoints,
+                        timestamp_checkpoint,
+                        totalDocs,
+                        completedDocs);
                 });
 
         parser.declareString(constructorArg(), DataFrameField.ID);
@@ -103,18 +120,23 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             return checkPointsByIndexName;
         }, INDICES);
         parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
+        parser.declareLong(optionalConstructorArg(), TOTAL_DOCS);
+        parser.declareLong(optionalConstructorArg(), COMPLETED_DOCS);
+        parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
 
         return parser;
     }
 
     public DataFrameTransformCheckpoint(String transformId, Long timestamp, Long checkpoint, Map<String, long[]> checkpoints,
-            Long timeUpperBound) {
+                                        Long timeUpperBound, long totalDocs, long completedDocs) {
         this.transformId = transformId;
         this.timestampMillis = timestamp.longValue();
         this.checkpoint = checkpoint;
         this.indicesCheckpoints = Collections.unmodifiableMap(checkpoints);
         this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound.longValue();
+        this.totalDocs = totalDocs;
+        this.completedDocs = completedDocs;
     }
 
     public DataFrameTransformCheckpoint(StreamInput in) throws IOException {
@@ -123,6 +145,12 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         this.checkpoint = in.readLong();
         this.indicesCheckpoints = readCheckpoints(in.readMap());
         this.timeUpperBoundMillis = in.readLong();
+        this.totalDocs = in.readLong();
+        this.completedDocs = in.readLong();
+    }
+
+    public DataFrameTransformCheckpointStats asCheckpointStats() {
+        return new DataFrameTransformCheckpointStats(getTimestamp(), getTimeUpperBound(), getTotalDocs(), getCompletedDocs());
     }
 
     public boolean isEmpty() {
@@ -165,6 +193,8 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         if (timeUpperBoundMillis > 0) {
             builder.field(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), timeUpperBoundMillis);
         }
+        builder.field(TOTAL_DOCS.getPreferredName(), totalDocs);
+        builder.field(COMPLETED_DOCS.getPreferredName(), completedDocs);
 
         builder.endObject();
         return builder;
@@ -190,6 +220,19 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         return timeUpperBoundMillis;
     }
 
+    public long getTotalDocs() {
+        return totalDocs;
+    }
+
+    public long getCompletedDocs() {
+        return completedDocs;
+    }
+
+    public void incrementCompletedDocs(long completedDocs) {
+        assert(completedDocs >= 0);
+        this.completedDocs += completedDocs;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(transformId);
@@ -197,6 +240,8 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         out.writeLong(checkpoint);
         out.writeGenericValue(indicesCheckpoints);
         out.writeLong(timeUpperBoundMillis);
+        out.writeLong(totalDocs);
+        out.writeLong(completedDocs);
     }
 
     @Override
@@ -212,8 +257,12 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         final DataFrameTransformCheckpoint that = (DataFrameTransformCheckpoint) other;
 
         // compare the timestamp, id, checkpoint and than call matches for the rest
-        return this.timestampMillis == that.timestampMillis && this.checkpoint == that.checkpoint
-                && this.timeUpperBoundMillis == that.timeUpperBoundMillis && matches(that);
+        return this.timestampMillis == that.timestampMillis
+            && this.checkpoint == that.checkpoint
+            && this.timeUpperBoundMillis == that.timeUpperBoundMillis
+            && this.totalDocs == that.totalDocs
+            && this.completedDocs == that.completedDocs
+            && matches(that);
     }
 
     /**
@@ -238,7 +287,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
 
     @Override
     public int hashCode() {
-        int hash = Objects.hash(transformId, timestampMillis, checkpoint, timeUpperBoundMillis);
+        int hash = Objects.hash(transformId, timestampMillis, checkpoint, timeUpperBoundMillis, totalDocs, completedDocs);
 
         for (Entry<String, long[]> e : indicesCheckpoints.entrySet()) {
             hash = 31 * hash + Objects.hash(e.getKey(), Arrays.hashCode(e.getValue()));

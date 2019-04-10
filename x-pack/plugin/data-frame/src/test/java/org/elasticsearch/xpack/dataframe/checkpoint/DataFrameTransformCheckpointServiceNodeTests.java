@@ -132,7 +132,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
         long timestamp = 1000;
 
         DataFrameTransformCheckpoint checkpoint = new DataFrameTransformCheckpoint(transformId, timestamp, 1L,
-                createCheckPointMap(transformId, 10, 10, 10), null);
+                createCheckPointMap(transformId, 10, 10, 10), null, 0L, 0L);
 
         // create transform
         assertAsync(
@@ -150,7 +150,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         // add a 2nd checkpoint
         DataFrameTransformCheckpoint checkpoint2 = new DataFrameTransformCheckpoint(transformId, timestamp + 100L, 2L,
-                createCheckPointMap(transformId, 20, 20, 20), null);
+                createCheckPointMap(transformId, 20, 20, 20), null, 0L, 0L);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
 
@@ -180,35 +180,35 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
                 true, null, null);
 
         DataFrameTransformCheckpoint checkpoint = new DataFrameTransformCheckpoint(transformId, timestamp, 1L,
-                createCheckPointMap(transformId, 10, 10, 10), null);
+                createCheckPointMap(transformId, 10, 10, 10), null, 1000L, 500L);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
 
         DataFrameTransformCheckpoint checkpoint2 = new DataFrameTransformCheckpoint(transformId, timestamp + 100L, 2L,
-                createCheckPointMap(transformId, 20, 20, 20), null);
+                createCheckPointMap(transformId, 20, 20, 20), null, 100L, 0L);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 20, 20, 20)));
         DataFrameTransformCheckpointingInfo checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(timestamp, 0L),
-                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
+            new DataFrameTransformCheckpointStats(timestamp, 0L, 1000L, 500L),
+            new DataFrameTransformCheckpointStats(timestamp + 100L, 0L, 100L, 0L),
                 30L);
 
         assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
         checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(timestamp, 0L),
-                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
-                63L);
+            new DataFrameTransformCheckpointStats(timestamp, 0L, 1000L, 500L),
+            new DataFrameTransformCheckpointStats(timestamp + 100L, 0L, 100L, 0L),
+            63L);
         assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
 
         // same as current
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 10, 10)));
         checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(timestamp, 0L),
-                new DataFrameTransformCheckpointStats(timestamp + 100L, 0L),
+            new DataFrameTransformCheckpointStats(timestamp, 0L, 1000L, 500L),
+            new DataFrameTransformCheckpointStats(timestamp + 100L, 0L, 100L, 0L),
                 0L);
         assertAsync(listener -> transformsCheckpointService.getCheckpointStats(transformId, 1, 2, listener), checkpointInfo, null, null);
     }

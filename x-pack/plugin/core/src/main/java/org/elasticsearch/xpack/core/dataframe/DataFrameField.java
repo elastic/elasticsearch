@@ -39,6 +39,9 @@ public final class DataFrameField {
     public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
     public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
 
+    // Checkpoint information around progress and total docs to import in checkpoint
+    public static final ParseField TOTAL_DOCS = new ParseField("total_docs");
+    public static final ParseField COMPLETED_DOCS = new ParseField("completed_docs");
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH = "/_data_frame/";

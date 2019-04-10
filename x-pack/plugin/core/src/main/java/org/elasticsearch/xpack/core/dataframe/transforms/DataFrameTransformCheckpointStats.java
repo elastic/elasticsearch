@@ -25,32 +25,46 @@ import java.util.Objects;
  */
 public class DataFrameTransformCheckpointStats implements Writeable, ToXContentObject {
 
-    public static DataFrameTransformCheckpointStats EMPTY = new DataFrameTransformCheckpointStats(0L, 0L);
+    public static DataFrameTransformCheckpointStats EMPTY = new DataFrameTransformCheckpointStats(0L, 0L, 0L, 0L);
 
+    static String PERCENT_COMPLETE = "percent_complete";
     private final long timestampMillis;
     private final long timeUpperBoundMillis;
+    private final long totalDocs;
+    private final long completedDocs;
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpointStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             "data_frame_transform_checkpoint_stats", true, args -> {
                 long timestamp = args[0] == null ? 0L : (Long) args[0];
                 long timeUpperBound = args[1] == null ? 0L : (Long) args[1];
+                long totalDocs = args[2] == null ? 0L : (Long) args[2];
+                long completedDocs = args[3] == null ? 0L : (Long) args[3];
 
-                return new DataFrameTransformCheckpointStats(timestamp, timeUpperBound);
+                return new DataFrameTransformCheckpointStats(timestamp, timeUpperBound, totalDocs, completedDocs);
             });
 
     static {
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.TIMESTAMP_MILLIS);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
+        LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.TOTAL_DOCS);
+        LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.COMPLETED_DOCS);
     }
 
-    public DataFrameTransformCheckpointStats(final long timestampMillis, final long timeUpperBoundMillis) {
+    public DataFrameTransformCheckpointStats(final long timestampMillis,
+                                             final long timeUpperBoundMillis,
+                                             final long totalDocs,
+                                             final long completedDocs) {
         this.timestampMillis = timestampMillis;
         this.timeUpperBoundMillis = timeUpperBoundMillis;
+        this.totalDocs = totalDocs;
+        this.completedDocs = completedDocs;
     }
 
     public DataFrameTransformCheckpointStats(StreamInput in) throws IOException {
         this.timestampMillis = in.readLong();
         this.timeUpperBoundMillis = in.readLong();
+        this.totalDocs = in.readLong();
+        this.completedDocs = in.readLong();
     }
 
     public long getTimestampMillis() {
@@ -59,6 +73,21 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
 
     public long getTimeUpperBoundMillis() {
         return timeUpperBoundMillis;
+    }
+
+    public long getTotalDocs() {
+        return totalDocs;
+    }
+
+    public long getCompletedDocs() {
+        return completedDocs;
+    }
+
+    public double getPercentageCompleted() {
+        if (completedDocs >= totalDocs) {
+            return 1.0;
+        }
+        return (double)completedDocs/totalDocs;
     }
 
     @Override
@@ -70,6 +99,9 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
             builder.timeField(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), DataFrameField.TIME_UPPER_BOUND.getPreferredName(),
                     timeUpperBoundMillis);
         }
+        builder.field(DataFrameField.TOTAL_DOCS.getPreferredName(), totalDocs);
+        builder.field(DataFrameField.COMPLETED_DOCS.getPreferredName(), completedDocs);
+        builder.field(PERCENT_COMPLETE, getPercentageCompleted());
         builder.endObject();
         return builder;
     }
@@ -78,11 +110,13 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(timestampMillis);
         out.writeLong(timeUpperBoundMillis);
+        out.writeLong(totalDocs);
+        out.writeLong(completedDocs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestampMillis, timeUpperBoundMillis);
+        return Objects.hash(timestampMillis, timeUpperBoundMillis, completedDocs, totalDocs);
     }
 
     @Override
@@ -97,8 +131,10 @@ public class DataFrameTransformCheckpointStats implements Writeable, ToXContentO
 
         DataFrameTransformCheckpointStats that = (DataFrameTransformCheckpointStats) other;
 
-        return this.timestampMillis == that.timestampMillis &&
-                this.timeUpperBoundMillis == that.timeUpperBoundMillis;
+        return this.timestampMillis == that.timestampMillis
+            && this.timeUpperBoundMillis == that.timeUpperBoundMillis
+            && this.totalDocs == that.totalDocs
+            && this.completedDocs == that.completedDocs;
     }
 
     public static DataFrameTransformCheckpointStats fromXContent(XContentParser p) {

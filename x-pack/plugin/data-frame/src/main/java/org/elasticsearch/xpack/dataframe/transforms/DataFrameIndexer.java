@@ -51,26 +51,31 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected abstract Map<String, String> getFieldMappings();
 
+    protected abstract DataFrameTransformCheckpoint getCheckpointObject();
+
     /**
      * Request a checkpoint
      */
-    protected abstract void createCheckpoint(ActionListener<Void> listener);
+    protected abstract void persistCheckPoint(DataFrameTransformCheckpoint dataFrameTransformCheckpoint, ActionListener<Void> listener);
 
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
             QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
             pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
-
             // if run for the 1st time, create checkpoint
-            if (getPosition() == null) {
-                createCheckpoint(listener);
+            if (isFirstRun()) {
+                persistCheckPoint(getCheckpointObject(), listener);
             } else {
                 listener.onResponse(null);
             }
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    protected boolean isFirstRun() {
+        return getPosition() == null;
     }
 
     @Override
@@ -91,7 +96,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
         String indexName = transformConfig.getDestination().getIndex();
-
+        // The number of documents we have pulled from the index before we parse the current aggs
+        final long numDocs = getStats().getNumDocuments();
         return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
             String id = (String) document.get(DataFrameField.DOCUMENT_ID_FIELD);
 
@@ -113,7 +119,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-
+            // Increment by the number of docs we have gathered in this step
+            getCheckpointObject().incrementCompletedDocs(getStats().getNumDocuments() - numDocs);
             IndexRequest request = new IndexRequest(indexName).source(builder).id(id);
             return request;
         });

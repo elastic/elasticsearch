@@ -68,7 +68,7 @@ public class DataFrameTransformsCheckpointService {
      * @param listener listener to call after inner request returned
      */
     public void getCheckpoint(DataFrameTransformConfig transformConfig, ActionListener<DataFrameTransformCheckpoint> listener) {
-        getCheckpoint(transformConfig, -1L, listener);
+        getCheckpoint(transformConfig, -1L, 0L, listener);
     }
 
     /**
@@ -78,7 +78,7 @@ public class DataFrameTransformsCheckpointService {
      * @param checkpoint the number of the checkpoint
      * @param listener listener to call after inner request returned
      */
-    public void getCheckpoint(DataFrameTransformConfig transformConfig, long checkpoint,
+    public void getCheckpoint(DataFrameTransformConfig transformConfig, long checkpoint, long totalDocCount,
             ActionListener<DataFrameTransformCheckpoint> listener) {
         long timestamp = System.currentTimeMillis();
 
@@ -101,7 +101,7 @@ public class DataFrameTransformsCheckpointService {
 
                                 Map<String, long[]> checkpointsByIndex = extractIndexCheckPoints(response.getShards(), userIndices);
                                 DataFrameTransformCheckpoint checkpointDoc = new DataFrameTransformCheckpoint(transformConfig.getId(),
-                                        timestamp, checkpoint, checkpointsByIndex, timeUpperBound);
+                                        timestamp, checkpoint, checkpointsByIndex, timeUpperBound, totalDocCount, 0L);
 
                                 listener.onResponse(checkpointDoc);
 
@@ -183,10 +183,8 @@ public class DataFrameTransformsCheckpointService {
             if (latch.await(CHECKPOINT_STATS_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 logger.debug("Retrieval of checkpoint information succeeded for data frame [" + transformId + "]");
                 wrappedListener.onResponse(new DataFrameTransformCheckpointingInfo(
-                            new DataFrameTransformCheckpointStats(checkpoints.currentCheckpoint.getTimestamp(),
-                                    checkpoints.currentCheckpoint.getTimeUpperBound()),
-                            new DataFrameTransformCheckpointStats(checkpoints.inProgressCheckpoint.getTimestamp(),
-                                    checkpoints.inProgressCheckpoint.getTimeUpperBound()),
+                            checkpoints.currentCheckpoint.asCheckpointStats(),
+                            checkpoints.inProgressCheckpoint.asCheckpointStats(),
                             DataFrameTransformCheckpoint.getBehind(checkpoints.currentCheckpoint, checkpoints.sourceCheckpoint)));
             } else {
                 // timed out

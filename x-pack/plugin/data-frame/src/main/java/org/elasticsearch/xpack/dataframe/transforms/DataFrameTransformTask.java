@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -45,11 +44,12 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
@@ -312,7 +312,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     protected class ClientDataFrameIndexer extends DataFrameIndexer {
-        private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
         private static final int CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS = 30;
 
         private final Client client;
@@ -321,6 +320,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final String transformId;
         private final Auditor<DataFrameAuditMessage> auditor;
         private volatile DataFrameIndexerTransformStats previouslyPersistedStats = null;
+        private volatile DataFrameTransformCheckpoint currentCheckpointObject;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
         private Map<String, String> fieldMappings = null;
@@ -345,6 +345,99 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return transformConfig;
         }
 
+        protected DataFrameTransformCheckpoint getCheckpointObject() {
+            return currentCheckpointObject;
+        }
+
+        @Override
+        protected void onStart(long now, ActionListener<Void> listener) {
+
+            ActionListener<DataFrameTransformCheckpoint> checkpointListener = ActionListener.wrap(
+                checkpoint -> {
+                    currentCheckpointObject = checkpoint;
+                    super.onStart(now, listener);
+                },
+                e -> listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", e))
+            );
+
+            // NOTE: This is skipped if this is not the first run of the indexer
+            ActionListener<SearchResponse> getTotalCountSearchListener = ActionListener.wrap(
+                searchResponse -> transformsCheckpointService.getCheckpoint(transformConfig,
+                        currentCheckpoint.get() + 1,
+                        searchResponse.getHits().getTotalHits().value,
+                        ActionListener.wrap(
+                            checkpointListener::onResponse,
+                            checkpointListener::onFailure
+                        )),
+                e -> {
+                    logger.warn("Failed getting total doc count for transform [" + transformId + "]", e);
+                    auditor.warning(transformId, "Failed getting total doc count to measure progress");
+                    // Continue execution as not being able to measure progress should not completely break the transform job
+                    transformsCheckpointService.getCheckpoint(transformConfig,
+                        currentCheckpoint.get() + 1,
+                        0L,
+                        ActionListener.wrap(
+                            checkpointListener::onResponse,
+                            checkpointListener::onFailure
+                        ));
+                }
+            );
+
+            ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(
+                destinationMappings -> {
+                    fieldMappings = destinationMappings;
+                    // Attempt to gather the total doc count and create the checkpoint as this is the first run
+                    if (isFirstRun()) {
+                        SearchRequest searchRequest = client.prepareSearch(transformConfig.getSource().getIndex())
+                            .setQuery(transformConfig.getSource().getQueryConfig().getQuery())
+                            .setSize(0)
+                            .setTrackTotalHits(true)
+                            .request();
+
+                        executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+                            DATA_FRAME_ORIGIN,
+                            searchRequest,
+                            getTotalCountSearchListener,
+                            client::search);
+                    } else {
+                        // Get the previously stored checkpoint
+                        transformsConfigManager.getTransformCheckpoint(transformId, currentCheckpoint.get() + 1, checkpointListener);
+                    }
+
+                },
+                e -> listener.onFailure(new RuntimeException(
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
+                        transformConfig.getDestination().getIndex()),
+                    e))
+            );
+
+            ActionListener<DataFrameTransformConfig> getConfigListener = ActionListener.wrap(
+                config -> {
+                    if (config.isValid() == false) {
+                        DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
+                        listener.onFailure(exception);
+                        return;
+                    }
+                    transformConfig = config;
+                    if (this.fieldMappings == null) {
+                        SchemaUtil.getDestinationFieldMappings(client,
+                            transformConfig.getDestination().getIndex(), fieldMappingsListener);
+                    } else {
+                        fieldMappingsListener.onResponse(fieldMappings);
+                    }
+                },
+                e -> listener.onFailure(new RuntimeException(
+                        DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e))
+            );
+
+            // If we have not yet gathered the config, we should attempt to gather it
+            if (transformConfig == null) {
+                transformsConfigManager.getTransformConfiguration(transformId, getConfigListener);
+            } else {
+                getConfigListener.onResponse(transformConfig);
+            }
+        }
+
         @Override
         protected Map<String, String> getFieldMappings() {
             return fieldMappings;
@@ -356,69 +449,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        public synchronized boolean maybeTriggerAsyncJob(long now) {
-            if (taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("Schedule was triggered for transform [" + getJobId() + "] but task is failed.  Ignoring trigger.");
-                return false;
-            }
-
-            if (transformConfig == null) {
-                CountDownLatch latch = new CountDownLatch(1);
-
-                transformsConfigManager.getTransformConfiguration(transformId, new LatchedActionListener<>(ActionListener.wrap(
-                    config -> transformConfig = config,
-                    e -> {
-                    throw new RuntimeException(
-                            DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e);
-                }), latch));
-
-                try {
-                    latch.await(LOAD_TRANSFORM_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(
-                            DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId), e);
-                }
-            }
-
-            if (transformConfig.isValid() == false) {
-                DataFrameConfigurationException exception = new DataFrameConfigurationException(transformId);
-                handleFailure(exception);
-                throw exception;
-            }
-
-            if (fieldMappings == null) {
-                CountDownLatch latch = new CountDownLatch(1);
-                SchemaUtil.getDestinationFieldMappings(client, transformConfig.getDestination().getIndex(), new LatchedActionListener<>(
-                    ActionListener.wrap(
-                        destinationMappings -> fieldMappings = destinationMappings,
-                        e -> {
-                            throw new RuntimeException(
-                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                                    transformConfig.getDestination().getIndex()),
-                                e);
-                        }), latch));
-                try {
-                    latch.await(LOAD_TRANSFORM_TIMEOUT_IN_SECONDS, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                   throw new RuntimeException(
-                                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                                    transformConfig.getDestination().getIndex()),
-                                e);
-                }
-            }
-
-            return super.maybeTriggerAsyncJob(now);
-        }
-
-        @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client,
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), DATA_FRAME_ORIGIN, client,
                     SearchAction.INSTANCE, request, nextPhase);
         }
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
-            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
+            ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), DATA_FRAME_ORIGIN, client, BulkAction.INSTANCE,
                     request, nextPhase);
         }
 
@@ -440,8 +478,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
             // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
             // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity
-            ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
-                task -> {
+            ActionListener<Void> persistCheckpointListener = ActionListener.wrap(
+                unused -> {
                     // Make a copy of the previousStats so that they are not constantly updated when `merge` is called
                     DataFrameIndexerTransformStats tempStats = new DataFrameIndexerTransformStats(previousStats).merge(getStats());
 
@@ -464,8 +502,17 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     }
                 },
                 exc -> {
-                    logger.error("Updating persistent state of transform [" + transform.getId() + "] failed", exc);
+                    logger.error(
+                        "Persisting checkpoint [" + getCheckpointObject().getCheckpoint() + "] for transform [" + transform.getId() + "] failed", exc);
                     next.run();
+                }
+            );
+
+            ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>> updateClusterStateListener = ActionListener.wrap(
+                task -> persistCheckPoint(getCheckpointObject(), persistCheckpointListener),
+                exc -> {
+                    logger.error("Updating persistent state of transform [" + transform.getId() + "] failed", exc);
+                    persistCheckpointListener.onResponse(null);
                 }
             );
 
@@ -504,16 +551,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void createCheckpoint(ActionListener<Void> listener) {
-            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1, ActionListener.wrap(checkpoint -> {
-                transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
-                    listener.onResponse(null);
-                }, createCheckpointException -> {
-                    listener.onFailure(new RuntimeException("Failed to create checkpoint", createCheckpointException));
-                }));
-            }, getCheckPointException -> {
-                listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException));
-            }));
+        protected void persistCheckPoint(DataFrameTransformCheckpoint checkpoint, ActionListener<Void> listener) {
+            transformsConfigManager.putTransformCheckpoint(currentCheckpointObject, ActionListener.wrap(putCheckPointResponse ->
+                listener.onResponse(null),
+                e -> listener.onFailure(new RuntimeException("Failed to persist checkpoint", e)))
+            );
         }
     }
 

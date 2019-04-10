@@ -38,7 +38,10 @@ public class DataFrameTransformCheckpointStatsTests extends ESTestCase {
     }
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
+        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+            randomLongBetween(0, 1_000_000),
+            randomNonNegativeLong(),
+            randomNonNegativeLong());
     }
 
     public static void toXContent(DataFrameTransformCheckpointStats stats, XContentBuilder builder) throws IOException {

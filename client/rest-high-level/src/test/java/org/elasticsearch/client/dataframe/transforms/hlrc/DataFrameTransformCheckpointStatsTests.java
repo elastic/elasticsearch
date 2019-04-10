@@ -31,7 +31,10 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractHlrcXContent
 
     public static DataFrameTransformCheckpointStats fromHlrc(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformCheckpointStats instance) {
-        return new DataFrameTransformCheckpointStats(instance.getTimestampMillis(), instance.getTimeUpperBoundMillis());
+        return new DataFrameTransformCheckpointStats(instance.getTimestampMillis(),
+            instance.getTimeUpperBoundMillis(),
+            instance.getTotalDocs(),
+            instance.getCompletedDocs());
     }
 
     @Override

@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * Represents an enrich policy including its configuration.
  */
-public final class EnrichPolicy implements Writeable, ToXContentObject {
+public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     static final String EXACT_MATCH_TYPE = "exact_match";
     static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
@@ -141,11 +141,6 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
         builder.field(SCHEDULE.getPreferredName(), schedule);
         return builder;
-    }
-
-    @Override
-    public boolean isFragment() {
-        return true;
     }
 
     @Override

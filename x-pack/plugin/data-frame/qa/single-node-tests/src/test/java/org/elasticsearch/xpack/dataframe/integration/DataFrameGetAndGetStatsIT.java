@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
@@ -134,6 +135,34 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat(((Integer)stat.get("search_time_in_ms")), greaterThan(0));
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));
             assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetPersistedStatsWithPivotQuery() throws Exception {
+        String transformId = "simpleStatsPivotWithQuery";
+        String dataFrameIndex = "pivot_stats_reviews_user_id_above_20";
+        String query = "\"match\": {\"user_id\": \"user_26\"}";
+        createPivotReviewsTransform(transformId, dataFrameIndex, query);
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
+
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "simpleStatsPivotWithQuery/_stats", authHeader);
+        Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        // Verify that the transform has stats and the total docs process matches the expected
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
+            assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat(((Integer)stat.get("search_time_in_ms")), greaterThan(0));
+            assertThat(((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+            assertThat(stat.get("documents_processed_percentage"), equalTo(1.0));
+            assertThat(stat.get("current_run_total_documents_to_process"), equalTo(37));
+            assertThat(stat.get("current_run_documents_processed"), equalTo(37));
         }
     }
 }

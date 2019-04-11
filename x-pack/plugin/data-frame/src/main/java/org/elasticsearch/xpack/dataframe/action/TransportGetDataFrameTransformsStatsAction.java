@@ -152,6 +152,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         }
     }
 
+    // TODO add logic to gather latest stored checkpoint information
     private void collectStatsForTransformsWithoutTasks(Request request,
                                                        Response response,
                                                        ActionListener<Response> listener) {

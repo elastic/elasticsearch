@@ -25,7 +25,7 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
 
     public static DataFrameTransformCheckpoint randomDataFrameTransformCheckpoints() {
         return new DataFrameTransformCheckpoint(randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong(), randomNonNegativeLong(),
-                randomCheckpointsByIndex(), randomNonNegativeLong());
+                randomCheckpointsByIndex(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override
@@ -58,13 +58,15 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         String id = randomAlphaOfLengthBetween(1, 10);
         long timestamp = randomNonNegativeLong();
         long checkpoint = randomNonNegativeLong();
+        long numDocs = randomNonNegativeLong();
+        long completedDocs = randomLongBetween(0L, numDocs);
         Map<String, long[]> checkpointsByIndex = randomCheckpointsByIndex();
         Map<String, long[]> otherCheckpointsByIndex = new TreeMap<>(checkpointsByIndex);
         otherCheckpointsByIndex.put(randomAlphaOfLengthBetween(1, 10), new long[] { 1, 2, 3 });
         long timeUpperBound = randomNonNegativeLong();
 
         DataFrameTransformCheckpoint dataFrameTransformCheckpoints = new DataFrameTransformCheckpoint(id, timestamp, checkpoint,
-                checkpointsByIndex, timeUpperBound);
+                checkpointsByIndex, timeUpperBound, numDocs, completedDocs);
 
         // same
         assertTrue(dataFrameTransformCheckpoints.matches(dataFrameTransformCheckpoints));
@@ -76,25 +78,57 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
 
         // other id
         assertFalse(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound)));
+                .matches(new DataFrameTransformCheckpoint(id + "-1",
+                    timestamp,
+                    checkpoint,
+                    checkpointsByIndex,
+                    timeUpperBound,
+                    numDocs,
+                    completedDocs)));
         // other timestamp
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound)));
+                .matches(new DataFrameTransformCheckpoint(id,
+                    (timestamp / 2) + 1,
+                    checkpoint,
+                    checkpointsByIndex,
+                    timeUpperBound,
+                    numDocs,
+                    completedDocs)));
         // other checkpoint
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound)));
+                .matches(new DataFrameTransformCheckpoint(id,
+                    timestamp,
+                    (checkpoint / 2) + 1,
+                    checkpointsByIndex,
+                    timeUpperBound,
+                    numDocs,
+                    completedDocs)));
         // other index checkpoints
         assertFalse(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound)));
+                .matches(new DataFrameTransformCheckpoint(id,
+                    timestamp,
+                    checkpoint,
+                    otherCheckpointsByIndex,
+                    timeUpperBound,
+                    numDocs,
+                    completedDocs)));
         // other time upper bound
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
+                .matches(new DataFrameTransformCheckpoint(id,
+                    timestamp,
+                    checkpoint,
+                    checkpointsByIndex,
+                    (timeUpperBound / 2) + 1,
+                    numDocs,
+                    completedDocs)));
     }
 
     public void testGetBehind() {
         String id = randomAlphaOfLengthBetween(1, 10);
         long timestamp = randomNonNegativeLong();
 
+        long numDocs = randomNonNegativeLong();
+        long completedDocs = randomLongBetween(0L, numDocs);
         TreeMap<String, long[]> checkpointsByIndexOld = new TreeMap<>();
         TreeMap<String, long[]> checkpointsByIndexNew = new TreeMap<>();
 
@@ -120,13 +154,13 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         long checkpoint = randomLongBetween(10, 100);
 
         DataFrameTransformCheckpoint checkpointOld = new DataFrameTransformCheckpoint(
-                id, timestamp, checkpoint, checkpointsByIndexOld, 0L);
+                id, timestamp, checkpoint, checkpointsByIndexOld, 0L, numDocs, completedDocs);
         DataFrameTransformCheckpoint checkpointTransientNew = new DataFrameTransformCheckpoint(
-                id, timestamp, -1L, checkpointsByIndexNew, 0L);
+                id, timestamp, -1L, checkpointsByIndexNew, 0L, numDocs, completedDocs);
         DataFrameTransformCheckpoint checkpointNew = new DataFrameTransformCheckpoint(
-                id, timestamp, checkpoint + 1, checkpointsByIndexNew, 0L);
+                id, timestamp, checkpoint + 1, checkpointsByIndexNew, 0L, numDocs, completedDocs);
         DataFrameTransformCheckpoint checkpointOlderButNewerShardsCheckpoint = new DataFrameTransformCheckpoint(
-                id, timestamp, checkpoint - 1, checkpointsByIndexNew, 0L);
+                id, timestamp, checkpoint - 1, checkpointsByIndexNew, 0L, numDocs, completedDocs);
 
         assertEquals(indices * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
         assertEquals(indices * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointNew));

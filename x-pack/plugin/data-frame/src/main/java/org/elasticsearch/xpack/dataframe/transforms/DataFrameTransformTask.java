@@ -503,7 +503,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 },
                 exc -> {
                     logger.error(
-                        "Persisting checkpoint [" + getCheckpointObject().getCheckpoint() + "] for transform [" + transform.getId() + "] failed", exc);
+                        "Persisting checkpoint [" + getCheckpointObject().getCheckpoint() +
+                            "] for transform [" + transform.getId() + "] failed", exc);
                     next.run();
                 }
             );

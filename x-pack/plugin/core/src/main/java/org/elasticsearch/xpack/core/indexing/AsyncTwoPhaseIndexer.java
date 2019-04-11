@@ -150,8 +150,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
-                        stats.markStartSearch();
-                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                     }, e -> {
                         finishAndSetState();
                         onFailure(e);
@@ -362,16 +361,21 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
                 doSaveState(IndexerState.INDEXING, position, () -> {
-                    stats.markStartSearch();
-                    doNextSearch(buildSearchRequest(), listener);
+                    nextSearch(listener);
                 });
             } else {
-                stats.markStartSearch();
-                doNextSearch(buildSearchRequest(), listener);
+                nextSearch(listener);
             }
         } catch (Exception e) {
             finishWithIndexingFailure(e);
         }
+    }
+
+    private void nextSearch(ActionListener<SearchResponse> listener) {
+        stats.markStartSearch();
+        // ensure that partial results are not accepted and cause a search failure
+        SearchRequest searchRequest =  buildSearchRequest().allowPartialSearchResults(false);
+        doNextSearch(searchRequest,listener);
     }
 
     /**

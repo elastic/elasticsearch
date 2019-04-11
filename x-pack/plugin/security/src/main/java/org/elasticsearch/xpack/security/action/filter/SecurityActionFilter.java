@@ -109,8 +109,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityDisabledByTrialLicense()) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+            if (licenseState.isSecurityDisabledByLicenseDefaults()) {
+                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
+                        licenseState.getOperationMode().description() + "] license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));
             } else {

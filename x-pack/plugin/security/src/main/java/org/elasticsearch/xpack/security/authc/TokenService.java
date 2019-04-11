@@ -71,6 +71,8 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackField;
@@ -188,6 +190,7 @@ public final class TokenService extends AbstractComponent {
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
     private final boolean bwcEnabled;
+    private final XPackLicenseState licenseState;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -199,7 +202,7 @@ public final class TokenService extends AbstractComponent {
      * @param clock    the clock that will be used for comparing timestamps
      * @param client   the client to use when checking for revocations
      */
-    public TokenService(Settings settings, Clock clock, Client client,
+    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState,
                         SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
@@ -216,6 +219,7 @@ public final class TokenService extends AbstractComponent {
         this.settings = settings;
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
+        this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
@@ -301,7 +305,7 @@ public final class TokenService extends AbstractComponent {
      * has not been revoked or is expired.
      */
     void getAndValidateToken(ThreadContext ctx, ActionListener<UserToken> listener) {
-        if (enabled) {
+        if (isEnabled()) {
             final String token = getFromHeader(ctx);
             if (token == null) {
                 listener.onResponse(null);
@@ -1161,9 +1165,16 @@ public final class TokenService extends AbstractComponent {
         }
     }
 
+    private boolean isEnabled() {
+        return enabled && licenseState.isTokenServiceAllowed();
+    }
+
     private void ensureEnabled() {
+        if (licenseState.isTokenServiceAllowed() == false) {
+            throw LicenseUtils.newComplianceException("security tokens");
+        }
         if (enabled == false) {
-            throw new IllegalStateException("tokens are not enabled");
+            throw new IllegalStateException("security tokens are not enabled");
         }
     }
 

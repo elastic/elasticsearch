@@ -77,7 +77,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
 
-        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
+        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
         featureSet = new SecurityFeatureSet(settings, licenseState, realms,
                 rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(false));
@@ -205,7 +205,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
         when(licenseState.isSecurityAvailable()).thenReturn(true);
-        when(licenseState.isSecurityDisabledByTrialLicense()).thenReturn(true);
+        when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 

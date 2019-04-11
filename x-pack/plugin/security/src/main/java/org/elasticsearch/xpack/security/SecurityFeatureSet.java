@@ -78,7 +78,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     public boolean enabled() {
         if (licenseState != null) {
             return XPackSettings.SECURITY_ENABLED.get(settings) &&
-                licenseState.isSecurityDisabledByTrialLicense() == false;
+                licenseState.isSecurityDisabledByLicenseDefaults() == false;
         }
         return false;
     }

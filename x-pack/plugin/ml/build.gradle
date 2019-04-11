@@ -40,7 +40,6 @@ dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(':modules:lang-painless')
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 

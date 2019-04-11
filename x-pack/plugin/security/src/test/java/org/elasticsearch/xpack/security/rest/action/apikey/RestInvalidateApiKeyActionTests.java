@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -29,6 +29,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 
 import java.util.Collections;
 
@@ -52,6 +53,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .build();
         threadPool = new ThreadPool(settings);
         when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
+        when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
     }
 
     @Override

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -30,6 +30,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -56,6 +57,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 .build();
         threadPool = new ThreadPool(settings);
         when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
+        when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
     }
 
     @Override

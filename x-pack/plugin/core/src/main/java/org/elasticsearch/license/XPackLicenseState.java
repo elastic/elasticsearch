@@ -331,8 +331,17 @@ public class XPackLicenseState {
         OperationMode mode = status.mode;
         final boolean isSecurityCurrentlyEnabled =
             isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
-        return isSecurityCurrentlyEnabled && (mode == OperationMode.STANDARD || mode == OperationMode.GOLD
-            || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+        if (isSecurityCurrentlyEnabled) {
+            switch (mode) {
+                case BASIC:
+                case STANDARD:
+                case GOLD:
+                case PLATINUM:
+                case TRIAL:
+                    return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -405,6 +414,7 @@ public class XPackLicenseState {
                     return AllowedRealmType.ALL;
                 case GOLD:
                     return AllowedRealmType.DEFAULT;
+                case BASIC:
                 case STANDARD:
                     return AllowedRealmType.NATIVE;
                 default:
@@ -423,6 +433,24 @@ public class XPackLicenseState {
             isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
         return isSecurityCurrentlyEnabled && (status.mode == OperationMode.PLATINUM || status.mode == OperationMode.TRIAL)
                 && status.active;
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code TokenService} is allowed based on the license {@link OperationMode}
+     */
+    public synchronized boolean isTokenServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
+    }
+
+    /**
+     * @return whether the Elasticsearch {@code ApiKeyService} is allowed based on the license {@link OperationMode}
+     */
+    public synchronized boolean isApiKeyServiceAllowed() {
+        final OperationMode mode = status.mode;
+        final boolean isSecurityCurrentlyEnabled = isSecurityEnabled(mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
+        return isSecurityCurrentlyEnabled && (mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.TRIAL);
     }
 
     /**
@@ -674,24 +702,35 @@ public class XPackLicenseState {
     public synchronized boolean isSecurityAvailable() {
         OperationMode mode = status.mode;
         return mode == OperationMode.GOLD || mode == OperationMode.PLATINUM || mode == OperationMode.STANDARD ||
-                mode == OperationMode.TRIAL;
+                mode == OperationMode.TRIAL || mode == OperationMode.BASIC;
     }
 
     /**
-     * @return true if security has been disabled by a trial license which is the case of the
-     *         default distribution post 6.3.0. The conditions necessary for this are:
+     * @return true if security has been disabled due it being the default setting for this license type.
+     *  The conditions necessary for this are:
      *         <ul>
-     *             <li>A trial license</li>
+     *             <li>A trial or basic license</li>
      *             <li>xpack.security.enabled not specified as a setting</li>
      *         </ul>
      */
-    public synchronized boolean isSecurityDisabledByTrialLicense() {
-        return status.mode == OperationMode.TRIAL && isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+    public synchronized boolean isSecurityDisabledByLicenseDefaults() {
+        switch (status.mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
+        }
+        return false;
     }
 
     private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
                                              final boolean isSecurityEnabled) {
-        return mode == OperationMode.TRIAL ? isSecurityExplicitlyEnabled : isSecurityEnabled;
+        switch (mode) {
+            case TRIAL:
+            case BASIC:
+                return isSecurityExplicitlyEnabled;
+            default:
+                return isSecurityEnabled;
+        }
     }
 
     /**

@@ -29,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +73,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     private ClusterService clusterService;
     private AtomicReference<IndexRequest> idxReqReference;
     private AuthenticationService authenticationService;
+    private XPackLicenseState license;
 
     @Before
     public void setupClient() {
@@ -137,6 +139,9 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             any(UsernamePasswordToken.class), any(ActionListener.class));
 
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        this.license = mock(XPackLicenseState.class);
+        when(license.isTokenServiceAllowed()).thenReturn(true);
     }
 
     @After
@@ -147,8 +152,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, securityIndex,
-                clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
@@ -172,8 +177,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testPasswordGrantTypeCreatesWithRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, securityIndex,
-                clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license,
+                securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 

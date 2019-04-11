@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * Rest action to invalidate one or more API keys
  */
-public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
                 return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3]);

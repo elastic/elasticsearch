@@ -126,6 +126,10 @@ public class License implements ToXContentObject {
                     throw new IllegalArgumentException("unknown type [" + type + "]");
             }
         }
+
+        public String description() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private License(int version, String uid, String issuer, String issuedTo, long issueDate, String type,

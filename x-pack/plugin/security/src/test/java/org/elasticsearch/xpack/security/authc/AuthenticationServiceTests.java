@@ -179,6 +179,8 @@ public class AuthenticationServiceTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
         when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
+        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
                 licenseState, threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm),
                 Collections.singletonList(firstRealm)));
@@ -219,8 +221,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService, threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, securityIndex, clusterService);
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService, threadPool);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }

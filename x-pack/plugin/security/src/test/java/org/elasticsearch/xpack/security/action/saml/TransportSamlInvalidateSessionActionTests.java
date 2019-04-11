@@ -45,6 +45,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
@@ -200,8 +201,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.aliasName()).thenReturn(".security");
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());

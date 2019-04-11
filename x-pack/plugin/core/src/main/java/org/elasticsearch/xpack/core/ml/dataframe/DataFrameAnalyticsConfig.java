@@ -37,6 +37,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public static final ByteSizeValue DEFAULT_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.GB);
     public static final ByteSizeValue MIN_MODEL_MEMORY_LIMIT = new ByteSizeValue(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(20, ByteSizeUnit.MB);
 
     public static final ParseField ID = new ParseField("id");
     public static final ParseField SOURCE = new ParseField("source");

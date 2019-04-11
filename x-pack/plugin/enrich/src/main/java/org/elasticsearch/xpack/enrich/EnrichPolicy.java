@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -27,6 +26,9 @@ import java.util.Objects;
  * Represents an enrich policy including its configuration.
  */
 public final class EnrichPolicy implements Writeable, ToXContentObject {
+
+    static final String EXACT_MATCH_TYPE = "exact_match";
+    static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
     static final ParseField TYPE = new ParseField("type");
     static final ParseField QUERY = new ParseField("query");
@@ -39,7 +41,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
     static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
         args -> {
             return new EnrichPolicy(
-                Type.read((String) args[0]),
+                (String) args[0],
                 (QuerySource) args[1],
                 (String) args[2],
                 (String) args[3],
@@ -62,7 +64,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
     }
 
-    private final Type type;
+    private final String type;
     private final QuerySource query;
     private final String indexPattern;
     private final String enrichKey;
@@ -71,7 +73,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
-            Type.read(in.readString()),
+            in.readString(),
             new QuerySource(in.readBytesReference(), in.readEnum(XContentType.class)),
             in.readString(),
             in.readString(),
@@ -80,7 +82,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         );
     }
 
-    public EnrichPolicy(Type type,
+    public EnrichPolicy(String type,
                         QuerySource query,
                         String indexPattern,
                         String enrichKey,
@@ -94,7 +96,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         this.enrichValues = enrichValues;
     }
 
-    public Type getType() {
+    public String getType() {
         return type;
     }
 
@@ -131,7 +133,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(TYPE.getPreferredName(), type.toString());
+        builder.field(TYPE.getPreferredName(), type);
         builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
         builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
@@ -150,7 +152,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnrichPolicy policy = (EnrichPolicy) o;
-        return type == policy.type &&
+        return type.equals(policy.type) &&
             query.equals(policy.query) &&
             indexPattern.equals(policy.indexPattern) &&
             enrichKey.equals(policy.enrichKey) &&
@@ -172,25 +174,6 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public enum Type {
-
-        EXACT_MATCH;
-
-        public static Type read(String value) {
-            switch (value) {
-                case "exact_match":
-                    return EXACT_MATCH;
-                default:
-                    throw new IllegalArgumentException("unknown value [" + value + "]");
-            }
-        }
-
-        @Override
-        public String toString() {
-            return super.toString().toLowerCase(Locale.ROOT);
-        }
     }
 
     public static class QuerySource {

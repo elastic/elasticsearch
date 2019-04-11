@@ -55,7 +55,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             content.flush();
             EnrichPolicy.QuerySource querySource = new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
             return new EnrichPolicy(
-                randomFrom(EnrichPolicy.Type.values()),
+                randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 querySource,
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),

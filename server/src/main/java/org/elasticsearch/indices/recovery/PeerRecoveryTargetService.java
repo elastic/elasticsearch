@@ -510,11 +510,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         request.maxSeenAutoIdTimestampOnPrimary(),
                         request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
                         request.retentionLeases(),
-                        request.mappingVersion(),
+                        request.mappingVersionOnPrimary(),
                         ActionListener.wrap(
                                 checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
-                                    if (mappingVersionOnTarget < request.mappingVersion() && e instanceof MapperException) {
+                                    // do not retry if the mapping on replica is at least as recent as the mapping
+                                    // that the primary used to index the operations in the request.
+                                    if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
                                         retryOnMappingException.accept(e);
                                     } else {
                                         listener.onFailure(e);

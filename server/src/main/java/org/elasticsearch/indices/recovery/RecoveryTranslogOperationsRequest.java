@@ -39,7 +39,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     private final long maxSeenAutoIdTimestampOnPrimary;
     private final long maxSeqNoOfUpdatesOrDeletesOnPrimary;
     private final RetentionLeases retentionLeases;
-    private final long mappingVersion;
+    private final long mappingVersionOnPrimary;
 
     RecoveryTranslogOperationsRequest(
             final long recoveryId,
@@ -49,7 +49,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
             final RetentionLeases retentionLeases,
-            final long mappingVersion) {
+            final long mappingVersionOnPrimary) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
@@ -57,7 +57,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.maxSeqNoOfUpdatesOrDeletesOnPrimary = maxSeqNoOfUpdatesOrDeletesOnPrimary;
         this.retentionLeases = retentionLeases;
-        this.mappingVersion = mappingVersion;
+        this.mappingVersionOnPrimary = mappingVersionOnPrimary;
     }
 
     public long recoveryId() {
@@ -88,8 +88,13 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         return retentionLeases;
     }
 
-    public long mappingVersion() {
-        return mappingVersion;
+    /**
+     * Returns the mapping version which is at least as up to date as the mapping version that the primary used to index
+     * the translog operations in this request. If the mapping version on the replica is not older this version, we should not
+     * retry on {@link org.elasticsearch.index.mapper.MapperException}; otherwise we should wait for a new mapping then retry.
+     */
+    long mappingVersionOnPrimary() {
+        return mappingVersionOnPrimary;
     }
 
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -102,9 +107,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         retentionLeases = new RetentionLeases(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            mappingVersion = in.readVLong();
+            mappingVersionOnPrimary = in.readVLong();
         } else {
-            mappingVersion = Long.MAX_VALUE;
+            mappingVersionOnPrimary = Long.MAX_VALUE;
         }
     }
 
@@ -119,7 +124,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVLong(mappingVersion);
+            out.writeVLong(mappingVersionOnPrimary);
         }
     }
 }

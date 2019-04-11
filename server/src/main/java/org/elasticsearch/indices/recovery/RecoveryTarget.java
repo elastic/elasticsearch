@@ -320,7 +320,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
             final RetentionLeases retentionLeases,
-            final long mappingVersion,
+            final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
         ActionListener.completeWith(listener, () -> {
             final RecoveryState.Translog translog = state().getTranslog();

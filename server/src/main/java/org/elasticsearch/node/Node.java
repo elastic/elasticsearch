@@ -240,7 +240,6 @@ public class Node implements Closeable {
      */
     private final Logger logger;
     private final Injector injector;
-    private final Settings settings;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
     private final PluginsService pluginsService;
@@ -306,12 +305,12 @@ public class Node implements Closeable {
 
             this.pluginsService = new PluginsService(tmpSettings, environment.configFile(), environment.modulesFile(),
                 environment.pluginsFile(), classpathPlugins);
-            this.settings = pluginsService.updatedSettings();
+            final Settings settings = pluginsService.updatedSettings();
             localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
             // create the environment based on the finalized (processed) view of the settings
             // this is just to makes sure that people get the same settings, no matter where they ask them from
-            this.environment = new Environment(this.settings, environment.configFile());
+            this.environment = new Environment(settings, environment.configFile());
             Environment.assertEquivalent(environment, this.environment);
 
             final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
@@ -341,7 +340,7 @@ public class Node implements Closeable {
                     .collect(Collectors.toSet());
 
             final SettingsModule settingsModule =
-                    new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
+                    new SettingsModule(settings, additionalSettings, additionalSettingsFilter, settingsUpgraders);
             scriptModule.registerClusterSettingsListeners(settingsModule.getClusterSettings());
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(
@@ -483,7 +482,7 @@ public class Node implements Closeable {
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), transportService,
                 clusterService, threadPool, xContentRegistry));
 
-            final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService, namedWriteableRegistry,
+            final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
                 clusterService.getClusterSettings(), pluginsService.filterPlugins(DiscoveryPlugin.class),
                 clusterModule.getAllocationService(), environment.configFile(), gatewayMetaState);
@@ -602,7 +601,7 @@ public class Node implements Closeable {
      * The settings that are used by this node. Contains original settings as well as additional settings provided by plugins.
      */
     public Settings settings() {
-        return this.settings;
+        return this.environment.settings();
     }
 
     /**
@@ -668,7 +667,7 @@ public class Node implements Closeable {
         final MetaData onDiskMetadata;
         // we load the global state here (the persistent part of the cluster state stored on disk) to
         // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.isMasterNode(settings()) || DiscoveryNode.isDataNode(settings())) {
             onDiskMetadata = injector.getInstance(GatewayMetaState.class).getMetaData();
         } else {
             onDiskMetadata = MetaData.EMPTY_META_DATA;
@@ -686,7 +685,7 @@ public class Node implements Closeable {
             : "clusterService has a different local node than the factory provided";
         transportService.acceptIncomingRequests();
         discovery.startInitialJoin();
-        final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings);
+        final TimeValue initialStateTimeout = INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
 
         if (initialStateTimeout.millis() > 0) {
@@ -725,7 +724,7 @@ public class Node implements Closeable {
 
         injector.getInstance(HttpServerTransport.class).start();
 
-        if (WRITE_PORTS_FILE_SETTING.get(settings)) {
+        if (WRITE_PORTS_FILE_SETTING.get(settings())) {
             TransportService transport = injector.getInstance(TransportService.class);
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
@@ -963,7 +962,7 @@ public class Node implements Closeable {
     private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
         List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
         for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
-            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
+            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings());
             if (customNameResolver != null) {
                 customNameResolvers.add(customNameResolver);
             }

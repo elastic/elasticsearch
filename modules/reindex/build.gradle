@@ -97,6 +97,7 @@ dependencies {
 
 // Issue tracked in https://github.com/elastic/elasticsearch/issues/40904
 if (project.inFipsJvm) {
+  testingConventions.enabled = false
   integTest.enabled = false
 }
 

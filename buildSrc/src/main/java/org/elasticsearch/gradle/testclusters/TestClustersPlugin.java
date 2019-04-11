@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -389,7 +390,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private void shutDownAllClusters() {
         synchronized (runningClusters) {
-            runningClusters.forEach(each -> each.stop(true));
+            Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
+            while (iterator.hasNext()) {
+                iterator.remove();
+                iterator.next().stop(true);
+            }
         }
     }
 

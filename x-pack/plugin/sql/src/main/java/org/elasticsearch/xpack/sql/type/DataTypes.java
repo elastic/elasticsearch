@@ -230,4 +230,15 @@ public final class DataTypes {
         }
         return t.displaySize;
     }
+
+    public static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                    (left.isString() && right.isString()) ||
+                    (left.isNumeric() && right.isNumeric());
+        }
+    }
 }

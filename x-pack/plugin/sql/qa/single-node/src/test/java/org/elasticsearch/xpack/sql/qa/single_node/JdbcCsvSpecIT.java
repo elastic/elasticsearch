@@ -5,10 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
+
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
+
+
+    @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
+    public static List<Object[]> readScriptSpec() throws Exception {
+        List<Object[]> list = new ArrayList<>();
+        list.addAll(CsvSpecTestCase.readScriptSpec());
+        return readScriptSpec("/single-node-only/command-sys.csv-spec", specParser());
+    }
+
     public JdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);
     }

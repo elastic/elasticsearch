@@ -140,16 +140,15 @@ public class SearchActionTests extends ESTestCase {
         assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
 
-    public void testRangeWrongTZ() {
+    public void testRangeDifferentTZ() {
         final GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "UTC"));
         final RollupJobConfig config = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(config);
         Set<RollupJobCaps> caps = new HashSet<>();
         caps.add(cap);
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("CET"), caps));
-        assertThat(e.getMessage(), equalTo("Field [foo] in [range] query was found in rollup indices, but requested timezone is not " +
-            "compatible. Options include: [UTC]"));
+        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("CET"), caps);
+        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
+        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
     }
 
     public void testTermQuery() {

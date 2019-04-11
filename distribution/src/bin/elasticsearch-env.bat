@@ -27,6 +27,7 @@ for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
 set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 set ES_DISTRIBUTION_TYPE=${es.distribution.type}
+set ES_BUNDLED_JDK=${es.bundled_jdk}
 
 cd /d "%ES_HOME%"
 
@@ -64,5 +65,5 @@ rem check the Java version
 %JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 
 if not defined ES_TMPDIR (
-  for /f "tokens=* usebackq" %%a in (`"%JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory""`) do set ES_TMPDIR=%%a
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )

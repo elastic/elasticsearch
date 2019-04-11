@@ -24,7 +24,9 @@ public class DataFrameAnalyticsDestTests extends AbstractSerializingTestCase<Dat
     }
 
     public static DataFrameAnalyticsDest createRandom() {
-        return new DataFrameAnalyticsDest(randomAlphaOfLength(10));
+        String index = randomAlphaOfLength(10);
+        String resultsField = randomBoolean() ? null : randomAlphaOfLength(10);
+        return new DataFrameAnalyticsDest(index, resultsField);
     }
 
     @Override

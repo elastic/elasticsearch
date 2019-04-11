@@ -265,6 +265,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.ANALYSES.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
+            DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
             "outlier_detection",

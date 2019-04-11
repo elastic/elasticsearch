@@ -107,9 +107,8 @@ public final class HttpTransportSettings {
 
     // Tcp socket settings
 
-    // TODO: Deprecate in 7.0
     public static final Setting<Boolean> OLD_SETTING_HTTP_TCP_NO_DELAY =
-        boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
+        boolSetting("http.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<Boolean> SETTING_HTTP_TCP_NO_DELAY =
         boolSetting("http.tcp.no_delay", OLD_SETTING_HTTP_TCP_NO_DELAY, Setting.Property.NodeScope);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =

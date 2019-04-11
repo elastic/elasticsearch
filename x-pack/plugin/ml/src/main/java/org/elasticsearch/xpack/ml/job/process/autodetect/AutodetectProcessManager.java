@@ -434,6 +434,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             return;
                         }
 
+                        processByAllocation.putIfAbsent(jobTask.getAllocationId(), new ProcessContext(jobTask));
                         jobResultsProvider.getAutodetectParams(job, params -> {
                             // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
                             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
@@ -444,8 +445,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
                                 @Override
                                 protected void doRun() {
-                                    ProcessContext processContext = new ProcessContext(jobTask);
-
+                                    ProcessContext processContext = processByAllocation.get(jobTask.getAllocationId());
                                     if (processContext == null) {
                                         logger.debug("Aborted opening job [{}] as it has been closed", jobId);
                                         return;
@@ -460,9 +460,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
                                         createProcessAndSetRunning(processContext, job, params, closeHandler);
                                         processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
                                         setJobState(jobTask, JobState.OPENED);
-
-                                        assert processByAllocation.get(jobTask.getAllocationId()) == null;
-                                        processByAllocation.put(jobTask.getAllocationId(), processContext);
                                     } catch (Exception e1) {
                                         // No need to log here as the persistent task framework will log it
                                         try {

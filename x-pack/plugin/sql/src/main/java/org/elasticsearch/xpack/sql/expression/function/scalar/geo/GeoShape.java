@@ -14,7 +14,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.GeometryCollection;
+import org.elasticsearch.geo.geometry.GeometryVisitor;
+import org.elasticsearch.geo.geometry.Line;
+import org.elasticsearch.geo.geometry.LinearRing;
+import org.elasticsearch.geo.geometry.MultiLine;
+import org.elasticsearch.geo.geometry.MultiPoint;
+import org.elasticsearch.geo.geometry.MultiPolygon;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.geo.geometry.Polygon;
+import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
@@ -61,6 +72,88 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     public Geometry toGeometry() {
         return shapeBuilder.buildGeometry();
+    }
+
+    public Point firstPoint() {
+        return shapeBuilder.buildGeometry().visit(new GeometryVisitor<Point>() {
+            @Override
+            public Point visit(Circle circle) {
+                return new Point(circle.getLat(), circle.getLon(), circle.hasAlt() ? circle.getAlt() : Double.NaN);
+            }
+
+            @Override
+            public Point visit(GeometryCollection<?> collection) {
+                if (collection.size() > 0) {
+                    return collection.get(0).visit(this);
+                }
+                return null;
+            }
+
+            @Override
+            public Point visit(Line line) {
+                if (line.length() > 0) {
+                    return new Point(line.getLat(0), line.getLon(0), line.hasAlt() ? line.getAlt(0) :  Double.NaN);
+                }
+                return null;
+            }
+
+            @Override
+            public Point visit(LinearRing ring) {
+                return visit((Line) ring);
+            }
+
+            @Override
+            public Point visit(MultiLine multiLine) {
+                return visit((GeometryCollection<?>) multiLine);
+            }
+
+            @Override
+            public Point visit(MultiPoint multiPoint) {
+                return visit((GeometryCollection<?>) multiPoint);
+            }
+
+            @Override
+            public Point visit(MultiPolygon multiPolygon) {
+                return visit((GeometryCollection<?>) multiPolygon);
+            }
+
+            @Override
+            public Point visit(Point point) {
+                return point;
+            }
+
+            @Override
+            public Point visit(Polygon polygon) {
+                return visit(polygon.getPolygon());
+            }
+
+            @Override
+            public Point visit(Rectangle rectangle) {
+                return new Point(rectangle.getMinLat(), rectangle.getMinLon(), rectangle.getMinAlt());
+            }
+        });
+    }
+
+    public Double getX() {
+        Point firstPoint = firstPoint();
+        if (firstPoint != null) {
+            return firstPoint.getLon();
+        } else {
+            return null;
+        }
+    }
+
+    public Double getY() {
+        Point firstPoint = firstPoint();
+        if (firstPoint != null) {
+            return firstPoint.getLat();
+        } else {
+            return null;
+        }
+    }
+
+    public String getGeometryType() {
+        return toGeometry().type().name();
     }
 
     public static double distance(GeoShape shape1, GeoShape shape2) {

@@ -28,7 +28,10 @@ public class GeoProcessor implements Processor {
     }
 
     public enum GeoOperation {
-        ASWKT(GeoShape::toString);
+        ASWKT(GeoShape::toString),
+        X(GeoShape::getX),
+        Y(GeoShape::getY),
+        GEOMETRY_TYPE(GeoShape::getGeometryType);
 
         private final Function<Object, Object> apply;
 

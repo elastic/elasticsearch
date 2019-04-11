@@ -56,6 +56,83 @@ Returns the geometry from WKT representation. The return type is geometry.
 include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
 --------------------------------------------------
 
+==== Geometry Properties
+
+[[sql-functions-geo-st-geometrytype]]
+===== `ST_GeometryType`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_GeometryType(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: string
+
+.Description:
+
+Returns the type of the `geometry` such as "Point", "Polygon", "MultiPolygon", etc.
+The return type is string.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[geometrytype]
+--------------------------------------------------
+
+[[sql-functions-geo-x]]
+===== `ST_X`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_X(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the longitude of the first point in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[x]
+--------------------------------------------------
+
+[[sql-functions-geo-y]]
+===== `ST_Y`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_Y(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the the latitude of the first point in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/geo/docs.csv-spec[y]
+--------------------------------------------------
+
 [[sql-functions-geo-st-distance]]
 ===== `ST_Distance`
 

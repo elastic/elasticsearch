@@ -48,7 +48,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYea
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StGeometryType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosql;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StX;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StY;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -258,7 +261,10 @@ public class FunctionRegistry {
         // Geo Functions
         addToMap(def(StAswkt.class, StAswkt::new, "ST_ASWKT", "ST_ASTEXT"),
                 def(StWkttosql.class, StWkttosql::new, "ST_WKTTOSQL", "ST_GEOMFROMTEXT"),
-                def(StDistance.class, StDistance::new, "ST_DISTANCE")
+                def(StDistance.class, StDistance::new, "ST_DISTANCE"),
+                def(StX.class, StX::new, "ST_X"),
+                def(StY.class, StY::new, "ST_Y"),
+                def(StGeometryType.class, StGeometryType::new, "ST_GEOMETRYTYPE")
         );
 
         // Special

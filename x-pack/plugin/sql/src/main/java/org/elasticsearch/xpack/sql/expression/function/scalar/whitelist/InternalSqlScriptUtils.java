@@ -509,6 +509,18 @@ public final class InternalSqlScriptUtils {
         return StDistanceProcessor.process(v1, v2);
     }
 
+    public static String stGeometryType(Object g) {
+        return (String) GeoProcessor.GeoOperation.GEOMETRY_TYPE.apply(g);
+    }
+
+    public static Double stX(Object g) {
+        return (Double) GeoProcessor.GeoOperation.X.apply(g);
+    }
+
+    public static Double stY(Object g) {
+        return (Double) GeoProcessor.GeoOperation.Y.apply(g);
+    }
+
     // processes doc value as a geometry
     public static <T> GeoShape geoDocValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         Object obj = docValue(doc, fieldName);

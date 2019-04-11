@@ -546,7 +546,7 @@ described in the <<search-aggregations-bucket-terms-aggregation,terms aggregatio
 
 To avoid memory issues, the `significant_terms` aggregation always computes child aggregations in `breadth_first` mode.
 A description of the different collection modes can be found in the
-<<search-aggregations-bucket-terms-aggregation-collect, terms aggregation documentation>>.
+<<search-aggregations-bucket-terms-aggregation-collect, terms aggregation>> documentation.
 
 ==== Execution hint
 

@@ -552,10 +552,10 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testSubAggregations() throws Exception {
         indexEqualTestData();
 
-        QueryBuilder query = QueryBuilders.termsQuery("text", "a", "b");
-        AggregationBuilder subAgg = terms("class").field("class");
+        QueryBuilder query = QueryBuilders.termsQuery(TEXT_FIELD, "a", "b");
+        AggregationBuilder subAgg = terms("class").field(CLASS_FIELD);
         AggregationBuilder agg = significantTerms("significant_terms")
-            .field("text")
+            .field(TEXT_FIELD)
             .executionHint(randomExecutionHint())
             .significanceHeuristic(new ChiSquare(true, true))
             .minDocCount(1).shardSize(1000).size(1000)

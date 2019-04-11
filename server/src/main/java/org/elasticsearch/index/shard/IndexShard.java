@@ -1439,7 +1439,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
             + "] but got " + getRetentionLeases();
-        trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
@@ -1458,15 +1457,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    private void trimUnsafeCommits() throws IOException {
-        assert currentEngineReference.get() == null || currentEngineReference.get() instanceof ReadOnlyEngine : "a write engine is running";
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        assertMaxUnsafeAutoIdInCommit();
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
-    }
-
     private boolean assertSequenceNumbersInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
@@ -1474,11 +1464,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
             + userData.get(Engine.HISTORY_UUID_KEY) + "] is different than engine [" + getHistoryUUID() + "]";
-        return true;
-    }
-
-    private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
             "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
@@ -3100,8 +3085,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine newEngine = null;
         try {
             final long globalCheckpoint = getGlobalCheckpoint();
-            trimUnsafeCommits();
             synchronized (mutex) {
+                assert currentEngineReference.get() instanceof ReadOnlyEngine : "another write engine is running";
                 verifyNotClosed();
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());

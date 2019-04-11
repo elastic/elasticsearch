@@ -139,7 +139,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
-        final PlainActionFuture res = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
                 assertNotNull(r);
@@ -228,10 +228,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
         TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, taskId);
-        ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy(primaryTerm);
+        ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
-            TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation =
-            new ReplicationOperation<>(request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, "test");
+            TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(
+                request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, "test", primaryTerm);
         operation.execute();
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -284,7 +284,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
 
                         @Override
                         public void perform(
-                                TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
+                            TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
                             listener.onResponse(new PrimaryResult(request));
                         }
 

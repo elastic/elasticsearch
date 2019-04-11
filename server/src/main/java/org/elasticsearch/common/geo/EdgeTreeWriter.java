@@ -32,13 +32,15 @@ public class EdgeTreeWriter {
      */
     static final int EDGE_SIZE_IN_BYTES = 28;
 
-    int minX = Integer.MAX_VALUE;
-    int minY = Integer.MAX_VALUE;
-    int maxX = Integer.MIN_VALUE;
-    int maxY = Integer.MIN_VALUE;
+    int minX;
+    int minY;
+    int maxX;
+    int maxY;
     final Edge tree;
 
     public EdgeTreeWriter(int[] x, int[] y) {
+        minX = minY = Integer.MAX_VALUE;
+        maxX = maxY = Integer.MIN_VALUE;
         Edge edges[] = new Edge[y.length - 1];
         for (int i = 1; i < y.length; i++) {
             int y1 = y[i-1];

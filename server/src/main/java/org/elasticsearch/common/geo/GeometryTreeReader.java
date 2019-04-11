@@ -33,16 +33,29 @@ public class GeometryTreeReader {
         this.bytesRef = bytesRef;
     }
 
-    public boolean containedInOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
+    public boolean containedInOrCrosses(int minLon, int minLat, int maxLon, int maxLat) throws IOException {
         ByteBufferStreamInput input = new ByteBufferStreamInput(
             ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        int thisMinLon = input.readInt();
+        int thisMinLat = input.readInt();
+        int thisMaxLon = input.readInt();
+        int thisMaxLat = input.readInt();
+
+        if (thisMinLat > maxLat || thisMaxLon < minLon || thisMaxLat < minLat || thisMinLon > maxLon) {
+            return false; // tree and bbox-query are disjoint
+        }
+
+        if (minLon <= thisMinLon && minLat <= thisMinLat && maxLon >= thisMaxLon && maxLat >= thisMaxLat) {
+            return true; // bbox-query fully contains tree's extent.
+        }
+
         int numTrees = input.readVInt();
         for (int i = 0; i < numTrees; i++) {
             ShapeType shapeType = input.readEnum(ShapeType.class);
             if (ShapeType.POLYGON.equals(shapeType)) {
                 BytesRef treeRef = input.readBytesRef();
                 EdgeTreeReader reader = new EdgeTreeReader(treeRef);
-                if (reader.containedInOrCrosses(minX, minY, maxX, maxY)) {
+                if (reader.containedInOrCrosses(minLon, minLat, maxLon, maxLat)) {
                     return true;
                 }
             }

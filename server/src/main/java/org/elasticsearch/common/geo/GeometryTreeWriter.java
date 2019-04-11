@@ -49,6 +49,10 @@ public class GeometryTreeWriter {
 
     public BytesRef toBytesRef() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
+        output.writeInt(builder.minLon);
+        output.writeInt(builder.minLat);
+        output.writeInt(builder.maxLon);
+        output.writeInt(builder.maxLat);
         output.writeVInt(builder.shapeWriters.size());
         for (EdgeTreeWriter writer : builder.shapeWriters) {
             output.writeEnum(ShapeType.POLYGON);
@@ -61,9 +65,23 @@ public class GeometryTreeWriter {
     class GeometryTreeBuilder implements GeometryVisitor<Void> {
 
         private List<EdgeTreeWriter> shapeWriters;
+        int minLat;
+        int maxLat;
+        int minLon;
+        int maxLon;
 
         GeometryTreeBuilder() {
             shapeWriters = new ArrayList<>();
+            minLat = minLon = Integer.MAX_VALUE;
+            maxLat = maxLon = Integer.MIN_VALUE;
+        }
+
+        private void addWriter(EdgeTreeWriter writer) {
+            minLon = Math.min(minLon, writer.minX);
+            minLat = Math.min(minLat, writer.minY);
+            maxLon = Math.max(maxLon, writer.maxX);
+            maxLat = Math.max(maxLat, writer.maxY);
+            shapeWriters.add(writer);
         }
 
         @Override
@@ -92,7 +110,7 @@ public class GeometryTreeWriter {
         public Void visit(Polygon polygon) {
             // TODO (support holes)
             LinearRing outerShell = polygon.getPolygon();
-            shapeWriters.add(new EdgeTreeWriter(asIntArray(outerShell.getLons()), asIntArray(outerShell.getLats())));
+            addWriter(new EdgeTreeWriter(asIntArray(outerShell.getLons()), asIntArray(outerShell.getLats())));
             return null;
         }
 
@@ -110,7 +128,7 @@ public class GeometryTreeWriter {
                 (int) r.getMinLat()};
             int[] lons = new int[] { (int) r.getMinLon(), (int) r.getMaxLon(), (int) r.getMaxLon(), (int) r.getMinLon(),
                 (int) r.getMinLon()};
-            shapeWriters.add(new EdgeTreeWriter(lons, lats));
+            addWriter(new EdgeTreeWriter(lons, lats));
             return null;
         }
 

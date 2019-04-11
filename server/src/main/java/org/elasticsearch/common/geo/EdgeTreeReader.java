@@ -40,11 +40,10 @@ public class EdgeTreeReader {
 
     boolean containsBottomLeft(int minX, int minY, int maxX, int maxY) throws IOException {
         ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-        int[] extent = readExtent(input);
-        int thisMinX = extent[0];
-        int thisMinY = extent[1];
-        int thisMaxX = extent[2];
-        int thisMaxY = extent[3];
+        int thisMinX = input.readInt();
+        int thisMinY = input.readInt();
+        int thisMaxX = input.readInt();
+        int thisMaxY = input.readInt();
 
         if (thisMinY > maxY || thisMaxX < minX || thisMaxY < minY || thisMinX > maxX) {
             return false; // tree and bbox-query are disjoint
@@ -59,11 +58,10 @@ public class EdgeTreeReader {
 
     public boolean crosses(int minX, int minY, int maxX, int maxY) throws IOException {
         ByteBufferStreamInput input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
-        int[] extent = readExtent(input);
-        int thisMinX = extent[0];
-        int thisMinY = extent[1];
-        int thisMaxX = extent[2];
-        int thisMaxY = extent[3];
+        int thisMinX = input.readInt();
+        int thisMinY = input.readInt();
+        int thisMaxX = input.readInt();
+        int thisMaxY = input.readInt();
 
         if (thisMinY > maxY || thisMaxX < minX || thisMaxY < minY || thisMinX > maxX) {
             return false; // tree and bbox-query are disjoint
@@ -74,14 +72,6 @@ public class EdgeTreeReader {
         }
 
         return crosses(input, readRoot(input, input.position()), minX, minY, maxX, maxY);
-    }
-
-    public int[] readExtent(ByteBufferStreamInput input) throws IOException {
-        int minX = input.readInt();
-        int minY = input.readInt();
-        int maxX = input.readInt();
-        int maxY = input.readInt();
-        return new int[] { minX, minY, maxX, maxY };
     }
 
     public Edge readRoot(ByteBufferStreamInput input, int position) throws IOException {

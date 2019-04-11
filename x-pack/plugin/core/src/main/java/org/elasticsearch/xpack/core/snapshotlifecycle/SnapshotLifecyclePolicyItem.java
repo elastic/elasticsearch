@@ -113,7 +113,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(policy.getId());
         builder.field("version", version);
-        builder.field("modified_date", modifiedDate);
+        builder.timeField("modified_date_millis", "modified_date", modifiedDate);
         builder.field("policy", policy);
         if (lastSuccess != null) {
             builder.field("last_success", lastSuccess);

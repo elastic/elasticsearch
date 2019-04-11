@@ -33,12 +33,12 @@ public final class EnrichStore {
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public void putPolicy(String name, EnrichMetadata.Policy policy, Consumer<Exception> handler) {
+    public void putPolicy(String name, EnrichPolicy policy, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
         // TODO: add validation
 
-        final Map<String, EnrichMetadata.Policy> policies;
+        final Map<String, EnrichPolicy> policies;
         final EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
@@ -77,7 +77,7 @@ public final class EnrichStore {
      * @param name  The name of the policy to fetch
      * @return enrich policy if exists or <code>null</code> otherwise
      */
-    public EnrichMetadata.Policy getPolicy(String name) {
+    public EnrichPolicy getPolicy(String name) {
         EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata == null) {
             return null;

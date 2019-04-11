@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.enrich.EnrichMetadata.Policy;
+import org.elasticsearch.xpack.enrich.EnrichPolicy.Type;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
@@ -22,7 +22,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
     public void testCrud() throws Exception {
         EnrichStore enrichStore = new EnrichStore(getInstanceFromNode(ClusterService.class));
 
-        Policy policy = new Policy(Policy.Type.STRING, TimeValue.timeValueHours(1), "source_index", "query_field",
+        EnrichPolicy policy = new EnrichPolicy(Type.STRING, TimeValue.timeValueHours(1), "source_index", "query_field",
             Arrays.asList("field1", "field2"));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -34,7 +34,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         latch.await();
         assertThat(error.get(), nullValue());
 
-        Policy result = enrichStore.getPolicy("my-policy");
+        EnrichPolicy result = enrichStore.getPolicy("my-policy");
         assertThat(result, equalTo(policy));
     }
 

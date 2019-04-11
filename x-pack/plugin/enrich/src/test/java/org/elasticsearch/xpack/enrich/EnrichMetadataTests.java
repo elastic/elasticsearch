@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 
 public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetadata> {
 
@@ -25,15 +25,9 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
     @Override
     protected EnrichMetadata createTestInstance() {
         int numPolicies = randomIntBetween(8, 64);
-        Map<String, EnrichMetadata.Policy> policies = new HashMap<>(numPolicies);
+        Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
-            policies.put(randomAlphaOfLength(8), new EnrichMetadata.Policy(
-                randomFrom(EnrichMetadata.Policy.Type.values()),
-                new TimeValue(randomNonNegativeLong()),
-                randomAlphaOfLength(4),
-                randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
-            ));
+            policies.put(randomAlphaOfLength(8), randomEnrichPolicy());
         }
         return new EnrichMetadata(policies);
     }

@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -304,10 +303,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (checkState(getState()) == false) {
                 return;
             }
-            if (searchResponse.getShardFailures().length != 0) {
-                throw new RuntimeException("Shard failures encountered while running indexer for job [" + getJobId() + "]: "
-                        + Arrays.toString(searchResponse.getShardFailures()));
-            }
+
+            // allowPartialSearchResults is set to false, so we should never see shard failures here
+            assert (searchResponse.getShardFailures().length == 0);
 
             stats.incrementNumPages(1);
             IterationResult<JobPosition> iterationResult = doProcess(searchResponse);

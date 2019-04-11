@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.dataframe.transforms;
+package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -35,7 +35,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * The fields:
  *
  *  timestamp the timestamp when this document has been created
- *  checkpoint the checkpoint number, incremented for every checkpoint
+ *  checkpoint the checkpoint number, incremented for every checkpoint, if -1 this is a non persisted checkpoint
  *  indices a map of the indices from the source including all checkpoints of all indices matching the source pattern, shard level
  *  time_upper_bound for time-based indices this holds the upper time boundary of this checkpoint
  *
@@ -44,20 +44,11 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
 
     public static DataFrameTransformCheckpoint EMPTY = new DataFrameTransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
 
-    // the timestamp of the checkpoint, mandatory
-    public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
-    public static final ParseField TIMESTAMP = new ParseField("timestamp");
-
     // the own checkpoint
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
 
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
-
-    // checkpoint for for time based sync
-    // TODO: consider a lower bound for usecases where you want to transform on a window of a stream
-    public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
-    public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
 
     private static final String NAME = "data_frame_transform_checkpoint";
 
@@ -89,7 +80,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         parser.declareString(constructorArg(), DataFrameField.ID);
 
         // note: this is never parsed from the outside where timestamp can be formatted as date time
-        parser.declareLong(constructorArg(), TIMESTAMP_MILLIS);
+        parser.declareLong(constructorArg(), DataFrameField.TIMESTAMP_MILLIS);
         parser.declareLong(constructorArg(), CHECKPOINT);
 
         parser.declareObject(constructorArg(), (p,c) -> {
@@ -111,7 +102,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             }
             return checkPointsByIndexName;
         }, INDICES);
-        parser.declareLong(optionalConstructorArg(), TIME_UPPER_BOUND_MILLIS);
+        parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
 
         return parser;
@@ -134,28 +125,46 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         this.timeUpperBoundMillis = in.readLong();
     }
 
+    public boolean isEmpty() {
+        return indicesCheckpoints.isEmpty();
+    }
+
+    /**
+     * Whether this checkpoint is a transient (non persisted) checkpoint
+     *
+     * @return true if this is a transient checkpoint, false otherwise
+     */
+    public boolean isTransient() {
+        return checkpoint == -1;
+    }
+
+    /**
+     * Create XContent for the purpose of storing it in the internal index
+     *
+     * Note:
+     * @param builder the {@link XContentBuilder}
+     * @param params builder specific parameters
+     *
+     * @return builder instance
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        // the id, doc_type and checkpoint is only internally used for storage, the user-facing version gets embedded
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(DataFrameField.ID.getPreferredName(), transformId);
-            builder.field(CHECKPOINT.getPreferredName(), checkpoint);
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
-        }
-
-        builder.timeField(TIMESTAMP_MILLIS.getPreferredName(), TIMESTAMP.getPreferredName(), timestampMillis);
-
-        if (timeUpperBoundMillis > 0) {
-            builder.timeField(TIME_UPPER_BOUND_MILLIS.getPreferredName(), TIME_UPPER_BOUND.getPreferredName(), timeUpperBoundMillis);
-        }
-
+        builder.field(DataFrameField.ID.getPreferredName(), transformId);
+        builder.field(CHECKPOINT.getPreferredName(), checkpoint);
+        builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         builder.startObject(INDICES.getPreferredName());
         for (Entry<String, long[]> entry : indicesCheckpoints.entrySet()) {
             builder.array(entry.getKey(), entry.getValue());
         }
         builder.endObject();
+
+        builder.field(DataFrameField.TIMESTAMP_MILLIS.getPreferredName(), timestampMillis);
+
+        if (timeUpperBoundMillis > 0) {
+            builder.field(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), timeUpperBoundMillis);
+        }
 
         builder.endObject();
         return builder;
@@ -247,6 +256,53 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         }
 
         return NAME + "-" + transformId + "-" + checkpoint;
+    }
+
+    /**
+     * Calculate the diff of 2 checkpoints
+     *
+     * This is to get an indicator for the difference between checkpoints.
+     *
+     * Note: order is important
+     *
+     * @param oldCheckpoint the older checkpoint, if transient, newer must be transient, too
+     * @param newCheckpoint the newer checkpoint, can be a transient checkpoint
+     *
+     * @return count number of operations the checkpoint is behind or -1L if it could not calculate the difference
+     */
+    public static long getBehind(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+        if (oldCheckpoint.isTransient()) {
+            if (newCheckpoint.isTransient() == false) {
+                throw new IllegalArgumentException("can not compare transient against a non transient checkpoint");
+            } // else: both are transient
+        } else if (newCheckpoint.isTransient() == false && oldCheckpoint.getCheckpoint() > newCheckpoint.getCheckpoint()) {
+            throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
+        }
+
+        // all old indices must be contained in the new ones but not vice versa
+        if (newCheckpoint.indicesCheckpoints.keySet().containsAll(oldCheckpoint.indicesCheckpoints.keySet()) == false) {
+            return -1L;
+        }
+
+        // get the sum of of shard checkpoints
+        // note: we require shard checkpoints to strictly increase and never decrease
+        long oldCheckPointSum = 0;
+        long newCheckPointSum = 0;
+
+        for (long[] v : oldCheckpoint.indicesCheckpoints.values()) {
+            oldCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        for (long[] v : newCheckpoint.indicesCheckpoints.values()) {
+            newCheckPointSum += Arrays.stream(v).sum();
+        }
+
+        // this should not be possible
+        if (newCheckPointSum < oldCheckPointSum) {
+            return -1L;
+        }
+
+        return newCheckPointSum - oldCheckPointSum;
     }
 
     private static Map<String, long[]> readCheckpoints(Map<String, Object> readMap) {

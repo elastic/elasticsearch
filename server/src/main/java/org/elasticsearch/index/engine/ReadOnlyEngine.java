@@ -30,7 +30,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -102,23 +101,8 @@ public class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
-                    seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
-                    // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
-                    // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
-                    // checkpoint is different from the unassigned sequence number value.
-                    // In addition to that we only execute the check if the index the engine belongs to has been
-                    // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
-                    // that guarantee that all operations have been flushed to Lucene.
-                    final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-                    final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-                    if (indexVersionCreated.onOrAfter(Version.V_8_0_0) ||
-                        (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
-                        if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
-                            assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), globalCheckpoint);
-                            throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
-                                + "] from last commit does not match global checkpoint [" + globalCheckpoint + "]");
-                        }
-                    }
+                    seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
+                    ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
@@ -138,10 +122,27 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
-        if (Assertions.ENABLED) {
-            assert false : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
+    protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
+        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+        // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
+        // checkpoint is different from the unassigned sequence number value.
+        // In addition to that we only execute the check if the index the engine belongs to has been
+        // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
+        // that guarantee that all operations have been flushed to Lucene.
+        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_8_0_0) ||
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
+            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
+                throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
+                    + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+            }
         }
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getMaxSeqNo());
+    }
+
+    protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+        assert maxSeqNo == globalCheckpoint : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
+        return true;
     }
 
     @Override
@@ -198,12 +199,12 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    public static SeqNoStats buildSeqNoStats(SegmentInfos infos) {
+    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
         final SequenceNumbers.CommitInfo seqNoStats =
             SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
         long maxSeqNo = seqNoStats.maxSeqNo;
         long localCheckpoint = seqNoStats.localCheckpoint;
-        return new SeqNoStats(maxSeqNo, localCheckpoint, localCheckpoint);
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
     @Override

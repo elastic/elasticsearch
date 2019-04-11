@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
+import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetadata> {
 
@@ -24,10 +26,20 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
 
     @Override
     protected EnrichMetadata createTestInstance() {
+        return randomEnrichMetadata(randomFrom(XContentType.values()));
+    }
+
+    @Override
+    protected EnrichMetadata createXContextTestInstance(XContentType xContentType) {
+        return randomEnrichMetadata(xContentType);
+    }
+
+    private static EnrichMetadata randomEnrichMetadata(XContentType xContentType) {
         int numPolicies = randomIntBetween(8, 64);
         Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
-            policies.put(randomAlphaOfLength(8), randomEnrichPolicy());
+            EnrichPolicy policy = randomEnrichPolicy(xContentType);
+            policies.put(randomAlphaOfLength(8), policy);
         }
         return new EnrichMetadata(policies);
     }
@@ -35,5 +47,16 @@ public class EnrichMetadataTests extends AbstractSerializingTestCase<EnrichMetad
     @Override
     protected Writeable.Reader<EnrichMetadata> instanceReader() {
         return EnrichMetadata::new;
+    }
+
+    @Override
+    protected void assertEqualInstances(EnrichMetadata expectedInstance, EnrichMetadata newInstance) {
+        assertNotSame(expectedInstance, newInstance);
+        assertThat(newInstance.getPolicies().size(), equalTo(expectedInstance.getPolicies().size()));
+        for (Map.Entry<String, EnrichPolicy> entry : newInstance.getPolicies().entrySet()) {
+            EnrichPolicy actual = entry.getValue();
+            EnrichPolicy expected = expectedInstance.getPolicies().get(entry.getKey());
+            EnrichPolicyTests.assertEqualPolicies(expected, actual);
+        }
     }
 }

@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.enrich.EnrichPolicy.Type;
 
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -21,9 +20,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
     public void testCrud() throws Exception {
         EnrichStore enrichStore = new EnrichStore(getInstanceFromNode(ClusterService.class));
-
-        EnrichPolicy policy = new EnrichPolicy(Type.STRING, TimeValue.timeValueHours(1), "source_index", "query_field",
-            Arrays.asList("field1", "field2"));
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();

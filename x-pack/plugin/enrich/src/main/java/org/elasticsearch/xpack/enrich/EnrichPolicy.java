@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,10 +16,13 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -26,88 +31,116 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     static final ParseField TYPE = new ParseField("type");
-    static final ParseField UPDATE_INTERVAL = new ParseField("update_interval");
-    static final ParseField SOURCE_INDEX = new ParseField("source_index");
-    static final ParseField QUERY_FIELD = new ParseField("query_field");
-    static final ParseField DECORATE_FIELDS = new ParseField("decorate_fields");
+    static final ParseField QUERY = new ParseField("query");
+    static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
+    static final ParseField ENRICH_KEY = new ParseField("enrich_key");
+    static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
+    static final ParseField SCHEDULE = new ParseField("schedule");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>(
-        "policy",
+    static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
         args -> {
-            return new EnrichPolicy(Type.read((String) args[0]), (TimeValue) args[1], (String) args[2], (String) args[3],
-                (List<String>) args[4]);
+            return new EnrichPolicy(
+                Type.read((String) args[0]),
+                (QuerySource) args[1],
+                (String) args[2],
+                (String) args[3],
+                (List<String>) args[4],
+                (TimeValue) args[5]
+            );
         }
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
+            contentBuilder.generator().copyCurrentStructure(p);
+            return new QuerySource(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
+        }, QUERY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
+        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), UPDATE_INTERVAL.getPreferredName()),
-            UPDATE_INTERVAL, ObjectParser.ValueType.STRING);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SOURCE_INDEX);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DECORATE_FIELDS);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), SCHEDULE.getPreferredName()),
+            SCHEDULE, ObjectParser.ValueType.STRING);
     }
 
     private final Type type;
-    private final TimeValue updateInterval;
-    private final String sourceIndex;
-    private final String queryField;
-    private final List<String> decorateFields;
+    private final QuerySource query;
+    private final String indexPattern;
+    private final String enrichKey;
+    private final List<String> enrichValues;
+    private final TimeValue schedule;
 
     public EnrichPolicy(StreamInput in) throws IOException {
-        this(Type.read(in.readString()), in.readTimeValue(), in.readString(), in.readString(), in.readStringList());
+        this(
+            Type.read(in.readString()),
+            new QuerySource(in.readBytesReference(), in.readEnum(XContentType.class)),
+            in.readString(),
+            in.readString(),
+            in.readStringList(),
+            in.readTimeValue()
+        );
     }
 
     public EnrichPolicy(Type type,
-                        TimeValue updateInterval,
-                        String sourceIndex,
-                        String queryField,
-                        List<String> decorateFields) {
+                        QuerySource query,
+                        String indexPattern,
+                        String enrichKey,
+                        List<String> enrichValues,
+                        TimeValue schedule) {
         this.type = type;
-        this.updateInterval = updateInterval;
-        this.sourceIndex = sourceIndex;
-        this.queryField = queryField;
-        this.decorateFields = decorateFields;
+        this.query= query;
+        this.schedule = schedule;
+        this.indexPattern = indexPattern;
+        this.enrichKey = enrichKey;
+        this.enrichValues = enrichValues;
     }
 
     public Type getType() {
         return type;
     }
 
-    public TimeValue getUpdateInterval() {
-        return updateInterval;
+    public QuerySource getQuery() {
+        return query;
     }
 
-    public String getSourceIndex() {
-        return sourceIndex;
+    public String getIndexPattern() {
+        return indexPattern;
     }
 
-    public String getQueryField() {
-        return queryField;
+    public String getEnrichKey() {
+        return enrichKey;
     }
 
-    public List<String> getDecorateFields() {
-        return decorateFields;
+    public List<String> getEnrichValues() {
+        return enrichValues;
+    }
+
+    public TimeValue getSchedule() {
+        return schedule;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type.toString());
-        out.writeTimeValue(updateInterval);
-        out.writeString(sourceIndex);
-        out.writeString(queryField);
-        out.writeStringCollection(decorateFields);
+        out.writeBytesReference(query.query);
+        out.writeEnum(query.contentType);
+        out.writeString(indexPattern);
+        out.writeString(enrichKey);
+        out.writeStringCollection(enrichValues);
+        out.writeTimeValue(schedule);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TYPE.getPreferredName(), type.toString());
-        builder.field(UPDATE_INTERVAL.getPreferredName(), updateInterval.getStringRep());
-        builder.field(SOURCE_INDEX.getPreferredName(), sourceIndex);
-        builder.field(QUERY_FIELD.getPreferredName(), queryField);
-        builder.array(DECORATE_FIELDS.getPreferredName(), decorateFields.toArray(new String[0]));
+        builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
+        builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
+        builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
+        builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
+        builder.field(SCHEDULE.getPreferredName(), schedule.getStringRep());
         return builder;
     }
 
@@ -122,33 +155,82 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         EnrichPolicy policy = (EnrichPolicy) o;
         return type == policy.type &&
-            updateInterval.equals(policy.updateInterval) &&
-            sourceIndex.equals(policy.sourceIndex) &&
-            queryField.equals(policy.queryField) &&
-            decorateFields.equals(policy.decorateFields);
+            query.equals(policy.query) &&
+            indexPattern.equals(policy.indexPattern) &&
+            enrichKey.equals(policy.enrichKey) &&
+            enrichValues.equals(policy.enrichValues) &&
+            schedule.equals(policy.schedule);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, updateInterval, sourceIndex, queryField, decorateFields);
+        return Objects.hash(
+            type,
+            query,
+            indexPattern,
+            enrichKey,
+            enrichValues,
+            schedule
+        );
+    }
+
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public enum Type {
 
-        STRING;
+        EXACT_MATCH;
 
-        public static Type read(String in) {
-            switch (in) {
-                case "string":
-                    return STRING;
+        public static Type read(String value) {
+            switch (value) {
+                case "exact_match":
+                    return EXACT_MATCH;
                 default:
-                    throw new IllegalArgumentException("unknown value [" + in + "]");
+                    throw new IllegalArgumentException("unknown value [" + value + "]");
             }
         }
 
         @Override
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static class QuerySource {
+
+        private final BytesReference query;
+        private final XContentType contentType;
+
+        public QuerySource(BytesReference query, XContentType contentType) {
+            this.query = query;
+            this.contentType = contentType;
+        }
+
+        public BytesReference getQuery() {
+            return query;
+        }
+
+        public Map<String, Object> getQueryAsMap() {
+            return XContentHelper.convertToMap(query, true, contentType).v2();
+        }
+
+        public XContentType getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            QuerySource that = (QuerySource) o;
+            return query.equals(that.query) &&
+                contentType == that.contentType;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(query, contentType);
         }
     }
 }

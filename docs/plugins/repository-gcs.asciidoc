@@ -152,7 +152,7 @@ Some settings are sensitive and must be stored in the
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add-file gcs.client.default.credentials_file
+bin/elasticsearch-keystore add-file gcs.client.default.credentials_file /path/service-account.json
 ----
 
 The following are the available client settings. Those that must be stored in the keystore

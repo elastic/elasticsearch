@@ -34,6 +34,9 @@ public class EdgeTreeReader {
         this.bytesRef = bytesRef;
     }
 
+    /**
+     * Returns true if the rectangle query and the edge tree's shape overlap
+     */
     public boolean containedInOrCrosses(int minX, int minY, int maxX, int maxY) throws IOException {
         return this.containsBottomLeft(minX, minY, maxX, maxY) || this.crosses(minX, minY, maxX, maxY);
     }
@@ -99,6 +102,10 @@ public class EdgeTreeReader {
         return readEdge(input, root.streamOffset + root.rightOffset);
     }
 
+    /**
+     * Returns true if the bottom-left point of the rectangle query is contained within the
+     * tree's edges.
+     */
     private boolean containsBottomLeft(ByteBufferStreamInput input, Edge root, int minX, int minY, int maxX, int maxY) throws IOException {
         boolean res = false;
         if (root.maxY >= minY) {
@@ -120,7 +127,9 @@ public class EdgeTreeReader {
         return res;
     }
 
-    /** Returns true if the box crosses any edge in this edge subtree */
+    /**
+     * Returns true if the box crosses any edge in this edge subtree
+     * */
     private boolean crosses(ByteBufferStreamInput input, Edge root, int minX, int minY, int maxX, int maxY) throws IOException {
         boolean res = false;
         // we just have to cross one edge to answer the question, so we descend the tree and return when we do.
@@ -160,6 +169,18 @@ public class EdgeTreeReader {
         int maxY;
         int rightOffset;
 
+        /**
+         * Object representing an edge node read from bytes
+         *
+         * @param streamOffset offset in byte-reference where edge terminates
+         * @param x1 x-coordinate of first point in segment
+         * @param y1 y-coordinate of first point in segment
+         * @param x2 x-coordinate of second point in segment
+         * @param y2 y-coordinate of second point in segment
+         * @param minY minimum y-coordinate in this edge-node's tree
+         * @param maxY maximum y-coordinate in this edge-node's tree
+         * @param rightOffset the start offset in the byte-reference of the right edge-node
+         */
         Edge(int streamOffset, int x1, int y1, int x2, int y2, int minY, int maxY, int rightOffset) {
             this.streamOffset = streamOffset;
             this.x1 = x1;

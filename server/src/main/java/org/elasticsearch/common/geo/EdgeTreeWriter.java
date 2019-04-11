@@ -25,6 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * Shape edge-tree writer for use in doc-values
+ */
 public class EdgeTreeWriter {
 
     /**
@@ -67,10 +70,12 @@ public class EdgeTreeWriter {
 
     public BytesRef toBytesRef() throws IOException {
         BytesStreamOutput output = new BytesStreamOutput(4 * 4 + EDGE_SIZE_IN_BYTES * tree.size);
+        // write extent of edges
         output.writeInt(minX);
         output.writeInt(minY);
         output.writeInt(maxX);
         output.writeInt(maxY);
+        // write edge-tree itself
         writeTree(tree, output);
         output.close();
         return output.bytes().toBytesRef();
@@ -122,6 +127,9 @@ public class EdgeTreeWriter {
         return newNode;
     }
 
+    /**
+     * Object representing an in-memory edge-tree to be serialized
+     */
     static class Edge implements Comparable<Edge> {
         final int x1;
         final int y1;

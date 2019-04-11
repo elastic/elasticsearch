@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -190,8 +191,8 @@ public abstract class TransportReplicationAction<
      * @param shardRequest the request to the primary shard
      * @param primary      the primary shard to perform the operation on
      */
-    protected abstract PrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request shardRequest, IndexShard primary) throws Exception;
+    protected abstract void shardOperationOnPrimary(Request shardRequest, IndexShard primary,
+        ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
@@ -357,56 +358,52 @@ public abstract class TransportReplicationAction<
                         });
                 } else {
                     setPhase(replicationTask, "primary");
-                    final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(primaryRequest.getRequest(),
-                            ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
-                            primaryShardReference)
-                            .execute();
+                        ActionListener.wrap(result -> result.respond(
+                            new ActionListener<Response>() {
+                                @Override
+                                public void onResponse(Response response) {
+                                    if (syncGlobalCheckpointAfterOperation) {
+                                        final IndexShard shard = primaryShardReference.indexShard;
+                                        try {
+                                            shard.maybeSyncGlobalCheckpoint("post-operation");
+                                        } catch (final Exception e) {
+                                            // only log non-closed exceptions
+                                            if (ExceptionsHelper.unwrap(
+                                                e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
+                                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
+                                                logger.info(
+                                                    new ParameterizedMessage(
+                                                        "{} failed to execute post-operation global checkpoint sync", shard.shardId()), e);
+                                            }
+                                        }
+                                    }
+                                    primaryShardReference.close(); // release shard operation lock before responding to caller
+                                    setPhase(replicationTask, "finished");
+                                    onCompletionListener.onResponse(response);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    handleException(primaryShardReference, e);
+                                }
+                            }), e -> handleException(primaryShardReference, e)
+                        ), primaryShardReference).execute();
                 }
             } catch (Exception e) {
-                Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
-                onFailure(e);
+                handleException(primaryShardReference, e);
             }
+        }
+
+        private void handleException(PrimaryShardReference primaryShardReference, Exception e) {
+            Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
+            onFailure(e);
         }
 
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
             onCompletionListener.onFailure(e);
-        }
-
-        private ActionListener<Response> createResponseListener(final PrimaryShardReference primaryShardReference) {
-            return new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    if (syncGlobalCheckpointAfterOperation) {
-                        final IndexShard shard = primaryShardReference.indexShard;
-                        try {
-                            shard.maybeSyncGlobalCheckpoint("post-operation");
-                        } catch (final Exception e) {
-                            // only log non-closed exceptions
-                            if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                logger.info(
-                                        new ParameterizedMessage(
-                                                "{} failed to execute post-operation global checkpoint sync",
-                                                shard.shardId()),
-                                        e);
-                                // intentionally swallow, a missed global checkpoint sync should not fail this operation
-                            }
-                        }
-                    }
-                    primaryShardReference.close(); // release shard operation lock before responding to caller
-                    setPhase(replicationTask, "finished");
-                    onCompletionListener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    primaryShardReference.close(); // release shard operation lock before responding to caller
-                    setPhase(replicationTask, "finished");
-                    onCompletionListener.onFailure(e);
-                }
-            };
         }
 
         protected ReplicationOperation<Request, ReplicaRequest, PrimaryResult<ReplicaRequest, Response>> createReplicatedOperation(
@@ -417,7 +414,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+    public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             Response extends ReplicationResponse>
             implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
         final ReplicaRequest replicaRequest;
@@ -916,11 +913,15 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public PrimaryResult<ReplicaRequest, Response> perform(Request request) throws Exception {
-            PrimaryResult<ReplicaRequest, Response> result = shardOperationOnPrimary(request, indexShard);
-            assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
-                + "] with a primary failure [" + result.finalFailure + "]";
-            return result;
+        public void perform(Request request, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+            if (Assertions.ENABLED) {
+                listener = ActionListener.map(listener, result -> {
+                    assert result.replicaRequest() == null || result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                        + "] with a primary failure [" + result.finalFailure + "]";
+                    return result;
+                });
+            }
+            shardOperationOnPrimary(request, indexShard, listener);
         }
 
         @Override

@@ -287,7 +287,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public boolean shouldDefer(Aggregator aggregator) {
+    protected boolean shouldDefer(Aggregator aggregator) {
         return collectMode == SubAggCollectionMode.BREADTH_FIRST
                 && !aggsUsedForSorting.contains(aggregator);
     }

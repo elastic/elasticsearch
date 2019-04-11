@@ -83,7 +83,7 @@ The return type is string.
 include-tagged::{sql-specs}/geo/docs.csv-spec[geometrytype]
 --------------------------------------------------
 
-[[sql-functions-geo-x]]
+[[sql-functions-geo-st-x]]
 ===== `ST_X`
 
 .Synopsis:
@@ -108,7 +108,7 @@ The return type is double.
 include-tagged::{sql-specs}/geo/docs.csv-spec[x]
 --------------------------------------------------
 
-[[sql-functions-geo-y]]
+[[sql-functions-geo-st-y]]
 ===== `ST_Y`
 
 .Synopsis:

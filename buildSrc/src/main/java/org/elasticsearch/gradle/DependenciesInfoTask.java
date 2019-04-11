@@ -30,6 +30,9 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -107,6 +110,52 @@ public class DependenciesInfoTask extends DefaultTask {
 
     public void setOutputFile(File outputFile) {
         this.outputFile = outputFile;
+    }
+    
+    /**
+     * Read the LICENSE file associated with the dependency and determine a license type.
+     *
+     * The license type is one of the following values:
+     * <u>
+     *     <li><em>UNKNOWN</em> if LICENSE file is not present for this dependency.</li>
+     *     <li><em>one SPDX identifier</em> if the LICENSE content matches with an SPDX license.</li>
+     *     <li><em>Custom;URL</em> if it's not an SPDX license,
+     *          URL is the Github URL to the LICENSE file in elasticsearch repository.</li>
+     * </ul>
+     *
+     * @param group dependency group
+     * @param name dependency name
+     * @return SPDX identifier, UNKNOWN or a Custom license
+     */
+    protected String getLicenseType(final String group, final String name) throws IOException {
+        File license;
+
+        if (licensesDir.exists()) {
+            File[] matchedfiles = licensesDir.listFiles((dir, name) -> name.contains("-LICENSE"));
+            for(File file : matchedfiles) {
+                String prefix = file.getName().split("-LICENSE.*")[0];
+                if (group.contains(prefix) || name.contains(prefix)) {
+                    license = file.getAbsoluteFile();
+                }
+            }
+        }
+
+        if (license != null) {
+            // replace * because they are sometimes used at the beginning lines as if the license was a multi-line comment
+            final String content = new String(Files.readAllBytes(outfile.toPath()), StandardCharsets.UTF_8);
+            content.replaceAll("\\s+", " ").replaceAll("\\*", " ");
+            final String spdx = checkSPDXLicense(content);
+            if (spdx ==  null) {
+                // License has not be identified as SPDX.
+                // As we have the license file, we create a Custom entry with the URL to this license file.
+                final String gitBranch = System.getProperty("build.branch", "master");
+                final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/" + gitBranch + "/";
+                return "Custom;" + license.getCanonicalPath().replaceFirst(".*/elasticsearch/", githubBaseURL);
+            }
+            return spdx;
+        } else {
+            return "UNKNOWN";
+        }
     }
     
     /**

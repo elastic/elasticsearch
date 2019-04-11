@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -61,7 +60,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
-                new TimeValue(randomNonNegativeLong())
+                randomAlphaOfLength(4)
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

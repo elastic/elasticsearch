@@ -11,9 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,7 +44,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
                 (String) args[2],
                 (String) args[3],
                 (List<String>) args[4],
-                (TimeValue) args[5]
+                (String) args[5]
             );
         }
     );
@@ -61,9 +59,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), SCHEDULE.getPreferredName()),
-            SCHEDULE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
     }
 
     private final Type type;
@@ -71,7 +67,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
     private final String indexPattern;
     private final String enrichKey;
     private final List<String> enrichValues;
-    private final TimeValue schedule;
+    private final String schedule;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -80,7 +76,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
             in.readString(),
             in.readString(),
             in.readStringList(),
-            in.readTimeValue()
+            in.readString()
         );
     }
 
@@ -89,7 +85,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
                         String indexPattern,
                         String enrichKey,
                         List<String> enrichValues,
-                        TimeValue schedule) {
+                        String schedule) {
         this.type = type;
         this.query= query;
         this.schedule = schedule;
@@ -118,7 +114,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         return enrichValues;
     }
 
-    public TimeValue getSchedule() {
+    public String getSchedule() {
         return schedule;
     }
 
@@ -130,7 +126,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         out.writeString(indexPattern);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
-        out.writeTimeValue(schedule);
+        out.writeString(schedule);
     }
 
     @Override
@@ -140,7 +136,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
-        builder.field(SCHEDULE.getPreferredName(), schedule.getStringRep());
+        builder.field(SCHEDULE.getPreferredName(), schedule);
         return builder;
     }
 

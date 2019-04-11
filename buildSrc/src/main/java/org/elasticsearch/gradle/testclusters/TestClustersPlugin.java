@@ -212,9 +212,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                 listOfClusters.forEach(elasticsearchCluster -> {
                     if (forExecution.contains(task.getPath())) {
                         elasticsearchCluster.freeze();
-                        claimsInventory.compute(elasticsearchCluster, (key, value) -> value == null ? 1 :  value++);
+                        claimsInventory.put(elasticsearchCluster, claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1);
                     }
                 }));
+
+            logger.info("Claims inventory: {}", claimsInventory);
         });
     }
 
@@ -254,7 +256,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         clustersUsedByTask.forEach(each -> each.stop(true));
                     } else {
                         clustersUsedByTask.forEach(
-                            each -> claimsInventory.compute(each, (key, value) -> value--)
+                            each -> claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) - 1)
                         );
                         claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)

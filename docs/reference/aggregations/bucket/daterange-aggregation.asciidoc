@@ -133,7 +133,7 @@ to round to the beginning of the day in the CET time zone, you can do the follow
                    "time_zone": "CET",
                    "ranges": [
                       { "to": "2016-02-15/d" }, <1>
-                      { "from": "2016-02-15/d", "to" : "now/d" <2>},
+                      { "from": "2016-02-15/d", "to" : "now/d" }, <2>
                       { "from": "now/d" },
                   ]
               }

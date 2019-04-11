@@ -48,6 +48,8 @@ public class DataFrameTransformCheckpointStatsTests extends ESTestCase {
         builder.startObject();
         builder.field("timestamp_millis", stats.getTimestampMillis());
         builder.field("time_upper_bound_millis", stats.getTimeUpperBoundMillis());
+        builder.field("total_docs", stats.getTotalDocs());
+        builder.field("completed_docs", stats.getCompletedDocs());
         builder.endObject();
     }
 

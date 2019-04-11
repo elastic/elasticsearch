@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -178,6 +179,15 @@ public class BinaryRangeUtilTests extends ESTestCase {
         // TODO: Apply randomized testing here
         RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.FLOAT, -10.0F, 42.3F, true, true);
         List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(BinaryRangeUtil.encodeFloatRanges(singleton(expected)));
+        assertEquals(1, decoded.size());
+        RangeFieldMapper.Range actual = decoded.get(0);
+        assertEquals(expected, actual);
+    }
+
+    public void testDecodeIPRanges() throws IOException {
+        RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeFieldMapper.RangeType.IP, InetAddresses.forString("192.168.0.1"),
+            InetAddresses.forString("192.168.0.100"), true,  true);
+        List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeIPRanges(BinaryRangeUtil.encodeIPRanges(singleton(expected)));
         assertEquals(1, decoded.size());
         RangeFieldMapper.Range actual = decoded.get(0);
         assertEquals(expected, actual);

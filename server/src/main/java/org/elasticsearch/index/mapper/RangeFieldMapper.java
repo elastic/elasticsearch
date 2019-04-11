@@ -37,7 +37,6 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -484,19 +483,7 @@ public class RangeFieldMapper extends FieldMapper {
 
             @Override
             public BytesRef encodeRanges(Set<Range> ranges) throws IOException {
-                final byte[] encoded = new byte[5 + (16 * 2) * ranges.size()];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
-                out.writeVInt(ranges.size());
-                for (Range range : ranges) {
-                    InetAddress fromValue = (InetAddress) range.from;
-                    byte[] encodedFromValue = InetAddressPoint.encode(fromValue);
-                    out.writeBytes(encodedFromValue, 0, encodedFromValue.length);
-
-                    InetAddress toValue = (InetAddress) range.to;
-                    byte[] encodedToValue = InetAddressPoint.encode(toValue);
-                    out.writeBytes(encodedToValue, 0, encodedToValue.length);
-                }
-                return new BytesRef(encoded, 0, out.getPosition());
+                return BinaryRangeUtil.encodeIPRanges(ranges);
             }
 
             @Override

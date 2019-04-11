@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -27,7 +28,9 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.TriFunction;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +38,32 @@ import java.util.Set;
 enum BinaryRangeUtil {
 
     ;
+
+    static BytesRef encodeIPRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
+        final byte[] encoded = new byte[5 + (16 * 2) * ranges.size()];
+        ByteArrayDataOutput out = new ByteArrayDataOutput(encoded);
+        out.writeVInt(ranges.size());
+        for (RangeFieldMapper.Range range : ranges) {
+            InetAddress fromValue = (InetAddress) range.from;
+            byte[] encodedFromValue = InetAddressPoint.encode(fromValue);
+            out.writeBytes(encodedFromValue, 0, encodedFromValue.length);
+
+            InetAddress toValue = (InetAddress) range.to;
+            byte[] encodedToValue = InetAddressPoint.encode(toValue);
+            out.writeBytes(encodedToValue, 0, encodedToValue.length);
+        }
+        return new BytesRef(encoded, 0, out.getPosition());
+    }
+
+    static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
+        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.IP, BinaryRangeUtil::decodeIP);
+    }
+
+    static private InetAddress decodeIP(byte[] bytes, int offset, int length) {
+        // offset + length because copyOfRange wants a from and a to, not an offset & length
+        byte[] slice = Arrays.copyOfRange(bytes, offset, offset + length);
+        return InetAddressPoint.decode(slice);
+    }
 
     static BytesRef encodeLongRanges(Set<RangeFieldMapper.Range> ranges) throws IOException {
         List<RangeFieldMapper.Range> sortedRanges = new ArrayList<>(ranges);

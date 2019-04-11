@@ -26,7 +26,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -515,11 +514,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         ActionListener.wrap(
                                 checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
-                                    if (Assertions.ENABLED) {
-                                        if (e instanceof MapperException == false) {
-                                            throw new AssertionError("unexpected failure while replicating translog entry", e);
-                                        }
-                                    }
                                     if (mappingVersionOnTarget < request.mappingVersion() && e instanceof MapperException) {
                                         retryOnMappingException.accept(e);
                                     } else {

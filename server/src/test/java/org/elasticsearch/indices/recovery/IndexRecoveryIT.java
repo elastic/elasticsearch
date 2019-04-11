@@ -906,6 +906,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
         ensureGreen("test");
+        client().admin().indices().prepareRefresh("test").get();
         assertHitCount(client().prepareSearch().get(), numDocs);
     }
 

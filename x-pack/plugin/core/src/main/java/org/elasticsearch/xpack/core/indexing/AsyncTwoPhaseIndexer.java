@@ -372,8 +372,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void nextSearch(ActionListener<SearchResponse> listener) {
         stats.markStartSearch();
         // ensure that partial results are not accepted and cause a search failure
-        SearchRequest searchRequest =  buildSearchRequest().allowPartialSearchResults(false);
-        doNextSearch(searchRequest,listener);
+        SearchRequest searchRequest = buildSearchRequest().allowPartialSearchResults(false);
+        doNextSearch(searchRequest, listener);
     }
 
     /**

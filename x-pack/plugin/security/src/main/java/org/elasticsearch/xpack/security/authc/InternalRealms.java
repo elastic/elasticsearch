@@ -72,6 +72,10 @@ public final class InternalRealms {
         return ReservedRealm.TYPE.equals(type);
     }
 
+    public static Collection<String> getConfigurableRealmsTypes() {
+        return Collections.unmodifiableSet(XPACK_TYPES);
+    }
+
     /**
      * Determines whether <code>type</code> is an internal realm-type that is provided by x-pack,
      * excluding the {@link ReservedRealm} and realms that have extensive interaction with

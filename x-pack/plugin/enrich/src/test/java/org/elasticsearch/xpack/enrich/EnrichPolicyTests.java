@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy> {
 
@@ -56,7 +57,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             EnrichPolicy.QuerySource querySource = new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
             return new EnrichPolicy(
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
-                querySource,
+                randomBoolean() ? querySource : null,
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
@@ -81,8 +82,12 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
 
     static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
         assertThat(newInstance.getType(), equalTo(expectedInstance.getType()));
-        // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:
-        assertThat(newInstance.getQuery().getQueryAsMap(), equalTo(expectedInstance.getQuery().getQueryAsMap()));
+        if (newInstance.getQuery() != null) {
+            // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:
+            assertThat(newInstance.getQuery().getQueryAsMap(), equalTo(expectedInstance.getQuery().getQueryAsMap()));
+        } else {
+            assertThat(expectedInstance.getQuery(), nullValue());
+        }
         assertThat(newInstance.getIndexPattern(), equalTo(expectedInstance.getIndexPattern()));
         assertThat(newInstance.getEnrichKey(), equalTo(expectedInstance.getEnrichKey()));
         assertThat(newInstance.getEnrichValues(), equalTo(expectedInstance.getEnrichValues()));

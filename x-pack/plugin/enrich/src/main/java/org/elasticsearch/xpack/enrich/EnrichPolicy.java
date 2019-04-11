@@ -53,7 +53,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
             contentBuilder.generator().copyCurrentStructure(p);
             return new QuerySource(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
@@ -74,7 +74,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
             in.readString(),
-            new QuerySource(in.readBytesReference(), in.readEnum(XContentType.class)),
+            in.readOptionalWriteable(QuerySource::new),
             in.readString(),
             in.readString(),
             in.readStringList(),
@@ -122,9 +122,8 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type.toString());
-        out.writeBytesReference(query.query);
-        out.writeEnum(query.contentType);
+        out.writeString(type);
+        out.writeOptionalWriteable(query);
         out.writeString(indexPattern);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
@@ -134,7 +133,9 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TYPE.getPreferredName(), type);
-        builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
+        if (query != null) {
+            builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
+        }
         builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
@@ -153,7 +154,7 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         EnrichPolicy policy = (EnrichPolicy) o;
         return type.equals(policy.type) &&
-            query.equals(policy.query) &&
+            Objects.equals(query, policy.query) &&
             indexPattern.equals(policy.indexPattern) &&
             enrichKey.equals(policy.enrichKey) &&
             enrichValues.equals(policy.enrichValues) &&
@@ -176,10 +177,14 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public static class QuerySource {
+    public static class QuerySource implements Writeable {
 
         private final BytesReference query;
         private final XContentType contentType;
+
+        QuerySource(StreamInput in) throws IOException {
+            this(in.readBytesReference(), in.readEnum(XContentType.class));
+        }
 
         public QuerySource(BytesReference query, XContentType contentType) {
             this.query = query;
@@ -196,6 +201,12 @@ public final class EnrichPolicy implements Writeable, ToXContentObject {
 
         public XContentType getContentType() {
             return contentType;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(query);
+            out.writeEnum(contentType);
         }
 
         @Override

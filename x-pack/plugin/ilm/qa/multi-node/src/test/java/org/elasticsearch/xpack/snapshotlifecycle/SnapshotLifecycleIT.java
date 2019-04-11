@@ -96,7 +96,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             Map<String, Object> lastSuccessObject = (Map<String, Object>) policyMetadataMap.get("last_success");
             assertNotNull(lastSuccessObject);
             Long lastSuccess = (Long) lastSuccessObject.get("time");
-            Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
+            Long modifiedDate = (Long) policyMetadataMap.get("modified_date_millis");
             assertNotNull(lastSuccess);
             assertNotNull(modifiedDate);
             assertThat(lastSuccess, greaterThan(modifiedDate));
@@ -136,7 +136,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertNotNull(lastFailureObject);
 
                 Long lastFailure = (Long) lastFailureObject.get("time");
-                Long modifiedDate = (Long) policyMetadataMap.get("modified_date");
+                Long modifiedDate = (Long) policyMetadataMap.get("modified_date_millis");
                 assertNotNull(lastFailure);
                 assertNotNull(modifiedDate);
                 assertThat(lastFailure, greaterThan(modifiedDate));

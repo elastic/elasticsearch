@@ -57,6 +57,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         wipeDataFrameTransforms();
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -83,6 +84,20 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_*/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
+
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        // Verify that both transforms have valid stats
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> currentCheckpoint = (Map<String, Object>)XContentMapValues.extractValue("checkpointing.current",
+                transformStats);
+            assertThat("total_docs is not 1000", currentCheckpoint.get("total_docs"), equalTo(1000));
+            assertThat("completed_docs is not 1000",currentCheckpoint.get("completed_docs"), equalTo(1000));
+            assertThat("percent_complete is not 1.0", currentCheckpoint.get("percent_complete"), equalTo(1.0));
+        }
 
         // only pivot_1
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1/_stats", authHeader);
@@ -130,9 +145,9 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Verify that both transforms, the one with the task and the one without have statistics
         for (Map<String, Object> transformStats : transformsStats) {
             Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
-            assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat(((Integer)stat.get("search_total")), greaterThan(0));
-            assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
         }
     }
 
@@ -154,13 +169,14 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         // Verify that the transform has stats and the total docs process matches the expected
         for (Map<String, Object> transformStats : transformsStats) {
             Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
-            assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat(((Integer)stat.get("search_time_in_ms")), greaterThan(0));
-            assertThat(((Integer)stat.get("search_total")), greaterThan(0));
-            assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
-            assertThat(stat.get("documents_processed_percentage"), equalTo(1.0));
-            assertThat(stat.get("current_run_total_documents_to_process"), equalTo(37));
-            assertThat(stat.get("current_run_documents_processed"), equalTo(37));
+            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> currentCheckpoint = (Map<String, Object>)XContentMapValues.extractValue("checkpointing.current",
+                transformStats);
+            assertThat("percentage_complete is not 1.0", currentCheckpoint.get("percent_complete"), equalTo(1.0));
+            assertThat("total_docs is not equal to 37", currentCheckpoint.get("total_docs"), equalTo(37));
+            assertThat("completed_docs is not equal to 37", currentCheckpoint.get("completed_docs"), equalTo(37));
         }
     }
 }

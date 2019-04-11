@@ -59,6 +59,7 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
+  - is_true: transforms.0.checkpointing
 
 ---
 "Test get transform stats on missing transform":

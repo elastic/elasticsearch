@@ -81,8 +81,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
-                agg.getBuckets().isEmpty());
+        // The number of documents we have pulled from the index before we parse the current aggs
+        final long numDocs = getStats().getNumDocuments();
+        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            agg.afterKey(),
+            agg.getBuckets().isEmpty());
+        // Increment by the number of docs handled in this extraction
+        getCheckpointObject().incrementCompletedDocs(getStats().getNumDocuments() - numDocs);
+        return result;
     }
 
     /*
@@ -96,8 +102,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
         final DataFrameTransformConfig transformConfig = getConfig();
         String indexName = transformConfig.getDestination().getIndex();
-        // The number of documents we have pulled from the index before we parse the current aggs
-        final long numDocs = getStats().getNumDocuments();
         return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
             String id = (String) document.get(DataFrameField.DOCUMENT_ID_FIELD);
 
@@ -119,10 +123,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            // Increment by the number of docs we have gathered in this step
-            getCheckpointObject().incrementCompletedDocs(getStats().getNumDocuments() - numDocs);
-            IndexRequest request = new IndexRequest(indexName).source(builder).id(id);
-            return request;
+            return new IndexRequest(indexName).source(builder).id(id);
         });
     }
 

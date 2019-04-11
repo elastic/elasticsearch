@@ -54,8 +54,6 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
     // checkpoint of the indexes (sequence id's)
     public static final ParseField INDICES = new ParseField("indices");
 
-    // Document information to determine progress
-
     private static final String NAME = "data_frame_transform_checkpoint";
 
     private static final ConstructingObjectParser<DataFrameTransformCheckpoint, Void> STRICT_PARSER = createParser(false);
@@ -83,7 +81,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
                     long totalDocs = args[5] == null ? 0L : (Long) args[5];
                     long completedDocs = args[6] == null ? 0L : (Long) args[6];
 
-                    // ignored, only for internal storage: String docType = (String) args[5];
+                    // ignored, only for internal storage: String docType = (String) args[7];
                     return new DataFrameTransformCheckpoint(id,
                         timestamp,
                         checkpoint,
@@ -121,7 +119,6 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
         parser.declareLong(optionalConstructorArg(), TOTAL_DOCS);
         parser.declareLong(optionalConstructorArg(), COMPLETED_DOCS);
-        parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
 
         return parser;

@@ -123,6 +123,7 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
                     completedDocs)));
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/41076")
     public void testGetBehind() {
         String id = randomAlphaOfLengthBetween(1, 10);
         long timestamp = randomNonNegativeLong();

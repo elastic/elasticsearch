@@ -184,4 +184,15 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(name, classes, importedMethods, classBindings, instanceBindings);
     }
+
+    @Override
+    public String toString() {
+        return "PainlessContextInfo{" +
+                "name='" + name + '\'' +
+                ", classes=" + classes +
+                ", importedMethods=" + importedMethods +
+                ", classBindings=" + classBindings +
+                ", instanceBindings=" + instanceBindings +
+                '}';
+    }
 }

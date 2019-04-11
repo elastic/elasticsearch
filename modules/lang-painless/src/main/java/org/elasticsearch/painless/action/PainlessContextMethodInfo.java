@@ -63,10 +63,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), PARAMETERS);
     }
 
-    private final String declaring;
-    private final String name;
-    private final String rtn;
-    private final List<String> parameters;
+    public final String declaring;
+    public final String name;
+    public final String rtn;
+    public final List<String> parameters;
 
     public PainlessContextMethodInfo(PainlessMethod painlessMethod) {
         this(
@@ -133,5 +133,15 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(declaring, name, rtn, parameters);
+    }
+
+    @Override
+    public String toString() {
+        return "PainlessContextMethodInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", rtn='" + rtn + '\'' +
+                ", parameters=" + parameters +
+                '}';
     }
 }

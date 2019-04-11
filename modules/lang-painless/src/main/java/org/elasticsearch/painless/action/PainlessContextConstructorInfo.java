@@ -42,8 +42,8 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     public static final ParseField DECLARING = new ParseField("declaring");
     public static final ParseField PARAMETERS = new ParseField("parameters");
 
-    private final String declaring;
-    private final List<String> parameters;
+    public final String declaring;
+    public final List<String> parameters;
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextConstructorInfo, Void> PARSER = new ConstructingObjectParser<>(
@@ -113,5 +113,13 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     @Override
     public int hashCode() {
         return Objects.hash(declaring, parameters);
+    }
+
+    @Override
+    public String toString() {
+        return "PainlessContextConstructorInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", parameters=" + parameters +
+                '}';
     }
 }

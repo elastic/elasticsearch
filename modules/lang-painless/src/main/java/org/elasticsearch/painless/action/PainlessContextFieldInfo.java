@@ -55,9 +55,9 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
     }
 
-    private final String declaring;
-    private final String name;
-    private final String type;
+    public final String declaring;
+    public final String name;
+    public final String type;
 
     public PainlessContextFieldInfo(PainlessField painlessField) {
         this(
@@ -118,5 +118,14 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(declaring, name, type);
+    }
+
+    @Override
+    public String toString() {
+        return "PainlessContextFieldInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                '}';
     }
 }

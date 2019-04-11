@@ -66,11 +66,11 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), PARAMETERS);
     }
 
-    private final String declaring;
-    private final String name;
-    private final String rtn;
-    private final int readOnly;
-    private final List<String> parameters;
+    public final String declaring;
+    public final String name;
+    public final String rtn;
+    public final int readOnly;
+    public final List<String> parameters;
 
     public PainlessContextClassBindingInfo(PainlessClassBinding painlessClassBinding) {
         this(
@@ -143,5 +143,16 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
     @Override
     public int hashCode() {
         return Objects.hash(declaring, name, rtn, readOnly, parameters);
+    }
+
+    @Override
+    public String toString() {
+        return "PainlessContextClassBindingInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", rtn='" + rtn + '\'' +
+                ", readOnly=" + readOnly +
+                ", parameters=" + parameters +
+                '}';
     }
 }

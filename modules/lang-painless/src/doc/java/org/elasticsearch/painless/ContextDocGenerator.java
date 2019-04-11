@@ -94,11 +94,66 @@ public class ContextDocGenerator {
 
                     contextApiIndexStream.println("[[" + contextApiHeader  + "]]");
                     contextApiIndexStream.println("=== " + contextName + " API");
-                    contextApiIndexStream.println();
 
-                    for (PainlessContextClassInfo painlessContextClassInfo : painlessContextInfo.classes) {
-                        contextApiIndexStream.println("* " + painlessContextClassInfo.name);
-                        contextApiIndexStream.println();
+                    List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
+                    painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
+                            "short".equals(v.name) || "char".equals(v.name) || "int".equals(v.name) || "long".equals(v.name) ||
+                            "float".equals(v.name) || "double".equals(v.name) || "def".equals(v.name) ||
+                            (v.constructors.isEmpty() && v.staticMethods.isEmpty() && v.methods.isEmpty() &&
+                                    v.staticFields.isEmpty() && v.fields.isEmpty()));
+
+                    if (true) {
+                        for (PainlessContextClassInfo i : painlessContextClassInfos) {
+                            if (i.name.contains("ScoreScript")) {
+                                throw new RuntimeException(i.constructors + " " + i.staticMethods + " " + i.methods + " "
+                                + i.staticFields + " " + i.fields);
+                            }
+                        }
+                    }
+
+                    painlessContextClassInfos.sort((c1, c2) -> {
+                        String n1 = c1.name;
+                        String n2 = c2.name;
+                        boolean i1 = c1.imported;
+                        boolean i2 = c2.imported;
+
+                        String p1 = n1.substring(0, n1.lastIndexOf('.'));
+                        String p2 = n2.substring(0, n2.lastIndexOf('.'));
+
+                        int compare = p1.compareTo(p2);
+
+                        if (compare == 0) {
+                            if (i1 && i2) {
+                                compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
+                            } else if (i1 == false && i2 == false) {
+                                compare = n1.compareTo(n2);
+                            } else {
+                                compare = Boolean.compare(i1, i2) * -1;
+                            }
+                        }
+
+                        return compare;
+                    });
+
+                    String currentPackageName = null;
+
+                    for (PainlessContextClassInfo painlessContextClassInfo : painlessContextClassInfos) {
+                        String className = painlessContextClassInfo.name;
+                        String classPackageName = className.substring(0, className.lastIndexOf('.'));
+
+                        if (classPackageName.equals(currentPackageName) == false) {
+                            currentPackageName = classPackageName;
+                            contextApiIndexStream.println();
+                            contextApiIndexStream.println("==== " + currentPackageName);
+                        }
+
+                        if (painlessContextClassInfo.imported) {
+                            String shortClassName = className.substring(className.lastIndexOf('.') + 1).replace('$', '.');
+                            contextApiIndexStream.println("* " + shortClassName);
+                        } else {
+                            String longClassName = className.replace('$', '.');
+                            contextApiIndexStream.println("* " + longClassName);
+                        }
                     }
                 }
             }

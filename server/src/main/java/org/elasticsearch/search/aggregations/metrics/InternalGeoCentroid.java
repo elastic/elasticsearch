@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,8 +70,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         super(in);
         count = in.readVLong();
         if (in.readBoolean()) {
-            final long hash = in.readLong();
-            centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
+            if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+                centroid = new GeoPoint(in.readDouble(), in.readDouble());
+            } else {
+                final long hash = in.readLong();
+                centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
+            }
+
         } else {
             centroid = null;
         }
@@ -81,8 +87,12 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            // should we just write lat and lon separately?
-            out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
+            if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+                out.writeDouble(centroid.lat());
+                out.writeDouble(centroid.lon());
+            } else {
+                out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
+            }
         } else {
             out.writeBoolean(false);
         }

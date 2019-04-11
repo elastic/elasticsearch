@@ -156,7 +156,6 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         doAnswer(invocation -> {
                 ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
                 ClusterState result = listener.execute(clusterState);
-                System.out.println(result);
                 for (ObjectCursor<MetaData.Custom> value : result.metaData().customs().values()){
                     customs.add(value.value);
                 }

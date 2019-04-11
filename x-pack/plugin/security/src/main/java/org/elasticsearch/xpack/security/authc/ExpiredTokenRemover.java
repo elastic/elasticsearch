@@ -48,7 +48,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     private final SecurityIndexManager securityTokensIndex;
     private final AtomicBoolean inProgress;
     private final TimeValue timeout;
-    private boolean mainIndexMightContainTokens;
+    private boolean checkMainIndexForExpiredTokens;
 
     ExpiredTokenRemover(Settings settings, Client client, SecurityIndexManager securityMainIndex,
                         SecurityIndexManager securityTokensIndex) {
@@ -57,7 +57,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         this.securityTokensIndex = securityTokensIndex;
         this.inProgress = new AtomicBoolean(false);
         this.timeout = TokenService.DELETE_TIMEOUT.get(settings);
-        this.mainIndexMightContainTokens = true;
+        this.checkMainIndexForExpiredTokens = true;
     }
 
     @Override
@@ -66,7 +66,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         if (securityTokensIndex.isAvailable()) {
             indicesWithTokens.add(securityTokensIndex.aliasName());
         }
-        if (securityMainIndex.isAvailable() && mainIndexMightContainTokens) {
+        if (securityMainIndex.isAvailable() && checkMainIndexForExpiredTokens) {
             indicesWithTokens.add(securityMainIndex.aliasName());
         }
         if (indicesWithTokens.isEmpty()) {
@@ -89,10 +89,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     debugDbqResponse(bulkResponse);
                     // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
                     // only after the tokens index has been created all nodes will store tokens there and not on the main security index
-                    if (mainIndexMightContainTokens && securityTokensIndex.indexExists()
+                    if (checkMainIndexForExpiredTokens && securityTokensIndex.indexExists()
                             && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
                             && bulkResponse.getBulkFailures().isEmpty() && bulkResponse.getSearchFailures().isEmpty()) {
-                        mainIndexMightContainTokens = false;
+                        checkMainIndexForExpiredTokens = false;
                     }
                     markComplete();
                 }, this::onFailure));

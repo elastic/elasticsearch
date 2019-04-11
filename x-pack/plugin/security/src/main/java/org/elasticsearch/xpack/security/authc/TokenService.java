@@ -239,7 +239,7 @@ public final class TokenService {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
-        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
+        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
         final String userTokenId = UUIDs.randomBase64UUID();
         createOAuth2Tokens(userTokenId, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, includeRefreshToken,
@@ -342,7 +342,7 @@ public final class TokenService {
      * document.
      */
     private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
-        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(tokenVersion);
+        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         if (tokensIndex.isAvailable() == false) {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
@@ -558,7 +558,7 @@ public final class TokenService {
      * Invalidates a collection of access_token and refresh_token that were retrieved by
      * {@link TokenService#invalidateActiveTokensForRealmAndUser}
      *
-     * @param userTokens The the user tokens for which access and refresh tokens should be invalidated
+     * @param userTokens The user tokens for which access and refresh tokens should be invalidated
      * @param listener  the listener to notify upon completion
      */
     private void invalidateAllTokens(Collection<UserToken> userTokens, ActionListener<TokensInvalidationResult> listener) {
@@ -847,14 +847,14 @@ public final class TokenService {
                 // the superseding token document reference is formated as: "<alias>|<document_id>" ; the alias points to a single index
                 // containing the document with the said id
                 updateMap.put("superseded_by",
-                        getTokensIndexManagerForVersion(newTokenVersion).aliasName() + "|" + getTokenDocumentId(newUserTokenId));
+                        getTokensIndexForVersion(newTokenVersion).aliasName() + "|" + getTokenDocumentId(newUserTokenId));
             } else {
                 // preservers the format of the reference so that old nodes in a mixed cluster can still understand it
                 updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
-            final SecurityIndexManager refreshedTokenIndex = getTokensIndexManagerForVersion(refreshTokenStatus.getVersion());
+            final SecurityIndexManager refreshedTokenIndex = getTokensIndexForVersion(refreshTokenStatus.getVersion());
             final UpdateRequestBuilder updateRequest = client
                     .prepareUpdate(refreshedTokenIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId)
                     .setDoc("refresh_token", updateMap)
@@ -869,7 +869,7 @@ public final class TokenService {
                                     updateResponse.getGetResult().sourceAsMap()));
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createOAuth2Tokens(newUserTokenId, newTokenVersion, getTokensIndexManagerForVersion(newTokenVersion),
+                            createOAuth2Tokens(newUserTokenId, newTokenVersion, getTokensIndexForVersion(newTokenVersion),
                                     toRefreshUserToken.getAuthentication(), clientAuth, toRefreshUserToken.getMetadata(), true, listener);
                         } else if (backoff.hasNext()) {
                             logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
@@ -1370,7 +1370,7 @@ public final class TokenService {
      * removed automatically by the {@code ExpiredTokenRemover} periodic job. Therefore, in general, when searching for a token we need to
      * consider both the new and the old indices.
      */
-    private SecurityIndexManager getTokensIndexManagerForVersion(Version version) {
+    private SecurityIndexManager getTokensIndexForVersion(Version version) {
         if (version.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
             return securityTokensIndex;
         } else {
@@ -1386,7 +1386,7 @@ public final class TokenService {
             listener.onFailure(traceLog("validate token", userToken.getId(), expiredTokenException()));
             return;
         }
-        final SecurityIndexManager tokensIndex = getTokensIndexManagerForVersion(userToken.getVersion());
+        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(userToken.getVersion());
         if (tokensIndex.indexExists() == false) {
             // index doesn't exist so the token is considered invalid as we cannot verify its validity
             logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
@@ -1465,7 +1465,7 @@ public final class TokenService {
 
     /**
      * Serializes a token to a String containing the minimum compatible node version for decoding it back and either an encrypted
-     * representation of the token id for versions earlier to {@code #VERSION_ACCESS_TOKENS_UUIDS} the token ie itself for versions after
+     * representation of the token id for versions earlier to {@code #VERSION_ACCESS_TOKENS_UUIDS} or the token itself for versions after
      * {@code #VERSION_ACCESS_TOKENS_UUIDS}
      */
     public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {

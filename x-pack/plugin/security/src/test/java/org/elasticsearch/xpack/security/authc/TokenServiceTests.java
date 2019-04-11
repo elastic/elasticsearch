@@ -135,7 +135,7 @@ public class TokenServiceTests extends ESTestCase {
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
         // developments
         if (randomBoolean()) {
-            oldNode = addAnotherDateNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
         }
     }
 
@@ -713,7 +713,7 @@ public class TokenServiceTests extends ESTestCase {
         return mockSecurityIndex;
     }
 
-    private DiscoveryNode addAnotherDateNodeWithVersion(ClusterService clusterService, Version version) {
+    private DiscoveryNode addAnotherDataNodeWithVersion(ClusterService clusterService, Version version) {
         final ClusterState currentState = clusterService.state();
         final DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder(currentState.getNodes());
         final DiscoveryNode anotherDataNode = new DiscoveryNode("another_data_node#" + version, buildNewFakeTransportAddress(),

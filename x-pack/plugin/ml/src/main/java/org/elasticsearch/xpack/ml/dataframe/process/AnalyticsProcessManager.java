@@ -150,7 +150,7 @@ public class AnalyticsProcessManager {
         assert dataFrameAnalyses.size() == 1;
 
         AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                config.getModelMemoryLimit(), 1, dataFrameAnalyses.get(0));
+                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), dataFrameAnalyses.get(0));
         return processConfig;
     }
 

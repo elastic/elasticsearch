@@ -11,6 +11,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -65,7 +66,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_few_docs";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, null);
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -86,8 +87,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
                 assertThat(destDoc.containsKey(field), is(true));
                 assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
             }
-            assertThat(destDoc.containsKey("outlier_score"), is(true));
-            double outlierScore = (double) destDoc.get("outlier_score");
+            assertThat(destDoc.containsKey("ml"), is(true));
+            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+            assertThat(resultsObject.containsKey("outlier_score"), is(true));
+            double outlierScore = (double) resultsObject.get("outlier_score");
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0)));
             if (hit.getId().equals("outlier")) {
                 scoreOfOutlier = outlierScore;
@@ -124,7 +127,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         String id = "test_outlier_detection_with_enough_docs_to_scroll";
-        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex);
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
@@ -140,14 +143,14 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         // Check they all have an outlier_score
         searchResponse = client().prepareSearch(config.getDest().getIndex())
             .setTrackTotalHits(true)
-            .setQuery(QueryBuilders.existsQuery("outlier_score")).get();
+            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
     }
 
-    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex) {
+    private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex, @Nullable String resultsField) {
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
-        configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results"));
+        configBuilder.setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", resultsField));
         Map<String, Object> analysisConfig = new HashMap<>();
         analysisConfig.put("outlier_detection", Collections.emptyMap());
         configBuilder.setAnalyses(Collections.singletonList(new DataFrameAnalysisConfig(analysisConfig)));

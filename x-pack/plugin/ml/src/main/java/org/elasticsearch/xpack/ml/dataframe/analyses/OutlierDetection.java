@@ -5,12 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.analyses;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public class OutlierDetection extends AbstractDataFrameAnalysis {
 
@@ -29,13 +26,6 @@ public class OutlierDetection extends AbstractDataFrameAnalysis {
 
     public static final String NUMBER_NEIGHBOURS = "number_neighbours";
     public static final String METHOD = "method";
-
-    private static final Set<String> RESULT_FIELDS;
-    static {
-        Set<String> set = new LinkedHashSet<>();
-        set.add("outlier_score");
-        RESULT_FIELDS = Collections.unmodifiableSet(set);
-    }
 
     private final Integer numberNeighbours;
     private final Method method;
@@ -60,11 +50,6 @@ public class OutlierDetection extends AbstractDataFrameAnalysis {
             params.put(METHOD, method);
         }
         return params;
-    }
-
-    @Override
-    public Set<String> getResultFields() {
-        return RESULT_FIELDS;
     }
 
     static class Factory implements DataFrameAnalysis.Factory {

@@ -37,6 +37,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -114,14 +115,15 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         }
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
+        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
+                                                               final ThreadPool threadPool) {
             return Collections.singletonMap(S3Repository.TYPE,
-                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
+                    metadata -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
                         @Override
                         AmazonS3 buildClient(S3ClientSettings clientSettings) {
                             return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                         }
-                    }));
+                    }, threadPool));
         }
     }
 

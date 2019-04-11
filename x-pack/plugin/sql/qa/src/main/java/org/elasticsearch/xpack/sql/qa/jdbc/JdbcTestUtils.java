@@ -15,9 +15,7 @@ import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
@@ -25,10 +23,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Time;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -37,19 +38,19 @@ import java.util.List;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.list;
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
-public abstract class JdbcTestUtils {
+final class JdbcTestUtils {
 
-    public static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    private JdbcTestUtils() {}
 
-    public static final String JDBC_TIMEZONE = "timezone";
-    
-    public static ZoneId UTC = ZoneId.of("Z");
+    private static final int MAX_WIDTH = 20;
 
-    public static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
+    static final String SQL_TRACE = "org.elasticsearch.xpack.sql:TRACE";
+    static final String JDBC_TIMEZONE = "timezone";
+    static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    static void logResultSetMetadata(ResultSet rs, Logger logger) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         // header
         StringBuilder sb = new StringBuilder();
@@ -79,35 +80,24 @@ public abstract class JdbcTestUtils {
         logger.info(sb.toString());
     }
 
-    private static final int MAX_WIDTH = 20;
-
-    public static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
+    static void logResultSetData(ResultSet rs, Logger log) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder sb = new StringBuilder();
-        StringBuilder column = new StringBuilder();
 
         int columns = metaData.getColumnCount();
 
         while (rs.next()) {
-            sb.setLength(0);
-            for (int i = 1; i <= columns; i++) {
-                column.setLength(0);
-                if (i > 1) {
-                    sb.append(" | ");
-                }
-                sb.append(trimOrPad(column.append(rs.getString(i))));
-            }
-            log.info(sb);
+            log.info(rowAsString(rs, columns));
         }
     }
 
-    public static String resultSetCurrentData(ResultSet rs) throws SQLException {
+    static String resultSetCurrentData(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
-        StringBuilder column = new StringBuilder();
+        return rowAsString(rs, metaData.getColumnCount());
+    }
 
-        int columns = metaData.getColumnCount();
-
+    private static String rowAsString(ResultSet rs, int columns) throws SQLException {
         StringBuilder sb = new StringBuilder();
+        StringBuilder column = new StringBuilder();
         for (int i = 1; i <= columns; i++) {
             column.setLength(0);
             if (i > 1) {
@@ -157,7 +147,7 @@ public abstract class JdbcTestUtils {
         logger.info("\n" + formatter.formatWithHeader(cols, data));
     }
     
-    public static String of(long millis, String zoneId) {
+    static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
     }
 
@@ -169,9 +159,7 @@ public abstract class JdbcTestUtils {
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
      */
-    public static List<URL> classpathResources(String pattern) throws Exception {
-        ClassLoader cl = JdbcTestUtils.class.getClassLoader();
-
+    static List<URL> classpathResources(String pattern) throws Exception {
         while (pattern.startsWith("/")) {
             pattern = pattern.substring(1);
         }
@@ -183,37 +171,24 @@ public abstract class JdbcTestUtils {
         final String root = split.v1();
         final String filePattern = split.v2();
 
-        List<URL> resources = null;
-
-        if (cl instanceof URLClassLoader) {
-            resources = asList(((URLClassLoader) cl).getURLs());
-        } else {
-            // fallback in case of non-standard CL
-            resources = list(cl.getResources(root));
-        }
+        String[] resources = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
 
         List<URL> matches = new ArrayList<>();
 
-        for (URL resource : resources) {
-            String protocol = resource.getProtocol();
-            URI uri = resource.toURI();
-            Path path = PathUtils.get(uri);
-
-            if ("file".equals(protocol) == false) {
-                throw new IllegalArgumentException("Unsupported protocol " + protocol);
-            }
+        for (String resource : resources) {
+            Path path = PathUtils.get(resource);
 
             // check whether we're dealing with a jar
             // Java 7 java.nio.fileFileSystem can be used on top of ZIPs/JARs but consumes more memory
             // hence the use of the JAR API
             if (path.toString().endsWith(".jar")) {
-                try (JarInputStream jar = getJarStream(resource)) {
+                try (JarInputStream jar = getJarStream(path.toUri().toURL())) {
                     ZipEntry entry = null;
                     while ((entry = jar.getNextEntry()) != null) {
                         String name = entry.getName();
                         Tuple<String, String> entrySplit = pathAndName(name);
                         if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
-                            matches.add(new URL("jar:" + resource.toString() + "!/" + name));
+                            matches.add(new URL("jar:" + path.toUri() + "!/" + name));
                         }
                     }
                 }
@@ -237,7 +212,8 @@ public abstract class JdbcTestUtils {
     @SuppressForbidden(reason = "need to open jar")
     private static JarInputStream getJarStream(URL resource) throws IOException {
         URLConnection con = resource.openConnection();
-        con.setDefaultUseCaches(false);
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
         return new JarInputStream(con.getInputStream());
     }
 
@@ -252,5 +228,16 @@ public abstract class JdbcTestUtils {
             }
         }
         return new Tuple<>(folder, file);
+    }
+
+    static Date asDate(long millis, ZoneId zoneId) {
+        return new java.sql.Date(
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalDate().atStartOfDay(zoneId).toInstant().toEpochMilli());
+    }
+
+    static Time asTime(long millis, ZoneId zoneId) {
+        return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
+                .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
     }
 }

@@ -120,7 +120,7 @@ for (Version version : bwcVersions.wireCompatible) {
     }
 }
 
-unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
@@ -132,7 +132,7 @@ task bwcTestSnapshots {
 }
 check.dependsOn(bwcTestSnapshots)
 
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
 task copyXPackRestSpec(type: Copy) {

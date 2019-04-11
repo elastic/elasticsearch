@@ -81,14 +81,19 @@ public class TransportPreviewDataFrameTransformAction extends
                     ActionListener.wrap(
                         r -> {
                             final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                            DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
-                            listener.onResponse(pivot.extractResults(agg, deducedMappings, stats).collect(Collectors.toList()));
+                            DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
+                            // remove all internal fields
+                            List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+                                    .map(record -> {
+                                        record.keySet().removeIf(k -> k.startsWith("_"));
+                                        return record;
+                                    }).collect(Collectors.toList());
+                            listener.onResponse(results);
                         },
                         listener::onFailure
                     ));
             },
             listener::onFailure
         ));
-
     }
 }

@@ -56,6 +56,28 @@ cluster.initial_master_nodes:
   - master-node-hostname
 --------------------------------------------------
 
+[NOTE]
+==================================================
+The node names used in this list must exactly match the `node.name` properties
+of the nodes. If your node names are a fully-qualified domain name such as
+`master-a.example.com` then you must include the fully-qualified domain name in
+the `cluster.initial_master_nodes` list too; conversely if your node names are
+bare hostnames (without the `.example.com` suffix) then you must use bare
+hostnames in the `cluster.initial_master_nodes` list too. If you use a mix of
+fully-qualifed and bare hostnames then the cluster will not properly form and
+you will see log messages like the following, indicating that the names do not
+match exactly.
+
+[source,text]
+--------------------------------------------------
+[master-a] master not discovered yet, this node has not
+previously joined a bootstrapped (v7+) cluster, and this node
+must discover master-eligible nodes [master-a, master-b] to
+bootstrap a cluster: have discovered
+[{master-b.example.com}{...
+--------------------------------------------------
+==================================================
+
 Like all node settings, it is also possible to specify the initial set of master
 nodes on the command-line that is used to start Elasticsearch:
 

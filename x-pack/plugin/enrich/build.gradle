@@ -22,4 +22,3 @@ run {
 
 // No tests yet:
 integTest.enabled = false
-test.enabled = false

@@ -364,7 +364,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
                                                                 new TransportAddress(TransportAddress.META_ADDRESS, 1234),
                                                                 emptyMap(),
                                                                 emptySet(),
-                                                                Version.V_6_0_0_beta1);
+                                                                Version.CURRENT);
 
         return new NodeStats(discoveryNode, no, indices, os, process, jvm, threadPool, fs, null, null, null, null, null, null, null);
     }

@@ -61,8 +61,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return false;
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-            Version.CURRENT);
+    private Version version = VersionUtils.randomIndexCompatibleVersion(random());
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;

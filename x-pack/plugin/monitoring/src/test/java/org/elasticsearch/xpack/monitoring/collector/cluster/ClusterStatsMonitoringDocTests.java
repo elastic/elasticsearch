@@ -202,7 +202,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
                                                                 singleton(DiscoveryNode.Role.MASTER),
-                                                                Version.V_6_0_0_beta1);
+                                                                Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
                                                         .metaData(MetaData.builder()

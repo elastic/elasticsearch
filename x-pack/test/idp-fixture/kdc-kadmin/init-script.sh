@@ -20,6 +20,7 @@
 KEYTABS_DIR=/fixture/build/shared/keytabs/
 KRB_CONF_DIR=/fixture/build/shared/krb-conf/
 
+
 echo "==================================================================================="
 echo "Kerberos KDC and Kadmin configuration"
 KADMIN_PRINCIPAL_FULL=$KADMIN_PRINCIPAL@$REALM
@@ -189,5 +190,9 @@ krb5kdc
 kadmind -nofork
 
 touch /tmp/kerb.started
+
+# We are running as root in the container
+chmod -R 777 $KEYTABS_DIR
+chmod -R 777 $KRB_CONF_DIR
 
 sleep infinity

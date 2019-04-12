@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -232,7 +233,8 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test2").setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", internalCluster().getNodeNames()[0])));
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+                internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey()))));
 
         ensureGreen();
 

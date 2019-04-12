@@ -28,7 +28,7 @@ Returns the WKT representation of the `geometry`. The return type is string.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
+include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
 --------------------------------------------------
 
 
@@ -53,7 +53,7 @@ Returns the geometry from WKT representation. The return type is geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[aswkt]
+include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
 --------------------------------------------------
 
 ==== Geometry Properties

@@ -72,7 +72,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override
@@ -151,7 +151,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override

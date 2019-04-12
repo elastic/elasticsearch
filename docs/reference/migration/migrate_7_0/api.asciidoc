@@ -76,9 +76,31 @@ pools. Note that `core` and `max` will be populated for scaling thread pools,
 and `size` will be populated for fixed thread pools.
 
 [float]
-==== The parameter `fields` deprecated in 6.x has been removed from Bulk request 
-and Update request. The Update API returns `400 - Bad request` if request contains 
+==== The parameter `fields` deprecated in 6.x has been removed from Bulk request
+and Update request. The Update API returns `400 - Bad request` if request contains
 unknown parameters (instead of ignored in the previous version).
+
+[float]
+==== PUT Document with Version error message changed when document is missing
+
+If you attempt to `PUT` a document with versioning (e.g. `PUT /test/_doc/1?version=4`)
+but the document does not exist, a cryptic message is returned:
+
+[source,text]
+----------
+version conflict, current version [-1] is different than the one provided [4]
+----------
+
+Now if the document is missing a more helpful message is returned:
+
+[source,text]
+----------
+document does not exist (expected version [4])
+----------
+
+Although exceptions messages are liable to change and not generally subject to
+backwards compatibility, the nature of this message might mean clients are relying
+on parsing the version numbers and so the format change might impact some users.
 
 [float]
 [[remove-suggest-metric]]
@@ -168,3 +190,39 @@ privilege).
 
 The `_cache/clear` API no longer supports the `GET` HTTP verb. It must be called
 with `POST`.
+
+[float]
+==== Cluster state size metrics removed from Cluster State API Response
+
+The `compressed_size` / `compressed_size_in_bytes` fields were removed from
+the Cluster State API response.  The calculation of the size was expensive and had
+dubious value, so the field was removed from the response.
+
+[float]
+==== Migration Assistance API has been removed
+
+The Migration Assistance API has been functionally replaced by the
+Deprecation Info API, and the Migration Upgrade API is not used for the
+transition from ES 6.x to 7.x, and does not need to be kept around to
+repair indices that were not properly upgraded before upgrading the
+cluster, as was the case in 6.
+
+[float]
+==== Changes to thread pool naming in Node and Cat APIs
+The `thread_pool` information returned from the Nodes and Cat APIs has been
+standardized to use the same terminology as the thread pool configurations.
+This means the response will align with the configuration instead of being
+the same across all the thread pools, regardless of type.
+
+[float]
+==== Return 200 when cluster has valid read-only blocks
+If the cluster was configured with `no_master_block: write` and lost its master,
+it would return a `503` status code from a main request (`GET /`) even though
+there are viable read-only nodes available.  The cluster now returns 200 status
+in this situation.
+
+[float]
+==== Clearing indices cache is now POST-only
+Clearing the cache indices could previously be done via GET and POST. As GET should
+only support read only non state-changing operations, this is no longer allowed.
+Only POST can be used to clear the cache.

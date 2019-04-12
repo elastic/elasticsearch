@@ -85,14 +85,16 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
-                                                                                       final IndexShard primary) throws Exception {
-        executeShardOperation(shardRequest, primary);
-        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
+            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            executeShardOperation(shardRequest, primary);
+            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+        });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
@@ -113,8 +115,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected ReplicationOperation.Replicas<ShardRequest> newReplicasProxy(final long primaryTerm) {
-        return new VerifyShardBeforeCloseActionReplicasProxy(primaryTerm);
+    protected ReplicationOperation.Replicas<ShardRequest> newReplicasProxy() {
+        return new VerifyShardBeforeCloseActionReplicasProxy();
     }
 
     /**
@@ -123,13 +125,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
      * or reopened in an unverified state with potential non flushed translog operations.
      */
     class VerifyShardBeforeCloseActionReplicasProxy extends ReplicasProxy {
-
-        VerifyShardBeforeCloseActionReplicasProxy(final long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final ActionListener<Void> listener) {
+        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final long primaryTerm,
+                                                 final ActionListener<Void> listener) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }

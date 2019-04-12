@@ -148,8 +148,6 @@ tee $KRB_CONF_DIR/ldap-krb5.conf <<EOF
 [domain_realm]
         .localhost = $REALM
         localhost = $REALM
-        .idp-fixture_dev.local = $REALM
-        idp-fixture_dev.local = $REALM
 EOF
 echo ""
 
@@ -176,8 +174,6 @@ tee $KRB_CONF_DIR/krb5.conf.template <<EOF
 [domain_realm]
         .localhost = $REALM
         localhost = $REALM
-        .idp-fixture_dev.local = $REALM
-        idp-fixture_dev.local = $REALM
 EOF
 echo ""
 

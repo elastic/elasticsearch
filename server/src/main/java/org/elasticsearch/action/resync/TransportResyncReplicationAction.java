@@ -68,8 +68,8 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        return new ResyncActionReplicasProxy(primaryTerm);
+    protected ReplicationOperation.Replicas newReplicasProxy() {
+        return new ResyncActionReplicasProxy();
     }
 
     @Override
@@ -85,20 +85,21 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
-    protected WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> shardOperationOnPrimary(
-        ResyncReplicationRequest request, IndexShard primary) throws Exception {
-        final ResyncReplicationRequest replicaRequest = performOnPrimary(request, primary);
-        return new WritePrimaryResult<>(replicaRequest, new ResyncReplicationResponse(), null, null, primary, logger);
+    protected void shardOperationOnPrimary(ResyncReplicationRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse>> listener) {
+        ActionListener.completeWith(listener,
+            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger));
     }
 
-    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request, IndexShard primary) {
+    public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
 
     @Override
-    protected WriteReplicaResult shardOperationOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
+    protected WriteReplicaResult<ResyncReplicationRequest> shardOperationOnReplica(ResyncReplicationRequest request,
+                                                                                   IndexShard replica) throws Exception {
         Translog.Location location = performOnReplica(request, replica);
-        return new WriteReplicaResult(request, location, null, replica, logger);
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
@@ -174,12 +175,9 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
      */
     class ResyncActionReplicasProxy extends ReplicasProxy {
 
-        ResyncActionReplicasProxy(long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
+        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                      ActionListener<Void> listener) {
             shardStateAction.remoteShardFailed(
                 replica.shardId(), replica.allocationId().getId(), primaryTerm, false, message, exception, listener);
         }

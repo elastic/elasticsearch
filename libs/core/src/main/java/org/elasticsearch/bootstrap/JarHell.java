@@ -196,18 +196,23 @@ public class JarHell {
                 // case for tests: where we have class files in the classpath
                 final Path root = PathUtils.get(url.toURI());
                 final String sep = root.getFileSystem().getSeparator();
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        String entry = root.relativize(file).toString();
-                        if (entry.endsWith(".class")) {
-                            // normalize with the os separator, remove '.class'
-                            entry = entry.replace(sep, ".").substring(0,  entry.length() - ".class".length());
-                            checkClass(clazzes, entry, path);
+
+                // don't try and walk class or resource directories that don't exist
+                // gradle will add these to the classpath even if they never get created
+                if (Files.exists(root)) {
+                    Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                            String entry = root.relativize(file).toString();
+                            if (entry.endsWith(".class")) {
+                                // normalize with the os separator, remove '.class'
+                                entry = entry.replace(sep, ".").substring(0, entry.length() - ".class".length());
+                                checkClass(clazzes, entry, path);
+                            }
+                            return super.visitFile(file, attrs);
                         }
-                        return super.visitFile(file, attrs);
-                    }
-                });
+                    });
+                }
             }
         }
     }

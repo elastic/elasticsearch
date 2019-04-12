@@ -17,13 +17,8 @@ dependencies {
 
 compileTestJava.options.compilerArgs << "-Xlint:-try"
 
-String xpackPath = project(xpackModule('core')).projectDir.toPath().resolve('src/test/resources').toString()
-sourceSets {
-    test {
-        resources {
-            srcDirs += [xpackPath]
-        }
-    }
+processTestResources {
+    from project(xpackModule('core')).file('src/test/resources')
 }
 
 forbiddenPatterns {

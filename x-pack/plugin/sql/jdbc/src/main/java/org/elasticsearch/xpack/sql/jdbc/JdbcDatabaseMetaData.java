@@ -33,6 +33,8 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
  */
 class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
+    private static final String WILDCARD = "%";
+
     private final JdbcConnection con;
 
     JdbcDatabaseMetaData(JdbcConnection con) {
@@ -714,19 +716,19 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         // null means catalog info is irrelevant
         // % means return all catalogs
         // EMPTY means return those without a catalog
-        return catalog == null || catalog.equals(EMPTY) || catalog.equals("%") || catalog.equals(defaultCatalog());
+        return catalog == null || catalog.equals(EMPTY) || catalog.equals(WILDCARD) || catalog.equals(defaultCatalog());
     }
 
     private boolean isDefaultSchema(String schema) {
         // null means schema info is irrelevant
         // % means return all schemas`
         // EMPTY means return those without a schema
-        return schema == null || schema.equals(EMPTY) || schema.equals("%");
+        return schema == null || schema.equals(EMPTY) || schema.equals(WILDCARD);
     }
 
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
-        String statement = "SYS TABLES CATALOG LIKE ? LIKE ?";
+        String statement = "SYS TABLES CATALOG LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\' ";
 
         if (types != null && types.length > 0) {
             statement += " TYPE ?";
@@ -739,8 +741,8 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         }
 
         PreparedStatement ps = con.prepareStatement(statement);
-        ps.setString(1, catalog != null ? catalog.trim() : "%");
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
+        ps.setString(1, catalog != null ? catalog.trim() : WILDCARD);
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
 
         if (types != null && types.length > 0) {
             for (int i = 0; i < types.length; i++) {
@@ -753,22 +755,14 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(con.cfg, columnInfo("SCHEMATA",
-                                    "TABLE_SCHEM",
-                                    "TABLE_CATALOG"), data);
+        return emptySet(con.cfg, "SCHEMATA",
+                "TABLE_SCHEM",
+                "TABLE_CATALOG");
     }
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        List<JdbcColumnInfo> info = columnInfo("SCHEMATA",
-                                           "TABLE_SCHEM",
-                                           "TABLE_CATALOG");
-        if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
-            return emptySet(con.cfg, info);
-        }
-        Object[][] data = { { EMPTY, defaultCatalog() } };
-        return memorySet(con.cfg, info, data);
+        return getSchemas();
     }
 
     @Override
@@ -785,14 +779,15 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return memorySet(con.cfg, columnInfo("TABLE_TYPES", "TABLE_TYPE"), data);
     }
 
+
     @Override
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? LIKE ?");
-        // TODO: until passing null works, pass an empty string
-        ps.setString(1, catalog != null ? catalog.trim() : EMPTY);
-        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : "%");
-        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : "%");
+        PreparedStatement ps = con.prepareStatement("SYS COLUMNS CATALOG ? TABLE LIKE ? ESCAPE '\\' LIKE ? ESCAPE '\\'");
+        // NB: catalog is not a pattern hence why null is send instead
+        ps.setString(1, catalog != null ? catalog.trim() : null);
+        ps.setString(2, tableNamePattern != null ? tableNamePattern.trim() : WILDCARD);
+        ps.setString(3, columnNamePattern != null ? columnNamePattern.trim() : WILDCARD);
         return ps.executeQuery();
     }
 

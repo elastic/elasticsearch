@@ -1,9 +1,15 @@
 [[analysis-stop-analyzer]]
 === Stop Analyzer
 
-The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analyzer>>
-but adds support for removing stop words.  It defaults to using the
-`_english_` stop words.
+The `stop` analyzer is the same as the <<analysis-simple-analyzer,
+`simple` analyzer>> but adds support for removing stop words.  It defaults to
+using `_english_` stop words.
+
+Stop words are common words set not to be indexed. By removing a list of common
+words, you can reduce the size of an index and increase performance, which is
+important when disk space and memory are critical factors.
+
+
 
 [float]
 === Example output
@@ -110,7 +116,7 @@ The `stop` analyzer accepts the following parameters:
 [horizontal]
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
+    A pre-defined stop words list like `_english_` or an array containing a
     list of stop words.  Defaults to `_english_`.
 
 `stopwords_path`::
@@ -118,6 +124,28 @@ The `stop` analyzer accepts the following parameters:
     The path to a file containing stop words. This path is relative to the
     Elasticsearch `config` directory.
 
+The default English stopwords used in Elasticsearch are:
+
+    a, an, and, are, as, at, be, but, by, for, if, in, into, is, it,
+    no, not, of, on, or, such, that, the, their, then, there, these,
+    they, this, to, was, will, with
+
+
+==== Stop words in supported languages
+
+To set the default stopwords list for a particular language, use the
+_lang_ notation:
+
+[source,text]
+---------------------------------
+"stopwords": "_french_"
+---------------------------------
+
+Each language analyzer defaults to using the appropriate stopwords list
+for that language.
+
+Stop words in other supported languages can be accessed in Lucene:
+https://github.com/apache/lucene-solr/tree/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis[Stopwords]
 
 See the <<analysis-stop-tokenfilter,Stop Token Filter>> for more information
 about stop word configuration.

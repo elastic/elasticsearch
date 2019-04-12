@@ -2,7 +2,6 @@ version: '3.1'
 services:
   kdc-kadmin:
     build: ./kdc-kadmin
-    image: kdc:latest
     environment:
       REALM: "DEV.LOCAL"
       SUPPORTED_ENCRYPTION_TYPES: "aes256-cts-hmac-sha1-96:normal"

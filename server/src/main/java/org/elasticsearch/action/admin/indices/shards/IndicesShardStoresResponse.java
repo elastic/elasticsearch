@@ -352,9 +352,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         if (failures.size() > 0) {
             builder.startArray(Fields.FAILURES);
             for (Failure failure : failures) {
-                builder.startObject();
                 failure.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

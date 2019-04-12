@@ -74,15 +74,8 @@ public class OpenLdapKerberosGSSAPIBindTests extends ESTestCase {
     private static final String LDAPCACERT_PATH = "/ca_server.pem";
     private static final String LDAPTRUST_PATH = "/ca.jks";
 
-    public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
-    public static final String VALID_USERNAME = "Thomas Masterman Hardy";
-    public static final String PASSWORD = "pass";
-
     private Settings globalSettings;
     private ThreadPool threadPool;
-
-
-
     private ResourceWatcherService resourceWatcherService;
     private Settings defaultGlobalSettings;
     private SSLService sslService;
@@ -258,7 +251,7 @@ public class OpenLdapKerberosGSSAPIBindTests extends ESTestCase {
             realmSettings.setSecureSettings(secureSettings);
         }
     }
-    
+
     private LdapSession session(SessionFactory factory, String username, SecureString password) {
         PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
         factory.session(username, password, future);

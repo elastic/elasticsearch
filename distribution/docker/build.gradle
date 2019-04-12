@@ -23,7 +23,7 @@ ext.expansions = { oss ->
   return [
     'elasticsearch'       : elasticsearch,
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
-    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch}",
+    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
 }

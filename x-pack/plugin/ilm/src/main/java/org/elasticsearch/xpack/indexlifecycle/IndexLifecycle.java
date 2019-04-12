@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePo
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestGetLifecycleAction;
@@ -87,9 +88,11 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifec
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.RestExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.RestPutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.TransportDeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.snapshotlifecycle.action.TransportExecuteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.TransportGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.snapshotlifecycle.action.TransportPutSnapshotLifecycleAction;
 
@@ -208,7 +211,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 // Snapshot lifecycle actions
                 new RestPutSnapshotLifecycleAction(settings, restController),
                 new RestDeleteSnapshotLifecycleAction(settings, restController),
-                new RestGetSnapshotLifecycleAction(settings, restController)
+                new RestGetSnapshotLifecycleAction(settings, restController),
+                new RestExecuteSnapshotLifecycleAction(settings, restController)
             );
     }
 
@@ -231,7 +235,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 // Snapshot lifecycle actions
                 new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
                 new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
-                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class));
+                new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
+                new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class));
     }
 
     @Override

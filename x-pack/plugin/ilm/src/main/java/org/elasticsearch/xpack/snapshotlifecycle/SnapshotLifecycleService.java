@@ -180,7 +180,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     /**
      * Generate the job id for a given policy metadata. The job id is {@code <policyid>-<version>}
      */
-    static String getJobId(SnapshotLifecyclePolicyMetadata policyMeta) {
+    public static String getJobId(SnapshotLifecyclePolicyMetadata policyMeta) {
         return policyMeta.getPolicy().getId() + "-" + policyMeta.getVersion();
     }
 

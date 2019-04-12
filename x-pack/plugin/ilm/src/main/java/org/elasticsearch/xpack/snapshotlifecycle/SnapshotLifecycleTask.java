@@ -53,17 +53,37 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.getJobName());
-        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(event.getJobName(), clusterService.state());
-        // If we were on JDK 9 and could use ifPresentOrElse this would be simpler.
-        boolean successful = maybeMetadata.map(policyMetadata -> {
+
+        final Optional<String> snapshotName = maybeTakeSnapshot(event.getJobName(), client, clusterService);
+
+        // Would be cleaner if we could use Optional#ifPresentOrElse
+        snapshotName.ifPresent(name ->
+            logger.info("snapshot lifecycle policy job [{}] issued new snapshot creation for [{}] successfully",
+                event.getJobName(), name));
+
+        if (snapshotName.isPresent() == false) {
+            logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.getJobName());
+        }
+    }
+
+    /**
+     * For the given job id (a combination of policy id and version), issue a create snapshot
+     * request. On a successful or failed create snapshot issuing the state is stored in the cluster
+     * state in the policy's metadata
+     * @return An optional snapshot name if the request was issued successfully
+     */
+    public static Optional<String> maybeTakeSnapshot(final String jobId, final Client client, final ClusterService clusterService) {
+        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(jobId, clusterService.state());
+        String snapshotName = maybeMetadata.map(policyMetadata -> {
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest();
-            final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(this.client,
+            final LifecyclePolicySecurityClient clientWithHeaders = new LifecyclePolicySecurityClient(client,
                 ClientHelper.INDEX_LIFECYCLE_ORIGIN, policyMetadata.getHeaders());
-            logger.info("triggering periodic snapshot for policy [{}]", policyMetadata.getPolicy().getId());
-            clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<CreateSnapshotResponse>() {
+            logger.info("snapshot lifecycle policy [{}] issuing create snapshot [{}]",
+                policyMetadata.getPolicy().getId(), request.snapshot());
+            clientWithHeaders.admin().cluster().createSnapshot(request, new ActionListener<>() {
                 @Override
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
-                    logger.info("snapshot response for [{}]: {}",
+                    logger.debug("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
                     clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli()));
@@ -77,12 +97,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli(), e));
                 }
             });
-            return true;
-        }).orElse(false);
+            return request.snapshot();
+        }).orElse(null);
 
-        if (successful == false) {
-            logger.warn("snapshot lifecycle policy for job [{}] no longer exists, snapshot not created", event.getJobName());
-        }
+        return Optional.ofNullable(snapshotName);
     }
 
     /**

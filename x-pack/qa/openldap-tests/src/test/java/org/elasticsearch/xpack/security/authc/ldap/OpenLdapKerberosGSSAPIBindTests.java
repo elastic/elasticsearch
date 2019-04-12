@@ -223,7 +223,6 @@ public class OpenLdapKerberosGSSAPIBindTests extends ESTestCase {
         // Verify bind happens and user can be searched
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            logger.info("# BRC = " + sessionFactory.bindRequestCredentials);
 
             for (String user : users) {
                 //auth
@@ -244,8 +243,6 @@ public class OpenLdapKerberosGSSAPIBindTests extends ESTestCase {
     }
 
     private void bindCredentialsSettings(boolean useKeyTab, RealmIdentifier realmId, Settings.Builder realmSettings) {
-        logger.info("# useKeyTab = "+useKeyTab);
-        logger.info("# useKeyTab = "+getDataPath(GSSAPI_BIND_KEYTAB_PATH));
         if (useKeyTab) {
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_USE_KEYTAB), useKeyTab);
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_PRINCIPAL),

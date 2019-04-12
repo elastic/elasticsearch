@@ -16,6 +16,11 @@ services:
       - "88"
     networks:
       - test-net
+    healthcheck:
+        test: ["CMD", "test", "-f", "/fixture/build/shared/keytabs/ldap.keytab"]
+        interval: 30s
+        timeout: 10s
+        retries: 5
 
   openldap:
     command: --copy-service --loglevel debug
@@ -44,6 +49,8 @@ services:
       - ./build/shared/keytabs/ldap.keytab:/etc/krb5.keytab
       - ./build/shared/krb-conf/ldap-krb5.conf:/etc/krb5.conf
     depends_on:
+      - kdc-kadmin
+    links:
       - kdc-kadmin
     networks:
       - test-net

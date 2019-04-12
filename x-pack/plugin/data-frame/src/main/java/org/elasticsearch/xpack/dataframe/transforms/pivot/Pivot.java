@@ -35,7 +35,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Pivot {
-    public static final int DEFAULT_INITIAL_PAGE_SIZE = 1000;
+    public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 

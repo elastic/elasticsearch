@@ -1,4 +1,4 @@
-version: '3.1'
+version: '3.2'
 services:
   kdc-kadmin:
     build: ./kdc-kadmin
@@ -10,13 +10,17 @@ services:
     volumes:
       # This is needed otherwise there won't be enough entropy to generate a new kerberos realm
       - /dev/urandom:/dev/random
-      - ./:/fixture
+      - type: bind
+        source: ./
+        target: /fixture
+        bind:
+          propagation: shared
     ports:
       - "749"
       - "88"
     healthcheck:
         test: ["CMD", "test", "-f", "/fixture/build/shared/keytabs/ldap.keytab"]
-        interval: 30s
+        interval: 10s
         timeout: 10s
         retries: 5
 
@@ -41,8 +45,16 @@ services:
       - ./openldap/ldif/users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/20-bootstrap-users.ldif
       - ./openldap/ldif/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/10-bootstrap-config.ldif
       - ./openldap/certs:/container/service/slapd/assets/certs
-      - ./build/shared/keytabs/ldap.keytab:/etc/krb5.keytab
-      - ./build/shared/krb-conf/ldap-krb5.conf:/etc/krb5.conf
+      - type: bind
+        source: ./build/shared/krb-conf/ldap-krb5.conf
+        target: /etc/krb5.conf
+        bind:
+          propagation: shared
+      - type: bind
+        source: ./build/shared/keytabs/ldap.keytab
+        target: /etc/krb5.keytab
+        bind:
+          propagation: shared
     depends_on:
       - kdc-kadmin
     links:

@@ -16,10 +16,10 @@ postProcessFixture {
     inputs.dir("${buildDir}/shared")
     File confTemplate = file("${buildDir}/shared/krb-conf/krb5.conf.template")
     File confFile = file("${buildDir}/shared/krb-conf/krb5.conf")
+    File ldapKeytab = file("${buildDir}/shared/keytabs/ldap.keytab")
     outputs.file(confFile)
     doLast {
         println "krb5.conf.template exists ? " + confTemplate.exists()
-        File ldapKeytab = file("${buildDir}/shared/keytabs/ldap.keytab")
         println "ldap.keytab exists ? " + ldapKeytab.exists()
         assert confTemplate.exists()
         String confContents = confTemplate.text

@@ -88,8 +88,10 @@ public class Pivot {
 
     public SearchRequest buildSearchRequest(Map<String, Object> position, int pageSize) {
         if (position != null) {
-            cachedCompositeAggregation.aggregateAfter(position).size(pageSize);
+            cachedCompositeAggregation.aggregateAfter(position);
         }
+
+        cachedCompositeAggregation.size(pageSize);
 
         return cachedSearchRequest;
     }

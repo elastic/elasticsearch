@@ -113,6 +113,15 @@ public class DependenciesInfoTask extends DefaultTask {
     }
     
     /**
+     * Create an URL on <a href="https://repo1.maven.org/maven2/">Maven Central</a>
+     * based on dependency coordinates.
+     */
+    protected String createURL(final String group, final String name, final String version){
+        final String baseURL = "https://repo1.maven.org/maven2";
+        return baseURL + "/" + group.replaceAll("\\.", "/") + "/" + name + "/" + version;
+    }
+    
+    /**
      * Read the LICENSE file associated with the dependency and determine a license type.
      *
      * The license type is one of the following values:

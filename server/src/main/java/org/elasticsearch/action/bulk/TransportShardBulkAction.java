@@ -398,7 +398,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final DocWriteResponse writeResponse = response.getResponse();
             final long seqNum = failure == null ? writeResponse.getSeqNo() : failure.getSeqNo();
             if (seqNum == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                assert failure != null;
                 continue;
             }
             if (failure == null) {

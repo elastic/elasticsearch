@@ -281,10 +281,10 @@ The `type` setting must be set to `ldap`. In addition to the
 `url`::
 One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Required.
 +
-To provide a single URL, use the `ldap` protocol: `ldap://server1:636`. To
-provide multiple URLs, use the `ldaps` protocol with an array syntax:
-`["ldaps://server1:636", "ldaps://server2:636" ]`. You can't mix the `ldap` and
-`ldaps` URL protocols.
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
@@ -554,10 +554,10 @@ One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Defaults to
 `ldap://<domain_name>:389`. This setting is required when connecting using
 SSL/TLS or when using a custom port.
 +
-To provide a single URL, use the `ldap` protocol: `ldap://server1:389`. To
-provide multiple URLs, use the `ldaps` protocol with an array syntax:
-`["ldaps://server1:389", "ldaps://server2:389" ]`. You can't mix the `ldap` and
-`ldaps` URL protocols.
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
 +
 If no URL is provided, {es} uses a default of `ldap://<domain_name>:389`. This
 default uses the `domain_name` setting value and assumes an unencrypted

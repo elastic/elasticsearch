@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Object for encapsulating the desired Query for a DataFrameTransform
+ * Object for encapsulating the desired Query for a DataFrameAnalysis
  */
 public class QueryConfig implements ToXContentObject {
 

@@ -39,12 +39,15 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
     private Pivot pivot;
+    private long currentRunTotalDocs;
 
     public DataFrameIndexer(Executor executor,
                             AtomicReference<IndexerState> initialState,
                             Map<String, Object> initialPosition,
+                            long currentRunTotalDocs,
                             DataFrameIndexerTransformStats jobStats) {
         super(executor, initialState, initialPosition, jobStats);
+        this.currentRunTotalDocs = currentRunTotalDocs;
     }
 
     protected abstract DataFrameTransformConfig getConfig();
@@ -56,6 +59,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     protected abstract void createCheckpoint(ActionListener<Void> listener);
 
+    public long getCurrentRunTotalDocs() {
+        return currentRunTotalDocs;
+    }
+
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
@@ -65,6 +72,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             // if run for the 1st time, create checkpoint
             if (getPosition() == null) {
                 createCheckpoint(listener);
+
+                // rest current run counters
+                getStats().reset();
+                currentRunTotalDocs = 0;
             } else {
                 listener.onResponse(null);
             }

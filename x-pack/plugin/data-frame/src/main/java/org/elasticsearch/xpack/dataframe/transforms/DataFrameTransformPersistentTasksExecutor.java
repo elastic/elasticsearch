@@ -67,7 +67,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             logger.warn("Tried to start failed transform [" + params.getId() + "] failure reason: " + transformState.getReason());
             return;
         }
-        transformsConfigManager.getTransformStats(params.getId(), ActionListener.wrap(
+        transformsConfigManager.getTransformStats(params.getId(), true, ActionListener.wrap(
             stats -> {
                 // Initialize with the previously recorded stats
                 buildTask.initializePreviousStats(stats);

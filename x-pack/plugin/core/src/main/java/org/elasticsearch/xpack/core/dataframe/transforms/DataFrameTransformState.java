@@ -35,6 +35,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
+    private final long totalDocsCurrentRun;
     private final long checkpoint;
 
     @Nullable
@@ -87,11 +88,13 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
+                                   long totalDocsCurrentRun,
                                    long checkpoint,
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
+        this.totalDocsCurrentRun = totalDocsCurrentRun;
         this.checkpoint = checkpoint;
         this.reason = reason;
     }
@@ -114,6 +117,10 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     public Map<String, Object> getPosition() {
         return currentPosition;
+    }
+
+    public long getTotalDocsCurrentRun() {
+        return totalDocsCurrentRun;
     }
 
     public long getCheckpoint() {

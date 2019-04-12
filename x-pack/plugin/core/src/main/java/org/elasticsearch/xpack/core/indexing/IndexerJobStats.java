@@ -71,6 +71,19 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         }
     }
 
+    public void reset() {
+        numPages = 0;
+        numInputDocuments = 0;
+        numOuputDocuments = 0;
+        numInvocations = 0;
+        indexTime = 0;
+        searchTime = 0;
+        indexTotal = 0;
+        searchTotal = 0;
+        indexFailures = 0;
+        searchFailures = 0;
+    }
+
     public long getNumPages() {
         return numPages;
     }

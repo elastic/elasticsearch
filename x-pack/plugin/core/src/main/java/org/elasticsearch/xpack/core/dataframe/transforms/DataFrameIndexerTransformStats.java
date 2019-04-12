@@ -114,8 +114,8 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
      *
      * @return The id of document the where the transform stats are persisted
      */
-    public static String documentId(String transformId) {
-        return NAME + "-" + transformId;
+    public static String documentId(String transformId, boolean total) {
+        return NAME + "-" + transformId + (total ? "-total" : "-current");
     }
 
     @Nullable

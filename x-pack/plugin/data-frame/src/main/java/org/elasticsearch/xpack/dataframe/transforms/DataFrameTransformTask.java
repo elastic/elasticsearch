@@ -88,6 +88,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         DataFrameTransformTaskState initialTaskState = DataFrameTransformTaskState.STOPPED;
         String initialReason = null;
         long initialGeneration = 0;
+        long initialCurrentRunTotalDocs = 0;
         Map<String, Object> initialPosition = null;
         logger.info("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
@@ -106,10 +107,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             }
             initialPosition = state.getPosition();
             initialGeneration = state.getCheckpoint();
+            initialCurrentRunTotalDocs = state.getTotalDocsCurrentRun();
         }
 
         this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
-            new AtomicReference<>(initialState), initialPosition, client, auditor);
+            new AtomicReference<>(initialState), initialPosition, initialCurrentRunTotalDocs, client, auditor);
         this.currentCheckpoint = new AtomicLong(initialGeneration);
         this.previousStats = new DataFrameIndexerTransformStats(transform.getId());
         this.taskState = new AtomicReference<>(initialTaskState);
@@ -134,6 +136,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 taskState.get(),
                 indexer.getState(),
                 indexer.getPosition(),
+                indexer.getCurrentRunTotalDocs(),
                 currentCheckpoint.get(),
                 stateReason.get());
     }
@@ -178,6 +181,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             DataFrameTransformTaskState.STARTED,
             IndexerState.STOPPED,
             indexer.getPosition(),
+            indexer.getCurrentRunTotalDocs(),
             currentCheckpoint.get(),
             null);
 
@@ -217,6 +221,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 DataFrameTransformTaskState.STOPPED,
                 IndexerState.STOPPED,
                 indexer.getPosition(),
+                indexer.getCurrentRunTotalDocs(),
                 currentCheckpoint.get(),
                 stateReason.get());
             persistStateToClusterState(state, ActionListener.wrap(
@@ -329,9 +334,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         public ClientDataFrameIndexer(String transformId, DataFrameTransformsConfigManager transformsConfigManager,
                                       DataFrameTransformsCheckpointService transformsCheckpointService,
-                                      AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client,
+                                      AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
+                                      long initialCurrentRunTotalDocs,
+                                      Client client,
                                       Auditor<DataFrameAuditMessage> auditor) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition,
+            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition, initialCurrentRunTotalDocs,
                 new DataFrameIndexerTransformStats(transformId));
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
@@ -434,6 +441,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 taskState.get(),
                 indexerState,
                 getPosition(),
+                getCurrentRunTotalDocs(),
                 currentCheckpoint.get(),
                 stateReason.get());
             logger.info("Updating persistent state of transform [" + transform.getId() + "] to [" + state.toString() + "]");
@@ -447,7 +455,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
                     // Only persist the stats if something has actually changed
                     if (previouslyPersistedStats == null || previouslyPersistedStats.equals(tempStats) == false) {
-                        transformsConfigManager.putOrUpdateTransformStats(tempStats,
+                        transformsConfigManager.putOrUpdateTransformStats(tempStats, getStats(),
                             ActionListener.wrap(
                                 r -> {
                                     previouslyPersistedStats = tempStats;

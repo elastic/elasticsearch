@@ -13,6 +13,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
@@ -274,31 +276,38 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void putOrUpdateTransformStats(DataFrameIndexerTransformStats stats, ActionListener<Boolean> listener) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+    public void putOrUpdateTransformStats(DataFrameIndexerTransformStats total, DataFrameIndexerTransformStats incremental, ActionListener<Boolean> listener) {
+        try {
+            final BulkRequest bulkRequest = new BulkRequest();
 
-            IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(DataFrameIndexerTransformStats.documentId(stats.getTransformId()))
-                .source(source);
+            bulkRequest.add(createStatsIndexRequest(total, true));
+            bulkRequest.add(createStatsIndexRequest(incremental, false));
 
-            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, BulkAction.INSTANCE, bulkRequest, ActionListener.wrap(
                 r -> listener.onResponse(true),
                 e -> listener.onFailure(new RuntimeException(
-                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, total.getTransformId()),
                     e))
             ));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
-                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getTransformId()),
+                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, total.getTransformId()),
                 e));
         }
     }
 
-    public void getTransformStats(String transformId, ActionListener<DataFrameIndexerTransformStats> resultListener) {
-        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameIndexerTransformStats.documentId(transformId));
+    private IndexRequest createStatsIndexRequest(DataFrameIndexerTransformStats stats, boolean total) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+
+        return new IndexRequest(DataFrameInternalIndex.INDEX_NAME)
+                .id(DataFrameIndexerTransformStats.documentId(stats.getTransformId(), total))
+                .source(source);
+    }
+
+    public void getTransformStats(String transformId, boolean total, ActionListener<DataFrameIndexerTransformStats> resultListener) {
+        GetRequest getRequest = new GetRequest(DataFrameInternalIndex.INDEX_NAME, DataFrameIndexerTransformStats.documentId(transformId, total));
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
 
             if (getResponse.isExists() == false) {

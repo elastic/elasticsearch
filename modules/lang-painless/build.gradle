@@ -37,8 +37,8 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
-unitTest {
-  jvmArg '-XX:-OmitStackTraceInFastThrow'
+test {
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

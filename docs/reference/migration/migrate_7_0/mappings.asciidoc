@@ -81,3 +81,8 @@ or `quadtree`. This will ensure compatibility with previously created indexes.
 The following type parameters are deprecated for the `geo_shape` field type: `tree`,
 `precision`, `tree_levels`, `distance_error_pct`, `points_only`, and `strategy`. They
 will be removed in a future version.
+
+[float]
+==== `include_type_name` now defaults to `false`
+The default for `include_type_name` is now `false` for all APIs that accept
+the parameter.

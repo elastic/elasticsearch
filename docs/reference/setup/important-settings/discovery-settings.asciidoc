@@ -58,7 +58,13 @@ cluster.initial_master_nodes:
     `transport.port` if not specified.
 <2> If a hostname resolves to multiple IP addresses then the node will attempt to
     discover other nodes at all resolved addresses.
-<3> Initial master nodes can be identified by their <<node.name,node name>>.
+<3> Initial master nodes can be identified by their <<node.name,`node.name`>>.
+    Make sure that the value here matches the `node.name` exactly. If you use a
+    fully-qualified domain name such as `master-node-a.example.com` for your
+    node names then you must use the fully-qualified name in this list;
+    conversely if `node.name` is a bare hostname without any trailing
+    qualifiers then you must also omit the trailing qualifiers in
+    `cluster.initial_master_nodes`.
 <4> Initial master nodes can also be identified by their IP address.
 <5> If multiple master nodes share an IP address then the port must be used to
     disambiguate them.

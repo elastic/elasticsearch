@@ -76,7 +76,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM) {
                 ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
                         singletonMap("name", template), emptyList(), emptyMap());
                 assertThat(templateExistsResponse.getStatusCode(), is(200));

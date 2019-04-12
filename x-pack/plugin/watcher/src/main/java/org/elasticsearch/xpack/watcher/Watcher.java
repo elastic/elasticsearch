@@ -267,7 +267,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
+        new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
 
         // http client
         httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);

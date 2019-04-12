@@ -37,7 +37,7 @@ public class WatcherJiraYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void startWatcher() throws Exception {
-        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES);
+        final List<String> watcherTemplates = Arrays.asList(WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM);
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());

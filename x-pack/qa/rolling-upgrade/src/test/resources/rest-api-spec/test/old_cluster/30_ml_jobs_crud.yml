@@ -135,11 +135,6 @@
 
 ---
 "Test job with pre 6.4 rules":
-
-  - skip:
-      version:  "6.4.0 - "
-      reason:   "Rules were replaced by custom_rules on 6.4.0"
-
   - do:
       ml.put_job:
         job_id: job-with-old-rules
@@ -172,11 +167,6 @@
 
 ---
 "Test job with pre 6.4 rules - dummy job 6.4 onwards":
-
-  - skip:
-      version:  " - 6.3.99"
-      reason:   "Rules replaced by custom_rules on 6.4.0"
-
   - do:
       ml.put_job:
         job_id: job-with-old-rules

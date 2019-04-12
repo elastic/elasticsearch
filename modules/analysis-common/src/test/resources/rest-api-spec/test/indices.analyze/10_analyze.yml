@@ -16,11 +16,6 @@
 
 ---
 "htmlStrip_deprecated":
-    - skip:
-        version: " - 6.2.99"
-        reason: deprecated in 6.3
-        features: "warnings"
-
     - do:
         indices.create:
           index: test_deprecated_htmlstrip

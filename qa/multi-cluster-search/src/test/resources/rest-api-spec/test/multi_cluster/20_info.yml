@@ -61,10 +61,6 @@
 
 ---
 "skip_unavailable is returned as part of _remote/info response":
-  - skip:
-      version: " - 6.0.99"
-      reason: "skip_unavailable is only returned from 6.1.0 on"
-
   - do:
       cluster.get_settings:
         include_defaults: true

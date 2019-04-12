@@ -53,12 +53,6 @@
 
 ---
 "PUT mapping with _doc on an index that has types":
-
- - skip:
-      version: " - 6.6.99"
-      reason: include_type_name is only supported as of 6.7
-
-
  - do:
       indices.create:
           include_type_name: true

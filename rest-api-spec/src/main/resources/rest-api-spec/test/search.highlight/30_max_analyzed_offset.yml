@@ -28,9 +28,7 @@ setup:
 
 ---
 "Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:
@@ -42,9 +40,7 @@ setup:
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:
@@ -56,9 +52,7 @@ setup:
 
 ---
 "Unified highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should SUCCEED":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highligt.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       search:
           rest_total_hits_as_int: true
@@ -69,9 +63,7 @@ setup:
 
 ---
 "Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
-  - skip:
-      version: " - 6.99.99"
-      reason: index.highlight.max_analyzed_offset setting has been added in 7.0.0
+
   - do:
       catch: bad_request
       search:

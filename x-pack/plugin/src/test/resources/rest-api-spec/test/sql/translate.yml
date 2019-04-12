@@ -1,9 +1,5 @@
 ---
 "Translate SQL":
-  - skip:
-      version: " - 6.99.99"
-      reason: Triggers warnings before 7.0
-
   - do:
       bulk:
         refresh: true

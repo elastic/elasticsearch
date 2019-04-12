@@ -1,0 +1,17 @@
+* <<painless-api-reference-aggregation-selector, Aggregation Selector>>
+* <<painless-api-reference-aggs, Aggs>>
+* <<painless-api-reference-aggs-combine, Aggs Combine>>
+* <<painless-api-reference-aggs-init, Aggs Init>>
+* <<painless-api-reference-aggs-map, Aggs Map>>
+* <<painless-api-reference-aggs-reduce, Aggs Reduce>>
+* <<painless-api-reference-analysis, Analysis>>
+* <<painless-api-reference-bucket-aggregation, Bucket Aggregation>>
+* <<painless-api-reference-field, Field>>
+* <<painless-api-reference-filter, Filter>>
+* <<painless-api-reference-ingest, Ingest>>
+* <<painless-api-reference-interval, Interval>>
+* <<painless-api-reference-moving-function, Moving Function>>
+* <<painless-api-reference-number-sort, Number Sort>>
+* <<painless-api-reference-painless-test, Painless Test>>
+* <<painless-api-reference-processor-conditional, Processor Conditional>>
+* <<painless-api-reference-score, Score>>

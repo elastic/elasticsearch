@@ -18,6 +18,9 @@ public final class XPackRestTestConstants {
     public static final String[] TEMPLATE_NAMES = new String[] {
         HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
     };
+    public static final String[] TEMPLATE_NAMES_NO_ILM = new String[] {
+        HISTORY_TEMPLATE_NAME_NO_ILM, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
+    };
 
     // ML constants:
     public static final String ML_META_INDEX_NAME = ".ml-meta";

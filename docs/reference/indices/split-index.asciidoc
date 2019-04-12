@@ -50,7 +50,7 @@ PUT my_source_index
         "index.number_of_routing_shards" : 2 <1>
     }
 }
--------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 
 <1> Allows to split the index into two shards or in other words, it allows

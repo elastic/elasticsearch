@@ -108,7 +108,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Geometry shape = context.parseExternalValue(Geometry.class);
+            Object shape = context.parseExternalValue(Object.class);
             if (shape == null) {
                 ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
                 if (shapeBuilder == null) {

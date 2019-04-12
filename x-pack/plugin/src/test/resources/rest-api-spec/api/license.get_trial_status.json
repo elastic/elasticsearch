@@ -1,6 +1,6 @@
 {
   "license.get_trial_status": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/current/license-management.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-trial-status.html",
     "methods": ["GET"],
     "url": {
       "path": "/_license/trial_status",

@@ -76,8 +76,8 @@
 "get cluster stats returns packaging types":
 
   - skip:
-      version: " - 7.99.99"
-      reason:  "packaging types are added for v8.0.0"
+      version: " - 7.0.99"
+      reason:  "packaging types are added for v7.1.0"
 
   - do:
       cluster.stats: {}

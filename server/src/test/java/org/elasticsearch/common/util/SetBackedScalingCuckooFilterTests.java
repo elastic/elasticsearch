@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -116,6 +117,27 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         assertThat(fppRate, lessThanOrEqualTo(0.001));
     }
 
+    public void testConvertTwice() {
+        int threshold = randomIntBetween(1000, 10000);
+        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
+
+        int counter = 0;
+        Set<Long> values = new HashSet<>();
+        while (counter < threshold + 100) {
+            long value = randomLong();
+            filter.add(value);
+            boolean newValue = values.add(value);
+            if (newValue) {
+                counter += 1;
+            }
+        }
+        assertNull(filter.hashes);
+        assertThat(filter.filters.size(), greaterThan(0));
+        IllegalStateException e = expectThrows(IllegalStateException.class, filter::convert);
+        assertThat(e.getMessage(), equalTo("Cannot convert SetBackedScalingCuckooFilter to approximate " +
+            "when it has already been converted."));
+    }
+
     public void testMergeSmall() {
         int threshold = 1000;
 
@@ -183,6 +205,30 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         }
         fppRate = (double) incorrect / (values.size() + values2.size());
         assertThat(fppRate, lessThanOrEqualTo(0.001));
+    }
 
+    public void testMergeIncompatible() {
+        SetBackedScalingCuckooFilter filter1 = new SetBackedScalingCuckooFilter(100, Randomness.get(), 0.01);
+        SetBackedScalingCuckooFilter filter2 = new SetBackedScalingCuckooFilter(1000, Randomness.get(), 0.01);
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> filter1.merge(filter2));
+        assertThat(e.getMessage(), equalTo("Cannot merge other CuckooFilter because thresholds do not match: [100] vs [1000]"));
+
+        SetBackedScalingCuckooFilter filter3 = new SetBackedScalingCuckooFilter(100, Randomness.get(), 0.001);
+        e = expectThrows(IllegalStateException.class, () -> filter1.merge(filter3));
+        assertThat(e.getMessage(), equalTo("Cannot merge other CuckooFilter because precisions do not match: [0.01] vs [0.001]"));
+    }
+
+    public void testBadParameters() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new SetBackedScalingCuckooFilter(-1, Randomness.get(), 0.11));
+        assertThat(e.getMessage(), equalTo("[threshold] must be a positive integer"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> new SetBackedScalingCuckooFilter(1000000, Randomness.get(), 0.11));
+        assertThat(e.getMessage(), equalTo("[threshold] must be smaller than [500000]"));
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> new SetBackedScalingCuckooFilter(100, Randomness.get(), -1.0));
+        assertThat(e.getMessage(), equalTo("[fpp] must be a positive double"));
     }
 }

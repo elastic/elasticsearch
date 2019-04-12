@@ -52,10 +52,24 @@ import java.util.function.Consumer;
  */
 public class SetBackedScalingCuckooFilter implements Writeable {
 
+    /**
+     * This is the estimated insertion capacity for each individual internal CuckooFilter.
+     */
     private static final int FILTER_CAPACITY = 1000000;
 
-    // Package-private for testing
+    /**
+     * This set is used to track the insertions before we convert over to an approximate
+     * filter. This gives us 100% accuracy for small cardinalities.  This will be null
+     * if isSetMode = false;
+     *
+     * package-private for testing
+     */
     Set<MurmurHash3.Hash128> hashes;
+
+    /**
+     * This list holds our approximate filters, after we have migrated out of a set.
+     * This will be null if isSetMode = true;
+     */
     List<CuckooFilter> filters;
 
     private final int threshold;
@@ -65,6 +79,8 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     private Consumer<Long> breaker = aLong -> {
         //noop
     };
+
+    // True if we are tracking inserts with a set, false otherwise
     private boolean isSetMode = true;
 
     /**
@@ -74,11 +90,37 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * @param fpp the false-positive rate that should be used for the cuckoo filters.
      */
     public SetBackedScalingCuckooFilter(int threshold, Random rng, double fpp) {
+        if (threshold <= 0) {
+            throw new IllegalArgumentException("[threshold] must be a positive integer");
+        }
+
+        // We have to ensure that, in the worst case, two full sets can be converted into
+        // one cuckoo filter without overflowing.  This keeps merging logic simpler
+        if (threshold * 2 > FILTER_CAPACITY) {
+            throw new IllegalArgumentException("[threshold] must be smaller than [" + (FILTER_CAPACITY / 2) + "]");
+        }
+        if (fpp < 0) {
+            throw new IllegalArgumentException("[fpp] must be a positive double");
+        }
         this.hashes = new HashSet<>(threshold);
         this.threshold = threshold;
         this.rng = rng;
         this.capacity = FILTER_CAPACITY;
         this.fpp = fpp;
+    }
+
+    public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {
+        this.threshold = other.threshold;
+        this.isSetMode = other.isSetMode;
+        this.rng = other.rng;
+        this.breaker = other.breaker;
+        this.capacity = other.capacity;
+        this.fpp = other.fpp;
+        if (isSetMode) {
+            this.hashes = new HashSet<>(other.hashes);
+        } else {
+            this.filters = new ArrayList<>(other.filters);
+        }
     }
 
     public SetBackedScalingCuckooFilter(StreamInput in, Random rng) throws IOException {
@@ -100,19 +142,22 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         }
     }
 
-    public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {
-        this.threshold = other.threshold;
-        this.isSetMode = other.isSetMode;
-        this.rng = other.rng;
-        this.breaker = other.breaker;
-        this.capacity = other.capacity;
-        this.fpp = other.fpp;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(threshold);
+        out.writeBoolean(isSetMode);
+        out.writeVInt(capacity);
+        out.writeDouble(fpp);
         if (isSetMode) {
-            this.hashes = new HashSet<>(other.hashes);
+            out.writeCollection(hashes, (out1, hash) -> {
+                out1.writeZLong(hash.h1);
+                out1.writeZLong(hash.h2);
+            });
         } else {
-            this.filters = new ArrayList<>(other.filters);
+            out.writeList(filters);
         }
     }
+
 
     /**
      * Registers a circuit breaker with the datastructure.
@@ -122,7 +167,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * in the registered breaker when configured.
      */
     public void registerBreaker(Consumer<Long> breaker) {
-        this.breaker = breaker;
+        this.breaker = Objects.requireNonNull(breaker, "Circuit Breaker Consumer cannot be null");
         breaker.accept(getSizeInBytes());
     }
 
@@ -173,33 +218,31 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     /**
      * Add's the provided value to the set for tracking
      */
-    public boolean add(BytesRef value) {
+    public void add(BytesRef value) {
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, new MurmurHash3.Hash128());
-        return add(hash);
+        add(hash);
     }
 
     /**
      * Add's the provided value to the set for tracking
      */
-    public boolean add(byte[] value) {
+    public void add(byte[] value) {
         MurmurHash3.Hash128 hash = MurmurHash3.hash128(value, 0, value.length, 0, new MurmurHash3.Hash128());
-        return add(hash);
+        add(hash);
     }
 
     /**
      * Add's the provided value to the set for tracking
      */
-    public boolean add(long value) {
-        return add(Numbers.longToBytes(value));
+    public void add(long value) {
+        add(Numbers.longToBytes(value));
     }
 
-    private boolean add(MurmurHash3.Hash128 hash) {
+    private void add(MurmurHash3.Hash128 hash) {
         if (isSetMode) {
             hashes.add(hash);
-            if (hashes.size() > threshold) {
-                convert();
-            }
-            return true;
+            maybeConvert();
+            return;
         }
 
         boolean success = filters.get(filters.size() - 1).add(hash);
@@ -210,28 +253,36 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             filters.add(t);
             breaker.accept(t.getSizeInBytes()); // make sure we account for the new filter
         }
-        return true;
+    }
+
+    private void maybeConvert() {
+        if (isSetMode && hashes.size() > threshold) {
+            convert();
+        }
     }
 
     /**
      * If we still holding values in a set, convert this filter into an approximate, cuckoo-backed filter.
      * This will create a list of CuckooFilters, and null out the set of hashes
      */
-    private void convert() {
-        if (isSetMode) {
-            long oldSize = getSizeInBytes();
-
-            filters = new ArrayList<>();
-            CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
-            hashes.forEach(t::add);
-            filters.add(t);
-
-            hashes = null;
-            isSetMode = false;
-
-            breaker.accept(-oldSize); // this zeros out the overhead of the set
-            breaker.accept(getSizeInBytes()); // this adds back in the new overhead of the cuckoo filters
+    void convert() {
+        if (isSetMode == false) {
+            throw new IllegalStateException("Cannot convert SetBackedScalingCuckooFilter to approximate " +
+                "when it has already been converted.");
         }
+        long oldSize = getSizeInBytes();
+
+        filters = new ArrayList<>();
+        CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
+        hashes.forEach(t::add);
+        filters.add(t);
+
+        hashes = null;
+        isSetMode = false;
+
+        breaker.accept(-oldSize); // this zeros out the overhead of the set
+        breaker.accept(getSizeInBytes()); // this adds back in the new overhead of the cuckoo filters
+
     }
 
     /**
@@ -239,9 +290,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * are tracked, not the overhead of the Set itself.
      */
     public long getSizeInBytes() {
-        long bytes = 0;
+        long bytes = 13; // fpp (double), threshold (int), isSetMode (boolean)
         if (hashes != null) {
-            bytes = (hashes.size() * 16) + 8 + 4 + 1;
+            bytes = (hashes.size() * 16);
         }
         if (filters != null) {
             bytes += filters.stream().mapToLong(CuckooFilter::getSizeInBytes).sum();
@@ -256,32 +307,45 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * to a cuckoo if it goes over threshold
      */
     public void merge(SetBackedScalingCuckooFilter other) {
+        // Some basic sanity checks to make sure we can merge
+        if (this.threshold != other.threshold) {
+            throw new IllegalStateException("Cannot merge other CuckooFilter because thresholds do not match: ["
+                + this.threshold + "] vs [" + other.threshold + "]");
+        }
+        if (this.capacity != other.capacity) {
+            throw new IllegalStateException("Cannot merge other CuckooFilter because capacities do not match: ["
+                + this.capacity + "] vs [" + other.capacity + "]");
+        }
+        if (this.fpp != other.fpp) {
+            throw new IllegalStateException("Cannot merge other CuckooFilter because precisions do not match: ["
+                + this.fpp + "] vs [" + other.fpp + "]");
+        }
+
         if (isSetMode && other.isSetMode) {
             // Both in sets, merge collections then see if we need to convert to cuckoo
             hashes.addAll(other.hashes);
-            if (hashes.size() > threshold) {
-                convert();
-            }
+            maybeConvert();
         } else if (isSetMode && other.isSetMode == false) {
-            // Other is in cuckoo mode, so we convert our set to a cuckoo then merge collections.
-            // We could probably get fancy and keep our side in set-mode, but simpler to just convert
+            // Other is in cuckoo mode, so we convert our set to a cuckoo, then
+            // call the merge function again.  Since both are now in set-mode
+            // this will fall through to the last conditional and do a cuckoo-cuckoo merge
             convert();
-            filters.addAll(other.filters);
+            merge(other);
         } else if (isSetMode == false && other.isSetMode) {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
             other.hashes.forEach(this::add);
+            maybeConvert();
         } else {
             // Both are in cuckoo mode, merge raw fingerprints
 
-            int current = 0;
-            CuckooFilter currentFilter = filters.get(current);
+            CuckooFilter currentFilter = filters.get(filters.size() - 1);
 
-            for (CuckooFilter filter : other.filters) {
+            for (CuckooFilter otherFilter : other.filters) {
 
                 // The iterator returns an array of longs corresponding to the
                 // fingerprints for buckets at the current position
-                Iterator<long[]> iter = filter.getBuckets();
+                Iterator<long[]> iter = otherFilter.getBuckets();
                 int bucket = 0;
                 while (iter.hasNext()) {
                     long[] fingerprints = iter.next();
@@ -293,25 +357,14 @@ public class SetBackedScalingCuckooFilter implements Writeable {
                         if (fingerprint == CuckooFilter.EMPTY || mightContainFingerprint(bucket, (int) fingerprint)) {
                             continue;
                         }
-                        boolean success = false;
+                        // Try to insert into the last filter in our list
+                        if (currentFilter.mergeFingerprint(bucket, (int) fingerprint) == false) {
+                            // if we failed, the filter is now saturated and we need to create a new one
+                            CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
+                            filters.add(t);
+                            breaker.accept(t.getSizeInBytes()); // make sure we account for the new filter
 
-                        // If the fingerprint is new, we try to merge it into the filter at our `current` pointer.
-                        // This might fail (e.g. the filter is full), so we may have to try multiple times
-                        while (success == false) {
-                            success = currentFilter.mergeFingerprint(bucket, (int) fingerprint);
-
-                            // If we failed to insert, the current filter is full, get next one
-                            if (success == false) {
-                                current += 1;
-
-                                // if we're out of filters, we need to create a new one
-                                if (current >= filters.size()) {
-                                    CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
-                                    filters.add(t);
-                                    breaker.accept(t.getSizeInBytes()); // make sure we account for the new filter
-                                }
-                                currentFilter = filters.get(current);
-                            }
+                            currentFilter = filters.get(filters.size() - 1);
                         }
                     }
                     bucket += 1;
@@ -320,21 +373,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         }
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(threshold);
-        out.writeBoolean(isSetMode);
-        out.writeVInt(capacity);
-        out.writeDouble(fpp);
-        if (isSetMode) {
-            out.writeCollection(hashes, (out1, hash) -> {
-                out1.writeZLong(hash.h1);
-                out1.writeZLong(hash.h2);
-            });
-        } else {
-            out.writeList(filters);
-        }
-    }
 
     @Override
     public int hashCode() {

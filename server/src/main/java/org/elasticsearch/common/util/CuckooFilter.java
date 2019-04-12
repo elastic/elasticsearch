@@ -41,13 +41,16 @@ import java.util.Random;
  * are not possible though; if the structure says it _has not_ seen an item, that can be
  * trusted.
  *
- * The filter can "saturate" at which point the map is fully loaded and will refuse to accept
+ * The filter can "saturate" at which point the map has hit it's configured load factor (or near enough
+ * that a large number of evictions are not able to find a free slot) and will refuse to accept
  * any new insertions.
  *
  * NOTE: this version does not support deletions, and as such does not save duplicate
  * fingerprints (e.g. when inserting, if the fingerprint is already present in the
  * candidate buckets, it is not inserted).  By not saving duplicates, the CuckooFilter
- * loses the ability to delete values.
+ * loses the ability to delete values.  But not by allowing deletions, we can save space
+ * (do not need to waste slots on duplicate fingerprints), and we do not need to worry
+ * about inserts "overflowing" a bucket because the same item has been repeated repeatedly
  *
  * Based on the paper:
  *
@@ -84,7 +87,6 @@ public class CuckooFilter implements Writeable {
         this.bitsPerEntry = bitsPerEntry(fpp, entriesPerBucket);
         this.numBuckets = getNumBuckets(capacity, loadFactor, entriesPerBucket);
 
-        // This shouldn't happen, but as a sanity check
         if (numBuckets * entriesPerBucket > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
                 + "] entries which is > Integer.MAX_VALUE");
@@ -93,6 +95,27 @@ public class CuckooFilter implements Writeable {
 
         // puts the bits at the right side of the mask, e.g. `0000000000001111` for bitsPerEntry = 4
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
+    }
+
+    CuckooFilter(CuckooFilter other) {
+        this.numBuckets = other.numBuckets;
+        this.bitsPerEntry = other.bitsPerEntry;
+        this.entriesPerBucket = other.entriesPerBucket;
+        this.count = other.count;
+        this.evictedFingerprint = other.evictedFingerprint;
+        this.rng = other.rng;
+        this.fingerprintMask = other.fingerprintMask;
+
+        // This shouldn't happen, but as a sanity check
+        if (numBuckets * entriesPerBucket > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
+                + "] entries which is > Integer.MAX_VALUE");
+        }
+        // TODO this is probably super slow, but just used for testing atm
+        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+        for (int i = 0; i < other.data.size(); i++) {
+            data.set(i, other.data.get(i));
+        }
     }
 
     CuckooFilter(StreamInput in, Random rng) throws IOException {
@@ -118,25 +141,25 @@ public class CuckooFilter implements Writeable {
         });
     }
 
-    CuckooFilter(CuckooFilter other) {
-        this.numBuckets = other.numBuckets;
-        this.bitsPerEntry = other.bitsPerEntry;
-        this.entriesPerBucket = other.entriesPerBucket;
-        this.count = other.count;
-        this.evictedFingerprint = other.evictedFingerprint;
-        this.rng = other.rng;
-        this.fingerprintMask = other.fingerprintMask;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(numBuckets);
+        out.writeVInt(bitsPerEntry);
+        out.writeVInt(entriesPerBucket);
+        out.writeVInt(count);
+        out.writeVInt(evictedFingerprint);
 
-        // This shouldn't happen, but as a sanity check
-        if (numBuckets * entriesPerBucket > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
-                + "] entries which is > Integer.MAX_VALUE");
-        }
-        // TODO this is probably super slow, but just used for testing atm
-        this.data = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
-        for (int i = 0; i < other.data.size(); i++) {
-            data.set(i, other.data.get(i));
-        }
+        data.save(new DataOutput() {
+            @Override
+            public void writeByte(byte b) throws IOException {
+                out.writeByte(b);
+            }
+
+            @Override
+            public void writeBytes(byte[] b, int offset, int length) throws IOException {
+                out.writeBytes(b, offset, length);
+            }
+        });
     }
 
     /**
@@ -362,8 +385,8 @@ public class CuckooFilter implements Writeable {
     /**
      * Calculate the optimal number of bits per entry
      */
-    private int bitsPerEntry(double fp, int numEntriesPerBucket) {
-        return (int) Math.round(log2((2 * numEntriesPerBucket) / fp));
+    private int bitsPerEntry(double fpp, int numEntriesPerBucket) {
+        return (int) Math.round(log2((2 * numEntriesPerBucket) / fpp));
     }
 
     /**
@@ -418,13 +441,9 @@ public class CuckooFilter implements Writeable {
      * TODO: there are schemes to avoid powers of two, might want to investigate those
      */
     private int getNumBuckets(long capacity, double loadFactor, int b) {
-        // Rounds up to nearest power of 2
         long buckets = Math.round((((double) capacity / loadFactor)) / (double) b);
 
-        // Make sure it isn't larger than the largest signed power of 2 for an int
-        if ((1 << -Long.numberOfLeadingZeros(buckets - 1)) > (1 << (Integer.SIZE - 2))) {
-            throw new IllegalArgumentException("Cannot create more than [" + Integer.MAX_VALUE + "] buckets");
-        }
+        // Rounds up to nearest power of 2
         return 1 << -Integer.numberOfLeadingZeros((int)buckets - 1);
     }
 
@@ -433,28 +452,8 @@ public class CuckooFilter implements Writeable {
     }
 
     public long getSizeInBytes() {
+        // (numBuckets, bitsPerEntry, fingerprintMask, entriesPerBucket, count, evictedFingerprint) * 4b == 24b
         return data.ramBytesUsed() + 24;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(numBuckets);
-        out.writeVInt(bitsPerEntry);
-        out.writeVInt(entriesPerBucket);
-        out.writeVInt(count);
-        out.writeVInt(evictedFingerprint);
-
-        data.save(new DataOutput() {
-            @Override
-            public void writeByte(byte b) throws IOException {
-                out.writeByte(b);
-            }
-
-            @Override
-            public void writeBytes(byte[] b, int offset, int length) throws IOException {
-                out.writeBytes(b, offset, length);
-            }
-        });
     }
 
     @Override

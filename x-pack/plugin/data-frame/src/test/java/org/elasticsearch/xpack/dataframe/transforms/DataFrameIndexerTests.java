@@ -62,7 +62,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         // used for synchronizing with the test
         private CountDownLatch latch;
 
-        public MockedDataFrameIndexer(
+        MockedDataFrameIndexer(
                 Executor executor,
                 DataFrameTransformConfig transformConfig,
                 Map<String, String> fieldMappings,

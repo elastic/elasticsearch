@@ -18,9 +18,13 @@ postProcessFixture {
     File confFile = file("${buildDir}/shared/krb-conf/krb5.conf")
     outputs.file(confFile)
     doLast {
+        println "krb5.conf.template exists ? " + confTemplate.exists()
+        File ldapKeytab = file("${buildDir}/shared/keytabs/ldap.keytab")
+        println "ldap.keytab exists ? " + ldapKeytab.exists()
         assert confTemplate.exists()
         String confContents = confTemplate.text
             .replace("\${MAPPED_PORT}", "${ext."test.fixtures.kdc-kadmin.tcp.88"}")
         confFile.text = confContents
+        println "krb5.conf exists after writing ? " + confFile.exists()
     }
 }

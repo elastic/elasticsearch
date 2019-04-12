@@ -26,7 +26,7 @@ ext.expansions = { oss ->
   return [
     'elasticsearch'       : elasticsearch,
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
-    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch}",
+    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
 }
@@ -111,10 +111,7 @@ task copyKeystore(type: Sync) {
 }
 
 preProcessFixture {
-  dependsOn taskName("copy", true, "DockerContext")
-  dependsOn taskName("copy", true, "Dockerfile")
-  dependsOn taskName("copy", false, "DockerContext")
-  dependsOn taskName("copy", false, "Dockerfile")
+  dependsOn assemble
   dependsOn copyKeystore
   doLast {
     // tests expect to have an empty repo
@@ -155,12 +152,16 @@ void addBuildDockerImage(final boolean oss) {
     dependsOn taskName("copy", oss, "Dockerfile")
     List<String> tags
     if (oss) {
-      tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
+      tags = [ 
+        "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}",
+        "elasticsearch-oss:test" 
+      ]
     } else {
       tags = [
         "elasticsearch:${VersionProperties.elasticsearch}",
         "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
-        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}"
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}",
+        "elasticsearch:test",
       ]
     }
     executable 'docker'

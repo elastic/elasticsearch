@@ -26,5 +26,5 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-unitTest.enabled = false
+test.enabled = false
 

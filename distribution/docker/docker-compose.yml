@@ -2,8 +2,7 @@
 version: '3'
 services:
   elasticsearch-default-1:
-    build:
-      context: ./build/docker
+    image: elasticsearch:test
     environment:  
        - node.name=elasticsearch-default-1 
        - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
@@ -43,8 +42,7 @@ services:
         hard: -1
     entrypoint: /docker-test-entrypoint.sh
   elasticsearch-default-2:
-    build:
-      context: ./build/docker
+    image: elasticsearch:test
     environment:  
        - node.name=elasticsearch-default-2
        - cluster.initial_master_nodes=elasticsearch-default-1,elasticsearch-default-2
@@ -84,8 +82,7 @@ services:
         hard: -1
     entrypoint: /docker-test-entrypoint.sh
   elasticsearch-oss-1:
-    build:
-      context: ./build/oss-docker
+    image: elasticsearch:test
     environment:  
        - node.name=elasticsearch-oss-1 
        - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
@@ -110,8 +107,7 @@ services:
         soft: -1
         hard: -1
   elasticsearch-oss-2:
-    build:
-      context: ./build/oss-docker
+    image: elasticsearch:test
     environment:  
        - node.name=elasticsearch-oss-2
        - cluster.initial_master_nodes=elasticsearch-oss-1,elasticsearch-oss-2
@@ -134,4 +130,3 @@ services:
     ulimits:
       memlock:
         soft: -1
-        hard: -1

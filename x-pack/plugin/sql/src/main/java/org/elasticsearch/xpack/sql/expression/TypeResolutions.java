@@ -43,8 +43,18 @@ public final class TypeResolutions {
         return isType(e, DataType::isDateBased, operationName, paramOrd, "date", "datetime");
     }
 
+    public static TypeResolution isDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isDateOrTimeBased, operationName, paramOrd, "date", "time", "datetime");
+    }
+
     public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd, "date", "datetime", "numeric");
+        return isType(e, dt -> dt.isNumeric() || dt.isDateBased(), operationName, paramOrd,
+            "date", "datetime", "numeric");
+    }
+
+    public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt.isNumeric() || dt.isDateOrTimeBased(), operationName, paramOrd,
+            "date", "time", "datetime", "numeric");
     }
 
     public static TypeResolution isExact(Expression e, String message) {

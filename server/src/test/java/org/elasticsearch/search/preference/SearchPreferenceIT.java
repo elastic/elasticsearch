@@ -196,7 +196,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertThat(hitNodes.size(), greaterThan(1));
     }
 
-    public void testCustomPreferenceUnaffectedByIndexCreation() {
+    public void testCustomPreferenceUnaffectedByOtherShardMovements() {
 
         /*
          * Custom preferences can be used to encourage searches to go to a consistent set of shard copies, meaning that other copies' data

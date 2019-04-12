@@ -70,11 +70,10 @@ match exactly.
 
 [source,text]
 --------------------------------------------------
-[master-a] master not discovered yet, this node has not
-previously joined a bootstrapped (v7+) cluster, and this node
-must discover master-eligible nodes [master-a, master-b] to
-bootstrap a cluster: have discovered
-[{master-b.example.com}{...
+[master-a.example.com] master not discovered yet, this node has
+not previously joined a bootstrapped (v7+) cluster, and this
+node must discover master-eligible nodes [master-a, master-b] to
+bootstrap a cluster: have discovered [{master-b.example.com}{...
 --------------------------------------------------
 ==================================================
 

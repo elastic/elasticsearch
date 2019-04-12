@@ -99,11 +99,16 @@ public class FetchPhase implements SearchPhase {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
-            // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
-                context.fetchSourceContext(new FetchSourceContext(true));
+            // maybe request just only want retrieve field's value from docvalue
+            if ((!context.sourceRequested() && context.docValueFieldsContext() != null)) {
+                fieldsVisitor = null;
+            } else {
+                // no fields specified, default to return source if no explicit indication
+                if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+                    context.fetchSourceContext(new FetchSourceContext(true));
+                }
+                fieldsVisitor = new FieldsVisitor(context.sourceRequested());
             }
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             fieldsVisitor = null;

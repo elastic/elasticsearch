@@ -37,6 +37,7 @@ import org.junit.Assert;
 import java.io.InputStream;
 import java.net.SocketPermission;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Permissions;
@@ -252,9 +253,12 @@ public class BootstrapForTesting {
         Set<URL> raw = JarHell.parseClassPath();
         Set<URL> cooked = new HashSet<>(raw.size());
         for (URL url : raw) {
-            boolean added = cooked.add(PathUtils.get(url.toURI()).toRealPath().toUri().toURL());
-            if (added == false) {
-                throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+            Path path = PathUtils.get(url.toURI());
+            if (Files.exists(path)) {
+                boolean added = cooked.add(path.toRealPath().toUri().toURL());
+                if (added == false) {
+                    throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+                }
             }
         }
         return raw;

@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A mock scheduler to help with unit testing. Provide {@link ScheduleTriggerEngineMock#trigger} method to manually trigger
@@ -31,7 +33,8 @@ import java.util.concurrent.ConcurrentMap;
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     private static final Logger logger = LogManager.getLogger(ScheduleTriggerEngineMock.class);
 
-    private final ConcurrentMap<String, Watch> watches = new ConcurrentHashMap<>();
+    private final AtomicReference<Map<String, Watch>> watches = new AtomicReference<>(new ConcurrentHashMap<>());
+    private final AtomicBoolean paused = new AtomicBoolean(false);
 
     public ScheduleTriggerEngineMock(ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
@@ -49,30 +52,32 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public void start(Collection<Watch> jobs) {
-        jobs.forEach(this::add);
+    public synchronized void start(Collection<Watch> jobs) {
+        Map<String, Watch> newWatches = new ConcurrentHashMap<>();
+        jobs.forEach((watch) -> newWatches.put(watch.id(), watch));
+        watches.set(newWatches);
+        paused.set(false);
     }
 
     @Override
     public void stop() {
-        watches.clear();
+        watches.set(new ConcurrentHashMap<>());
     }
 
     @Override
-    public void add(Watch watch) {
+    public synchronized void add(Watch watch) {
         logger.debug("adding watch [{}]", watch.id());
-        watches.put(watch.id(), watch);
+        watches.get().put(watch.id(), watch);
     }
 
     @Override
     public void pauseExecution() {
-        // No action is needed because this engine does not trigger watches on a schedule (instead
-        // they must be triggered manually).
+        paused.set(true);
     }
 
     @Override
-    public boolean remove(String jobId) {
-        return watches.remove(jobId) != null;
+    public synchronized boolean remove(String jobId) {
+        return watches.get().remove(jobId) != null;
     }
 
     public boolean trigger(String jobName) {
@@ -80,7 +85,11 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     public boolean trigger(String jobName, int times, TimeValue interval) {
-        if (watches.containsKey(jobName) == false) {
+        if (watches.get().containsKey(jobName) == false) {
+            return false;
+        }
+        if (paused.get()) {
+            logger.info("not executing watch [{}] on this scheduler because it is paused", jobName);
             return false;
         }
 
@@ -89,7 +98,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
             logger.debug("firing watch [{}] at [{}]", jobName, now);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(jobName, now, now);
             consumers.forEach(consumer -> consumer.accept(Collections.singletonList(event)));
-            if (interval != null)  {
+            if (interval != null) {
                 if (clock instanceof ClockMock) {
                     ((ClockMock) clock).fastForward(interval);
                 } else {

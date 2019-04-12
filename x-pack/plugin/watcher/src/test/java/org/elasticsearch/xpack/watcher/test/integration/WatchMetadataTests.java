@@ -38,7 +38,6 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40631")
     public void testWatchMetadata() throws Exception {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("foo", "bar");

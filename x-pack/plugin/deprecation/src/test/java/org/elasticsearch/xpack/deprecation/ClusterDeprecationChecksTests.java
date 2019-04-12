@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,6 +27,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
 
@@ -154,5 +156,43 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
                 "to fail if fields are not explicitly specified in the query.");
         assertEquals(singletonList(expected), issues);
+    }
+
+    public void testPollIntervalTooLow() {
+        {
+            final String tooLowInterval = randomTimeValue(1, 999, "ms", "micros", "nanos");
+            MetaData badMetaDtata = MetaData.builder()
+                .persistentSettings(Settings.builder()
+                    .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), tooLowInterval)
+                    .build())
+                .build();
+            ClusterState badState = ClusterState.builder(new ClusterName("test"))
+                .metaData(badMetaDtata)
+                .build();
+
+            DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Index Lifecycle Management poll interval is set too low",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                    "#ilm-poll-interval-limit",
+                "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
+                    "currently set to [" + tooLowInterval + "], but must be 1s or greater");
+            List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
+            assertEquals(singletonList(expected), issues);
+        }
+
+        // Test that other values are ok
+        {
+            final String okInterval = randomTimeValue(1, 9999, "d", "h", "s");
+            MetaData okMetaData = MetaData.builder()
+                .persistentSettings(Settings.builder()
+                    .put(LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), okInterval)
+                    .build())
+                .build();
+            ClusterState okState = ClusterState.builder(new ClusterName("test"))
+                .metaData(okMetaData)
+                .build();
+            List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
+            assertThat(noIssues, Matchers.hasSize(0));
+        }
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -50,11 +51,26 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected abstract Map<String, String> getFieldMappings();
 
-    @Override
-    protected void onStartJob(long now) {
-        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+    /**
+     * Request a checkpoint
+     */
+    protected abstract void createCheckpoint(ActionListener<Void> listener);
 
-        pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+    @Override
+    protected void onStart(long now, ActionListener<Void> listener) {
+        try {
+            QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+            pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+
+            // if run for the 1st time, create checkpoint
+            if (getPosition() == null) {
+                createCheckpoint(listener);
+            } else {
+                listener.onResponse(null);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override

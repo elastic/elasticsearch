@@ -138,8 +138,9 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         }
 
         @Override
-        protected void onFinish() {
+        protected void onFinish(ActionListener<Void> listener) {
             logger.debug("Finished indexing for job [" + job.getConfig().getId() + "]");
+            listener.onResponse(null);
         }
 
         @Override

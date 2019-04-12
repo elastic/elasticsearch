@@ -68,9 +68,9 @@ followClusterTestCluster {
 
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
 check.dependsOn followClusterTest
-unitTest.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

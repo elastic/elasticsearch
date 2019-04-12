@@ -8,8 +8,6 @@ preProcessFixture.doLast {
   // able to clean them up
   file("${buildDir}/shared/keytabs/${it}").mkdirs()
   file("${buildDir}/shared/krb-conf/${it}").mkdirs()
-  new File("${buildDir}/shared/krb-conf/ldap-krb5.conf").text = ""
-  new File("${buildDir}/shared/keytabs/ldap.keytab").text = ""
 }
 
 postProcessFixture {

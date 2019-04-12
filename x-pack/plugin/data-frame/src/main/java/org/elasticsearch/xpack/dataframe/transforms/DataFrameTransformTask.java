@@ -471,6 +471,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
+                super.onFinish(listener);
                 long checkpoint = currentCheckpoint.incrementAndGet();
                 auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
                 logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");

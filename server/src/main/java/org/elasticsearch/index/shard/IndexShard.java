@@ -531,14 +531,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                                  */
                                 final Engine engine = getEngine();
-                                if (getMaxSeqNoOfUpdatesOrDeletes() == UNASSIGNED_SEQ_NO) {
-                                    // If the old primary was on an old version that did not replicate the msu,
-                                    // we need to bootstrap it manually from its local history.
-                                    assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
-                                    engine.advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-                                }
-                                // in case we previously reset engine, we need to forward MSU before replaying translog.
-                                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                                 engine.restoreLocalHistoryFromTranslog((resettingEngine, snapshot) ->
                                     runTranslogRecovery(resettingEngine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {}));
                                 /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
@@ -1395,9 +1387,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 translogRecoveryStats::incrementRecoveredOperations);
         };
         innerOpenEngineAndTranslog();
-        final Engine engine = getEngine();
-        engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
-        engine.recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
+        getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE);
     }
 
     /**
@@ -2189,12 +2179,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         synchronized (mutex) {
             replicationTracker.activateWithPrimaryContext(primaryContext); // make changes to primaryMode flag only under mutex
-            if (getMaxSeqNoOfUpdatesOrDeletes() == UNASSIGNED_SEQ_NO) {
-                // If the old primary was on an old version that did not replicate the msu,
-                // we need to bootstrap it manually from its local history.
-                assert indexSettings.getIndexVersionCreated().before(Version.V_6_5_0);
-                getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats().getMaxSeqNo());
-            }
         }
     }
 
@@ -3092,7 +3076,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
                 onNewEngine(newEngine);
             }
-            newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(globalCheckpoint);
             final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
                 engine, snapshot, Engine.Operation.Origin.LOCAL_RESET, () -> {
                     // TODO: add a dedicate recovery stats for the reset translog
@@ -3143,11 +3126,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
-        assert seqNo != UNASSIGNED_SEQ_NO
-            || getMaxSeqNoOfUpdatesOrDeletes() == UNASSIGNED_SEQ_NO :
-            "replica has max_seq_no_of_updates=" + getMaxSeqNoOfUpdatesOrDeletes() + " but primary does not";
         getEngine().advanceMaxSeqNoOfUpdatesOrDeletes(seqNo);
-        assert seqNo <= getMaxSeqNoOfUpdatesOrDeletes() : getMaxSeqNoOfUpdatesOrDeletes() + " < " + seqNo;
     }
 
     /**

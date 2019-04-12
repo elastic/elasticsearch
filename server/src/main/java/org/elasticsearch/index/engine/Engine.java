@@ -145,10 +145,6 @@ public abstract class Engine implements Closeable {
     /*
      * This marker tracks the max seq_no of either update operations or delete operations have been processed in this engine.
      * An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
-     * This marker is started uninitialized (-2), and the optimization using seq_no will be disabled if this marker is uninitialized.
-     * The value of this marker never goes backwards, and is updated/changed differently on primary and replica:
-     * 1. A primary initializes this marker once using the max_seq_no from its history, then advances when processing an update or delete.
-     * 2. A replica never advances this marker by itself but only inherits from its primary (via advanceMaxSeqNoOfUpdatesOrDeletes).
      */
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes = new AtomicLong(UNASSIGNED_SEQ_NO);
 
@@ -1961,7 +1957,6 @@ public abstract class Engine implements Closeable {
      * Moreover, operations that are optimized using the MSU optimization must not be processed twice as this will create duplicates
      * in Lucene. To avoid this we check the local checkpoint tracker to see if an operation was already processed.
      *
-     * @see #reinitializeMaxSeqNoOfUpdatesOrDeletes()
      * @see #advanceMaxSeqNoOfUpdatesOrDeletes(long)
      */
     public final long getMaxSeqNoOfUpdatesOrDeletes() {
@@ -1969,17 +1964,14 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * A primary shard calls this method to re-initialize the max_seq_no_of_updates marker using the
-     * max_seq_no from Lucene index and translog before replaying the local translog in its local recovery.
-     */
-    public abstract void reinitializeMaxSeqNoOfUpdatesOrDeletes();
-
-    /**
      * A replica shard receives a new max_seq_no_of_updates from its primary shard, then calls this method
      * to advance this marker to at least the given sequence number.
      */
     public final void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
+        if (seqNo == UNASSIGNED_SEQ_NO) {
+            assert false : "unassigned max_seq_no_of_updates";
+            throw new IllegalArgumentException("unassigned max_seq_no_of_updates");
+        }
         maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, seqNo));
-        assert maxSeqNoOfUpdatesOrDeletes.get() >= seqNo : maxSeqNoOfUpdatesOrDeletes.get() + " < " + seqNo;
     }
 }

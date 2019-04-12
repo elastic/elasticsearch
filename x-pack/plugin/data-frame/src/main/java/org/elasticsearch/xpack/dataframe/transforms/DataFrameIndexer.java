@@ -176,7 +176,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
-        if (newPageSize <= MINIMUM_PAGE_SIZE) {
+        if (newPageSize < MINIMUM_PAGE_SIZE) {
             String message = DataFrameMessages.getMessage(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             auditor.error(getJobId(), message);
             logger.error("Data frame transform [" + getJobId() + "]:" + message);

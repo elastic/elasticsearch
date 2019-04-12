@@ -1,8 +1,4 @@
 :version:               6.7.1
-////
-bare_version never includes -alpha or -beta
-////
-:bare_version:          6.7.1
 :major-version:         6.x
 :lucene_version:        7.7.0
 :lucene_version_path:   7_7_0
@@ -45,7 +41,6 @@ ifeval::["{release-state}"=="unreleased"]
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
 :matrixstats-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
 :rank-eval-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}-SNAPSHOT
-:version_qualified: {bare_version}-SNAPSHOT
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
@@ -59,7 +54,6 @@ ifeval::["{release-state}"!="unreleased"]
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
 :rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
-:version_qualified: {bare_version}
 endif::[]
 
 :javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client

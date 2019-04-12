@@ -2,7 +2,6 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -139,8 +138,8 @@ processTestResources {
   dependsOn configurations.restSpec
 }
 
-task integTest(type: RandomizedTestingTask) {
-  parallelism = '1'
+task integTest(type: Test) {
+  maxParallelForks = '1'
   include '**/*IT.class'
 }
 

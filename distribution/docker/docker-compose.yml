@@ -130,3 +130,4 @@ services:
     ulimits:
       memlock:
         soft: -1
+        hard: -1

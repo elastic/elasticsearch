@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 
@@ -43,7 +42,7 @@ public class NoOpEngineRecoveryTests extends IndexShardTestCase {
         final ShardRouting shardRouting = indexShard.routingEntry();
         IndexShard primary = reinitShard(indexShard, initWithSameId(shardRouting, ExistingStoreRecoverySource.INSTANCE), NoOpEngine::new);
         recoverShardFromStore(primary);
-        assertEquals(SequenceNumbers.UNASSIGNED_SEQ_NO, primary.getMaxSeqNoOfUpdatesOrDeletes());
+        assertEquals(primary.seqNoStats().getMaxSeqNo(), primary.getMaxSeqNoOfUpdatesOrDeletes());
         assertEquals(nbDocs, primary.docStats().getCount());
 
         IndexShard replica = newShard(false, Settings.EMPTY, NoOpEngine::new);

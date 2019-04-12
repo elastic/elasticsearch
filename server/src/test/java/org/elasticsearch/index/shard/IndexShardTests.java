@@ -3631,8 +3631,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testResetEngine() throws Exception {
         IndexShard shard = newStartedShard(false);
-        long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
+        long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
         final long globalCheckpoint = randomLongBetween(shard.getGlobalCheckpoint(), shard.getLocalCheckpoint());
         shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
         Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()

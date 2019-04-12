@@ -136,20 +136,12 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     public Double getX() {
         Point firstPoint = firstPoint();
-        if (firstPoint != null) {
-            return firstPoint.getLon();
-        } else {
-            return null;
-        }
+        return firstPoint != null ? firstPoint.getLon() : null;
     }
 
     public Double getY() {
         Point firstPoint = firstPoint();
-        if (firstPoint != null) {
-            return firstPoint.getLat();
-        } else {
-            return null;
-        }
+        return firstPoint != null ? firstPoint.getLat() : null;
     }
 
     public String getGeometryType() {

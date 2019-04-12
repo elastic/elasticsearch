@@ -75,12 +75,13 @@ ST_GeometryType(geometry<1>)
 
 .Description:
 
-Returns the type of the `geometry` such as "Point", "Polygon", "MultiPolygon", etc.
+Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
+
 The return type is string.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[geometrytype]
+include-tagged::{sql-specs}/docs/geo.csv-spec[geometrytype]
 --------------------------------------------------
 
 [[sql-functions-geo-st-x]]
@@ -105,7 +106,7 @@ The return type is double.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[x]
+include-tagged::{sql-specs}/docs/geo.csv-spec[x]
 --------------------------------------------------
 
 [[sql-functions-geo-st-y]]
@@ -130,7 +131,7 @@ The return type is double.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[y]
+include-tagged::{sql-specs}/docs/geo.csv-spec[y]
 --------------------------------------------------
 
 [[sql-functions-geo-st-distance]]
@@ -155,5 +156,5 @@ Returns the distance between geometries in meters. Both geometries have to be po
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/geo/docs.csv-spec[distance]
+include-tagged::{sql-specs}/docs/geo.csv-spec[distance]
 --------------------------------------------------

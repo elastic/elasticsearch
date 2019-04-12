@@ -222,6 +222,14 @@ SELECT COUNT(*) cnt, ST_GeometryType(location) gt FROM geo GROUP BY ST_GeometryT
 15             |POINT
 ;
 
+
+groupAndOrderByGeometryType
+SELECT COUNT(*) cnt, ST_GeometryType(location) gt FROM geo GROUP BY gt ORDER BY gt;
+
+     cnt:l     |      gt:s
+15             |POINT
+;
+
 groupByEastWest
 SELECT COUNT(*) cnt, FLOOR(ST_X(location)/90) east FROM geo GROUP BY east ORDER BY east;
 
@@ -241,28 +249,40 @@ SELECT COUNT(*) cnt, FLOOR(ST_Y(location)/45) north FROM geo GROUP BY north ORDE
 5              |1
 ;
 
-selectFilterByXOfLocation
-SELECT city, ST_X(shape) x, ST_Y(shape) y FROM geo WHERE ST_X(location) > 0 ORDER BY ST_Y(location);
+groupByNorthEastSortByEastNorth
+SELECT COUNT(*) cnt, FLOOR(ST_Y(location)/45) north, FLOOR(ST_X(location)/90) east FROM geo GROUP BY north, east ORDER BY east, north;
 
-   city:s      |      x:d      |     y:d
-Sydney         |151.208629     |-33.863385
-Singapore      |103.855535     |1.295868
-Hong Kong      |114.183925     |22.281397
-Tokyo          |139.76402225   |35.669616
-Seoul          |127.060851     |37.509132
-Munich         |11.537505      |48.146321
-Paris          |2.351773       |48.845538
-Amsterdam      |4.850312       |52.347557
-Berlin         |13.390889      |52.486701
+     cnt:l     |   north:l     |    east:l
+3              |0              |-2
+2              |0              |-1
+1              |1              |-1
+4              |1              |0
+1              |-1             |1
+4              |0              |1
+;
+
+selectFilterByXOfLocation
+SELECT city, ST_X(shape) x, ST_Y(shape) y, ST_X(location) lx, ST_Y(location) ly FROM geo WHERE lx > 0 ORDER BY ly;
+
+   city:s      |      x:d      |     y:d       |         lx:d     |     ly:d
+Sydney         |151.208629     |-33.863385     |151.20862897485495|-33.863385021686554
+Singapore      |103.855535     |1.295868       |103.8555349688977 |1.2958679627627134
+Hong Kong      |114.183925     |22.281397      |114.18392493389547|22.28139698971063
+Tokyo          |139.76402225   |35.669616      |139.76402222178876|35.66961596254259
+Seoul          |127.060851     |37.509132      |127.06085099838674|37.50913198571652
+Munich         |11.537505      |48.146321      |11.537504978477955|48.14632098656148
+Paris          |2.351773       |48.845538      |2.3517729341983795|48.84553796611726
+Amsterdam      |4.850312       |52.347557      |4.850311987102032 |52.347556999884546
+Berlin         |13.390889      |52.486701      |13.390888944268227|52.48670099303126
 ;
 
 selectFilterByRegionPoint
-SELECT city, region FROM geo WHERE ST_X(ST_WKTTOSQL(region_point)) < 0 ORDER BY ST_X(location);
+SELECT city, region, ST_X(location) x FROM geo WHERE ST_X(ST_WKTTOSQL(region_point)) < 0 ORDER BY x;
 
-    city:s     |   region:s
-San Francisco  |Americas
-Mountain View  |Americas
-Phoenix        |Americas
-Chicago        |Americas
-New York       |Americas
+    city:s     |   region:s    |       x:d
+San Francisco  |Americas       |-122.39422800019383
+Mountain View  |Americas       |-122.08384302444756
+Phoenix        |Americas       |-111.97350500151515
+Chicago        |Americas       |-87.63787407428026
+New York       |Americas       |-73.9900270756334
 ;

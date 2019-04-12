@@ -11,6 +11,7 @@ test.enabled = false
 
 dependencies {
   testCompile project(':x-pack:qa')
+//  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
@@ -304,11 +305,4 @@ task copyXPackRestSpec(type: Copy) {
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
-
-task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)

@@ -215,11 +215,4 @@ task copyXPackRestSpec(type: Copy) {
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
-
-task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)

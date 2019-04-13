@@ -20,9 +20,9 @@ services:
       - "88"
     healthcheck:
         test: ["CMD", "test", "-f", "/fixture/build/shared/keytabs/ldap.keytab"]
-        interval: 10s
-        timeout: 10s
-        retries: 5
+        interval: 5s
+        timeout: 5s
+        retries: 10
 
   openldap:
     command: --copy-service --loglevel debug
@@ -59,6 +59,12 @@ services:
       - kdc-kadmin
     links:
       - kdc-kadmin
+    restart: always
+    healthcheck:
+        test: ["CMD", "test", "-s", "/etc/krb5.keytab"]
+        interval: 5s
+        timeout: 5s
+        retries: 10
 
   shibboleth-idp:
     image: "unicon/shibboleth-idp:3.4.2"

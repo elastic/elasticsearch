@@ -92,7 +92,7 @@ PUT my_source_index
     "index.number_of_shards" : 1
   }
 }
--------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 
 In order to split an index, the index must be marked as read-only,

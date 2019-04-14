@@ -64,7 +64,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES_NO_ILM) {
                 Response templateExistsResponse = adminClient().performRequest(new Request("HEAD", "/_template/" + template));
                 assertThat(templateExistsResponse.getStatusLine().getStatusCode(), is(200));
             }

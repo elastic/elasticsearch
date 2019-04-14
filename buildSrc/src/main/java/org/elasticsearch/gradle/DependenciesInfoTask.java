@@ -63,9 +63,9 @@ public class DependenciesInfoTask extends DefaultTask {
     private LinkedHashMap<String, String> mappings;
 
     /** Directory to read license files */
-    private File licensesDir = new File(project.projectDir, "licenses");
+    private File licensesDir = new File(getProject().getProjectDir(), "licenses");
 
-    private File outputFile = new File(project.buildDir, "reports/dependencies/dependencies.csv");
+    private File outputFile = new File(getProject().getBuildDir(), "reports/dependencies/dependencies.csv");
 
     @Input
     public Configuration getRuntimeConfiguration() {
@@ -110,6 +110,45 @@ public class DependenciesInfoTask extends DefaultTask {
 
     public void setOutputFile(File outputFile) {
         this.outputFile = outputFile;
+    }
+    @TaskAction
+    public void generateDependenciesInfo() {
+
+        final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
+        // we have to resolve the transitive dependencies and create a group:artifactId:version map
+        final Set<ResolvedArtifacts> compileOnlyArtifactsSet =
+                compileOnlyConfiguration
+                .getResolvedConfiguration()
+                .getResolvedArtifacts();
+        final Set<String> compileOnlyArtifacts = new HashSet<>();
+        compileOnlyArtifacts.forEach(ra -> compileOnlyArtifacts.add(
+                ra.getModuleVersion().getId().getGroup() + ":" +
+                ra.getModuleVersion().getId().getName() + ":" + 
+                ra.getModuleVersion().getId().getVersion()));
+
+        final StringBuilder output = new StringBuilder();
+
+        for (final Dependency dependency : runtimeDependencies) {
+            // we do not need compile-only dependencies here
+            if (compileOnlyArtifacts.contains(dependency.getGroup() + ":" +
+                                              dependency.getName() + ":" +
+                                              dependency.getVersion())) {
+                continue;
+            }
+            // only external dependencies are checked
+            if (dependency.getGroup() != null && dependency.getGroup().contains("org.elasticsearch")) {
+                continue;
+            }
+
+            final String url = createURL(dependency.getGroup(), dependency.getName(), dependency.getVersion());
+            final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, dependency.getName());
+            logger.info("mapped dependency " + dependency.getGroup() + ":" + dependency.getName() + " to " + dependencyName + " for license info");
+
+            final String licenseType = getLicenseType(dependency.group, dependencyName);
+            output.append(dependency.getGroup() + ":" + dependency.getName() + "," + dependency.getVersion() + "," + url + "," + licenseType + "\n");
+
+        }
+        Files.write(outputfile.toPath(), output.toString().getBytes(StandardCharset.UTF_8));
     }
     
     /**
@@ -173,7 +212,7 @@ public class DependenciesInfoTask extends DefaultTask {
      * @param licenseText LICENSE file content.
      * @return SPDX identifier or null.
      */
-    private String checkSPDXLicense(final String licenseText) {
+    protected String checkSPDXLicense(final String licenseText) {
         String spdx = null;
 
         final String APACHE_2_0 = "Apache.*License.*(v|V)ersion.*2\\.0";

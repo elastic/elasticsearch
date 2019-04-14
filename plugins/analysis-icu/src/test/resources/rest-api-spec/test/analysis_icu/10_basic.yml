@@ -106,6 +106,10 @@
 
 ---
 "Normalization with deprecated unicodeSetFilter":
+    - skip:
+        reason:  unicodeSetFilter deprecated in 7.0.0, replaced by unicode_set_filter
+        features: "warnings"
+
     - do:
         warnings:
           - "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]"

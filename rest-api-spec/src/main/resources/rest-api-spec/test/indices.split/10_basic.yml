@@ -29,7 +29,6 @@ setup:
 
 ---
 "Split index via API":
-
   # make it read-only
   - do:
       indices.put_settings:
@@ -94,7 +93,9 @@ setup:
 
 ---
 "Split from 1 to N":
-
+  - skip:
+      version: " - 6.99.99"
+      reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
         index: source_one_shard
@@ -184,7 +185,6 @@ setup:
 
 ---
 "Create illegal split indices":
-
   # try to do an illegal split with number_of_routing_shards set
   - do:
       catch: /illegal_argument_exception/

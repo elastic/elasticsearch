@@ -107,8 +107,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-
 public class InternalEngine extends Engine {
 
     /**
@@ -2724,7 +2722,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        if (maxSeqNoOfUpdatesOnPrimary == UNASSIGNED_SEQ_NO) {
+        if (maxSeqNoOfUpdatesOnPrimary == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             assert false : "max_seq_no_of_updates on primary is unassigned";
             throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
         }

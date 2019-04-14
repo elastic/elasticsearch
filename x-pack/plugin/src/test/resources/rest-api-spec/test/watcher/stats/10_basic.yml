@@ -15,7 +15,6 @@
 
 ---
 "Test watcher stats current watches":
-
   - do:
       watcher.stats:
         metric: "current_watches"
@@ -34,6 +33,10 @@
 
 ---
 "Test watcher stats queued watches using pending_watches":
+  - skip:
+      reason:  metrics were fixed in 7.0.0
+      features: warnings
+
   - do:
       warnings:
         - 'The pending_watches parameter is deprecated, use queued_watches instead'

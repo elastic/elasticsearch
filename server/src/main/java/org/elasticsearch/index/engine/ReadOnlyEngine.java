@@ -483,4 +483,14 @@ public class ReadOnlyEngine extends Engine {
             }
         };
     }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        // noop
+    }
 }

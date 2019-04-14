@@ -107,6 +107,8 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
 public class InternalEngine extends Engine {
 
     /**
@@ -145,6 +147,10 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+    // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations have been processed in this engine.
+    // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
+    // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
     // Lucene operations since this engine was opened - not include operations from existing segments.
@@ -227,7 +233,7 @@ public class InternalEngine extends Engine {
                 () -> acquireSearcher("create_local_checkpoint_tracker", SearcherScope.INTERNAL), localCheckpointTrackerSupplier);
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
-            advanceMaxSeqNoOfUpdatesOrDeletes(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
+            maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             success = true;
         } finally {
             if (success == false) {
@@ -2709,6 +2715,20 @@ public class InternalEngine extends Engine {
             maxUnsafeAutoIdTimestamp.updateAndGet(curr -> Math.max(curr, newTimestamp));
         }
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
+    }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes.get();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        if (maxSeqNoOfUpdatesOnPrimary == UNASSIGNED_SEQ_NO) {
+            assert false : "max_seq_no_of_updates on primary is unassigned";
+            throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
+        }
+        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
     }
 
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {

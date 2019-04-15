@@ -359,7 +359,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.startObject();
             {
                 mappingsAndSettings.startObject("settings");
-                mappingsAndSettings.field("number_of_shards", 2);
+                mappingsAndSettings.field("number_of_shards", 5);
                 mappingsAndSettings.endObject();
 
                 mappingsAndSettings.startObject("mappings");

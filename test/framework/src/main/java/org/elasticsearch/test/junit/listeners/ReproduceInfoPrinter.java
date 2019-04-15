@@ -19,7 +19,6 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -38,6 +37,7 @@ import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
@@ -77,8 +77,14 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
-        // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
+
+        // append Gradle test runner test filter string
         b.append(task);
+        b.append(" --tests \"");
+        b.append(failure.getDescription().getClassName());
+        b.append(".");
+        b.append(failure.getDescription().getMethodName());
+        b.append("\"");
 
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
@@ -106,11 +112,6 @@ public class ReproduceInfoPrinter extends RunListener {
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
             super.appendAllOpts(description);
 
-            if (description.getMethodName() != null) {
-                //prints out the raw method description instead of methodName(description) which filters out the parameters
-                super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + description.getMethodName() + "\"");
-            }
-
             return appendESProperties();
         }
 
@@ -128,6 +129,11 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals(SYSPROP_ITERATIONS())) { // we don't want the iters to be in there!
                 return this;
             }
+            if (sysPropName.equals(SYSPROP_TESTCLASS())) {
+                //don't print out the test class, we print it ourselves in appendAllOpts
+                //without filtering out the parameters (needed for REST tests)
+                return this;
+            }
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
                 //don't print out the test method, we print it ourselves in appendAllOpts
                 //without filtering out the parameters (needed for REST tests)
@@ -143,7 +149,7 @@ public class ReproduceInfoPrinter extends RunListener {
             return this;
         }
 
-        public ReproduceErrorMessageBuilder appendESProperties() {
+        private ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("tests.es.logger.level");
             if (inVerifyPhase()) {
                 // these properties only make sense for integration tests

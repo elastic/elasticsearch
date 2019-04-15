@@ -140,25 +140,35 @@ public final class IndicesPermission {
         for (String forIndexPattern : checkForIndexPatterns) {
             final Automaton checkIndexAutomaton = IndicesPermission.Group.buildIndexMatcherAutomaton(allowRestrictedIndices,
                     forIndexPattern);
-            Automaton allowedIndexPrivilegesAutomaton = null;
-            for (Group group : groups) {
-                final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
-                        g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
-                if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
-                    if (allowedIndexPrivilegesAutomaton != null) {
-                        allowedIndexPrivilegesAutomaton = Automatons
-                                .unionAndMinimize(Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton()));
-                    } else {
-                        allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
+            if (false == Operations.isEmpty(checkIndexAutomaton)) {
+                Automaton allowedIndexPrivilegesAutomaton = null;
+                for (Group group : groups) {
+                    final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group,
+                            g -> IndicesPermission.Group.buildIndexMatcherAutomaton(g.allowRestrictedIndices(), g.indices()));
+                    if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
+                        if (allowedIndexPrivilegesAutomaton != null) {
+                            allowedIndexPrivilegesAutomaton = Automatons
+                                    .unionAndMinimize(Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton()));
+                        } else {
+                            allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
+                        }
                     }
                 }
-            }
-            for (String privilege : checkForPrivileges) {
-                IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
-                if (allowedIndexPrivilegesAutomaton != null
-                        && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
-                    resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
-                } else {
+                for (String privilege : checkForPrivileges) {
+                    IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
+                    if (allowedIndexPrivilegesAutomaton != null
+                            && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                    } else {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                    }
+                }
+            } else {
+                // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
+                // restricted indices namespace - a namespace of indices that are normally hidden when granting/checking privileges - and
+                // the pattern was not marked as such. We try to anticipate this in other places in the code, but keep this code as the
+                // fail-safe and catch-all scenario
+                for (String privilege : checkForPrivileges) {
                     resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
                 }
             }
@@ -319,6 +329,15 @@ public final class IndicesPermission {
             if (allowRestrictedIndices) {
                 return indicesAutomaton;
             } else {
+                for (String index : indices) {
+                    if (RestrictedIndicesNames.RESTRICTED_NAMES.contains(index)) {
+                        throw new IllegalArgumentException(
+                                "The indices pattern " + Arrays.toString(indices) + " contains the restricted index [" + index
+                                        + "] explicitly, without toggling the \"allow_restricted_indices\" flag."
+                                        + " This is an error, the \"allow_restricted_indices\" flag has to be \"true\""
+                                        + " whenever granting or checking privileges over restricted indices.");
+                    }
+                }
                 return Automatons.minusAndMinimize(indicesAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
             }
         }

@@ -20,6 +20,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
@@ -143,6 +145,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
+        String type = isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0) ? "doc" : "_doc";
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -155,7 +158,9 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
             }
             {
                 mappingsAndSettings.startObject("mappings");
-                mappingsAndSettings.startObject("doc");
+                if(getOldClusterVersion().before(Version.V_7_0_0)) {
+                    mappingsAndSettings.startObject("doc");
+                }
                 mappingsAndSettings.startObject("properties");
                 {
                     mappingsAndSettings.startObject("query");
@@ -173,18 +178,23 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     mappingsAndSettings.endObject();
                 }
                 mappingsAndSettings.endObject();
-                mappingsAndSettings.endObject();
+                if(getOldClusterVersion().before(Version.V_7_0_0)) {
+                    mappingsAndSettings.endObject();
+                }
                 mappingsAndSettings.endObject();
             }
             mappingsAndSettings.endObject();
             Request request = new Request("PUT", "/" + index);
-            request.setOptions(allowTypesRemovalWarnings());
+            if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_6_7_0) &&
+                getOldClusterVersion().before(Version.V_7_0_0)) {
+                request.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
+            }
             request.setJsonEntity(Strings.toString(mappingsAndSettings));
             Response rsp = client().performRequest(request);
             assertEquals(200, rsp.getStatusLine().getStatusCode());
 
             for (int i = 0; i < CANDIDATES.size(); i++) {
-                request = new Request("PUT", "/" + index + "/doc/" + Integer.toString(i));
+                request = new Request("PUT", "/" + index + "/" + type + "/" + Integer.toString(i));
                 request.setJsonEntity((String) CANDIDATES.get(i)[0]);
                 rsp = client().performRequest(request);
                 assertEquals(201, rsp.getStatusLine().getStatusCode());

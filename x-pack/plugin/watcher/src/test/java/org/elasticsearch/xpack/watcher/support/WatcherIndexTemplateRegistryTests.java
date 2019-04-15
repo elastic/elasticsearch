@@ -188,7 +188,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
     }
 
-    public void testPolicyAlreadyExistsButDiffers() throws IOException  {
+    public void testPolicyAlreadyExistsButDiffers() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -198,7 +198,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(1));
-        LifecyclePolicy policy = policies.get(0);        try (XContentParser parser = XContentType.JSON.xContent()
+        LifecyclePolicy policy = policies.get(0);
+        try (XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
             policyMap.put(policy.getName(), different);

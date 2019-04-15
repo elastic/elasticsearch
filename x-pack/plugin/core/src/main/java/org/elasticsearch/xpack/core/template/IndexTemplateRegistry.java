@@ -1,3 +1,9 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +40,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
+/**
+ * Abstracts the logic of managing versioned index templates and lifecycle policies for plugins that require such things.
+ */
 public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(IndexTemplateRegistry.class);
 
@@ -53,6 +62,47 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         clusterService.addListener(this);
     }
 
+    /**
+     * Retrieves return a list of {@link IndexTemplateConfig} that represents
+     * the index templates that should be installed and managed.
+     * @param ilmEnabled Indicates whether ILM is enabled, to allow using ILM-less templates if ILM is disabled.
+     * @return The configurations for the templates that should be installed.
+     */
+    protected abstract List<IndexTemplateConfig> getTemplateConfigs(boolean ilmEnabled);
+
+    /**
+     * Retrieves a list of {@link LifecyclePolicyConfig} that represents the ILM
+     * policies that should be installed and managed. Only called if ILM is enabled.
+     * @return The configurations for the lifecycle policies that should be installed.
+     */
+    protected abstract List<LifecyclePolicyConfig> getPolicyConfigs();
+
+    /**
+     * Retrieves an identifier that is used to identify which plugin is asking for this.
+     * @return A string ID for the plugin managing these templates.
+     */
+    protected abstract String getOrigin();
+
+    /**
+     * Called when creation of an index template fails.
+     * @param config The template config that failed to be created.
+     * @param e The exception that caused the failure.
+     */
+    protected void onPutTemplateFailure(IndexTemplateConfig config, Exception e) {
+        logger.error(new ParameterizedMessage("Error adding index template [{}] from [{}] for [{}]",
+            config.getTemplateName(), config.getFileName(), getOrigin()), e);
+    }
+
+    /**
+     * Called when creation of a lifecycle policy fails.
+     * @param policy The lifecycle policy that failed to be created.
+     * @param e The exception that caused the failure.
+     */
+    protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
+        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]",
+            policy.getName(), getOrigin()), e);
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
@@ -68,8 +118,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             return;
         }
 
-        // if this node is newer than the master node, we probably need to add the history template, which might be newer than the
-        // history template the master node has, so we need potentially add new templates despite being not the master node
+        // if this node is newer than the master node, we probably need to add the template, which might be newer than the
+        // template the master node has, so we need potentially add new templates despite being not the master node
         DiscoveryNode localNode = event.state().getNodes().getLocalNode();
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
@@ -102,7 +152,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         executor.execute(() -> {
             final String templateName = config.getTemplateName();
 
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.load(), XContentType.JSON);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.loadBytes(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
                 new ActionListener<AcknowledgedResponse>() {
@@ -118,8 +168,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     @Override
                     public void onFailure(Exception e) {
                         creationCheck.set(false);
-                        logger.error(new ParameterizedMessage("Error adding index template [{}] for [{}]",
-                            templateName, getOrigin()), e);
+                        onPutTemplateFailure(config, e);
                     }
                 }, client.admin().indices()::putTemplate);
         });
@@ -173,17 +222,10 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     @Override
                     public void onFailure(Exception e) {
                         creationCheck.set(false);
-                        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]",
-                            policy.getName(), getOrigin()), e);
+                        onPutPolicyFailure(policy, e);
                     }
                 }, (req, listener) -> new XPackClient(client).ilmClient().putLifecyclePolicy(req, listener));
         });
     }
-
-    protected abstract List<IndexTemplateConfig> getTemplateConfigs(boolean ilmEnabled);
-
-    protected abstract List<LifecyclePolicyConfig> getPolicyConfigs();
-
-    protected abstract String getOrigin();
 
 }

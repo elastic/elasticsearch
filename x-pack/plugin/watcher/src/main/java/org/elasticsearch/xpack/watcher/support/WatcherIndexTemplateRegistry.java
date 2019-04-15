@@ -27,31 +27,24 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final String WATCHER_TEMPLATE_VERSION_VARIABLE = "xpack.watcher.template.version";
     public static final IndexTemplateConfig TEMPLATE_CONFIG_TRIGGERED_WATCHES = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME,
-        "triggered-watches",
+        "/triggered-watches.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
-        "watch-history",
+        "/watch-history.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
-        "watch-history-no-ilm",
+        "/watch-history-no-ilm.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCHES = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.WATCHES_TEMPLATE_NAME,
-        "watches",
+        "/watches.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
         WATCHER_TEMPLATE_VERSION_VARIABLE);
-
-    public static final List<IndexTemplateConfig> TEMPLATE_CONFIGS = Arrays.asList(
-        TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY, TEMPLATE_CONFIG_WATCHES
-    );
-    public static final List<IndexTemplateConfig> TEMPLATE_CONFIGS_NO_ILM = Arrays.asList(
-        TEMPLATE_CONFIG_TRIGGERED_WATCHES, TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM, TEMPLATE_CONFIG_WATCHES
-    );
 
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
         "/watch-history-ilm-policy.json");
@@ -63,7 +56,11 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs(boolean ilmEnabled) {
-        return ilmEnabled ? TEMPLATE_CONFIGS : TEMPLATE_CONFIGS_NO_ILM;
+        return Arrays.asList(
+            ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
+            TEMPLATE_CONFIG_TRIGGERED_WATCHES,
+            TEMPLATE_CONFIG_WATCHES
+        );
     }
 
     @Override

@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetWatchResponse extends ActionResponse implements ToXContent {
+public class GetWatchResponse extends ActionResponse implements ToXContentObject {
 
     private String id;
     private WatchStatus status;
@@ -122,6 +122,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field("found", found);
         builder.field("_id", id);
         if (found) {
@@ -131,6 +132,7 @@ public class GetWatchResponse extends ActionResponse implements ToXContent {
             builder.field("status", status,  params);
             builder.field("watch", source, params);
         }
+        builder.endObject();
         return builder;
     }
 

@@ -91,6 +91,13 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+    
+    protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("shard", shardId());
         builder.field("index", index());
         builder.field("status", status.name());

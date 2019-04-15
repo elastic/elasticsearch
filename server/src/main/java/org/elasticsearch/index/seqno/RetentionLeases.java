@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -42,7 +43,7 @@ import java.util.stream.Collectors;
  * Represents a versioned collection of retention leases. We version the collection of retention leases to ensure that sync requests that
  * arrive out of order on the replica, using the version to ensure that older sync requests are rejected.
  */
-public class RetentionLeases implements ToXContent, Writeable {
+public class RetentionLeases implements ToXContentFragment, Writeable {
 
     private final long primaryTerm;
 

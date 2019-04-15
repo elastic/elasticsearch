@@ -29,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -401,7 +401,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      */
-    public static class Clusters implements ToXContent, Writeable {
+    public static class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 

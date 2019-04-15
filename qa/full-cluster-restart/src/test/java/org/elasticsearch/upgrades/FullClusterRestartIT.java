@@ -519,7 +519,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * </ol>
      */
     public void testRollover() throws IOException {
-       // String type =
         if (isRunningAgainstOldCluster()) {
             Request createIndex = new Request("PUT", "/" + index + "-000001");
             createIndex.setJsonEntity("{"
@@ -548,7 +547,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             rolloverRequest.setJsonEntity("{"
                     + "  \"conditions\": {"
                     + "    \"max_docs\": 5"
-                    + "  }"
                     + "  }"
                     + "}");
             client().performRequest(rolloverRequest);

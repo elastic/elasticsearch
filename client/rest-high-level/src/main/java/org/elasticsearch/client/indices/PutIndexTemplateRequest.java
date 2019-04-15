@@ -31,7 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -56,7 +56,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentFragment {
 
     private String name;
 
@@ -191,7 +191,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public Settings settings() {
         return this.settings;
     }
-    
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -201,7 +201,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
         internalMapping(XContentHelper.convertToMap(new BytesArray(source), true, xContentType).v2());
         return this;
-    }    
+    }
 
     /**
      * The cause for this index template creation.
@@ -221,11 +221,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source), 
+        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source),
                 true, source.contentType()).v2());
-        return this;        
-    }    
-    
+        return this;
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -235,8 +235,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     public PutIndexTemplateRequest mapping(BytesReference source, XContentType xContentType) {
         internalMapping(XContentHelper.convertToMap(source, true, xContentType).v2());
         return this;
-    } 
-    
+    }
+
     /**
      * Adds mapping that will be added when the index gets created.
      *
@@ -244,7 +244,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(Map<String, Object> source) {
         return internalMapping(source);
-    }      
+    }
 
     private PutIndexTemplateRequest internalMapping(Map<String, Object> source) {
         try {
@@ -257,12 +257,12 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
-            }            
+            }
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
-    }   
-    
+    }
+
     public BytesReference mappings() {
         return this.mappings;
     }
@@ -349,8 +349,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
-    }    
-    
+    }
+
 
     public Set<Alias> aliases() {
         return this.aliases;
@@ -441,7 +441,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
                 builder.copyCurrentStructure(parser);
             }
         }
-        
+
         builder.startObject("aliases");
         for (Alias alias : aliases) {
             alias.toXContent(builder, params);

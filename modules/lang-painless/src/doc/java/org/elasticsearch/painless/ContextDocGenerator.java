@@ -36,6 +36,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 public class ContextDocGenerator {
 
@@ -94,6 +97,7 @@ public class ContextDocGenerator {
 
                     contextApiIndexStream.println("[[" + contextApiHeader  + "]]");
                     contextApiIndexStream.println("=== " + contextName + " API");
+                    contextApiIndexStream.println(":sectlinks:");
 
                     List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
                     painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
@@ -124,7 +128,7 @@ public class ContextDocGenerator {
                         return compare;
                     });
 
-                    List<String> contextClassApiPaths = new ArrayList<>();
+                    SortedMap<String, List<PainlessContextClassInfo>> packagesToPainlessContextClassInfos = new TreeMap<>();
                     String currentPackageName = null;
 
                     for (PainlessContextClassInfo painlessContextClassInfo : painlessContextClassInfos) {
@@ -133,11 +137,39 @@ public class ContextDocGenerator {
 
                         if (classPackageName.equals(currentPackageName) == false) {
                             currentPackageName = classPackageName;
-                            contextApiIndexStream.println();
-                            contextApiIndexStream.println("==== " + currentPackageName);
+                            packagesToPainlessContextClassInfos.put(currentPackageName, new ArrayList<>());
                         }
 
-                        if (painlessContextClassInfo.imported) {
+                        packagesToPainlessContextClassInfos.get(currentPackageName).add(painlessContextClassInfo);
+                    }
+
+                    List<String> contextApiPackageHeaders = new ArrayList<>();
+
+                    for (Map.Entry<String, List<PainlessContextClassInfo>> packageToPainlessContextClassInfo :
+                            packagesToPainlessContextClassInfos.entrySet()) {
+                        String packageName = packageToPainlessContextClassInfo.getKey();
+
+                        String contextApiPackageHeader = contextApiHeader + "-" + packageName.replace('.', '-');
+                        contextApiPackageHeaders.add(contextApiPackageHeader);
+                        Path contextApiPackagePath = contextApiRootPath.resolve(contextApiPackageHeader + ".asciidoc");
+
+                        contextApiIndexStream.println();
+                        //contextApiIndexStream.println("==== " + packageName);
+                        contextApiIndexStream.println("==== <<" + contextApiPackageHeader + ", " + packageName + ">>");
+                        contextApiIndexStream.println();
+                        //contextApiIndexStream.println("<<" + contextApiPackageHeader + ", " + packageName + ">>");
+                        contextApiIndexStream.println("test");
+
+                        try (PrintStream contextApiPackageStream = new PrintStream(
+                                Files.newOutputStream(contextApiPackagePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                                false, StandardCharsets.UTF_8.name())) {
+
+                            contextApiPackageStream.println("[role=\"exclude\",id=\"" + contextApiPackageHeader + "\"]");
+                            contextApiPackageStream.println("=== " + packageName);
+                            contextApiPackageStream.println("test");
+                        }
+
+                        /*if (painlessContextClassInfo.imported) {
                             className = className.substring(className.lastIndexOf('.') + 1).replace('$', '.');
                         } else {
                             className = className.replace('$', '.');
@@ -150,18 +182,18 @@ public class ContextDocGenerator {
                         try (PrintStream contextClassApiStream = new PrintStream(
                                 Files.newOutputStream(contextClassApiPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                                 false, StandardCharsets.UTF_8.name())) {
-                            contextClassApiStream.println("[[" + contextClassApiHeader + "]]");
-                            contextClassApiStream.println("===== " + className);
+                            contextClassApiStream.println("[role=\"exclude\",id=\"" + contextClassApiHeader + "\"]");
+                            contextClassApiStream.println("=== " + className);
                             contextClassApiStream.println("test");
                         }
 
-                        contextApiIndexStream.println("* <<" + contextClassApiHeader + ", " + className + ">>");
+                        contextApiIndexStream.println("* <<" + contextClassApiHeader + ", " + className + ">>");*/
                     }
 
                     contextApiIndexStream.println();
 
-                    for (String contextClassApiPath : contextClassApiPaths) {
-                        contextApiIndexStream.println("include::" + contextClassApiPath + "[]");
+                    for (String contextPackageApiHeader : contextApiPackageHeaders) {
+                        contextApiIndexStream.println("include::" + contextPackageApiHeader + ".asciidoc[]");
                     }
                 }
             }

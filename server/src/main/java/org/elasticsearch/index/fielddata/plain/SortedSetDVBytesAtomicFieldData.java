@@ -21,11 +21,11 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,7 +57,7 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
+    public GlobalOrdinalMap getOrdinalMap() {
         return null;
     }
 

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedLongValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.util.ArrayList;
@@ -74,7 +74,7 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
+    public GlobalOrdinalMap getOrdinalMap() {
         return null;
     }
 

@@ -22,7 +22,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -154,10 +154,10 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
+                public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
-                    final OrdinalMap map = atomicFieldData.getOrdinalMap();
+                    final GlobalOrdinalMap map = atomicFieldData.getOrdinalMap();
 
                     if (map == null) {
                         // segments and global ordinals are the same

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 
 import java.io.IOException;
@@ -83,7 +83,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
+    public GlobalOrdinalMap getOrdinalMap() {
         return delegate.getOrdinalMap();
     }
 

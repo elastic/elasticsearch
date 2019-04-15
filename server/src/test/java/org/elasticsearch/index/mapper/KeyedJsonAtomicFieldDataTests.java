@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 import org.elasticsearch.index.fielddata.plain.AbstractAtomicOrdinalsFieldData;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -174,7 +174,7 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
         }
 
         @Override
-        public OrdinalMap getOrdinalMap() {
+        public GlobalOrdinalMap getOrdinalMap() {
             return null;
         }
 

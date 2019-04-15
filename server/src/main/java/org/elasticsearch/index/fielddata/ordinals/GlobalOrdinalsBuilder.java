@@ -93,7 +93,7 @@ public enum GlobalOrdinalsBuilder {
                 }
 
                 @Override
-                public OrdinalMap getOrdinalMap() {
+                public GlobalOrdinalMap getOrdinalMap() {
                     return null;
                 }
 

@@ -143,8 +143,8 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
         }
 
         @Override
-        public OrdinalMap getOrdinalMap() {
-            return ordinalMap;
+        public GlobalOrdinalMap getOrdinalMap() {
+            return GlobalOrdinalMap.create(ordinalMap);
         }
 
         @Override

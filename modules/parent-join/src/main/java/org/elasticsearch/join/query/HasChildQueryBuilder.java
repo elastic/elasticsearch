@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -395,7 +396,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
             AtomicOrdinalsFieldData atomicOrdinalsFieldData = indexParentChildFieldData.load(
                 reader.getContext().leaves().get(0));
-            return atomicOrdinalsFieldData.getOrdinalMap();
+            GlobalOrdinalMap ordinalMap = atomicOrdinalsFieldData.getOrdinalMap();
+            return ordinalMap != null ? ordinalMap.getWrappedMap() : null;
         }
 
         @Override

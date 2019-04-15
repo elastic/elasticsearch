@@ -20,13 +20,13 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -78,7 +78,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
             }
 
             @Override
-            public OrdinalMap getOrdinalMap() {
+            public GlobalOrdinalMap getOrdinalMap() {
                 return null;
             }
         };

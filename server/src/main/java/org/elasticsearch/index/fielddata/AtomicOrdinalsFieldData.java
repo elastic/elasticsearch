@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMap;
 
 /**
  * Specialization of {@link AtomicFieldData} for data that is indexed with
@@ -34,9 +34,9 @@ public interface AtomicOrdinalsFieldData extends AtomicFieldData {
     SortedSetDocValues getOrdinalsValues();
 
     /**
-     * Returns the underlying {@link OrdinalMap} for this fielddata
+     * Returns the underlying {@link GlobalOrdinalMap} for this fielddata
      * or null if global ordinals are not needed (constant value or single segment).
      */
-    OrdinalMap getOrdinalMap();
+    GlobalOrdinalMap getOrdinalMap();
 
 }

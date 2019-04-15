@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -44,10 +45,8 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
     }
 
     public void testNextExecutionTime() {
-        // I don't know of a way to schedule something so far into the future that it won't fail
-        // when we reach that time and the test is run, so I settled for a less strict test
-        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "*/30 * * * * ?", "repo", Collections.emptyMap());
-        assertThat(p.calculateNextExecution(), greaterThan(System.currentTimeMillis()));
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap());
+        assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
     }
 
     public void testValidation() {

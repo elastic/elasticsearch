@@ -6,10 +6,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
     testCompile 'com.google.jimfs:jimfs:1.1'
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture"
@@ -103,9 +100,7 @@ thirdPartyAudit {
       'com.google.common.cache.Striped64$1',
       'com.google.common.cache.Striped64$Cell',
       'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
    )
 
    ignoreMissingClasses ( 

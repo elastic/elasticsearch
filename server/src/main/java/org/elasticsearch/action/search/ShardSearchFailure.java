@@ -118,14 +118,18 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(SHARD_FIELD, shardId());
-        builder.field(INDEX_FIELD, index());
-        if (shardTarget != null) {
-            builder.field(NODE_FIELD, shardTarget.getNodeId());
-        }
-        builder.field(REASON_FIELD);
         builder.startObject();
-        ElasticsearchException.generateThrowableXContent(builder, params, cause);
+        {
+            builder.field(SHARD_FIELD, shardId());
+            builder.field(INDEX_FIELD, index());
+            if (shardTarget != null) {
+                builder.field(NODE_FIELD, shardTarget.getNodeId());
+            }
+            builder.field(REASON_FIELD);
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, params, cause);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }

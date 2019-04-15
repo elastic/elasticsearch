@@ -533,7 +533,7 @@ public class RangeFieldMapper extends FieldMapper {
                 return createQuery(field, from, to, includeFrom, includeTo,
                         (f, t) -> InetAddressRange.newIntersectsQuery(field, f ,t ));
             }
-            
+
             private Query createQuery(String field, Object lower, Object upper, boolean includeLower, boolean includeUpper,
                     BiFunction<InetAddress, InetAddress, Query> querySupplier) {
                 byte[] lowerBytes = InetAddressPoint.encode((InetAddress) lower);
@@ -750,7 +750,7 @@ public class RangeFieldMapper extends FieldMapper {
                 return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
                         (f, t) -> DoubleRange.newIntersectsQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
             }
-            
+
         },
         // todo add BYTE support
         // todo add SHORT support
@@ -877,14 +877,21 @@ public class RangeFieldMapper extends FieldMapper {
         public final String typeName() {
             return name;
         }
-        
+
+        /**
+         * Internal helper to create the actual {@link Query} using the provided supplier function. Before creating the query we check if
+         * the intervals min &gt; max, in which case an {@link IllegalArgumentException} is raised. The method adapts the interval bounds
+         * based on whether the edges should be included or excluded. In case where after this correction the interval would be empty
+         * because min &gt; max, we simply return a {@link MatchNoDocsQuery}.
+         * This helper handles all {@link Number} cases and dates, the IP range type uses its own logic.
+         */
         private static <T extends Comparable<T>> Query createQuery(String field, T from, T to, boolean includeFrom, boolean includeTo,
                 BiFunction<T, T, Query> querySupplier, RangeType rangeType) {
             if (from.compareTo(to) > 0) {
                 // wrong argument order, this is an error the user should fix
                 throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
             }
-            
+
             @SuppressWarnings("unchecked")
             T correctedFrom = includeFrom ? from : (T) rangeType.nextUp(from);
             @SuppressWarnings("unchecked")

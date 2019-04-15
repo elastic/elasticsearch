@@ -89,7 +89,7 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-=== Intervals
+==== Intervals
 
 The interval of the returned buckets is selected based on the data collected by the 
 aggregation so that the number of buckets returned is less than or equal to the number 

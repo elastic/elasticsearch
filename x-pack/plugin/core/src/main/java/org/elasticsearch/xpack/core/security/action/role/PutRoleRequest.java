@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
@@ -168,10 +167,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (int i = 0; i < indicesSize; i++) {
             indicesPrivileges.add(new RoleDescriptor.IndicesPrivileges(in));
         }
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
-            conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
-        }
+        applicationPrivileges = in.readList(RoleDescriptor.ApplicationResourcePrivileges::new);
+        conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         runAs = in.readStringArray();
         refreshPolicy = RefreshPolicy.readFrom(in);
         metadata = in.readMap();
@@ -186,10 +183,8 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         for (RoleDescriptor.IndicesPrivileges index : indicesPrivileges) {
             index.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeList(applicationPrivileges);
-            ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
-        }
+        out.writeList(applicationPrivileges);
+        ConditionalClusterPrivileges.writeArray(out, this.conditionalClusterPrivileges);
         out.writeStringArray(runAs);
         refreshPolicy.writeTo(out);
         out.writeMap(metadata);

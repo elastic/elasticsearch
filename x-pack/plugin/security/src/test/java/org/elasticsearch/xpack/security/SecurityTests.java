@@ -271,19 +271,6 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testJoinValidatorForLicenseDeserialization() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.V_6_3_0));
-        MetaData.Builder builder = MetaData.builder();
-        License license = TestUtils.generateSignedLicense(null,
-            randomIntBetween(License.VERSION_CRYPTO_ALGORITHMS, License.VERSION_CURRENT), -1, TimeValue.timeValueHours(24));
-        TestUtils.putLicense(builder, license);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
-        assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
-    }
-
     public void testJoinValidatorForFIPSLicense() throws Exception {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));

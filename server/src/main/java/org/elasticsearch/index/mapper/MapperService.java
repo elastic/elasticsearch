@@ -871,6 +871,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return newMft;
         }).collect(Collectors.toList());
         fieldTypes = fieldTypes.copyAndAddAll(updated);
-        mapper.root().updateFieldType(fieldTypes.fullNameToFieldType);
+        if (mapper != null) {
+            mapper.root().updateFieldType(fieldTypes.fullNameToFieldType);
+        }
     }
 }

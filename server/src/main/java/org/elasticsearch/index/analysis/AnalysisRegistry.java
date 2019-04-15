@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers.IndexAnalysisProviders;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -33,10 +34,8 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -456,8 +455,10 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
+        IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(analyzerProviders, normalizerProviders,
+                tokenizerFactoryFactories, charFilterFactoryFactories, tokenFilterFactoryFactories);
         return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer, analyzers, normalizers,
-                whitespaceNormalizers);
+                whitespaceNormalizers, analysisProviders);
     }
 
     private static NamedAnalyzer produceAnalyzer(String name,
@@ -532,21 +533,24 @@ public final class AnalysisRegistry implements Closeable {
      * be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
      */
     public IndexAnalyzers rebuildIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
-        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexSettings);
-        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexSettings);
+        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexAnalyzers,
+                indexSettings);
+        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexAnalyzers,
+                indexSettings);
         Map<String, NamedAnalyzer> newAnalyzers = new HashMap<>();
         for (NamedAnalyzer analyzer : indexAnalyzers.getAnalyzers().values()) {
-            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexSettings));
+            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexAnalyzers, indexSettings));
         }
         return new IndexAnalyzers(indexSettings, indexAnalyzers.getDefaultIndexAnalyzer(), newDefaultSearchAnalyzer,
-                newDefaultSearchQuoteAnalyzer, newAnalyzers, indexAnalyzers.getNormalizers(), indexAnalyzers.getWhitespaceNormalizers());
+                newDefaultSearchQuoteAnalyzer, newAnalyzers, indexAnalyzers.getNormalizers(), indexAnalyzers.getWhitespaceNormalizers(),
+                indexAnalyzers.getAnalysisProviders());
     }
 
     /**
      * Check if the input analyzer needs to be rebuilt. If not, return analyzer unaltered, otherwise rebuild it. We currently only consider
      * instances of {@link CustomAnalyzer} with {@link AnalysisMode#SEARCH_TIME} to be eligible for rebuilding.
      */
-    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexSettings indexSettings)
+    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexAnalyzers indexAnalyzers, IndexSettings indexSettings)
             throws IOException {
         // only rebuild custom analyzers that are in SEARCH_TIME mode
         if ((oldAnalyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) == false
@@ -554,51 +558,10 @@ public final class AnalysisRegistry implements Closeable {
             return oldAnalyzer;
         } else {
             String analyzerName = oldAnalyzer.name();
-
-            // get tokenizer necessary to re-build the analyzer
-            String tokenizer = indexSettings.getSettings().get("index.analysis.analyzer." + analyzerName + ".tokenizer");
-            Map<String, AnalysisProvider<TokenizerFactory>> tokenizerProvider = Collections.singletonMap(tokenizer,
-                    getTokenizerProvider(tokenizer, indexSettings));
-            final Map<String, Settings> tokenizerSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_TOKENIZER);
-            final Map<String, TokenizerFactory> tokenizers = buildMapping(Component.TOKENIZER, indexSettings, tokenizerSettings,
-                    tokenizerProvider, Collections.emptyMap());
-
-            // get char filters necessary to re-build the analyzer
-            List<String> charFilterNames = indexSettings.getSettings()
-                    .getAsList("index.analysis.analyzer." + analyzerName + ".char_filter");
-            Map<String, AnalysisProvider<CharFilterFactory>> charFilterProvider = charFilterNames.stream()
-                    .map(s -> new AbstractMap.SimpleEntry<>(s, getCharFilterProvider(s, indexSettings)))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-            final Map<String, CharFilterFactory> charFilters = buildMapping(Component.CHAR_FILTER, indexSettings,
-                    charFiltersSettings, charFilterProvider, Collections.emptyMap());
-
-            // get token filters necessary to re-build the analyzer
-            List<String> tokenFilterNames = indexSettings.getSettings().getAsList("index.analysis.analyzer." + analyzerName + ".filter");
-            final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
-            Map<String, AnalysisProvider<TokenFilterFactory>> tokenFilterProviders = new HashMap<>();
-            for (String filterName : tokenFilterNames) {
-                AnalysisProvider<TokenFilterFactory> tokenFilterProvider = getTokenFilterProvider(filterName, indexSettings);
-                Settings settings = tokenFiltersSettings.get(filterName);
-                if (settings != null) {
-                        String type = settings.get("type");
-                        if (type != null) {
-                            AnalysisProvider<TokenFilterFactory> provider = getTokenFilterProvider(type, indexSettings);
-                            tokenFilterProviders.put(type, provider);
-                        }
-                } else {
-                    tokenFilterProviders.put(filterName, tokenFilterProvider);
-                }
-            }
-
-            final Map<String, TokenFilterFactory> tokenFilters = buildMapping(Component.FILTER, indexSettings,
-                    tokenFiltersSettings, tokenFilterProviders, prebuiltAnalysis.preConfiguredTokenFilters);
-
             Settings analyzerSettings = indexSettings.getSettings().getAsSettings("index.analysis.analyzer." + analyzerName);
             AnalyzerProvider<CustomAnalyzer> analyzerProvider = new CustomAnalyzerProvider(indexSettings, analyzerName, analyzerSettings);
-
-            // produce the analyzer
-            return AnalysisRegistry.produceAnalyzer(analyzerName, analyzerProvider, tokenFilters, charFilters, tokenizers);
+            return AnalysisRegistry.produceAnalyzer(analyzerName, analyzerProvider, indexAnalyzers.getTokenFilterFactoryFactories(),
+                    indexAnalyzers.getCharFilterFactoryFactories(), indexAnalyzers.getTokenizerFactoryFactories());
         }
     }
 

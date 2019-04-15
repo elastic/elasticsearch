@@ -65,6 +65,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected abstract Map<String, String> getFieldMappings();
 
+    protected abstract void failIndexer(String message);
+
     public int getPageSize() {
         return pageSize;
     }
@@ -178,9 +180,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
         if (newPageSize < MINIMUM_PAGE_SIZE) {
             String message = DataFrameMessages.getMessage(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
-            auditor.error(getJobId(), message);
-            logger.error("Data frame transform [" + getJobId() + "]:" + message);
-            return false;
+            failIndexer(message);
+            return true;
         }
 
         String message = DataFrameMessages.getMessage(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,

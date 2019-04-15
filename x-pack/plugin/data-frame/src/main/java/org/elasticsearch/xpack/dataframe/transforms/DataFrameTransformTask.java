@@ -506,7 +506,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         synchronized void handleFailure(Exception e) {
-            if (handleCircuitBreakingException (e)) {
+            if (handleCircuitBreakingException(e)) {
                 return;
             }
 
@@ -514,14 +514,20 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 String failureMessage = isIrrecoverableFailure(e) ?
                     "task encountered irrecoverable failure: " + e.getMessage() :
                     "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
-                auditor.error(transform.getId(), failureMessage);
-                stateReason.set(failureMessage);
-                taskState.set(DataFrameTransformTaskState.FAILED);
-                persistStateToClusterState(DataFrameTransformTask.this.getState(), ActionListener.wrap(
-                    r -> failureCount.set(0), // Successfully marked as failed, reset counter so that task can be restarted
-                    exception -> {} // Noop, internal method logs the failure to update the state
-                ));
+                failIndexer(failureMessage);
             }
+        }
+
+        @Override
+        protected void failIndexer(String failureMessage) {
+            logger.error("Data frame transform [" + getJobId() + "]:" + failureMessage);
+            auditor.error(transform.getId(), failureMessage);
+            stateReason.set(failureMessage);
+            taskState.set(DataFrameTransformTaskState.FAILED);
+            persistStateToClusterState(DataFrameTransformTask.this.getState(), ActionListener.wrap(
+                r -> failureCount.set(0), // Successfully marked as failed, reset counter so that task can be restarted
+                exception -> {} // Noop, internal method logs the failure to update the state
+            ));
         }
     }
 

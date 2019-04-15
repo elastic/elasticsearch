@@ -307,6 +307,9 @@ public class IndexLifecycleRunner {
                 "] with policy [" + indexPolicySetting + "] does not exist");
         }
 
+        logger.info("moving index [{}] from [{}] to [{}] in policy [{}]",
+            indexName, currentStepKey, nextStepKey, indexPolicySetting);
+
         return IndexLifecycleRunner.moveClusterStateToNextStep(idxMeta.getIndex(), currentState, currentStepKey,
             nextStepKey, nowSupplier, forcePhaseDefinitionRefresh);
     }

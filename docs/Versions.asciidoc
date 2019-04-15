@@ -1,4 +1,8 @@
-:version:               7.0.0-rc2
+:version:               7.0.0
+////
+bare_version never includes -alpha or -beta
+////
+:bare_version:          7.0.0
 :major-version:         7.x
 :prev-major-version:    6.x
 :lucene_version:        8.0.0
@@ -13,7 +17,7 @@
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   prerelease
+:release-state:   released
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :ml-issue:        https://github.com/elastic/ml-cpp/issues/
@@ -42,6 +46,7 @@ ifeval::["{release-state}"=="unreleased"]
 :percolator-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}-SNAPSHOT
 :matrixstats-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}-SNAPSHOT
 :rank-eval-client-javadoc: https://snapshots.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}-SNAPSHOT
+:version_qualified: {bare_version}-SNAPSHOT
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
@@ -55,6 +60,7 @@ ifeval::["{release-state}"!="unreleased"]
 :percolator-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/percolator-client/{version}
 :matrixstats-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/aggs-matrix-stats-client/{version}
 :rank-eval-client-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/plugin/rank-eval-client/{version}
+:version_qualified: {bare_version}
 endif::[]
 
 :javadoc-client: {rest-high-level-client-javadoc}/org/elasticsearch/client

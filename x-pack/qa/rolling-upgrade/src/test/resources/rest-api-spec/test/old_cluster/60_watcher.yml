@@ -1,5 +1,8 @@
 ---
 "CRUD watch APIs":
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
 
   - do:
       watcher.put_watch:
@@ -89,6 +92,11 @@
 
 ---
 "Test watcher stats output":
+
+  - skip:
+      reason: https://github.com/elastic/elasticsearch/issues/33185
+      version: "6.7.0 - "
+
   - do:
       watcher.stats: {}
   - match: { "manually_stopped": false }

@@ -13,7 +13,9 @@ See also <<release-highlights>> and <<es-release-notes>>.
 * <<breaking_70_cluster_changes>>
 * <<breaking_70_discovery_changes>>
 * <<breaking_70_indices_changes>>
+* <<breaking_70_ingest_changes>>
 * <<breaking_70_mappings_changes>>
+* <<breaking_70_ml_changes>>
 * <<breaking_70_search_changes>>
 * <<breaking_70_suggesters_changes>>
 * <<breaking_70_packaging_changes>>
@@ -56,8 +58,10 @@ include::migrate_7_0/aggregations.asciidoc[]
 include::migrate_7_0/analysis.asciidoc[]
 include::migrate_7_0/cluster.asciidoc[]
 include::migrate_7_0/discovery.asciidoc[]
+include::migrate_7_0/ingest.asciidoc[]
 include::migrate_7_0/indices.asciidoc[]
 include::migrate_7_0/mappings.asciidoc[]
+include::migrate_7_0/ml.asciidoc[]
 include::migrate_7_0/search.asciidoc[]
 include::migrate_7_0/suggesters.asciidoc[]
 include::migrate_7_0/packaging.asciidoc[]

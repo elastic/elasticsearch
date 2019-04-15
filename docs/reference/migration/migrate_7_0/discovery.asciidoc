@@ -2,7 +2,11 @@
 [[breaking_70_discovery_changes]]
 === Discovery changes
 
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
 //tag::notable-breaking-changes[]
+
 [float]
 ==== Cluster bootstrapping is required if discovery is configured
 

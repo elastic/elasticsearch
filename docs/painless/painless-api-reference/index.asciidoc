@@ -15,3 +15,67 @@
 * <<painless-api-reference-painless-test, Painless Test>>
 * <<painless-api-reference-processor-conditional, Processor Conditional>>
 * <<painless-api-reference-score, Score>>
+* <<painless-api-reference-script-heuristic, Script Heuristic>>
+* <<painless-api-reference-similarity, Similarity>>
+* <<painless-api-reference-similarity-weight, Similarity Weight>>
+* <<painless-api-reference-string-sort, String Sort>>
+* <<painless-api-reference-template, Template>>
+* <<painless-api-reference-terms-set, Terms Set>>
+* <<painless-api-reference-update, Update>>
+* <<painless-api-reference-watcher-condition, Watcher Condition>>
+* <<painless-api-reference-watcher-transform, Watcher Transform>>
+* <<painless-api-reference-xpack-template, Xpack Template>>
+
+include::painless-api-reference-aggregation-selector/index.asciidoc[]
+
+include::painless-api-reference-aggs/index.asciidoc[]
+
+include::painless-api-reference-aggs-combine/index.asciidoc[]
+
+include::painless-api-reference-aggs-init/index.asciidoc[]
+
+include::painless-api-reference-aggs-map/index.asciidoc[]
+
+include::painless-api-reference-aggs-reduce/index.asciidoc[]
+
+include::painless-api-reference-analysis/index.asciidoc[]
+
+include::painless-api-reference-bucket-aggregation/index.asciidoc[]
+
+include::painless-api-reference-field/index.asciidoc[]
+
+include::painless-api-reference-filter/index.asciidoc[]
+
+include::painless-api-reference-ingest/index.asciidoc[]
+
+include::painless-api-reference-interval/index.asciidoc[]
+
+include::painless-api-reference-moving-function/index.asciidoc[]
+
+include::painless-api-reference-number-sort/index.asciidoc[]
+
+include::painless-api-reference-painless-test/index.asciidoc[]
+
+include::painless-api-reference-processor-conditional/index.asciidoc[]
+
+include::painless-api-reference-score/index.asciidoc[]
+
+include::painless-api-reference-script-heuristic/index.asciidoc[]
+
+include::painless-api-reference-similarity/index.asciidoc[]
+
+include::painless-api-reference-similarity-weight/index.asciidoc[]
+
+include::painless-api-reference-string-sort/index.asciidoc[]
+
+include::painless-api-reference-template/index.asciidoc[]
+
+include::painless-api-reference-terms-set/index.asciidoc[]
+
+include::painless-api-reference-update/index.asciidoc[]
+
+include::painless-api-reference-watcher-condition/index.asciidoc[]
+
+include::painless-api-reference-watcher-transform/index.asciidoc[]
+
+include::painless-api-reference-xpack-template/index.asciidoc[]

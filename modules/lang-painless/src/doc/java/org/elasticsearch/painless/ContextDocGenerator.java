@@ -98,18 +98,7 @@ public class ContextDocGenerator {
                     List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
                     painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
                             "short".equals(v.name) || "char".equals(v.name) || "int".equals(v.name) || "long".equals(v.name) ||
-                            "float".equals(v.name) || "double".equals(v.name) || "def".equals(v.name) ||
-                            (v.constructors.isEmpty() && v.staticMethods.isEmpty() && v.methods.isEmpty() &&
-                                    v.staticFields.isEmpty() && v.fields.isEmpty()));
-
-                    if (true) {
-                        for (PainlessContextClassInfo i : painlessContextClassInfos) {
-                            if (i.name.contains("ScoreScript")) {
-                                throw new RuntimeException(i.constructors + " " + i.staticMethods + " " + i.methods + " "
-                                + i.staticFields + " " + i.fields);
-                            }
-                        }
-                    }
+                            "float".equals(v.name) || "double".equals(v.name) || "def".equals(v.name));
 
                     painlessContextClassInfos.sort((c1, c2) -> {
                         String n1 = c1.name;
@@ -135,6 +124,7 @@ public class ContextDocGenerator {
                         return compare;
                     });
 
+                    List<String> contextClassApiPaths = new ArrayList<>();
                     String currentPackageName = null;
 
                     for (PainlessContextClassInfo painlessContextClassInfo : painlessContextClassInfos) {
@@ -148,12 +138,30 @@ public class ContextDocGenerator {
                         }
 
                         if (painlessContextClassInfo.imported) {
-                            String shortClassName = className.substring(className.lastIndexOf('.') + 1).replace('$', '.');
-                            contextApiIndexStream.println("* " + shortClassName);
+                            className = className.substring(className.lastIndexOf('.') + 1).replace('$', '.');
                         } else {
-                            String longClassName = className.replace('$', '.');
-                            contextApiIndexStream.println("* " + longClassName);
+                            className = className.replace('$', '.');
                         }
+
+                        String contextClassApiHeader = contextApiHeader + "-" + className.replace('.', '-');
+                        Path contextClassApiPath = contextApiRootPath.resolve(className.replace('.', '-') + ".asciidoc");
+                        contextClassApiPaths.add(className.replace('.', '-') + ".asciidoc");
+
+                        try (PrintStream contextClassApiStream = new PrintStream(
+                                Files.newOutputStream(contextClassApiPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                                false, StandardCharsets.UTF_8.name())) {
+                            contextClassApiStream.println("[[" + contextClassApiHeader + "]]");
+                            contextClassApiStream.println("===== " + className);
+                            contextClassApiStream.println("test");
+                        }
+
+                        contextApiIndexStream.println("* <<" + contextClassApiHeader + ", " + className + ">>");
+                    }
+
+                    contextApiIndexStream.println();
+
+                    for (String contextClassApiPath : contextClassApiPaths) {
+                        contextApiIndexStream.println("include::" + contextClassApiPath + "[]");
                     }
                 }
             }

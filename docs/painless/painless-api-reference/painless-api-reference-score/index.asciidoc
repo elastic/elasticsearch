@@ -1,2 +1,731 @@
 [[painless-api-reference-score]]
 === Score API
+
+==== java.lang
+* <<painless-api-reference-score-Appendable, Appendable>>
+* <<painless-api-reference-score-ArithmeticException, ArithmeticException>>
+* <<painless-api-reference-score-ArrayIndexOutOfBoundsException, ArrayIndexOutOfBoundsException>>
+* <<painless-api-reference-score-ArrayStoreException, ArrayStoreException>>
+* <<painless-api-reference-score-Boolean, Boolean>>
+* <<painless-api-reference-score-Byte, Byte>>
+* <<painless-api-reference-score-CharSequence, CharSequence>>
+* <<painless-api-reference-score-Character, Character>>
+* <<painless-api-reference-score-Character-Subset, Character.Subset>>
+* <<painless-api-reference-score-Character-UnicodeBlock, Character.UnicodeBlock>>
+* <<painless-api-reference-score-Character-UnicodeScript, Character.UnicodeScript>>
+* <<painless-api-reference-score-ClassCastException, ClassCastException>>
+* <<painless-api-reference-score-ClassNotFoundException, ClassNotFoundException>>
+* <<painless-api-reference-score-CloneNotSupportedException, CloneNotSupportedException>>
+* <<painless-api-reference-score-Comparable, Comparable>>
+* <<painless-api-reference-score-Double, Double>>
+* <<painless-api-reference-score-Enum, Enum>>
+* <<painless-api-reference-score-EnumConstantNotPresentException, EnumConstantNotPresentException>>
+* <<painless-api-reference-score-Exception, Exception>>
+* <<painless-api-reference-score-Float, Float>>
+* <<painless-api-reference-score-IllegalAccessException, IllegalAccessException>>
+* <<painless-api-reference-score-IllegalArgumentException, IllegalArgumentException>>
+* <<painless-api-reference-score-IllegalMonitorStateException, IllegalMonitorStateException>>
+* <<painless-api-reference-score-IllegalStateException, IllegalStateException>>
+* <<painless-api-reference-score-IllegalThreadStateException, IllegalThreadStateException>>
+* <<painless-api-reference-score-IndexOutOfBoundsException, IndexOutOfBoundsException>>
+* <<painless-api-reference-score-InstantiationException, InstantiationException>>
+* <<painless-api-reference-score-Integer, Integer>>
+* <<painless-api-reference-score-InterruptedException, InterruptedException>>
+* <<painless-api-reference-score-Iterable, Iterable>>
+* <<painless-api-reference-score-Long, Long>>
+* <<painless-api-reference-score-Math, Math>>
+* <<painless-api-reference-score-NegativeArraySizeException, NegativeArraySizeException>>
+* <<painless-api-reference-score-NoSuchFieldException, NoSuchFieldException>>
+* <<painless-api-reference-score-NoSuchMethodException, NoSuchMethodException>>
+* <<painless-api-reference-score-NullPointerException, NullPointerException>>
+* <<painless-api-reference-score-Number, Number>>
+* <<painless-api-reference-score-NumberFormatException, NumberFormatException>>
+* <<painless-api-reference-score-Object, Object>>
+* <<painless-api-reference-score-ReflectiveOperationException, ReflectiveOperationException>>
+* <<painless-api-reference-score-RuntimeException, RuntimeException>>
+* <<painless-api-reference-score-SecurityException, SecurityException>>
+* <<painless-api-reference-score-Short, Short>>
+* <<painless-api-reference-score-StackTraceElement, StackTraceElement>>
+* <<painless-api-reference-score-StrictMath, StrictMath>>
+* <<painless-api-reference-score-String, String>>
+* <<painless-api-reference-score-StringBuffer, StringBuffer>>
+* <<painless-api-reference-score-StringBuilder, StringBuilder>>
+* <<painless-api-reference-score-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>
+* <<painless-api-reference-score-System, System>>
+* <<painless-api-reference-score-TypeNotPresentException, TypeNotPresentException>>
+* <<painless-api-reference-score-UnsupportedOperationException, UnsupportedOperationException>>
+* <<painless-api-reference-score-Void, Void>>
+
+==== java.math
+* <<painless-api-reference-score-BigDecimal, BigDecimal>>
+* <<painless-api-reference-score-BigInteger, BigInteger>>
+* <<painless-api-reference-score-MathContext, MathContext>>
+* <<painless-api-reference-score-RoundingMode, RoundingMode>>
+
+==== java.text
+* <<painless-api-reference-score-Annotation, Annotation>>
+* <<painless-api-reference-score-AttributedCharacterIterator, AttributedCharacterIterator>>
+* <<painless-api-reference-score-AttributedCharacterIterator-Attribute, AttributedCharacterIterator.Attribute>>
+* <<painless-api-reference-score-AttributedString, AttributedString>>
+* <<painless-api-reference-score-Bidi, Bidi>>
+* <<painless-api-reference-score-BreakIterator, BreakIterator>>
+* <<painless-api-reference-score-CharacterIterator, CharacterIterator>>
+* <<painless-api-reference-score-ChoiceFormat, ChoiceFormat>>
+* <<painless-api-reference-score-CollationElementIterator, CollationElementIterator>>
+* <<painless-api-reference-score-CollationKey, CollationKey>>
+* <<painless-api-reference-score-Collator, Collator>>
+* <<painless-api-reference-score-DateFormat, DateFormat>>
+* <<painless-api-reference-score-DateFormat-Field, DateFormat.Field>>
+* <<painless-api-reference-score-DateFormatSymbols, DateFormatSymbols>>
+* <<painless-api-reference-score-DecimalFormat, DecimalFormat>>
+* <<painless-api-reference-score-DecimalFormatSymbols, DecimalFormatSymbols>>
+* <<painless-api-reference-score-FieldPosition, FieldPosition>>
+* <<painless-api-reference-score-Format, Format>>
+* <<painless-api-reference-score-Format-Field, Format.Field>>
+* <<painless-api-reference-score-MessageFormat, MessageFormat>>
+* <<painless-api-reference-score-MessageFormat-Field, MessageFormat.Field>>
+* <<painless-api-reference-score-Normalizer, Normalizer>>
+* <<painless-api-reference-score-Normalizer-Form, Normalizer.Form>>
+* <<painless-api-reference-score-NumberFormat, NumberFormat>>
+* <<painless-api-reference-score-NumberFormat-Field, NumberFormat.Field>>
+* <<painless-api-reference-score-ParseException, ParseException>>
+* <<painless-api-reference-score-ParsePosition, ParsePosition>>
+* <<painless-api-reference-score-RuleBasedCollator, RuleBasedCollator>>
+* <<painless-api-reference-score-SimpleDateFormat, SimpleDateFormat>>
+* <<painless-api-reference-score-StringCharacterIterator, StringCharacterIterator>>
+
+==== java.time
+* <<painless-api-reference-score-Clock, Clock>>
+* <<painless-api-reference-score-DateTimeException, DateTimeException>>
+* <<painless-api-reference-score-DayOfWeek, DayOfWeek>>
+* <<painless-api-reference-score-Duration, Duration>>
+* <<painless-api-reference-score-Instant, Instant>>
+* <<painless-api-reference-score-LocalDate, LocalDate>>
+* <<painless-api-reference-score-LocalDateTime, LocalDateTime>>
+* <<painless-api-reference-score-LocalTime, LocalTime>>
+* <<painless-api-reference-score-Month, Month>>
+* <<painless-api-reference-score-MonthDay, MonthDay>>
+* <<painless-api-reference-score-OffsetDateTime, OffsetDateTime>>
+* <<painless-api-reference-score-OffsetTime, OffsetTime>>
+* <<painless-api-reference-score-Period, Period>>
+* <<painless-api-reference-score-Year, Year>>
+* <<painless-api-reference-score-YearMonth, YearMonth>>
+* <<painless-api-reference-score-ZoneId, ZoneId>>
+* <<painless-api-reference-score-ZoneOffset, ZoneOffset>>
+* <<painless-api-reference-score-ZonedDateTime, ZonedDateTime>>
+
+==== java.time.chrono
+* <<painless-api-reference-score-AbstractChronology, AbstractChronology>>
+* <<painless-api-reference-score-ChronoLocalDate, ChronoLocalDate>>
+* <<painless-api-reference-score-ChronoLocalDateTime, ChronoLocalDateTime>>
+* <<painless-api-reference-score-ChronoPeriod, ChronoPeriod>>
+* <<painless-api-reference-score-ChronoZonedDateTime, ChronoZonedDateTime>>
+* <<painless-api-reference-score-Chronology, Chronology>>
+* <<painless-api-reference-score-Era, Era>>
+* <<painless-api-reference-score-HijrahChronology, HijrahChronology>>
+* <<painless-api-reference-score-HijrahDate, HijrahDate>>
+* <<painless-api-reference-score-HijrahEra, HijrahEra>>
+* <<painless-api-reference-score-IsoChronology, IsoChronology>>
+* <<painless-api-reference-score-IsoEra, IsoEra>>
+* <<painless-api-reference-score-JapaneseChronology, JapaneseChronology>>
+* <<painless-api-reference-score-JapaneseDate, JapaneseDate>>
+* <<painless-api-reference-score-JapaneseEra, JapaneseEra>>
+* <<painless-api-reference-score-MinguoChronology, MinguoChronology>>
+* <<painless-api-reference-score-MinguoDate, MinguoDate>>
+* <<painless-api-reference-score-MinguoEra, MinguoEra>>
+* <<painless-api-reference-score-ThaiBuddhistChronology, ThaiBuddhistChronology>>
+* <<painless-api-reference-score-ThaiBuddhistDate, ThaiBuddhistDate>>
+* <<painless-api-reference-score-ThaiBuddhistEra, ThaiBuddhistEra>>
+
+==== java.time.format
+* <<painless-api-reference-score-DateTimeFormatter, DateTimeFormatter>>
+* <<painless-api-reference-score-DateTimeFormatterBuilder, DateTimeFormatterBuilder>>
+* <<painless-api-reference-score-DateTimeParseException, DateTimeParseException>>
+* <<painless-api-reference-score-DecimalStyle, DecimalStyle>>
+* <<painless-api-reference-score-FormatStyle, FormatStyle>>
+* <<painless-api-reference-score-ResolverStyle, ResolverStyle>>
+* <<painless-api-reference-score-SignStyle, SignStyle>>
+* <<painless-api-reference-score-TextStyle, TextStyle>>
+
+==== java.time.temporal
+* <<painless-api-reference-score-ChronoField, ChronoField>>
+* <<painless-api-reference-score-ChronoUnit, ChronoUnit>>
+* <<painless-api-reference-score-IsoFields, IsoFields>>
+* <<painless-api-reference-score-JulianFields, JulianFields>>
+* <<painless-api-reference-score-Temporal, Temporal>>
+* <<painless-api-reference-score-TemporalAccessor, TemporalAccessor>>
+* <<painless-api-reference-score-TemporalAdjuster, TemporalAdjuster>>
+* <<painless-api-reference-score-TemporalAdjusters, TemporalAdjusters>>
+* <<painless-api-reference-score-TemporalAmount, TemporalAmount>>
+* <<painless-api-reference-score-TemporalField, TemporalField>>
+* <<painless-api-reference-score-TemporalQueries, TemporalQueries>>
+* <<painless-api-reference-score-TemporalQuery, TemporalQuery>>
+* <<painless-api-reference-score-TemporalUnit, TemporalUnit>>
+* <<painless-api-reference-score-UnsupportedTemporalTypeException, UnsupportedTemporalTypeException>>
+* <<painless-api-reference-score-ValueRange, ValueRange>>
+* <<painless-api-reference-score-WeekFields, WeekFields>>
+
+==== java.time.zone
+* <<painless-api-reference-score-ZoneOffsetTransition, ZoneOffsetTransition>>
+* <<painless-api-reference-score-ZoneOffsetTransitionRule, ZoneOffsetTransitionRule>>
+* <<painless-api-reference-score-ZoneOffsetTransitionRule-TimeDefinition, ZoneOffsetTransitionRule.TimeDefinition>>
+* <<painless-api-reference-score-ZoneRules, ZoneRules>>
+* <<painless-api-reference-score-ZoneRulesException, ZoneRulesException>>
+* <<painless-api-reference-score-ZoneRulesProvider, ZoneRulesProvider>>
+
+==== java.util
+* <<painless-api-reference-score-AbstractCollection, AbstractCollection>>
+* <<painless-api-reference-score-AbstractList, AbstractList>>
+* <<painless-api-reference-score-AbstractMap, AbstractMap>>
+* <<painless-api-reference-score-AbstractMap-SimpleEntry, AbstractMap.SimpleEntry>>
+* <<painless-api-reference-score-AbstractMap-SimpleImmutableEntry, AbstractMap.SimpleImmutableEntry>>
+* <<painless-api-reference-score-AbstractQueue, AbstractQueue>>
+* <<painless-api-reference-score-AbstractSequentialList, AbstractSequentialList>>
+* <<painless-api-reference-score-AbstractSet, AbstractSet>>
+* <<painless-api-reference-score-ArrayDeque, ArrayDeque>>
+* <<painless-api-reference-score-ArrayList, ArrayList>>
+* <<painless-api-reference-score-Arrays, Arrays>>
+* <<painless-api-reference-score-Base64, Base64>>
+* <<painless-api-reference-score-Base64-Decoder, Base64.Decoder>>
+* <<painless-api-reference-score-Base64-Encoder, Base64.Encoder>>
+* <<painless-api-reference-score-BitSet, BitSet>>
+* <<painless-api-reference-score-Calendar, Calendar>>
+* <<painless-api-reference-score-Calendar-Builder, Calendar.Builder>>
+* <<painless-api-reference-score-Collection, Collection>>
+* <<painless-api-reference-score-Collections, Collections>>
+* <<painless-api-reference-score-Comparator, Comparator>>
+* <<painless-api-reference-score-ConcurrentModificationException, ConcurrentModificationException>>
+* <<painless-api-reference-score-Currency, Currency>>
+* <<painless-api-reference-score-Date, Date>>
+* <<painless-api-reference-score-Deque, Deque>>
+* <<painless-api-reference-score-Dictionary, Dictionary>>
+* <<painless-api-reference-score-DoubleSummaryStatistics, DoubleSummaryStatistics>>
+* <<painless-api-reference-score-DuplicateFormatFlagsException, DuplicateFormatFlagsException>>
+* <<painless-api-reference-score-EmptyStackException, EmptyStackException>>
+* <<painless-api-reference-score-Enumeration, Enumeration>>
+* <<painless-api-reference-score-EventListener, EventListener>>
+* <<painless-api-reference-score-EventListenerProxy, EventListenerProxy>>
+* <<painless-api-reference-score-EventObject, EventObject>>
+* <<painless-api-reference-score-FormatFlagsConversionMismatchException, FormatFlagsConversionMismatchException>>
+* <<painless-api-reference-score-Formattable, Formattable>>
+* <<painless-api-reference-score-FormattableFlags, FormattableFlags>>
+* <<painless-api-reference-score-Formatter, Formatter>>
+* <<painless-api-reference-score-Formatter-BigDecimalLayoutForm, Formatter.BigDecimalLayoutForm>>
+* <<painless-api-reference-score-FormatterClosedException, FormatterClosedException>>
+* <<painless-api-reference-score-GregorianCalendar, GregorianCalendar>>
+* <<painless-api-reference-score-HashMap, HashMap>>
+* <<painless-api-reference-score-HashSet, HashSet>>
+* <<painless-api-reference-score-Hashtable, Hashtable>>
+* <<painless-api-reference-score-IdentityHashMap, IdentityHashMap>>
+* <<painless-api-reference-score-IllegalFormatCodePointException, IllegalFormatCodePointException>>
+* <<painless-api-reference-score-IllegalFormatConversionException, IllegalFormatConversionException>>
+* <<painless-api-reference-score-IllegalFormatException, IllegalFormatException>>
+* <<painless-api-reference-score-IllegalFormatFlagsException, IllegalFormatFlagsException>>
+* <<painless-api-reference-score-IllegalFormatPrecisionException, IllegalFormatPrecisionException>>
+* <<painless-api-reference-score-IllegalFormatWidthException, IllegalFormatWidthException>>
+* <<painless-api-reference-score-IllformedLocaleException, IllformedLocaleException>>
+* <<painless-api-reference-score-InputMismatchException, InputMismatchException>>
+* <<painless-api-reference-score-IntSummaryStatistics, IntSummaryStatistics>>
+* <<painless-api-reference-score-Iterator, Iterator>>
+* <<painless-api-reference-score-LinkedHashMap, LinkedHashMap>>
+* <<painless-api-reference-score-LinkedHashSet, LinkedHashSet>>
+* <<painless-api-reference-score-LinkedList, LinkedList>>
+* <<painless-api-reference-score-List, List>>
+* <<painless-api-reference-score-ListIterator, ListIterator>>
+* <<painless-api-reference-score-Locale, Locale>>
+* <<painless-api-reference-score-Locale-Builder, Locale.Builder>>
+* <<painless-api-reference-score-Locale-Category, Locale.Category>>
+* <<painless-api-reference-score-Locale-FilteringMode, Locale.FilteringMode>>
+* <<painless-api-reference-score-Locale-LanguageRange, Locale.LanguageRange>>
+* <<painless-api-reference-score-LongSummaryStatistics, LongSummaryStatistics>>
+* <<painless-api-reference-score-Map, Map>>
+* <<painless-api-reference-score-Map-Entry, Map.Entry>>
+* <<painless-api-reference-score-MissingFormatArgumentException, MissingFormatArgumentException>>
+* <<painless-api-reference-score-MissingFormatWidthException, MissingFormatWidthException>>
+* <<painless-api-reference-score-MissingResourceException, MissingResourceException>>
+* <<painless-api-reference-score-NavigableMap, NavigableMap>>
+* <<painless-api-reference-score-NavigableSet, NavigableSet>>
+* <<painless-api-reference-score-NoSuchElementException, NoSuchElementException>>
+* <<painless-api-reference-score-Objects, Objects>>
+* <<painless-api-reference-score-Observable, Observable>>
+* <<painless-api-reference-score-Observer, Observer>>
+* <<painless-api-reference-score-Optional, Optional>>
+* <<painless-api-reference-score-OptionalDouble, OptionalDouble>>
+* <<painless-api-reference-score-OptionalInt, OptionalInt>>
+* <<painless-api-reference-score-OptionalLong, OptionalLong>>
+* <<painless-api-reference-score-PrimitiveIterator, PrimitiveIterator>>
+* <<painless-api-reference-score-PrimitiveIterator-OfDouble, PrimitiveIterator.OfDouble>>
+* <<painless-api-reference-score-PrimitiveIterator-OfInt, PrimitiveIterator.OfInt>>
+* <<painless-api-reference-score-PrimitiveIterator-OfLong, PrimitiveIterator.OfLong>>
+* <<painless-api-reference-score-PriorityQueue, PriorityQueue>>
+* <<painless-api-reference-score-Queue, Queue>>
+* <<painless-api-reference-score-Random, Random>>
+* <<painless-api-reference-score-RandomAccess, RandomAccess>>
+* <<painless-api-reference-score-Set, Set>>
+* <<painless-api-reference-score-SimpleTimeZone, SimpleTimeZone>>
+* <<painless-api-reference-score-SortedMap, SortedMap>>
+* <<painless-api-reference-score-SortedSet, SortedSet>>
+* <<painless-api-reference-score-Spliterator, Spliterator>>
+* <<painless-api-reference-score-Spliterator-OfDouble, Spliterator.OfDouble>>
+* <<painless-api-reference-score-Spliterator-OfInt, Spliterator.OfInt>>
+* <<painless-api-reference-score-Spliterator-OfLong, Spliterator.OfLong>>
+* <<painless-api-reference-score-Spliterator-OfPrimitive, Spliterator.OfPrimitive>>
+* <<painless-api-reference-score-Spliterators, Spliterators>>
+* <<painless-api-reference-score-Stack, Stack>>
+* <<painless-api-reference-score-StringJoiner, StringJoiner>>
+* <<painless-api-reference-score-StringTokenizer, StringTokenizer>>
+* <<painless-api-reference-score-TimeZone, TimeZone>>
+* <<painless-api-reference-score-TooManyListenersException, TooManyListenersException>>
+* <<painless-api-reference-score-TreeMap, TreeMap>>
+* <<painless-api-reference-score-TreeSet, TreeSet>>
+* <<painless-api-reference-score-UUID, UUID>>
+* <<painless-api-reference-score-UnknownFormatConversionException, UnknownFormatConversionException>>
+* <<painless-api-reference-score-UnknownFormatFlagsException, UnknownFormatFlagsException>>
+* <<painless-api-reference-score-Vector, Vector>>
+
+==== java.util.function
+* <<painless-api-reference-score-BiConsumer, BiConsumer>>
+* <<painless-api-reference-score-BiFunction, BiFunction>>
+* <<painless-api-reference-score-BiPredicate, BiPredicate>>
+* <<painless-api-reference-score-BinaryOperator, BinaryOperator>>
+* <<painless-api-reference-score-BooleanSupplier, BooleanSupplier>>
+* <<painless-api-reference-score-Consumer, Consumer>>
+* <<painless-api-reference-score-DoubleBinaryOperator, DoubleBinaryOperator>>
+* <<painless-api-reference-score-DoubleConsumer, DoubleConsumer>>
+* <<painless-api-reference-score-DoubleFunction, DoubleFunction>>
+* <<painless-api-reference-score-DoublePredicate, DoublePredicate>>
+* <<painless-api-reference-score-DoubleSupplier, DoubleSupplier>>
+* <<painless-api-reference-score-DoubleToIntFunction, DoubleToIntFunction>>
+* <<painless-api-reference-score-DoubleToLongFunction, DoubleToLongFunction>>
+* <<painless-api-reference-score-DoubleUnaryOperator, DoubleUnaryOperator>>
+* <<painless-api-reference-score-Function, Function>>
+* <<painless-api-reference-score-IntBinaryOperator, IntBinaryOperator>>
+* <<painless-api-reference-score-IntConsumer, IntConsumer>>
+* <<painless-api-reference-score-IntFunction, IntFunction>>
+* <<painless-api-reference-score-IntPredicate, IntPredicate>>
+* <<painless-api-reference-score-IntSupplier, IntSupplier>>
+* <<painless-api-reference-score-IntToDoubleFunction, IntToDoubleFunction>>
+* <<painless-api-reference-score-IntToLongFunction, IntToLongFunction>>
+* <<painless-api-reference-score-IntUnaryOperator, IntUnaryOperator>>
+* <<painless-api-reference-score-LongBinaryOperator, LongBinaryOperator>>
+* <<painless-api-reference-score-LongConsumer, LongConsumer>>
+* <<painless-api-reference-score-LongFunction, LongFunction>>
+* <<painless-api-reference-score-LongPredicate, LongPredicate>>
+* <<painless-api-reference-score-LongSupplier, LongSupplier>>
+* <<painless-api-reference-score-LongToDoubleFunction, LongToDoubleFunction>>
+* <<painless-api-reference-score-LongToIntFunction, LongToIntFunction>>
+* <<painless-api-reference-score-LongUnaryOperator, LongUnaryOperator>>
+* <<painless-api-reference-score-ObjDoubleConsumer, ObjDoubleConsumer>>
+* <<painless-api-reference-score-ObjIntConsumer, ObjIntConsumer>>
+* <<painless-api-reference-score-ObjLongConsumer, ObjLongConsumer>>
+* <<painless-api-reference-score-Predicate, Predicate>>
+* <<painless-api-reference-score-Supplier, Supplier>>
+* <<painless-api-reference-score-ToDoubleBiFunction, ToDoubleBiFunction>>
+* <<painless-api-reference-score-ToDoubleFunction, ToDoubleFunction>>
+* <<painless-api-reference-score-ToIntBiFunction, ToIntBiFunction>>
+* <<painless-api-reference-score-ToIntFunction, ToIntFunction>>
+* <<painless-api-reference-score-ToLongBiFunction, ToLongBiFunction>>
+* <<painless-api-reference-score-ToLongFunction, ToLongFunction>>
+* <<painless-api-reference-score-UnaryOperator, UnaryOperator>>
+
+==== java.util.regex
+* <<painless-api-reference-score-Matcher, Matcher>>
+* <<painless-api-reference-score-Pattern, Pattern>>
+
+==== java.util.stream
+* <<painless-api-reference-score-BaseStream, BaseStream>>
+* <<painless-api-reference-score-Collector, Collector>>
+* <<painless-api-reference-score-Collector-Characteristics, Collector.Characteristics>>
+* <<painless-api-reference-score-Collectors, Collectors>>
+* <<painless-api-reference-score-DoubleStream, DoubleStream>>
+* <<painless-api-reference-score-DoubleStream-Builder, DoubleStream.Builder>>
+* <<painless-api-reference-score-IntStream, IntStream>>
+* <<painless-api-reference-score-IntStream-Builder, IntStream.Builder>>
+* <<painless-api-reference-score-LongStream, LongStream>>
+* <<painless-api-reference-score-LongStream-Builder, LongStream.Builder>>
+* <<painless-api-reference-score-Stream, Stream>>
+* <<painless-api-reference-score-Stream-Builder, Stream.Builder>>
+
+==== org.apache.lucene.util
+* <<painless-api-reference-score-BytesRef, BytesRef>>
+
+==== org.elasticsearch.common.geo
+* <<painless-api-reference-score-GeoPoint, GeoPoint>>
+
+==== org.elasticsearch.index.fielddata
+* <<painless-api-reference-score-ScriptDocValues-Booleans, ScriptDocValues.Booleans>>
+* <<painless-api-reference-score-ScriptDocValues-BytesRefs, ScriptDocValues.BytesRefs>>
+* <<painless-api-reference-score-ScriptDocValues-Dates, ScriptDocValues.Dates>>
+* <<painless-api-reference-score-ScriptDocValues-Doubles, ScriptDocValues.Doubles>>
+* <<painless-api-reference-score-ScriptDocValues-GeoPoints, ScriptDocValues.GeoPoints>>
+* <<painless-api-reference-score-ScriptDocValues-Longs, ScriptDocValues.Longs>>
+* <<painless-api-reference-score-ScriptDocValues-Strings, ScriptDocValues.Strings>>
+
+==== org.elasticsearch.index.mapper
+* <<painless-api-reference-score-IpFieldMapper-IpFieldType-IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
+
+==== org.elasticsearch.index.query
+* <<painless-api-reference-score-IntervalFilterScript-Interval, IntervalFilterScript.Interval>>
+* <<painless-api-reference-score-VectorScriptDocValues, VectorScriptDocValues>>
+* <<painless-api-reference-score-VectorScriptDocValues-DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
+* <<painless-api-reference-score-VectorScriptDocValues-SparseVectorScriptDocValues, VectorScriptDocValues.SparseVectorScriptDocValues>>
+
+==== org.elasticsearch.index.similarity
+* <<painless-api-reference-score-ScriptedSimilarity-Doc, ScriptedSimilarity.Doc>>
+* <<painless-api-reference-score-ScriptedSimilarity-Field, ScriptedSimilarity.Field>>
+* <<painless-api-reference-score-ScriptedSimilarity-Query, ScriptedSimilarity.Query>>
+* <<painless-api-reference-score-ScriptedSimilarity-Term, ScriptedSimilarity.Term>>
+
+==== org.elasticsearch.painless.api
+* <<painless-api-reference-score-Debug, Debug>>
+
+==== org.elasticsearch.script
+* <<painless-api-reference-score-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+* <<painless-api-reference-score-org-elasticsearch-script-ScoreScript, org.elasticsearch.script.ScoreScript>>
+
+==== org.elasticsearch.search.lookup
+* <<painless-api-reference-score-FieldLookup, FieldLookup>>
+
+include::Appendable.asciidoc[]
+include::ArithmeticException.asciidoc[]
+include::ArrayIndexOutOfBoundsException.asciidoc[]
+include::ArrayStoreException.asciidoc[]
+include::Boolean.asciidoc[]
+include::Byte.asciidoc[]
+include::CharSequence.asciidoc[]
+include::Character.asciidoc[]
+include::Character-Subset.asciidoc[]
+include::Character-UnicodeBlock.asciidoc[]
+include::Character-UnicodeScript.asciidoc[]
+include::ClassCastException.asciidoc[]
+include::ClassNotFoundException.asciidoc[]
+include::CloneNotSupportedException.asciidoc[]
+include::Comparable.asciidoc[]
+include::Double.asciidoc[]
+include::Enum.asciidoc[]
+include::EnumConstantNotPresentException.asciidoc[]
+include::Exception.asciidoc[]
+include::Float.asciidoc[]
+include::IllegalAccessException.asciidoc[]
+include::IllegalArgumentException.asciidoc[]
+include::IllegalMonitorStateException.asciidoc[]
+include::IllegalStateException.asciidoc[]
+include::IllegalThreadStateException.asciidoc[]
+include::IndexOutOfBoundsException.asciidoc[]
+include::InstantiationException.asciidoc[]
+include::Integer.asciidoc[]
+include::InterruptedException.asciidoc[]
+include::Iterable.asciidoc[]
+include::Long.asciidoc[]
+include::Math.asciidoc[]
+include::NegativeArraySizeException.asciidoc[]
+include::NoSuchFieldException.asciidoc[]
+include::NoSuchMethodException.asciidoc[]
+include::NullPointerException.asciidoc[]
+include::Number.asciidoc[]
+include::NumberFormatException.asciidoc[]
+include::Object.asciidoc[]
+include::ReflectiveOperationException.asciidoc[]
+include::RuntimeException.asciidoc[]
+include::SecurityException.asciidoc[]
+include::Short.asciidoc[]
+include::StackTraceElement.asciidoc[]
+include::StrictMath.asciidoc[]
+include::String.asciidoc[]
+include::StringBuffer.asciidoc[]
+include::StringBuilder.asciidoc[]
+include::StringIndexOutOfBoundsException.asciidoc[]
+include::System.asciidoc[]
+include::TypeNotPresentException.asciidoc[]
+include::UnsupportedOperationException.asciidoc[]
+include::Void.asciidoc[]
+include::BigDecimal.asciidoc[]
+include::BigInteger.asciidoc[]
+include::MathContext.asciidoc[]
+include::RoundingMode.asciidoc[]
+include::Annotation.asciidoc[]
+include::AttributedCharacterIterator.asciidoc[]
+include::AttributedCharacterIterator-Attribute.asciidoc[]
+include::AttributedString.asciidoc[]
+include::Bidi.asciidoc[]
+include::BreakIterator.asciidoc[]
+include::CharacterIterator.asciidoc[]
+include::ChoiceFormat.asciidoc[]
+include::CollationElementIterator.asciidoc[]
+include::CollationKey.asciidoc[]
+include::Collator.asciidoc[]
+include::DateFormat.asciidoc[]
+include::DateFormat-Field.asciidoc[]
+include::DateFormatSymbols.asciidoc[]
+include::DecimalFormat.asciidoc[]
+include::DecimalFormatSymbols.asciidoc[]
+include::FieldPosition.asciidoc[]
+include::Format.asciidoc[]
+include::Format-Field.asciidoc[]
+include::MessageFormat.asciidoc[]
+include::MessageFormat-Field.asciidoc[]
+include::Normalizer.asciidoc[]
+include::Normalizer-Form.asciidoc[]
+include::NumberFormat.asciidoc[]
+include::NumberFormat-Field.asciidoc[]
+include::ParseException.asciidoc[]
+include::ParsePosition.asciidoc[]
+include::RuleBasedCollator.asciidoc[]
+include::SimpleDateFormat.asciidoc[]
+include::StringCharacterIterator.asciidoc[]
+include::Clock.asciidoc[]
+include::DateTimeException.asciidoc[]
+include::DayOfWeek.asciidoc[]
+include::Duration.asciidoc[]
+include::Instant.asciidoc[]
+include::LocalDate.asciidoc[]
+include::LocalDateTime.asciidoc[]
+include::LocalTime.asciidoc[]
+include::Month.asciidoc[]
+include::MonthDay.asciidoc[]
+include::OffsetDateTime.asciidoc[]
+include::OffsetTime.asciidoc[]
+include::Period.asciidoc[]
+include::Year.asciidoc[]
+include::YearMonth.asciidoc[]
+include::ZoneId.asciidoc[]
+include::ZoneOffset.asciidoc[]
+include::ZonedDateTime.asciidoc[]
+include::AbstractChronology.asciidoc[]
+include::ChronoLocalDate.asciidoc[]
+include::ChronoLocalDateTime.asciidoc[]
+include::ChronoPeriod.asciidoc[]
+include::ChronoZonedDateTime.asciidoc[]
+include::Chronology.asciidoc[]
+include::Era.asciidoc[]
+include::HijrahChronology.asciidoc[]
+include::HijrahDate.asciidoc[]
+include::HijrahEra.asciidoc[]
+include::IsoChronology.asciidoc[]
+include::IsoEra.asciidoc[]
+include::JapaneseChronology.asciidoc[]
+include::JapaneseDate.asciidoc[]
+include::JapaneseEra.asciidoc[]
+include::MinguoChronology.asciidoc[]
+include::MinguoDate.asciidoc[]
+include::MinguoEra.asciidoc[]
+include::ThaiBuddhistChronology.asciidoc[]
+include::ThaiBuddhistDate.asciidoc[]
+include::ThaiBuddhistEra.asciidoc[]
+include::DateTimeFormatter.asciidoc[]
+include::DateTimeFormatterBuilder.asciidoc[]
+include::DateTimeParseException.asciidoc[]
+include::DecimalStyle.asciidoc[]
+include::FormatStyle.asciidoc[]
+include::ResolverStyle.asciidoc[]
+include::SignStyle.asciidoc[]
+include::TextStyle.asciidoc[]
+include::ChronoField.asciidoc[]
+include::ChronoUnit.asciidoc[]
+include::IsoFields.asciidoc[]
+include::JulianFields.asciidoc[]
+include::Temporal.asciidoc[]
+include::TemporalAccessor.asciidoc[]
+include::TemporalAdjuster.asciidoc[]
+include::TemporalAdjusters.asciidoc[]
+include::TemporalAmount.asciidoc[]
+include::TemporalField.asciidoc[]
+include::TemporalQueries.asciidoc[]
+include::TemporalQuery.asciidoc[]
+include::TemporalUnit.asciidoc[]
+include::UnsupportedTemporalTypeException.asciidoc[]
+include::ValueRange.asciidoc[]
+include::WeekFields.asciidoc[]
+include::ZoneOffsetTransition.asciidoc[]
+include::ZoneOffsetTransitionRule.asciidoc[]
+include::ZoneOffsetTransitionRule-TimeDefinition.asciidoc[]
+include::ZoneRules.asciidoc[]
+include::ZoneRulesException.asciidoc[]
+include::ZoneRulesProvider.asciidoc[]
+include::AbstractCollection.asciidoc[]
+include::AbstractList.asciidoc[]
+include::AbstractMap.asciidoc[]
+include::AbstractMap-SimpleEntry.asciidoc[]
+include::AbstractMap-SimpleImmutableEntry.asciidoc[]
+include::AbstractQueue.asciidoc[]
+include::AbstractSequentialList.asciidoc[]
+include::AbstractSet.asciidoc[]
+include::ArrayDeque.asciidoc[]
+include::ArrayList.asciidoc[]
+include::Arrays.asciidoc[]
+include::Base64.asciidoc[]
+include::Base64-Decoder.asciidoc[]
+include::Base64-Encoder.asciidoc[]
+include::BitSet.asciidoc[]
+include::Calendar.asciidoc[]
+include::Calendar-Builder.asciidoc[]
+include::Collection.asciidoc[]
+include::Collections.asciidoc[]
+include::Comparator.asciidoc[]
+include::ConcurrentModificationException.asciidoc[]
+include::Currency.asciidoc[]
+include::Date.asciidoc[]
+include::Deque.asciidoc[]
+include::Dictionary.asciidoc[]
+include::DoubleSummaryStatistics.asciidoc[]
+include::DuplicateFormatFlagsException.asciidoc[]
+include::EmptyStackException.asciidoc[]
+include::Enumeration.asciidoc[]
+include::EventListener.asciidoc[]
+include::EventListenerProxy.asciidoc[]
+include::EventObject.asciidoc[]
+include::FormatFlagsConversionMismatchException.asciidoc[]
+include::Formattable.asciidoc[]
+include::FormattableFlags.asciidoc[]
+include::Formatter.asciidoc[]
+include::Formatter-BigDecimalLayoutForm.asciidoc[]
+include::FormatterClosedException.asciidoc[]
+include::GregorianCalendar.asciidoc[]
+include::HashMap.asciidoc[]
+include::HashSet.asciidoc[]
+include::Hashtable.asciidoc[]
+include::IdentityHashMap.asciidoc[]
+include::IllegalFormatCodePointException.asciidoc[]
+include::IllegalFormatConversionException.asciidoc[]
+include::IllegalFormatException.asciidoc[]
+include::IllegalFormatFlagsException.asciidoc[]
+include::IllegalFormatPrecisionException.asciidoc[]
+include::IllegalFormatWidthException.asciidoc[]
+include::IllformedLocaleException.asciidoc[]
+include::InputMismatchException.asciidoc[]
+include::IntSummaryStatistics.asciidoc[]
+include::Iterator.asciidoc[]
+include::LinkedHashMap.asciidoc[]
+include::LinkedHashSet.asciidoc[]
+include::LinkedList.asciidoc[]
+include::List.asciidoc[]
+include::ListIterator.asciidoc[]
+include::Locale.asciidoc[]
+include::Locale-Builder.asciidoc[]
+include::Locale-Category.asciidoc[]
+include::Locale-FilteringMode.asciidoc[]
+include::Locale-LanguageRange.asciidoc[]
+include::LongSummaryStatistics.asciidoc[]
+include::Map.asciidoc[]
+include::Map-Entry.asciidoc[]
+include::MissingFormatArgumentException.asciidoc[]
+include::MissingFormatWidthException.asciidoc[]
+include::MissingResourceException.asciidoc[]
+include::NavigableMap.asciidoc[]
+include::NavigableSet.asciidoc[]
+include::NoSuchElementException.asciidoc[]
+include::Objects.asciidoc[]
+include::Observable.asciidoc[]
+include::Observer.asciidoc[]
+include::Optional.asciidoc[]
+include::OptionalDouble.asciidoc[]
+include::OptionalInt.asciidoc[]
+include::OptionalLong.asciidoc[]
+include::PrimitiveIterator.asciidoc[]
+include::PrimitiveIterator-OfDouble.asciidoc[]
+include::PrimitiveIterator-OfInt.asciidoc[]
+include::PrimitiveIterator-OfLong.asciidoc[]
+include::PriorityQueue.asciidoc[]
+include::Queue.asciidoc[]
+include::Random.asciidoc[]
+include::RandomAccess.asciidoc[]
+include::Set.asciidoc[]
+include::SimpleTimeZone.asciidoc[]
+include::SortedMap.asciidoc[]
+include::SortedSet.asciidoc[]
+include::Spliterator.asciidoc[]
+include::Spliterator-OfDouble.asciidoc[]
+include::Spliterator-OfInt.asciidoc[]
+include::Spliterator-OfLong.asciidoc[]
+include::Spliterator-OfPrimitive.asciidoc[]
+include::Spliterators.asciidoc[]
+include::Stack.asciidoc[]
+include::StringJoiner.asciidoc[]
+include::StringTokenizer.asciidoc[]
+include::TimeZone.asciidoc[]
+include::TooManyListenersException.asciidoc[]
+include::TreeMap.asciidoc[]
+include::TreeSet.asciidoc[]
+include::UUID.asciidoc[]
+include::UnknownFormatConversionException.asciidoc[]
+include::UnknownFormatFlagsException.asciidoc[]
+include::Vector.asciidoc[]
+include::BiConsumer.asciidoc[]
+include::BiFunction.asciidoc[]
+include::BiPredicate.asciidoc[]
+include::BinaryOperator.asciidoc[]
+include::BooleanSupplier.asciidoc[]
+include::Consumer.asciidoc[]
+include::DoubleBinaryOperator.asciidoc[]
+include::DoubleConsumer.asciidoc[]
+include::DoubleFunction.asciidoc[]
+include::DoublePredicate.asciidoc[]
+include::DoubleSupplier.asciidoc[]
+include::DoubleToIntFunction.asciidoc[]
+include::DoubleToLongFunction.asciidoc[]
+include::DoubleUnaryOperator.asciidoc[]
+include::Function.asciidoc[]
+include::IntBinaryOperator.asciidoc[]
+include::IntConsumer.asciidoc[]
+include::IntFunction.asciidoc[]
+include::IntPredicate.asciidoc[]
+include::IntSupplier.asciidoc[]
+include::IntToDoubleFunction.asciidoc[]
+include::IntToLongFunction.asciidoc[]
+include::IntUnaryOperator.asciidoc[]
+include::LongBinaryOperator.asciidoc[]
+include::LongConsumer.asciidoc[]
+include::LongFunction.asciidoc[]
+include::LongPredicate.asciidoc[]
+include::LongSupplier.asciidoc[]
+include::LongToDoubleFunction.asciidoc[]
+include::LongToIntFunction.asciidoc[]
+include::LongUnaryOperator.asciidoc[]
+include::ObjDoubleConsumer.asciidoc[]
+include::ObjIntConsumer.asciidoc[]
+include::ObjLongConsumer.asciidoc[]
+include::Predicate.asciidoc[]
+include::Supplier.asciidoc[]
+include::ToDoubleBiFunction.asciidoc[]
+include::ToDoubleFunction.asciidoc[]
+include::ToIntBiFunction.asciidoc[]
+include::ToIntFunction.asciidoc[]
+include::ToLongBiFunction.asciidoc[]
+include::ToLongFunction.asciidoc[]
+include::UnaryOperator.asciidoc[]
+include::Matcher.asciidoc[]
+include::Pattern.asciidoc[]
+include::BaseStream.asciidoc[]
+include::Collector.asciidoc[]
+include::Collector-Characteristics.asciidoc[]
+include::Collectors.asciidoc[]
+include::DoubleStream.asciidoc[]
+include::DoubleStream-Builder.asciidoc[]
+include::IntStream.asciidoc[]
+include::IntStream-Builder.asciidoc[]
+include::LongStream.asciidoc[]
+include::LongStream-Builder.asciidoc[]
+include::Stream.asciidoc[]
+include::Stream-Builder.asciidoc[]
+include::BytesRef.asciidoc[]
+include::GeoPoint.asciidoc[]
+include::ScriptDocValues-Booleans.asciidoc[]
+include::ScriptDocValues-BytesRefs.asciidoc[]
+include::ScriptDocValues-Dates.asciidoc[]
+include::ScriptDocValues-Doubles.asciidoc[]
+include::ScriptDocValues-GeoPoints.asciidoc[]
+include::ScriptDocValues-Longs.asciidoc[]
+include::ScriptDocValues-Strings.asciidoc[]
+include::IpFieldMapper-IpFieldType-IpScriptDocValues.asciidoc[]
+include::IntervalFilterScript-Interval.asciidoc[]
+include::VectorScriptDocValues.asciidoc[]
+include::VectorScriptDocValues-DenseVectorScriptDocValues.asciidoc[]
+include::VectorScriptDocValues-SparseVectorScriptDocValues.asciidoc[]
+include::ScriptedSimilarity-Doc.asciidoc[]
+include::ScriptedSimilarity-Field.asciidoc[]
+include::ScriptedSimilarity-Query.asciidoc[]
+include::ScriptedSimilarity-Term.asciidoc[]
+include::Debug.asciidoc[]
+include::JodaCompatibleZonedDateTime.asciidoc[]
+include::org-elasticsearch-script-ScoreScript.asciidoc[]
+include::FieldLookup.asciidoc[]

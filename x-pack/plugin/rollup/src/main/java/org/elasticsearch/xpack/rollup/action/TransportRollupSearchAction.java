@@ -56,17 +56,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.rollup.RollupJobIdentifierUtils;
 import org.elasticsearch.xpack.rollup.RollupRequestTranslator;
 import org.elasticsearch.xpack.rollup.RollupResponseTranslator;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;

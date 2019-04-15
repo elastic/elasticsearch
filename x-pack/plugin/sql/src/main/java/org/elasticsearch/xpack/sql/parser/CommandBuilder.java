@@ -144,31 +144,35 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public SysTables visitSysTables(SysTablesContext ctx) {
         List<IndexType> types = new ArrayList<>();
         boolean legacyTableType = false;
+        boolean allTypes = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (value != null) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
-                    // treat % as null
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
+                    allTypes = true;
                 }
-                // special case for legacy apps (like msquery) that always asks for 'TABLE'
-                // which we manually map to all concrete tables supported
-                else if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
-                    legacyTableType = true;
-                    types.add(IndexType.INDEX);
-                } else {
-                    IndexType type = IndexType.from(value);
-                    types.add(type);
+                else {
+                    // special case for legacy apps (like msquery) that always asks for 'TABLE'
+                    // which we manually map to all concrete tables supported
+                    if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
+                        legacyTableType = true;
+                        types.add(IndexType.INDEX);
+                    } else {
+                        IndexType type = IndexType.from(value);
+                        types.add(type);
+                    }
                 }
             }
         }
 
         // if the ODBC enumeration is specified, skip validation
-        EnumSet<IndexType> set = types.isEmpty() ? null : EnumSet.copyOf(types);
+        EnumSet<IndexType> set = types.isEmpty() ? EnumSet.noneOf(IndexType.class) : EnumSet.copyOf(types);
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new SysTables(source(ctx), visitLikePattern(ctx.clusterLike), index, visitLikePattern(ctx.tableLike), set, legacyTableType);
+        return new SysTables(source(ctx), visitLikePattern(ctx.clusterLike), index, visitLikePattern(ctx.tableLike), allTypes,
+                set, legacyTableType);
     }
 
     @Override

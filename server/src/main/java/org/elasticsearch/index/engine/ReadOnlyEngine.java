@@ -111,7 +111,6 @@ public class ReadOnlyEngine extends Engine {
                 searcherManager = new SearcherManager(reader, searcherFactory);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
-                advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
                 success = true;
             } finally {
                 if (success == false) {
@@ -491,6 +490,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
-        // noop
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
+            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

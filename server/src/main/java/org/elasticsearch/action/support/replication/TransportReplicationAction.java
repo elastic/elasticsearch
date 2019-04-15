@@ -364,9 +364,10 @@ public abstract class TransportReplicationAction<
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));
 
+                    final IndexShard shard = primaryShardReference.indexShard;
+
                     final ActionListener<Response> globalCheckpointSyncingListener = ActionListener.wrap(response -> {
                         if (syncGlobalCheckpointAfterOperation) {
-                            final IndexShard shard = primaryShardReference.indexShard;
                             try {
                                 shard.maybeSyncGlobalCheckpoint("post-operation");
                             } catch (final Exception e) {
@@ -376,7 +377,8 @@ public abstract class TransportReplicationAction<
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
                                         new ParameterizedMessage(
-                                            "{} failed to execute post-operation global checkpoint sync", shard.shardId()), e);
+                                            "{} failed to execute post-operation global checkpoint sync",
+                                            primaryShardReference.routingEntry().shardId()), e);
                                 }
                             }
                         }

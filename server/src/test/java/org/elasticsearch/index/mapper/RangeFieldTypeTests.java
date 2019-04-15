@@ -94,13 +94,17 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         boolean includeUpper = randomBoolean();
         Object from = nextFrom();
         Object to = nextTo(from);
+        if (includeLower == false && includeUpper == false) {
+            // need to increase once more, otherwise interval is empty because edge values are exclusive
+            to = nextTo(to);
+        }
 
         assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
             ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
     }
 
     /**
-     * test the intersection queries are correct if from/to are adjacent with different includeUpper/Lower settings
+     * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         QueryShardContext context = createContext();
@@ -213,8 +217,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 // quit test for other range types
                 return;
         }
+        ShapeRelation relation = randomFrom(ShapeRelation.values());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () ->   ft.rangeQuery(from, to, true, true, ShapeRelation.INTERSECTS, null, null, context));
+                () ->   ft.rangeQuery(from, to, true, true, relation, null, null, context));
         assertTrue(ex.getMessage().contains("Range query `from` value"));
         assertTrue(ex.getMessage().contains("is greater than `to` value"));
     }
@@ -226,7 +231,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         return new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
             writableRegistry(), null, null, () -> nowInMillis, null);
     }
-
+    
     public void testDateRangeQueryUsingMappingFormat() {
         QueryShardContext context = createContext();
         RangeFieldType fieldType = new RangeFieldType(RangeType.DATE);

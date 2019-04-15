@@ -678,33 +678,18 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> FloatRange.newWithinQuery(field, new float[] { f }, new float[] { t }));
+                return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
+                        (f, t) -> FloatRange.newWithinQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
             }
             @Override
             public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> FloatRange.newContainsQuery(field, new float[] { f }, new float[] { t }));
+                return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
+                        (f, t) -> FloatRange.newContainsQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
             }
             @Override
             public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> FloatRange.newIntersectsQuery(field, new float[] { f }, new float[] { t }));
-            }
-            
-            private Query createQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
-                    BiFunction<Float, Float, Query> querySupplier) {
-                if ((Float) from > (Float) to) {
-                    // wrong argument order, this is an error the user should fix
-                    throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
-                }
-                Float correctedFrom = (Float) from + (includeFrom ? 0 : 1);
-                Float correctedTo = (Float) to - (includeTo ? 0 : 1);
-                if (correctedFrom > correctedTo) {
-                    return new MatchNoDocsQuery("float range didn't intersect anything");
-                } else {
-                    return querySupplier.apply(correctedFrom, correctedTo);
-                }
+                return createQuery(field, (Float) from, (Float) to, includeFrom, includeTo,
+                        (f, t) -> FloatRange.newIntersectsQuery(field, new float[] { f }, new float[] { t }), RangeType.FLOAT);
             }
         },
         DOUBLE("double_range", NumberType.DOUBLE) {
@@ -752,34 +737,20 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> DoubleRange.newWithinQuery(field, new double[] { f }, new double[] { t }));
+                return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
+                        (f, t) -> DoubleRange.newWithinQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
             }
             @Override
             public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> DoubleRange.newContainsQuery(field, new double[] { f }, new double[] { t }));
+                return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
+                        (f, t) -> DoubleRange.newContainsQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
             }
             @Override
             public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> DoubleRange.newIntersectsQuery(field, new double[] { f }, new double[] { t }));
+                return createQuery(field, (Double) from, (Double) to, includeFrom, includeTo,
+                        (f, t) -> DoubleRange.newIntersectsQuery(field, new double[] { f }, new double[] { t }), RangeType.DOUBLE);
             }
             
-            private Query createQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
-                    BiFunction<Double, Double, Query> querySupplier) {
-                if ((Double) from > (Double) to) {
-                    // wrong argument order, this is an error the user should fix
-                    throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
-                }
-                Double correctedFrom = (Double) from + (includeFrom ? 0 : 1);
-                Double correctedTo = (Double) to - (includeTo ? 0 : 1);
-                if (correctedFrom > correctedTo) {
-                    return new MatchNoDocsQuery("double range didn't intersect anything");
-                } else {
-                    return querySupplier.apply(correctedFrom, correctedTo);
-                }
-            }
         },
         // todo add BYTE support
         // todo add SHORT support
@@ -817,33 +788,18 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> IntRange.newWithinQuery(field, new int[] { f }, new int[] { t }));
+                return createQuery(field, (Integer) from, (Integer) to, includeFrom, includeTo,
+                        (f, t) -> IntRange.newWithinQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
             }
             @Override
             public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> IntRange.newContainsQuery(field, new int[] { f }, new int[] { t }));
+                return createQuery(field,  (Integer) from,  (Integer) to, includeFrom, includeTo,
+                        (f, t) -> IntRange.newContainsQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
             }
             @Override
             public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> IntRange.newIntersectsQuery(field, new int[] { f }, new int[] { t }));
-            }
-            
-            private Query createQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
-                    BiFunction<Integer, Integer, Query> querySupplier) {
-                if ((Integer) from > (Integer) to) {
-                    // wrong argument order, this is an error the user should fix
-                    throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
-                }
-                Integer correctedFrom = (Integer) from + (includeFrom ? 0 : 1);
-                Integer correctedTo = (Integer) to - (includeTo ? 0 : 1);
-                if (correctedFrom > correctedTo) {
-                    return new MatchNoDocsQuery("integer range didn't intersect anything");
-                } else {
-                    return querySupplier.apply(correctedFrom, correctedTo);
-                }
+                return createQuery(field,  (Integer) from,  (Integer) to, includeFrom, includeTo,
+                        (f, t) -> IntRange.newIntersectsQuery(field, new int[] { f }, new int[] { t }), RangeType.INTEGER);
             }
         },
         LONG("long_range", NumberType.LONG) {
@@ -892,33 +848,18 @@ public class RangeFieldMapper extends FieldMapper {
             }
             @Override
             public Query withinQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> LongRange.newWithinQuery(field, new long[] { f }, new long[] { t }));
+                return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
+                        (f, t) -> LongRange.newWithinQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
             }
             @Override
             public Query containsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> LongRange.newContainsQuery(field, new long[] { f }, new long[] { t }));
+                return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
+                        (f, t) -> LongRange.newContainsQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
             }
             @Override
             public Query intersectsQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo) {
-                return createQuery(field, from, to, includeFrom, includeTo,
-                        (f, t) -> LongRange.newIntersectsQuery(field, new long[] { f }, new long[] { t }));
-            }
-            
-            private Query createQuery(String field, Object from, Object to, boolean includeFrom, boolean includeTo,
-                    BiFunction<Long, Long, Query> querySupplier) {
-                if ((Long) from > (Long) to) {
-                    // wrong argument order, this is an error the user should fix
-                    throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
-                }
-                Long correctedFrom = (Long) from + (includeFrom ? 0 : 1);
-                Long correctedTo = (Long) to - (includeTo ? 0 : 1);
-                if (correctedFrom > correctedTo) {
-                    return new MatchNoDocsQuery("long range didn't intersect anything");
-                } else {
-                    return querySupplier.apply(correctedFrom, correctedTo);
-                }
+                return createQuery(field, (Long) from, (Long) to, includeFrom, includeTo,
+                        (f, t) -> LongRange.newIntersectsQuery(field, new long[] { f }, new long[] { t }), RangeType.LONG);
             }
         };
 
@@ -935,6 +876,24 @@ public class RangeFieldMapper extends FieldMapper {
         /** Get the associated type name. */
         public final String typeName() {
             return name;
+        }
+        
+        private static <T extends Comparable<T>> Query createQuery(String field, T from, T to, boolean includeFrom, boolean includeTo,
+                BiFunction<T, T, Query> querySupplier, RangeType rangeType) {
+            if (from.compareTo(to) > 0) {
+                // wrong argument order, this is an error the user should fix
+                throw new IllegalArgumentException("Range query `from` value (" + from + ") is greater than `to` value (" + to + ")");
+            }
+            
+            @SuppressWarnings("unchecked")
+            T correctedFrom = includeFrom ? from : (T) rangeType.nextUp(from);
+            @SuppressWarnings("unchecked")
+            T correctedTo =  includeTo ? to : (T) rangeType.nextDown(to);
+            if (correctedFrom.compareTo(correctedTo) > 0) {
+                return new MatchNoDocsQuery("range didn't intersect anything");
+            } else {
+                return querySupplier.apply(correctedFrom, correctedTo);
+            }
         }
 
         public abstract Field getRangeField(String name, Range range);

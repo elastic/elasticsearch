@@ -130,18 +130,6 @@ public class SearchActionTests extends ESTestCase {
         assertThat(((RangeQueryBuilder)rewritten).timeZone(), equalTo("UTC"));
     }
 
-    public void testRangeTimezoneZ() {
-        final GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h")));
-        final RollupJobConfig config = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);
-        RollupJobCaps cap = new RollupJobCaps(config);
-        Set<RollupJobCaps> caps = new HashSet<>();
-        caps.add(cap);
-        QueryBuilder rewritten = TransportRollupSearchAction.rewriteQuery(new RangeQueryBuilder("foo").gt(1).timeZone("Z"), caps);
-        assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
-        assertThat(((RangeQueryBuilder)rewritten).fieldName(), equalTo("foo.date_histogram.timestamp"));
-        assertThat(((RangeQueryBuilder)rewritten).timeZone(), equalTo("Z"));
-    }
-
     public void testRangeNullTimeZone() {
         final GroupConfig groupConfig = new GroupConfig(new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, null));
         final RollupJobConfig config = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  groupConfig, emptyList(), null);

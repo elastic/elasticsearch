@@ -136,7 +136,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
@@ -161,7 +161,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
                 format: "yyyy-MM-dd"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -219,7 +219,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
               aggs:
                 the_max:
                   max:
@@ -255,7 +255,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
               aggs:
                 the_max:
                   max:
@@ -397,7 +397,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
               aggs:
                 the_max:
                   max:
@@ -543,7 +543,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
               aggs:
                 the_max:
                   max:
@@ -687,7 +687,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
               aggs:
                 the_max:
                   max:
@@ -719,7 +719,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
@@ -807,7 +807,7 @@ setup:
               date_histogram:
                 field: "timestamp"
                 interval: "1h"
-                time_zone: "Z"
+                time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
   - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }

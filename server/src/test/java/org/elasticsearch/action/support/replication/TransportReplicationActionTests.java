@@ -659,12 +659,12 @@ public class TransportReplicationActionTests extends ESTestCase {
                 assertFalse(executed.getAndSet(true));
                 super.shardOperationOnPrimary(shardRequest, primary, listener);
             }
-        }.new AsyncPrimaryAction(primaryRequest, ActionListener.wrap(listener::onResponse, throwable -> {
-            throw new RuntimeException(throwable);
-        }), task).run();
+        }.new AsyncPrimaryAction(primaryRequest, listener, task).run();
         assertThat(executed.get(), equalTo(true));
         assertPhase(task, "finished");
         assertFalse(request.isRetrySet.get());
+        assertTrue(listener.isDone());
+        listener.actionGet(); // throws no exception
     }
 
     public void testPrimaryReference() {

@@ -316,18 +316,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(index, settings.build());
             indexDocs(index, 0, randomInt(5));
-            // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-            // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-            assertBusy(() -> {
-                try {
-                    Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
-                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                    assertThat(result.get("successful"), equalTo(result.get("total")));
-                    assertThat(result.get("failed"), equalTo(0));
-                } catch (ResponseException ex) {
-                    throw new AssertionError(ex); // cause assert busy to retry
-                }
-            });
+            syncedFlush(index);
         }
         ensureGreen(index);
     }
@@ -362,5 +351,54 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         ensureGreen(index);
+    }
+
+    public void testRecoveryWithSyncIdVerifySeqNoStats() throws Exception {
+        final String index = "recovery_sync_id_seq_no";
+        boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
+        if (CLUSTER_TYPE == ClusterType.MIXED && firstMixedRound) {
+            // allocate the primary on node-1 and replica on node-2
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put("index.routing.allocation.include._name", "node-1");
+            createIndex(index, settings.build());
+            updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "node-1,node-2"));
+            ensureGreen(index);
+            // move the primary from node-1 to upgraded-node-0 so we can index documents with sequence numbers
+            // and prevent allocating the replica on upgraded-node-2 until we trim translog on the primary so recovery won't replay ops
+            updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-node-0,node-2"));
+            ensureGreen(index);
+            indexDocs(index, 0, 10);
+            syncedFlush(index);
+        } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            updateIndexSettings(index, Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b"));
+            // index more documents to roll translog so we can trim translog
+            indexDocs(index, 10, 100);
+            assertBusy(() -> {
+                Map<String, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+                Integer translogOps = (Integer) XContentMapValues.extractValue("_all.primaries.translog.operations", stats);
+                assertThat(translogOps, equalTo(100));
+            });
+            updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-node-0,upgraded-node-2"));
+            ensureGreen(index);
+        }
+    }
+
+    private void syncedFlush(String index) throws Exception {
+        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                Response resp = client().performRequest(new Request("POST", index + "/_flush/synced"));
+                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                assertThat(result.get("failed"), equalTo(0));
+            } catch (ResponseException ex) {
+                throw new AssertionError(ex); // cause assert busy to retry
+            }
+        });
     }
 }

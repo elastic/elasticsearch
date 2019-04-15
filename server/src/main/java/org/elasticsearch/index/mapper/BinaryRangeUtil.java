@@ -59,7 +59,7 @@ enum BinaryRangeUtil {
         return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
-    static private InetAddress decodeIP(byte[] bytes, int offset, int length) {
+    private static InetAddress decodeIP(byte[] bytes, int offset, int length) {
         // offset + length because copyOfRange wants a from and a to, not an offset & length
         byte[] slice = Arrays.copyOfRange(bytes, offset, offset + length);
         return InetAddressPoint.decode(slice);

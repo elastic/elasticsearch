@@ -549,6 +549,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     + "    \"max_docs\": 5"
                     + "  }"
                     + "}");
+            if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_6_7_0) &&
+                getOldClusterVersion().before(Version.V_7_0_0)) {
+                rolloverRequest.addParameter(INCLUDE_TYPE_NAME_PARAMETER, "true");
+            }
             client().performRequest(rolloverRequest);
 
             assertThat(EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v")).getEntity()),

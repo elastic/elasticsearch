@@ -76,7 +76,7 @@ public class TransportStopDataFrameTransformAction extends
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
-            listener.onFailure(new IllegalStateException("Request does not have expanedIds set"));
+            listener.onFailure(new IllegalStateException("Request does not have expandedIds set"));
             return;
         }
 

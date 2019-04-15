@@ -1210,13 +1210,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
@@ -1224,7 +1224,32 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        // Multi block
+        query = new QueryStringQueryBuilder("first unmapped:second")
+            .field(STRING_FIELD_NAME)
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("first unknown:second")
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
     }
 
     public void testDefaultField() throws Exception {

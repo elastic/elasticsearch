@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.indexlifecycle.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -26,6 +28,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction.Respo
 import org.elasticsearch.xpack.indexlifecycle.IndexLifecycleService;
 
 public class TransportMoveToStepAction extends TransportMasterNodeAction<Request, Response> {
+    private static final Logger logger = LogManager.getLogger(TransportMoveToStepAction.class);
+
     IndexLifecycleService indexLifecycleService;
     @Inject
     public TransportMoveToStepAction(Settings settings, TransportService transportService, ClusterService clusterService,

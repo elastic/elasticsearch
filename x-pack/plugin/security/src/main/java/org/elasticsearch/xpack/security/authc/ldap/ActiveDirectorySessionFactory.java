@@ -199,7 +199,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         return bindDN;
     }
 
-    static boolean isSaslGssapiMode(RealmConfig config) {
+    static boolean isSimpleBind(RealmConfig config) {
         String mode = config.getSetting(PoolingSessionFactorySettings.BIND_MODE);
         return "simple".equals(mode);
     }
@@ -274,7 +274,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                         }
                     };
                     String bindDN = getBindDN(realm);
-                    if (isSaslGssapiMode(realm) && (bindDN == null || bindDN.isEmpty())) {
+                    if (isSimpleBind(realm) && (bindDN == null || bindDN.isEmpty())) {
                         searchRunnable.run();
                     } else {
                         LdapUtils.maybeForkThenBind(connection, bindRequestBuilder.build(), threadPool, searchRunnable);
@@ -441,7 +441,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                     final byte[] passwordBytes = CharArrays.toUtf8Bytes(password.getChars());
                     final BindRequest bind;
                     String bindDN = getBindDN(config);
-                    if (isSaslGssapiMode(config) && (bindDN == null || bindDN.isEmpty())) {
+                    if (isSimpleBind(config) && (bindDN == null || bindDN.isEmpty())) {
                         bind = new SimpleBindRequest(username, passwordBytes);
                     } else {
                         bind = bindRequestBuilder.build();

@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -59,14 +59,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContent {
+public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PutIndexTemplateRequest.class));
 
@@ -498,32 +498,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("index_patterns", indexPatterns);
-        builder.field("order", order);
-        if (version != null) {
-            builder.field("version", version);
-        }
-
-        builder.startObject("settings");
-        settings.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject("mappings");
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            builder.field(entry.getKey());
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
-                builder.copyCurrentStructure(parser);
+        builder.startObject();
+        {
+            builder.field("index_patterns", indexPatterns);
+            builder.field("order", order);
+            if (version != null) {
+                builder.field("version", version);
             }
+
+            builder.startObject("settings");
+            settings.toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("mappings");
+            for (Map.Entry<String, String> entry : mappings.entrySet()) {
+                builder.field(entry.getKey());
+                try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entry.getValue())) {
+                    builder.copyCurrentStructure(parser);
+                }
+            }
+            builder.endObject();
+
+            builder.startObject("aliases");
+            for (Alias alias : aliases) {
+                alias.toXContent(builder, params);
+            }
+            builder.endObject();
         }
         builder.endObject();
-
-        builder.startObject("aliases");
-        for (Alias alias : aliases) {
-            alias.toXContent(builder, params);
-        }
-        builder.endObject();
-
         return builder;
     }
 }

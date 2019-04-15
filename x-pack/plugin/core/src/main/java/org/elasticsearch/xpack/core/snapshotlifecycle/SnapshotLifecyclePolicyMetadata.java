@@ -53,11 +53,11 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_metadata", true,
+        new ConstructingObjectParser<>("snapshot_policy_metadata",
             a -> {
                 SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
-                SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[5];
-                SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[6];
+                SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[4];
+                SnapshotInvocationRecord lastFailure = (SnapshotInvocationRecord) a[5];
 
                 return builder()
                     .setPolicy(policy)
@@ -170,7 +170,6 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         if (Objects.nonNull(lastFailure)) {
             builder.field(LAST_FAILURE.getPreferredName(), lastFailure);
         }
-        builder.timeField(NEXT_EXECUTION_MILLIS.getPreferredName(), NEXT_EXECUTION.getPreferredName(), policy.calculateNextExecution());
         builder.endObject();
         return builder;
     }

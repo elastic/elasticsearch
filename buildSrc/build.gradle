@@ -197,6 +197,7 @@ if (project != rootProject) {
   task setupLocalDownloads(type:Copy) {
     from configurations.distribution
     into localDownloads
+    rename { it.replace("-SNAPSHOT", "") }
   }
     
   task integTest(type: Test) {

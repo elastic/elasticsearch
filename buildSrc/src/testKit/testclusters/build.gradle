@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.Version
+
 plugins {
     id 'elasticsearch.testclusters'
     id 'base'
@@ -27,7 +29,7 @@ allprojects { all ->
         all.testClusters {
             myTestCluster {
                 distribution = 'DEFAULT'
-                version = System.getProperty("test.version_under_test")
+                version = Version.fromString(System.getProperty("test.version_under_test"))
                 javaHome = file(System.getProperty('java.home'))
                 plugin file("${project(":dummyPlugin").buildDir}/distributions/dummy-${System.getProperty("test.version_under_test")}.zip")
             }
@@ -53,7 +55,7 @@ allprojects { all ->
 
 testClusters {
     multiNode {
-        version = System.getProperty("test.version_under_test")
+        version = Version.fromString(System.getProperty("test.version_under_test"))
         distribution = 'DEFAULT'
         javaHome = file(System.getProperty('java.home'))
         numberOfNodes = 3

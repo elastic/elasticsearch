@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.testclusters;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.Action;
@@ -61,11 +60,11 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
-    private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
+    private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
-    private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
+    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -183,7 +182,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                             if (container.contains(cluster) == false) {
                                 throw new TestClustersException(
                                     "Task " + task.getPath() + " can't use test cluster from" +
-                                    " another project " + cluster
+                                        " another project " + cluster
                                 );
                             }
                             Object thisObject = this.getThisObject();
@@ -233,8 +232,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                             runningClusters.add(elasticsearchCluster);
                         });
                 }
+
                 @Override
-                public void afterActions(Task task) {}
+                public void afterActions(Task task) {
+                }
             }
         );
     }
@@ -268,15 +269,17 @@ public class TestClustersPlugin implements Plugin<Project> {
                             });
                     }
                 }
+
                 @Override
-                public void beforeExecute(Task task) {}
+                public void beforeExecute(Task task) {
+                }
             }
         );
     }
 
     /**
      * Boilerplate to get testClusters container extension
-     *
+     * <p>
      * Equivalent to project.testClusters in the DSL
      */
     @SuppressWarnings("unchecked")
@@ -294,37 +297,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Each of these have to depend on the artifacts being synced.
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
-        project.afterEvaluate(ip -> container.forEach(esCluster ->
-            esCluster.eachVersionedDistribution((version, distribution) -> {
-                BwcVersions.UnreleasedVersionInfo unreleasedInfo;
-                final List<Version> unreleased;
-                {
-                    ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
-                    if (extraProperties.has("bwcVersions")) {
-                        Object bwcVersionsObj = extraProperties.get("bwcVersions");
-                        if (bwcVersionsObj instanceof BwcVersions == false) {
-                            throw new IllegalStateException("Expected project.bwcVersions to be of type VersionCollection " +
-                                "but instead it was " + bwcVersionsObj.getClass());
-                        }
-                        final BwcVersions bwcVersions = (BwcVersions) bwcVersionsObj;
-                        unreleased = ((BwcVersions) bwcVersionsObj).getUnreleased();
-                        unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(version));
-                    } else {
-                        logger.info("No version information available, assuming all versions used are released");
-                        unreleased = Collections.emptyList();
-                        unreleasedInfo = null;
-                    }
-                }
-                if (unreleased.contains(Version.fromString(version))) {
-                    Map<String, Object> projectNotation = new HashMap<>();
-                    projectNotation.put("path", unreleasedInfo.gradleProjectPath);
-                    projectNotation.put("configuration", distribution.getLiveConfiguration());
-                    rootProject.getDependencies().add(
-                        HELPER_CONFIGURATION_NAME,
-                        project.getDependencies().project(projectNotation)
-                    );
+        project.afterEvaluate(ip -> container.forEach(esCluster -> {
+            Map<VersionedDistribution, Object> artifactOverrides = esCluster.getArtifactOverrides();
+            esCluster.getVersionedDistributions().forEach(versionedDistribution -> {
+                if (artifactOverrides.containsKey(versionedDistribution)) {
+                    rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, artifactOverrides.get(versionedDistribution));
                 } else {
-                    if (distribution.equals(Distribution.INTEG_TEST)) {
+                    Distribution distribution = versionedDistribution.getDistribution();
+                    Version version = versionedDistribution.getVersion();
+                    if (versionedDistribution.getDistribution().equals(Distribution.INTEG_TEST)) {
                         rootProject.getDependencies().add(
                             HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + version
                         );
@@ -343,7 +324,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                         rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
                     }
                 }
-            })));
+            });
+        }));
     }
 
     private void configureCleanupHooks(Project project) {
@@ -381,7 +363,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             if (executorService.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT, EXECUTOR_SHUTDOWN_TIMEOUT_UNIT) == false) {
                 throw new IllegalStateException(
                     "Failed to shut down executor service after " +
-                    EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
+                        EXECUTOR_SHUTDOWN_TIMEOUT + " " + EXECUTOR_SHUTDOWN_TIMEOUT_UNIT
                 );
             }
         } catch (InterruptedException e) {

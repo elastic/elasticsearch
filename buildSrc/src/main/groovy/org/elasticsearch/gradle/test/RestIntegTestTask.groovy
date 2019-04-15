@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
@@ -70,7 +71,7 @@ class RestIntegTestTask extends DefaultTask {
             project.testClusters {
                 "$name" {
                     distribution = 'INTEG_TEST'
-                    version = project.version
+                    version =  Version.fromString(project.version)
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }

@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logging;
 import org.slf4j.Logger;
 
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 
 public interface TestClusterConfiguration {
 
-    void setVersion(String version);
+    void setVersion(Version version);
 
     void setDistribution(Distribution distribution);
 

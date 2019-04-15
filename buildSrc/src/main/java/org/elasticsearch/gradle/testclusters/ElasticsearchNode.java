@@ -95,7 +95,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path tmpDir;
 
     private Distribution distribution;
-    private String version;
+    private Version version;
     private File javaHome;
     private volatile Process esProcess;
 
@@ -122,12 +122,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return name;
     }
 
-    public String getVersion() {
+    public Version getVersion() {
         return version;
     }
 
     @Override
-    public void setVersion(String version) {
+    public void setVersion(Version version) {
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
         checkFrozen();
         this.version = version;
@@ -263,7 +263,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             .resolve(distribution.getArtifactName() + "-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
-            throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);
+            // Unreleased versions will identify as -SNAPSHOT
+            distroArtifact = artifactsExtractDir
+                .resolve(distribution.getGroup())
+                .resolve(distribution.getArtifactName() + "-" + getVersion() + "-SNAPSHOT");
+
+            if (Files.exists(distroArtifact) == false) {
+                    throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);
+            }
         }
         if (Files.isDirectory(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", is not a directory: " + distroArtifact);
@@ -605,7 +612,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("node.attr.testattr", "test");
         defaultConfig.put("node.portsfile", "true");
         defaultConfig.put("http.port", "0");
-        if (Version.fromString(version).onOrAfter(Version.fromString("6.7.0"))) {
+        if (version.onOrAfter(Version.fromString("6.7.0"))) {
             defaultConfig.put("transport.port", "0");
         } else {
             defaultConfig.put("transport.tcp.port", "0");
@@ -615,13 +622,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("cluster.routing.allocation.disk.watermark.high", "1b");
         // increase script compilation limit since tests can rapid-fire script compilations
         defaultConfig.put("script.max_compilations_rate", "2048/1m");
-        if (Version.fromString(version).getMajor() >= 6) {
+        if (version.getMajor() >= 6) {
             defaultConfig.put("cluster.routing.allocation.disk.watermark.flood_stage", "1b");
         }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.
-        if (Version.fromString(version).getMajor() >= 7) {
+        if (version.getMajor() >= 7) {
             defaultConfig.put("indices.breaker.total.use_real_memory",  "false");
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master

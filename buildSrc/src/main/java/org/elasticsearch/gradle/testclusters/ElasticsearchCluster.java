@@ -36,12 +36,14 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -60,6 +62,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     private final File artifactsExtractDir;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final GradleServicesAdapter services;
+    private final Map<VersionedDistribution, Object> artifactOverrides = new HashMap<>();
 
     public ElasticsearchCluster(String path, String clusterName, Project project, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -96,6 +99,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         }
     }
 
+    public void artifact(Version version, Distribution distribution, Object override) {
+        artifactOverrides.put(new VersionedDistribution(distribution, version), override);
+    }
+
     private ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-1");
     }
@@ -109,7 +116,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
-    public void setVersion(String version) {
+    public void setVersion(Version version) {
         nodes.all(each -> each.setVersion(version));
     }
 
@@ -195,7 +202,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
         for (ElasticsearchNode node : nodes) {
             node.defaultConfig.put("cluster.name", safeName(clusterName));
-            if (Version.fromString(node.getVersion()).getMajor() >= 7) {
+            if (node.getVersion().getMajor() >= 7) {
                 node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                 node.defaultConfig.put("discovery.seed_providers", "file");
             }
@@ -267,8 +274,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         return nodes.stream().noneMatch(node -> node.isProcessAlive() == false);
     }
 
-    void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
-        nodes.forEach(each -> consumer.accept(each.getVersion(), each.getDistribution()));
+    Set<VersionedDistribution> getVersionedDistributions() {
+        return nodes.stream()
+            .map(node -> new VersionedDistribution(node.getDistribution(), node.getVersion()))
+            .collect(Collectors.toSet());
     }
 
     public ElasticsearchNode singleNode() {
@@ -316,5 +325,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     @Override
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
+    }
+
+    Map<VersionedDistribution, Object> getArtifactOverrides() {
+        return artifactOverrides;
     }
 }

@@ -10,9 +10,17 @@ Stops one or more {dataframe-transforms}.
 
 ==== Request
 
-`POST _data_frame/transforms/<data_frame_transform_id>/_stop`
+`POST _data_frame/transforms/<data_frame_transform_id>/_stop` +
 
-//==== Description
+`POST _data_frame/transforms/<data_frame_transform_id1>,<data_frame_transform_id2>/_stop` +
+
+`POST _data_frame/transforms/_all/_stop`
+
+
+==== Description
+You can stop multiple {dataframe-transforms} in a single API request by using a
+comma-separated list of {dataframe-transforms} or a wildcard expression.
+All {dataframe-transforms} can be stopped by using `_all` or `*` as the `<data_frame_transform_id>`.
 
 ==== Path Parameters
 

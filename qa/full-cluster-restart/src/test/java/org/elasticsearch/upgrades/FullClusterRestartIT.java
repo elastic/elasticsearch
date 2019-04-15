@@ -1177,8 +1177,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             expectedTemplate.put("index_patterns", singletonList("evil_*"));
         }
         expectedTemplate.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
-        if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_6_7_0) &&
-            getOldClusterVersion().before(Version.V_7_0_0)) {
+        if (tookOnVersion.before(Version.V_7_0_0)) {
             expectedTemplate.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", true))));
         } else {
             expectedTemplate.put("mappings", singletonMap("_source", singletonMap("enabled", true)));

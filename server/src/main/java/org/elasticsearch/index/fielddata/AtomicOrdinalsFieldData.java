@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 
 /**
@@ -31,5 +32,11 @@ public interface AtomicOrdinalsFieldData extends AtomicFieldData {
      * Return the ordinals values for the current atomic reader.
      */
     SortedSetDocValues getOrdinalsValues();
+
+    /**
+     * Returns the underlying {@link OrdinalMap} for this fielddata
+     * or null if global ordinals are not needed (constant value or single segment).
+     */
+    OrdinalMap getOrdinalMap();
 
 }

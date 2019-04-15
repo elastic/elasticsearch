@@ -47,7 +47,6 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
     private final String fieldName;
     private final long memorySizeInBytes;
 
-    private final OrdinalMap ordinalMap;
     private final Atomic[] atomicReaders;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
@@ -58,10 +57,14 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
         super(indexSettings);
         this.fieldName = fieldName;
         this.memorySizeInBytes = memorySizeInBytes;
-        this.ordinalMap = ordinalMap;
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
             atomicReaders[i] = new Atomic(segmentAfd[i], ordinalMap, i);
+        }
+
+        final SortedSetDocValues[] bytesValues = new SortedSetDocValues[atomicReaders.length];
+        for (int i = 0; i < bytesValues.length; i++) {
+            bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
         }
         this.scriptFunction = scriptFunction;
     }
@@ -112,11 +115,6 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
         return atomicReaders[context.ord];
     }
 
-    @Override
-    public OrdinalMap getOrdinalMap() {
-        return ordinalMap;
-    }
-
     private final class Atomic extends AbstractAtomicOrdinalsFieldData {
 
         private final AtomicOrdinalsFieldData afd;
@@ -142,6 +140,11 @@ public class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent impleme
                 bytesValues[i] = atomicReaders[i].afd.getOrdinalsValues();
             }
             return new GlobalOrdinalMapping(ordinalMap, bytesValues, segmentIndex);
+        }
+
+        @Override
+        public OrdinalMap getOrdinalMap() {
+            return ordinalMap;
         }
 
         @Override

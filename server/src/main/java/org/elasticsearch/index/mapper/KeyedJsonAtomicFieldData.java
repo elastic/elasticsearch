@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -79,6 +80,11 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
         }
 
         return new KeyedJsonDocValues(keyBytes, values, minOrd, maxOrd);
+    }
+
+    @Override
+    public OrdinalMap getOrdinalMap() {
+        return delegate.getOrdinalMap();
     }
 
     @Override

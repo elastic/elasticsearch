@@ -93,6 +93,11 @@ public enum GlobalOrdinalsBuilder {
                 }
 
                 @Override
+                public OrdinalMap getOrdinalMap() {
+                    return null;
+                }
+
+                @Override
                 public long ramBytesUsed() {
                     return 0;
                 }

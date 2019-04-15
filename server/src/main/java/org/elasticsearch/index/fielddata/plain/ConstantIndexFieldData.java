@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
@@ -118,6 +119,11 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 }
             };
             return (SortedSetDocValues) DocValues.singleton(sortedValues);
+        }
+
+        @Override
+        public OrdinalMap getOrdinalMap() {
+            return null;
         }
 
         @Override

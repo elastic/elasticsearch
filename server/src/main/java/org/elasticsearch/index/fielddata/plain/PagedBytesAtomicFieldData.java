@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
@@ -70,6 +71,11 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     @Override
     public SortedSetDocValues getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
+    }
+
+    @Override
+    public OrdinalMap getOrdinalMap() {
+        return null;
     }
 
     private static class ValuesHolder implements Ordinals.ValuesHolder {

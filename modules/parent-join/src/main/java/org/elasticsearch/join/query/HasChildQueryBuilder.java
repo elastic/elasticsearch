@@ -21,6 +21,7 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -367,8 +369,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 IndexSearcher indexSearcher = new IndexSearcher(reader);
                 indexSearcher.setQueryCache(null);
                 indexSearcher.setSimilarity(similarity);
-                IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal((DirectoryReader) reader);
-                OrdinalMap ordinalMap = indexParentChildFieldData.getOrdinalMap();
+
+                OrdinalMap ordinalMap = loadOrdinalMap((DirectoryReader) reader);
                 return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode,
                     ordinalMap, minChildren, maxChildren);
             } else {
@@ -382,6 +384,18 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 throw new IllegalStateException("can't load global ordinals for reader of type: " +
                     reader.getClass() + " must be a DirectoryReader");
             }
+        }
+
+        private OrdinalMap loadOrdinalMap(DirectoryReader reader) throws IOException {
+            IndexOrdinalsFieldData indexParentChildFieldData = fieldDataJoin.loadGlobal(reader);
+
+            if (reader.getContext().leaves().isEmpty()) {
+                return OrdinalMap.build(null, new SortedSetDocValues[]{}, 0);
+            }
+
+            AtomicOrdinalsFieldData atomicOrdinalsFieldData = indexParentChildFieldData.load(
+                reader.getContext().leaves().get(0));
+            return atomicOrdinalsFieldData.getOrdinalMap();
         }
 
         @Override

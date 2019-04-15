@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.OrdinalMap;
 
 
 /**
@@ -41,10 +40,4 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdi
      */
     @Override
     IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception;
-
-    /**
-     * Returns the underlying {@link OrdinalMap} for this fielddata
-     * or null if global ordinals are not needed (constant value or single segment).
-     */
-    OrdinalMap getOrdinalMap();
 }

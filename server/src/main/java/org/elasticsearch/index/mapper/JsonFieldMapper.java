@@ -25,7 +25,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -417,11 +416,6 @@ public final class JsonFieldMapper extends FieldMapper {
         public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.localGlobalDirect(indexReader);
             return new KeyedJsonIndexFieldData(key, fieldData);
-        }
-
-        @Override
-        public OrdinalMap getOrdinalMap() {
-            return delegate.getOrdinalMap();
         }
 
         @Override

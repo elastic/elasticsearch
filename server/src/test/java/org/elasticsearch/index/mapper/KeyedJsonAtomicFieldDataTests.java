@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
@@ -170,6 +171,11 @@ public class KeyedJsonAtomicFieldDataTests extends ESTestCase {
         @Override
         public SortedSetDocValues getOrdinalsValues() {
             return docValues;
+        }
+
+        @Override
+        public OrdinalMap getOrdinalMap() {
+            return null;
         }
 
         @Override

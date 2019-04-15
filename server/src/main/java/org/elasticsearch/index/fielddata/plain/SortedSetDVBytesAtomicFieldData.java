@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -53,6 +54,11 @@ public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinal
         } catch (IOException e) {
             throw new IllegalStateException("cannot load docvalues", e);
         }
+    }
+
+    @Override
+    public OrdinalMap getOrdinalMap() {
+        return null;
     }
 
     @Override

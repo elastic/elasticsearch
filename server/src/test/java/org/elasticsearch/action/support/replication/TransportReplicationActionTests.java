@@ -836,19 +836,17 @@ public class TransportReplicationActionTests extends ESTestCase {
 
         try {
             listener.get();
+            if (throwExceptionOnRun || respondWithError) {
+                fail("expected exception, but none was thrown");
+            }
         } catch (ExecutionException e) {
             if (throwExceptionOnRun || respondWithError) {
                 Throwable cause = e.getCause();
                 assertThat(cause, instanceOf(ElasticsearchException.class));
                 assertThat(cause.getMessage(), containsString("simulated"));
-                return;
             } else {
                 throw e;
             }
-        }
-
-        if (throwExceptionOnRun || respondWithError) {
-            fail("expected exception, but none was thrown");
         }
     }
 

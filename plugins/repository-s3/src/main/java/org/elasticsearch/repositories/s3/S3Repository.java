@@ -305,6 +305,13 @@ class S3Repository extends BlobStoreRepository {
 
         AmazonS3 client = s3Service.client(metadata.settings());
         String region = InternalAwsS3Service.getRegion(metadata.settings(), settings);
+
+        try {
+            client.setRegion(Region.getRegion(Regions.fromName(region)));
+        } catch (Exception e) { // todo real exception
+           logger.warn("Unable to set S3 region to [{}]. Continuing without region explicitly set", region)
+        }
+
         blobStore = new S3BlobStore(settings, client,
                 bucket, region, serverSideEncryption, bufferSize, cannedACL, storageClass);
 

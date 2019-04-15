@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.smoketest;
+package org.elasticsearch.xpack.watcher.support;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.elasticsearch.common.Nullable;

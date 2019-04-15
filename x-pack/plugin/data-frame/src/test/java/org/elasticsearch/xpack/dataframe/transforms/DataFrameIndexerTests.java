@@ -170,6 +170,11 @@ public class DataFrameIndexerTests extends ESTestCase {
             fail("onAbort should not be called");
         }
 
+        @Override
+        protected void failIndexer(String message) {
+            fail("failIndexer should not be called, received error: " + message);
+        }
+
     }
 
     @Before

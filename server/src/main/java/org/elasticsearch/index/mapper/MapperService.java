@@ -126,7 +126,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
-    private IndexAnalyzers indexAnalyzers;
+    private volatile IndexAnalyzers indexAnalyzers;
 
     private volatile String defaultMappingSource;
 
@@ -140,8 +140,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentParser;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
-    private MapperAnalyzerWrapper searchAnalyzer;
-    private MapperAnalyzerWrapper searchQuoteAnalyzer;
+    private volatile MapperAnalyzerWrapper searchAnalyzer;
+    private volatile  MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
@@ -848,7 +848,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+    public synchronized     void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
 
         // refresh indexAnalyzers and search analyzers
@@ -871,6 +871,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return newMft;
         }).collect(Collectors.toList());
         fieldTypes = fieldTypes.copyAndAddAll(updated);
-        // mapper.root().updateFieldType();
+        mapper.root().updateFieldType(fieldTypes.fullNameToFieldType);
     }
 }

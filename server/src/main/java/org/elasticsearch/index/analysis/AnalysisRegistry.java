@@ -355,7 +355,7 @@ public final class AnalysisRegistry implements Closeable {
         return type;
     }
 
-    static class PrebuiltAnalysis implements Closeable {
+    private static class PrebuiltAnalysis implements Closeable {
 
         final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;

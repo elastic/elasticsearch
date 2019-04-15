@@ -10,10 +10,7 @@ apply plugin: 'elasticsearch.standalone-test'
 test.enabled = false
 
 dependencies {
-  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'runtime')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
+  testCompile project(':x-pack:qa')
   testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
 }
 
@@ -307,11 +304,4 @@ task copyXPackRestSpec(type: Copy) {
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
-
-task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)

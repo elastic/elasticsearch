@@ -60,8 +60,6 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             new AckedClusterStateUpdateTask<Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    logger.info("moving index [{}] from [{}] to [{}]",
-                        request.getIndex(), request.getCurrentStepKey(), request.getNextStepKey());
                     return indexLifecycleService.moveClusterStateToStep(currentState, request.getIndex(), request.getCurrentStepKey(),
                         request.getNextStepKey());
                 }

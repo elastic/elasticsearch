@@ -113,6 +113,11 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return this.configuration;
     }
 
+    public long calculateNextExecution() {
+        final Cron schedule = new Cron(this.schedule);
+        return schedule.getNextValidTimeAfter(System.currentTimeMillis());
+    }
+
     public ActionRequestValidationException validate() {
         ActionRequestValidationException err = new ActionRequestValidationException();
 

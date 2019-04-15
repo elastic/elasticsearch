@@ -19,9 +19,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -38,10 +35,12 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
     static final ParseField POLICY = new ParseField("policy");
     static final ParseField HEADERS = new ParseField("headers");
     static final ParseField VERSION = new ParseField("version");
+    static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
     static final ParseField MODIFIED_DATE = new ParseField("modified_date");
-    static final ParseField MODIFIED_DATE_STRING = new ParseField("modified_date_string");
     static final ParseField LAST_SUCCESS = new ParseField("last_success");
     static final ParseField LAST_FAILURE = new ParseField("last_failure");
+    static final ParseField NEXT_EXECUTION_MILLIS = new ParseField("next_execution_millis");
+    static final ParseField NEXT_EXECUTION = new ParseField("next_execution");
 
     private final SnapshotLifecyclePolicy policy;
     private final Map<String, String> headers;
@@ -54,7 +53,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<SnapshotLifecyclePolicyMetadata, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_metadata",
+        new ConstructingObjectParser<>("snapshot_policy_metadata", true,
             a -> {
                 SnapshotLifecyclePolicy policy = (SnapshotLifecyclePolicy) a[0];
                 SnapshotInvocationRecord lastSuccess = (SnapshotInvocationRecord) a[5];
@@ -74,8 +73,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), SnapshotLifecyclePolicy::parse, POLICY);
         PARSER.declareField(ConstructingObjectParser.constructorArg(), XContentParser::mapStrings, HEADERS, ObjectParser.ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_STRING);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), MODIFIED_DATE_MILLIS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_SUCCESS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotInvocationRecord::parse, LAST_FAILURE);
     }
@@ -151,18 +149,6 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         return modifiedDate;
     }
 
-    private String dateToDateString(Long date) {
-        if (Objects.isNull(date)) {
-            return null;
-        }
-        ZonedDateTime dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(date), ZoneOffset.UTC);
-        return dateTime.toString();
-    }
-
-    public String getModifiedDateString() {
-        return dateToDateString(modifiedDate);
-    }
-
     public SnapshotInvocationRecord getLastSuccess() {
         return lastSuccess;
     }
@@ -177,14 +163,14 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
         builder.field(POLICY.getPreferredName(), policy);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
-        builder.field(MODIFIED_DATE.getPreferredName(), modifiedDate);
-        builder.field(MODIFIED_DATE_STRING.getPreferredName(), getModifiedDateString());
+        builder.timeField(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);
         if (Objects.nonNull(lastSuccess)) {
             builder.field(LAST_SUCCESS.getPreferredName(), lastSuccess);
         }
         if (Objects.nonNull(lastFailure)) {
             builder.field(LAST_FAILURE.getPreferredName(), lastFailure);
         }
+        builder.timeField(NEXT_EXECUTION_MILLIS.getPreferredName(), NEXT_EXECUTION.getPreferredName(), policy.calculateNextExecution());
         builder.endObject();
         return builder;
     }

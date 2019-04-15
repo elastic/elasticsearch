@@ -43,6 +43,13 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
         assertThat(p.generateSnapshotName(context), startsWith("name-2019-03-15.21:09:00-"));
     }
 
+    public void testNextExecutionTime() {
+        // I don't know of a way to schedule something so far into the future that it won't fail
+        // when we reach that time and the test is run, so I settled for a less strict test
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "*/30 * * * * ?", "repo", Collections.emptyMap());
+        assertThat(p.calculateNextExecution(), greaterThan(System.currentTimeMillis()));
+    }
+
     public void testValidation() {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("a,b", "<my, snapshot-{now/M}>",
             "* * * * * L", "  ", Collections.emptyMap());

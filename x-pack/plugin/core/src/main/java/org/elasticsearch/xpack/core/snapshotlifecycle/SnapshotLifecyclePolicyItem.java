@@ -112,15 +112,18 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(policy.getId());
-        builder.field("version", version);
-        builder.timeField("modified_date_millis", "modified_date", modifiedDate);
-        builder.field("policy", policy);
+        builder.field(SnapshotLifecyclePolicyMetadata.VERSION.getPreferredName(), version);
+        builder.timeField(SnapshotLifecyclePolicyMetadata.MODIFIED_DATE_MILLIS.getPreferredName(),
+            SnapshotLifecyclePolicyMetadata.MODIFIED_DATE.getPreferredName(), modifiedDate);
+        builder.field(SnapshotLifecyclePolicyMetadata.POLICY.getPreferredName(), policy);
         if (lastSuccess != null) {
-            builder.field("last_success", lastSuccess);
+            builder.field(SnapshotLifecyclePolicyMetadata.LAST_SUCCESS.getPreferredName(), lastSuccess);
         }
         if (lastFailure != null) {
-            builder.field("last_failure", lastFailure);
+            builder.field(SnapshotLifecyclePolicyMetadata.LAST_FAILURE.getPreferredName(), lastFailure);
         }
+        builder.timeField(SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION_MILLIS.getPreferredName(),
+            SnapshotLifecyclePolicyMetadata.NEXT_EXECUTION.getPreferredName(), policy.calculateNextExecution());
         builder.endObject();
         return builder;
     }

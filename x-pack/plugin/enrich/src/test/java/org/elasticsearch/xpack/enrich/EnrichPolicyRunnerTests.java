@@ -78,11 +78,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         logger.info("Created Doc");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        EnrichStore enrichStore = new EnrichStore(clusterService);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
 
         final long createTime = randomNonNegativeLong();
 
-        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(clusterService, client(), resolver,
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(clusterService, client(), enrichStore, resolver,
             () -> createTime);
 
         logger.info("Runner created");
@@ -90,18 +91,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        EnrichPolicy policy = new EnrichPolicy();
-        policy.setId("test1");
-        policy.setSource(sourceIndex);
-        policy.setLookupField("field1");
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("field2");
         enrichFields.add("field5");
-        policy.setEnrichFields(enrichFields);
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, sourceIndex, "field1", enrichFields, "");
+        String policyName = "test1";
 
         logger.info("Starting policy run");
 
-        enrichPolicyRunner.runPolicy(policy, new ActionListener<EnrichPolicyResult>() {
+        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<EnrichPolicyResult>() {
             @Override
             public void onResponse(EnrichPolicyResult enrichPolicyResult) {
                 logger.info("Run complete");

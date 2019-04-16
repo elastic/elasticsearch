@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexInfo;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver.IndexType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -35,26 +34,23 @@ public class SysTables extends Command {
     private final String index;
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
-    private final boolean allTypes;
     private final EnumSet<IndexType> types;
     // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
     private final boolean legacyTableTypes;
 
-    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, boolean allTypes,
-            EnumSet<IndexType> types,
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
             boolean legacyTableTypes) {
         super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;
-        this.allTypes = allTypes;
         this.types = types;
         this.legacyTableTypes = legacyTableTypes;
     }
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, allTypes, types, legacyTableTypes);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types, legacyTableTypes);
     }
 
     @Override
@@ -82,9 +78,9 @@ public class SysTables extends Command {
 
         // catalog enumeration
         if (clusterPattern == null || clusterPattern.pattern().equals(SQL_WILDCARD)) {
-            // enumerate only if pattern is "" and types is empty string
+            // enumerate only if pattern is "" and no types are specified (types is null)
             if (pattern != null && pattern.pattern().isEmpty() && index == null
-                    && types.isEmpty() && allTypes == false) {
+                    && types == null) {
                 Object[] enumeration = new Object[10];
                 // send only the cluster, everything else null
                 enumeration[0] = cluster;
@@ -95,7 +91,7 @@ public class SysTables extends Command {
         
         // enumerate types
         // if no types are specified (the parser takes care of the % case)
-        if (allTypes == true && types.isEmpty()) {
+        if (types == null) {
             // empty string for catalog
             if (clusterPattern != null && clusterPattern.pattern().isEmpty()
                     // empty string for table like and no index specified
@@ -117,9 +113,8 @@ public class SysTables extends Command {
         // no enumeration pattern found, list actual tables
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
-        // if the catalog doesn't match or if the pattern is empty, don't return any results
-        if ((cRegex != null && !Pattern.matches(cRegex, cluster))
-                || (index == null && pattern != null && Strings.hasText(pattern.pattern()) == false)) {
+        // if the catalog doesn't match, don't return any results
+        if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
             listener.onResponse(Rows.empty(output()));
             return;
         }
@@ -152,7 +147,7 @@ public class SysTables extends Command {
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterPattern, index, pattern, allTypes, types, legacyTableTypes);
+        return Objects.hash(clusterPattern, index, pattern, types);
     }
 
     @Override
@@ -166,7 +161,7 @@ public class SysTables extends Command {
         }
 
         SysTables other = (SysTables) obj;
-        return allTypes == other.allTypes && Objects.equals(clusterPattern, other.clusterPattern)
+        return Objects.equals(clusterPattern, other.clusterPattern)
                 && Objects.equals(index, other.index)
                 && Objects.equals(pattern, other.pattern)
                 && Objects.equals(types, other.types);

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 public class EnrichPolicyResult {
-    boolean completed;
+    private final boolean completed;
 
     public EnrichPolicyResult(boolean completed) {
         this.completed = completed;
@@ -14,9 +14,5 @@ public class EnrichPolicyResult {
 
     public boolean isCompleted() {
         return completed;
-    }
-
-    public void setCompleted(boolean completed) {
-        this.completed = completed;
     }
 }

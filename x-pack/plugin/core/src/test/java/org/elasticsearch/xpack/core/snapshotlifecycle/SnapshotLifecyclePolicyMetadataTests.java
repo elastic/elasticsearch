@@ -47,7 +47,7 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
 
     @Override
     protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) throws IOException {
-        switch (between(0, 4)) {
+        switch (between(0, 5)) {
             case 0:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
                     .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> createRandomPolicy(randomAlphaOfLength(10))))
@@ -58,14 +58,18 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
                     .build();
             case 2:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
+                    .setModifiedDate(randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong))
                     .build();
             case 3:
+                return SnapshotLifecyclePolicyMetadata.builder(instance)
+                    .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
+                    .build();
+            case 4:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
                     .setLastSuccess(randomValueOtherThan(instance.getLastSuccess(),
                         SnapshotInvocationRecordTests::randomSnapshotInvocationRecord))
                     .build();
-            case 4:
+            case 5:
                 return SnapshotLifecyclePolicyMetadata.builder(instance)
                     .setLastFailure(randomValueOtherThan(instance.getLastFailure(),
                         SnapshotInvocationRecordTests::randomSnapshotInvocationRecord))

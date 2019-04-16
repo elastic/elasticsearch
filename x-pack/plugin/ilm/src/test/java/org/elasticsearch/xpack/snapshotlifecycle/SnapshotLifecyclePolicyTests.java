@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -41,6 +42,11 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
 
         p = new SnapshotLifecyclePolicy("id", "<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", "1 * * * * ?", "repo", Collections.emptyMap());
         assertThat(p.generateSnapshotName(context), startsWith("name-2019-03-15.21:09:00-"));
+    }
+
+    public void testNextExecutionTime() {
+        SnapshotLifecyclePolicy p = new SnapshotLifecyclePolicy("id", "name", "0 1 2 3 4 ? 2099", "repo", Collections.emptyMap());
+        assertThat(p.calculateNextExecution(), equalTo(4078864860000L));
     }
 
     public void testValidation() {

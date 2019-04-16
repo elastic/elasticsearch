@@ -13,7 +13,10 @@ Functions that return one of their arguments by evaluating in an if-else manner.
 .Synopsis:
 [source, sql]
 ----
-COALESCE(expression<1>, expression<2>, ...)
+COALESCE(
+    expression, <1>
+    expression, <2>
+    ...)
 ----
 
 *Input*:
@@ -54,7 +57,9 @@ include-tagged::{sql-specs}/docs.csv-spec[coalesceReturnNull]
 .Synopsis:
 [source, sql]
 ----
-IFNULL(expression<1>, expression<2>)
+IFNULL(
+    expression, <1>
+    expression) <2>
 ----
 
 *Input*:
@@ -91,7 +96,9 @@ include-tagged::{sql-specs}/docs.csv-spec[ifNullReturnSecond]
 .Synopsis:
 [source, sql]
 ----
-ISNULL(expression<1>, expression<2>)
+ISNULL(
+    expression, <1>
+    expression) <2>
 ----
 
 *Input*:
@@ -128,7 +135,9 @@ include-tagged::{sql-specs}/docs.csv-spec[isNullReturnSecond]
 .Synopsis:
 [source, sql]
 ----
-NVL(expression<1>, expression<2>)
+NVL(
+    expression, <1>
+    expression) <2>
 ----
 
 *Input*:
@@ -165,7 +174,9 @@ include-tagged::{sql-specs}/docs.csv-spec[nvlReturnSecond]
 .Synopsis:
 [source, sql]
 ----
-NULLIF(expression<1>, expression<2>)
+NULLIF(
+    expression, <1>
+    expression) <2>
 ----
 
 *Input*:
@@ -200,7 +211,10 @@ include-tagged::{sql-specs}/docs.csv-spec[nullIfReturnNull]
 .Synopsis:
 [source, sql]
 ----
-GREATEST(expression<1>, expression<2>, ...)
+GREATEST(
+    expression, <1>
+    expression, <2>
+    ...)
 ----
 
 *Input*:
@@ -242,7 +256,10 @@ include-tagged::{sql-specs}/docs.csv-spec[greatestReturnNull]
 .Synopsis:
 [source, sql]
 ----
-LEAST(expression<1>, expression<2>, ...)
+LEAST(
+    expression, <1>
+    expression, <2>
+    ...)
 ----
 
 *Input*:

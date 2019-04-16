@@ -74,9 +74,9 @@ public class FsBlobStore implements BlobStore {
 
     @Override
     public void delete(BlobPath path) throws IOException {
-        assert this.readOnly == false : "should not delete anything from a readonly repository: " + path;
+        assert readOnly == false : "should not delete anything from a readonly repository: " + path;
         //noinspection ConstantConditions in case assertions are disabled
-        if (this.readOnly) {
+        if (readOnly) {
             throw new ElasticsearchException("unexpectedly deleting [" + path + "] from a readonly repository");
         }
         IOUtils.rm(buildPath(path));

@@ -21,6 +21,7 @@ package org.elasticsearch.repositories.fs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
@@ -53,9 +54,9 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
 
     public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, ExecutionException, InterruptedException {
         final String repoName = randomAsciiName();
-        logger.info("-->  creating repository {}", repoName);
-
         final Path repoPath = randomRepoPath();
+
+        logger.info("--> creating repository {} at {}", repoName, repoPath);
 
         assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
             .put("location", repoPath)
@@ -80,7 +81,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         try (Stream<Path> contents = Files.list(repoPath.resolve("indices"))) {
             //noinspection OptionalGetWithoutIsPresent because we know there's a subdirectory
             deletedPath = contents.filter(Files::isDirectory).findAny().get();
-            deleteRecursive(deletedPath);
+            IOUtils.rm(deletedPath);
         }
         assertFalse(Files.exists(deletedPath));
 
@@ -92,20 +93,5 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
         assertThat(exception.getRootCause(), instanceOf(NoSuchFileException.class));
 
         assertFalse("deleted path is not recreated in readonly repository", Files.exists(deletedPath));
-    }
-
-    private void deleteRecursive(Path p) throws IOException {
-        if (Files.isDirectory(p)) {
-            try (Stream<Path> contents = Files.list(p)) {
-                contents.forEach(path -> {
-                    try {
-                        deleteRecursive(path);
-                    } catch (IOException e) {
-                        throw new AssertionError(e);
-                    }
-                });
-            }
-        }
-        Files.delete(p);
     }
 }

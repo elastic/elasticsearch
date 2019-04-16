@@ -838,23 +838,30 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
-        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
+        Role beatsSystemRole = Role.builder(roleDescriptor, null).build();
+        assertThat(beatsSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
-        assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+        assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+
+        final String index = ".monitoring-beats-" + randomIntBetween(0, 5);;
+        logger.info("index name [{}]", index);
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
 
-        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testAPMSystemRole() {

@@ -153,6 +153,14 @@ public class JoinHelper {
         transportService.registerRequestHandler(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
             ValidateJoinRequest::new, ThreadPool.Names.GENERIC,
             (request, channel, task) -> {
+                final ClusterState localState = currentStateSupplier.get();
+                if (localState.metaData().clusterUUIDCommitted() &&
+                    localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("mixed-version cluster join validation on cluster state" +
+                        " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
+                        " than local cluster uuid " + localState.metaData().clusterUUID()
+                        + ", rejecting");
+                }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });

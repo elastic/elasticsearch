@@ -381,7 +381,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 && (queryDelay == null || Objects.equals(queryDelay, datafeed.getQueryDelay()))
                 && (indices == null || Objects.equals(indices, datafeed.getIndices()))
                 && (queryProvider == null || Objects.equals(queryProvider.getQuery(), datafeed.getQuery()))
-                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getQueryDelay()))
+                && (scrollSize == null || Objects.equals(scrollSize, datafeed.getScrollSize()))
                 && (aggProvider == null || Objects.equals(aggProvider.getAggs(), datafeed.getAggregations()))
                 && (scriptFields == null || Objects.equals(scriptFields, datafeed.getScriptFields()))
                 && (delayedDataCheckConfig == null || Objects.equals(delayedDataCheckConfig, datafeed.getDelayedDataCheckConfig()))

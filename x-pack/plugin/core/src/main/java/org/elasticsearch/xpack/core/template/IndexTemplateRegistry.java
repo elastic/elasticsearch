@@ -88,7 +88,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(IndexTemplateConfig config, Exception e) {
-        logger.error(new ParameterizedMessage("Error adding index template [{}] from [{}] for [{}]",
+        logger.error(new ParameterizedMessage("error adding index template [{}] from [{}] for [{}]",
             config.getTemplateName(), config.getFileName(), getOrigin()), e);
     }
 
@@ -158,7 +158,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error("Error adding index template [{}] for [{}], request was not acknowledged",
+                            logger.error("error adding index template [{}] for [{}], request was not acknowledged",
                                 templateName, getOrigin());
                         }
                     }

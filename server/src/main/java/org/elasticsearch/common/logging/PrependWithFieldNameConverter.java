@@ -59,10 +59,8 @@ public final class PrependWithFieldNameConverter extends LogEventPatternConverte
         this.formatters = formatters;
     }
 
-
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-
         if (event.getMessage().getFormat().equals("JSON_FORMATTED")) {
             toAppendTo.append(event.getMessage().getFormattedMessage());
         } else {
@@ -73,5 +71,4 @@ public final class PrependWithFieldNameConverter extends LogEventPatternConverte
             toAppendTo.append("\"");
         }
     }
-
 }

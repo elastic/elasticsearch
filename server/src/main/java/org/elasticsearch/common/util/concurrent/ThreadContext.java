@@ -132,7 +132,8 @@ public final class ThreadContext implements Closeable, Writeable {
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         if(context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+            ThreadContextStruct threadContextStruct =
+                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
             threadLocal.set(threadContextStruct);
 
         } else{

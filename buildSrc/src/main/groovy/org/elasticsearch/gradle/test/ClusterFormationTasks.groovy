@@ -129,21 +129,21 @@ class ClusterFormationTasks {
             Closure<Map> writeConfigSetup
             Object dependsOn
             writeConfigSetup = { Map esConfig ->
-                if (config.getAutoSetHostsProvider()) {
-                    if (esConfig.containsKey("discovery.seed_providers") == false) {
-                        esConfig["discovery.seed_providers"] = 'file'
-                    }
-                    esConfig["discovery.seed_hosts"] = []
-                }
-                if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes()) {
-                    esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
-                        if (n.config.settings['node.name'] == null) {
-                            return "node-" + n.nodeNum
-                        } else {
-                            return n.config.settings['node.name']
-                        }
-                    }).collect(Collectors.toList())
-                }
+//                if (config.getAutoSetHostsProvider()) {
+//                    if (esConfig.containsKey("discovery.seed_providers") == false) {
+//                        esConfig["discovery.seed_providers"] = 'file'
+//                    }
+//                    esConfig["discovery.seed_hosts"] = []
+//                }
+//                if (esConfig['discovery.type'] == null && config.getAutoSetInitialMasterNodes()) {
+//                    esConfig['cluster.initial_master_nodes'] = nodes.stream().map({ n ->
+//                        if (n.config.settings['node.name'] == null) {
+//                            return "node-" + n.nodeNum
+//                        } else {
+//                            return n.config.settings['node.name']
+//                        }
+//                    }).collect(Collectors.toList())
+//                }
                 esConfig
             }
             dependsOn = startDependencies
@@ -372,44 +372,53 @@ class ClusterFormationTasks {
     /** Adds a task to write elasticsearch.yml for the given node configuration */
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, Closure<Map> configFilter) {
         Map esConfig = [
-                'cluster.name'                 : node.clusterName,
-                'node.name'                    : "node-" + node.nodeNum,
-                'pidfile'                      : node.pidFile,
-                'path.repo'                    : "${node.sharedDir}/repo",
-                'path.shared_data'             : "${node.sharedDir}/",
-                // Define a node attribute so we can test that it exists
-                'node.attr.testattr'           : 'test',
-                // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
-                'discovery.initial_state_timeout' : '0s'
+
+                'cluster.name': 'test-cluster',
+                'node.name': 'node-0',
+//                'cluster.initial_master_nodes': ["node-0",'node-1','node-2'],
+//
+//                'discovery.seed_hosts':[
+//                        "\"localhost:9300\"",
+//                        "\"localhost:9301\"",
+//                         "\"localhost:9302\""]
+//                'cluster.name'                 : node.clusterName,
+//                'node.name'                    : "node-" + node.nodeNum,
+//                'pidfile'                      : node.pidFile,
+//                'path.repo'                    : "${node.sharedDir}/repo",
+//                'path.shared_data'             : "${node.sharedDir}/",
+//                // Define a node attribute so we can test that it exists
+//                'node.attr.testattr'           : 'test',
+//                // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
+//                'discovery.initial_state_timeout' : '0s'
         ]
-        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
-        esConfig['http.port'] = node.config.httpPort
-        if (node.nodeVersion.onOrAfter('6.7.0')) {
-            esConfig['transport.port'] =  node.config.transportPort
-        } else {
-            esConfig['transport.tcp.port'] =  node.config.transportPort
-        }
-        // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
-        esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
-        esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
-        if (node.nodeVersion.major >= 6) {
-            esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
-        }
-        // increase script compilation limit since tests can rapid-fire script compilations
-        esConfig['script.max_compilations_rate'] = '2048/1m'
-        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
-        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
-        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
-        if (node.nodeVersion.major >= 7) {
-            esConfig['indices.breaker.total.use_real_memory'] = false
-        }
-        for (Map.Entry<String, Object> setting : node.config.settings) {
-            if (setting.value == null) {
-                esConfig.remove(setting.key)
-            } else {
-                esConfig.put(setting.key, setting.value)
-            }
-        }
+//        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
+//        esConfig['http.port'] = node.config.httpPort
+//        if (node.nodeVersion.onOrAfter('6.7.0')) {
+//            esConfig['transport.port'] =  node.config.transportPort
+//        } else {
+//            esConfig['transport.tcp.port'] =  node.config.transportPort
+//        }
+//        // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
+//        esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
+//        esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
+//        if (node.nodeVersion.major >= 6) {
+//            esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
+//        }
+//        // increase script compilation limit since tests can rapid-fire script compilations
+//        esConfig['script.max_compilations_rate'] = '2048/1m'
+//        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+//        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+//        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
+//        if (node.nodeVersion.major >= 7) {
+//            esConfig['indices.breaker.total.use_real_memory'] = false
+//        }
+//        for (Map.Entry<String, Object> setting : node.config.settings) {
+//            if (setting.value == null) {
+//                esConfig.remove(setting.key)
+//            } else {
+//                esConfig.put(setting.key, setting.value)
+//            }
+//        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {

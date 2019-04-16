@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.rollup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -61,9 +62,9 @@ public class RollupResponseTranslator {
      * Verifies a live-only search response.  Essentially just checks for failure then returns
      * the response since we have no work to do
      */
-    public static SearchResponse verifyResponse(MultiSearchResponse.Item normalResponse) {
+    public static SearchResponse verifyResponse(MultiSearchResponse.Item normalResponse) throws Exception {
         if (normalResponse.isFailure()) {
-            throw new RuntimeException(normalResponse.getFailureMessage(), normalResponse.getFailure());
+            throw normalResponse.getFailure();
         }
         return normalResponse.getResponse();
     }
@@ -77,15 +78,30 @@ public class RollupResponseTranslator {
      * on the translation conventions
      */
     public static SearchResponse translateResponse(MultiSearchResponse.Item[] rolledMsearch,
-                                                 InternalAggregation.ReduceContext reduceContext) {
+                                                 InternalAggregation.ReduceContext reduceContext) throws Exception {
 
-        List<SearchResponse> responses = Arrays.stream(rolledMsearch)
-                .map(item -> {
-                    if (item.isFailure()) {
-                        throw new RuntimeException(item.getFailureMessage(), item.getFailure());
-                    }
-                    return item.getResponse();
-                }).collect(Collectors.toList());
+        assert rolledMsearch.length > 0;
+        List<SearchResponse> responses = new ArrayList<>();
+        for (MultiSearchResponse.Item item : rolledMsearch) {
+            if (item.isFailure()) {
+                Exception e = item.getFailure();
+
+                // We can tolerate missing indices, assuming there is at least one to process at the end
+                if (e instanceof IndexNotFoundException) {
+                    logger.warn("Rollup index not found during rollup search.", e);
+                } else {
+                    throw e;
+                }
+            } else {
+                // No error, add to responses
+                responses.add(item.getResponse());
+            }
+        }
+
+        // If we have no responses here, all the responses were index-not-found, so we need to fail
+        if (responses.isEmpty()) {
+            throw new ResourceNotFoundException("Rollup index not found during rollup search", rolledMsearch[0].getFailure());
+        }
 
         return doCombineResponse(null, responses, reduceContext);
     }
@@ -187,48 +203,43 @@ public class RollupResponseTranslator {
      * @param msearchResponses The responses from the msearch, where the first response is the live-index response
      */
     public static SearchResponse combineResponses(MultiSearchResponse.Item[] msearchResponses,
-                                                  InternalAggregation.ReduceContext reduceContext) {
-        boolean liveMissing = false;
+                                                  InternalAggregation.ReduceContext reduceContext) throws Exception {
+
         assert msearchResponses.length >= 2;
 
-        // The live response is always first
-        MultiSearchResponse.Item liveResponse = msearchResponses[0];
-        if (liveResponse.isFailure()) {
-            Exception e = liveResponse.getFailure();
-            // If we have a rollup response we can tolerate a missing live response
-            if (e instanceof IndexNotFoundException) {
-                logger.warn("\"Live\" index not found during rollup search.", e);
-                liveMissing = true;
+        boolean first = true;
+        SearchResponse liveResponse = null;
+        List<SearchResponse> rolledResponses = new ArrayList<>();
+        for (MultiSearchResponse.Item item : msearchResponses) {
+            if (item.isFailure()) {
+                Exception e = item.getFailure();
+
+                // We can tolerate missing indices, assuming there is at least one to process at the end
+                if (e instanceof IndexNotFoundException) {
+                    String targetIndex = first ? "\"Live\"" : "Rollup";
+                    logger.warn(targetIndex + " index not found during rollup search.", e);
+                } else {
+                    throw e;
+                }
             } else {
-                throw new RuntimeException(liveResponse.getFailureMessage(), liveResponse.getFailure());
+                // No error, add to responses
+                if (first) {
+                    liveResponse = item.getResponse();
+                } else {
+                    rolledResponses.add(item.getResponse());
+                }
             }
-        }
-        List<SearchResponse> rolledResponses = Arrays.stream(msearchResponses)
-                .skip(1)
-                .map(item -> {
-                    if (item.isFailure()) {
-                        Exception e = item.getFailure();
-                        // If we have a normal response we can tolerate a missing rollup response, although it theoretically
-                        // should be handled by a different code path (verifyResponse)
-                        if (e instanceof IndexNotFoundException) {
-                            logger.warn("Rollup index not found during rollup search.", e);
-                        } else {
-                            throw new RuntimeException(item.getFailureMessage(), item.getFailure());
-                        }
-                        return null;
-                    } else {
-                        return item.getResponse();
-                    }
-                }).filter(Objects::nonNull).collect(Collectors.toList());
-
-        // If we only have a live index left, process it directly
-        if (rolledResponses.isEmpty() && liveMissing == false) {
-            return verifyResponse(liveResponse);
-        } else if (rolledResponses.isEmpty() && liveMissing) {
-            throw new RuntimeException("No indices (live or rollup) found during rollup search");
+            first = false;
         }
 
-        return doCombineResponse(liveResponse.getResponse(), rolledResponses, reduceContext);
+        // If we only have a live index left, just return it directly.  We know it can't be an error already
+        if (rolledResponses.isEmpty() && liveResponse != null) {
+            return liveResponse;
+        } else if (rolledResponses.isEmpty()) {
+            throw new ResourceNotFoundException("No indices (live or rollup) found during rollup search");
+        }
+
+        return doCombineResponse(liveResponse, rolledResponses, reduceContext);
     }
 
     private static SearchResponse doCombineResponse(SearchResponse liveResponse, List<SearchResponse> rolledResponses,

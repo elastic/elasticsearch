@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedConsumer;
@@ -129,13 +130,13 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        Exception e = expectThrows(RuntimeException.class,
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
                         new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
         assertThat(e.getMessage(), equalTo("No indices (live or rollup) found during rollup search"));
     }
 
-    public void testMissingLiveIndex() {
+    public void testMissingLiveIndex() throws Exception {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> aggTree = new ArrayList<>(1);
@@ -183,7 +184,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(avg.getValue(), equalTo(5.0));
     }
 
-    public void testRolledMissingAggs() {
+    public void testRolledMissingAggs() throws Exception {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
 
@@ -204,7 +205,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(responseAggs.asList().size(), equalTo(0));
     }
 
-    public void testMissingRolledIndex() {
+    public void testMissingRolledIndex() throws Exception {
         SearchResponse response = mock(SearchResponse.class);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
@@ -219,7 +220,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(finalResponse, equalTo(response));
     }
 
-    public void testVerifyNormal() {
+    public void testVerifyNormal() throws Exception {
         SearchResponse response = mock(SearchResponse.class);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
@@ -234,7 +235,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(e.getMessage(), equalTo("no such index [foo]"));
     }
 
-    public void testTranslateRollup() {
+    public void testTranslateRollup() throws Exception {
         SearchResponse response = mock(SearchResponse.class);
         when(response.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> aggTree = new ArrayList<>(1);
@@ -285,9 +286,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, scriptService, true);
 
-        Exception e = expectThrows(RuntimeException.class,
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
-        assertThat(e.getMessage(), equalTo("no such index [foo]"));
+        assertThat(e.getMessage(), equalTo("Rollup index not found during rollup search"));
     }
 
     public void testMissingFilter() {
@@ -350,7 +351,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
     }
 
-    public void testSimpleReduction() {
+    public void testSimpleReduction() throws Exception {
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);

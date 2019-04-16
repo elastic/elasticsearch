@@ -582,7 +582,7 @@ public class SearchActionTests extends ESTestCase {
         assertThat(result.getJobCaps().size(), equalTo(1));
     }
 
-    public void testLiveOnlyProcess() {
+    public void testLiveOnlyProcess() throws Exception {
         String[] indices = new String[]{"foo"};
         IndexMetaData indexMetaData = mock(IndexMetaData.class);
         ImmutableOpenMap.Builder<String, IndexMetaData> meta = ImmutableOpenMap.builder(1);
@@ -599,7 +599,7 @@ public class SearchActionTests extends ESTestCase {
         assertThat(r, equalTo(response));
     }
 
-    public void testRollupOnly() throws IOException {
+    public void testRollupOnly() throws Exception {
         String[] indices = new String[]{"foo"};
 
         String jobName = randomAlphaOfLength(5);
@@ -699,7 +699,7 @@ public class SearchActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
     }
 
-    public void testBoth() throws IOException {
+    public void testBoth() throws Exception {
         String[] indices = new String[]{"foo", "bar"};
 
         String jobName = randomAlphaOfLength(5);

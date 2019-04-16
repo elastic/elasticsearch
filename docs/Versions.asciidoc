@@ -5,8 +5,8 @@ bare_version never includes -alpha or -beta
 :bare_version:          8.0.0
 :major-version:         8.x
 :prev-major-version:    7.x
-:lucene_version:        8.0.0
-:lucene_version_path:   8_0_0
+:lucene_version:        8.1.0
+:lucene_version_path:   8_1_0
 :branch:                master
 :jdk:                   11.0.2
 :jdk_major:             11

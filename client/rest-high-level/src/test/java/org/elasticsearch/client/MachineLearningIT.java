@@ -915,7 +915,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         return forecastJobResponse.getForecastId();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41070")
     public void testDeleteExpiredData() throws Exception {
 
         String jobId = "test-delete-expired-data";

@@ -149,6 +149,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch aggregate = new Batch("Aggregation Rewrite",
                 //new ReplaceDuplicateAggsWithReferences(),
+                new ReplaceMinMaxWithTopHits(),
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),

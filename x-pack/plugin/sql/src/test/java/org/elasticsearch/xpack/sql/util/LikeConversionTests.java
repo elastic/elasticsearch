@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.sql.util.StringUtils.likeToJavaPattern;
 import static org.elasticsearch.xpack.sql.util.StringUtils.likeToLuceneWildcard;
+import static org.elasticsearch.xpack.sql.util.StringUtils.likeToUnescaped;
 
 public class LikeConversionTests extends ESTestCase {
 
@@ -18,6 +19,10 @@ public class LikeConversionTests extends ESTestCase {
 
     private static String wildcard(String pattern) {
         return likeToLuceneWildcard(pattern, '|');
+    }
+
+    private static String unescape(String pattern) {
+        return likeToUnescaped(pattern, '|');
     }
 
     public void testNoRegex() {
@@ -103,4 +108,25 @@ public class LikeConversionTests extends ESTestCase {
     public void testWildcardIgnoreDoubleEscapedButSkipEscapingOfSql() {
         assertEquals("foo\\\\\\*bar\\\\?\\?", wildcard("foo\\*bar\\_?"));
     }
+
+    public void testUnescapeLiteral() {
+        assertEquals("foo", unescape("foo"));
+    }
+
+    public void testUnescapeEscaped() {
+        assertEquals("foo_bar", unescape("foo|_bar"));
+    }
+
+    public void testUnescapeEscapedEscape() {
+        assertEquals("foo|_bar", unescape("foo||_bar"));
+    }
+
+    public void testUnescapeLastCharEscape() {
+        assertEquals("foo_bar|", unescape("foo|_bar|"));
+    }
+
+    public void testUnescapeMultipleEscapes() {
+        assertEquals("foo|_bar|", unescape("foo|||_bar||"));
+    }
+
 }

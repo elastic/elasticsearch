@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 
@@ -68,10 +69,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private final AtomicReference<DataFrameTransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
-    // the generation of this data frame, for v1 there will be only
-    // 0: data frame not created or still indexing
-    // 1: data frame complete, all data has been indexed
-    private final AtomicReference<Long> generation;
+    // the checkpoint of this data frame, storing the checkpoint until data indexing from source to dest is _complete_
+    // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
+    private final AtomicLong currentCheckpoint;
     private final AtomicInteger failureCount;
 
     public DataFrameTransformTask(long id, String type, String action, TaskId parentTask, DataFrameTransform transform,
@@ -105,12 +105,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 initialState = existingState;
             }
             initialPosition = state.getPosition();
-            initialGeneration = state.getGeneration();
+            initialGeneration = state.getCheckpoint();
         }
 
         this.indexer = new ClientDataFrameIndexer(transform.getId(), transformsConfigManager, transformsCheckpointService,
             new AtomicReference<>(initialState), initialPosition, client, auditor);
-        this.generation = new AtomicReference<>(initialGeneration);
+        this.currentCheckpoint = new AtomicLong(initialGeneration);
         this.previousStats = new DataFrameIndexerTransformStats(transform.getId());
         this.taskState = new AtomicReference<>(initialTaskState);
         this.stateReason = new AtomicReference<>(initialReason);
@@ -130,7 +130,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     public DataFrameTransformState getState() {
-        return new DataFrameTransformState(taskState.get(), indexer.getState(), indexer.getPosition(), generation.get(), stateReason.get());
+        return new DataFrameTransformState(
+                taskState.get(),
+                indexer.getState(),
+                indexer.getPosition(),
+                currentCheckpoint.get(),
+                stateReason.get());
     }
 
     void initializePreviousStats(DataFrameIndexerTransformStats stats) {
@@ -141,8 +146,17 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return new DataFrameIndexerTransformStats(previousStats).merge(indexer.getStats());
     }
 
-    public long getGeneration() {
-        return generation.get();
+    public long getCheckpoint() {
+        return currentCheckpoint.get();
+    }
+
+    /**
+     * Get the in-progress checkpoint
+     *
+     * @return checkpoint in progress or 0 if task/indexer is not active
+     */
+    public long getInProgressCheckpoint() {
+        return indexer.getState().equals(IndexerState.INDEXING) ? currentCheckpoint.get() + 1L : 0;
     }
 
     public boolean isStopped() {
@@ -164,7 +178,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             DataFrameTransformTaskState.STARTED,
             IndexerState.STOPPED,
             indexer.getPosition(),
-            generation.get(),
+            currentCheckpoint.get(),
             null);
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
@@ -203,7 +217,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 DataFrameTransformTaskState.STOPPED,
                 IndexerState.STOPPED,
                 indexer.getPosition(),
-                generation.get(),
+                currentCheckpoint.get(),
                 stateReason.get());
             persistStateToClusterState(state, ActionListener.wrap(
                 task -> {
@@ -224,7 +238,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     @Override
     public synchronized void triggered(Event event) {
-        if (generation.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
+        //  for now no rerun, so only trigger if checkpoint == 0
+        if (currentCheckpoint.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
             logger.debug("Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
@@ -298,6 +313,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     protected class ClientDataFrameIndexer extends DataFrameIndexer {
         private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
+        private static final int CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS = 30;
+
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -413,21 +430,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            if(indexerState.equals(IndexerState.STARTED) && getStats().getNumDocuments() > 0) {
-                // if the indexer resets the state to started, it means it is done with a run through the data.
-                // But, if there were no documents, we should allow it to attempt to gather more again, as there is no risk of overwriting
-                // Some reasons for no documents are (but is not limited to):
-                // * Could have failed early on search or index
-                // * Have an empty index
-                // * Have a query that returns no documents
-                generation.compareAndSet(0L, 1L);
-            }
-
             final DataFrameTransformState state = new DataFrameTransformState(
                 taskState.get(),
                 indexerState,
                 getPosition(),
-                generation.get(),
+                currentCheckpoint.get(),
                 stateReason.get());
             logger.info("Updating persistent state of transform [" + transform.getId() + "] to [" + state.toString() + "]");
 
@@ -480,8 +487,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
-                auditor.info(transform.getId(), "Finished indexing for data frame transform");
-                logger.info("Finished indexing for data frame transform [" + transform.getId() + "]");
+                long checkpoint = currentCheckpoint.incrementAndGet();
+                auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
+                logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");
                 listener.onResponse(null);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -493,6 +501,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             auditor.info(transform.getId(), "Received abort request, stopping indexer");
             logger.info("Data frame transform [" + transform.getId() + "] received abort request, stopping indexer");
             shutdown();
+        }
+
+        @Override
+        protected void createCheckpoint(ActionListener<Void> listener) {
+            transformsCheckpointService.getCheckpoint(transformConfig, currentCheckpoint.get() + 1, ActionListener.wrap(checkpoint -> {
+                transformsConfigManager.putTransformCheckpoint(checkpoint, ActionListener.wrap(putCheckPointResponse -> {
+                    listener.onResponse(null);
+                }, createCheckpointException -> {
+                    listener.onFailure(new RuntimeException("Failed to create checkpoint", createCheckpointException));
+                }));
+            }, getCheckPointException -> {
+                listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException));
+            }));
         }
     }
 

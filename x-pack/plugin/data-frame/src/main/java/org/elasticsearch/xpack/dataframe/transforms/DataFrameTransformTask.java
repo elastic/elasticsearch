@@ -313,7 +313,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     protected class ClientDataFrameIndexer extends DataFrameIndexer {
         private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
-        private static final int CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS = 30;
 
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;

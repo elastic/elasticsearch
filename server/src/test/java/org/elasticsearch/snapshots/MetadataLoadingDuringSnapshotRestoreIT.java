@@ -109,7 +109,6 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                                                                                     .setWaitForCompletion(true)
                                                                                     .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 2);
         assertIndexMetadataLoads("snap", "others", 2);
@@ -122,7 +121,6 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
                                                             .setWaitForCompletion(true)
                                                             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 3);
         assertIndexMetadataLoads("snap", "others", 2);
@@ -136,7 +134,6 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             .setWaitForCompletion(true)
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
-        assertThat(restoreSnapshotResponse.getRestoreInfo().status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 1);
         assertIndexMetadataLoads("snap", "docs", 4);
         assertIndexMetadataLoads("snap", "others", 3);

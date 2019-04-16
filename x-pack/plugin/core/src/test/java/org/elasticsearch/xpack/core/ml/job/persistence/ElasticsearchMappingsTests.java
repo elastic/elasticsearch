@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -60,7 +61,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.NESTED,
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE
+            ElasticsearchMappings.WHITESPACE,
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
     );
 
     public void testResultsMapppingReservedFields() throws Exception {

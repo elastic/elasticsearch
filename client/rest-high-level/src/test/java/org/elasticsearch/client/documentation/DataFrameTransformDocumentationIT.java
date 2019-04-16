@@ -140,7 +140,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 new DataFrameTransformConfig("reviewer-avg-rating", // <1>
                 sourceConfig, // <2>
                 new DestConfig("pivot-destination"),  // <3>
-                pivotConfig);  // <4>
+                null, // <4>
+                pivotConfig);  // <5>
         // end::put-data-frame-transform-config
 
         {
@@ -159,7 +160,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         }
         {
             DataFrameTransformConfig configWithDifferentId = new DataFrameTransformConfig("reviewer-avg-rating2",
-                    transformConfig.getSource(), transformConfig.getDestination(),
+                    transformConfig.getSource(), transformConfig.getDestination(), transformConfig.getSyncConfig(),
                     transformConfig.getPivotConfig());
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
@@ -204,7 +205,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"),
+                null, pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
@@ -319,9 +321,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
         DataFrameTransformConfig transformConfig1 = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), null, pivotConfig);
         DataFrameTransformConfig transformConfig2 = new DataFrameTransformConfig("mega-transform2",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest2"), pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest2"), null, pivotConfig);
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig1), RequestOptions.DEFAULT);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
@@ -388,6 +390,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 new DataFrameTransformConfig(null,  // <1>
                 new SourceConfig(new String[]{"source-data"}, queryConfig),
                 null,                               // <2>
+                null,
                 pivotConfig);
 
         PreviewDataFrameTransformRequest request =
@@ -446,7 +449,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         String id = "statisitcal-transform";
         DataFrameTransformConfig transformConfig = new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("dest"), pivotConfig);
+                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("dest"), null, pivotConfig);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
 
         // tag::get-data-frame-transform-stats-request
@@ -511,7 +514,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
-        
+
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -519,10 +522,10 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
 
-        
+
         DataFrameTransformConfig putTransformConfig = new DataFrameTransformConfig("mega-transform",
                 new SourceConfig(new String[]{"source-data"}, queryConfig),
-                new DestConfig("pivot-dest"), pivotConfig);
+                new DestConfig("pivot-dest"), null, pivotConfig);
 
         RestHighLevelClient client = highLevelClient();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);

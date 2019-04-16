@@ -37,7 +37,7 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), PivotConfigTests.randomPivotConfig());
+                randomDestConfig(), SyncConfigTests.randomSyncConfig(), PivotConfigTests.randomPivotConfig());
     }
 
     @Override

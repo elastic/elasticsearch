@@ -22,6 +22,7 @@ package org.elasticsearch.client.dataframe;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.client.dataframe.transforms.SyncConfigTests;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -66,12 +67,12 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
 
         // null id and destination is valid
         DataFrameTransformConfig config = new DataFrameTransformConfig(null, randomSourceConfig(), null,
-            PivotConfigTests.randomPivotConfig());
+            SyncConfigTests.randomSyncConfig(), PivotConfigTests.randomPivotConfig());
 
         assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
 
         // null source is not valid
-        config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
+        config = new DataFrameTransformConfig(null, null, null, SyncConfigTests.randomSyncConfig(), PivotConfigTests.randomPivotConfig());
 
         Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

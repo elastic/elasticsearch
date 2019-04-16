@@ -40,22 +40,22 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
-        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), null,
-                PivotConfigTests.randomPivotConfig());
+        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(),
+                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, null, PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
-        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), randomHeaders(),
-                PivotConfigTests.randomPivotConfig());
+        return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(),
+                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
-            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(),
-                    randomDestConfig(), randomHeaders(), PivotConfigTests.randomPivotConfig());
+            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
+                    randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
         } // else
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
+        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(), randomDestConfig(),
+                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
     }
 
     @Before

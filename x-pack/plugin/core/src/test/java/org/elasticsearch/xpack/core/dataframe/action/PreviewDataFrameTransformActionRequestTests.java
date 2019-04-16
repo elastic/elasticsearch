@@ -18,6 +18,7 @@ import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfigTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
 
@@ -67,7 +68,8 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
     @Override
     protected Request createTestInstance() {
         DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index"), null, PivotConfigTests.randomPivotConfig());
+                new DestConfig("unused-transform-preview-index"), randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, null,
+                PivotConfigTests.randomPivotConfig());
         return new Request(config);
     }
 

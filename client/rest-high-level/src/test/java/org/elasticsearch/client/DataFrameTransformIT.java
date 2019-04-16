@@ -308,9 +308,11 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         DestConfig destConfig = (destination != null) ? new DestConfig(destination) : null;
 
+
         return new DataFrameTransformConfig(id,
                 new SourceConfig(new String[]{source}, queryConfig),
                 destConfig,
+                null,
                 pivotConfig);
     }
 
@@ -328,7 +330,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         String id = "test-get-stats";
         DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+                new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), null, pivotConfig);
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,

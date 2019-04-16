@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -49,18 +50,22 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
         "/watch-history-ilm-policy.json");
 
+    private final List<IndexTemplateConfig> templatesToUse;
+
     public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                         NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-    }
-
-    @Override
-    protected List<IndexTemplateConfig> getTemplateConfigs(boolean ilmEnabled) {
-        return Arrays.asList(
+        boolean ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        templatesToUse = Arrays.asList(
             ilmEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM,
             TEMPLATE_CONFIG_TRIGGERED_WATCHES,
             TEMPLATE_CONFIG_WATCHES
         );
+    }
+
+    @Override
+    protected List<IndexTemplateConfig> getTemplateConfigs() {
+        return templatesToUse;
     }
 
     @Override

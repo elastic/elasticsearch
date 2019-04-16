@@ -65,10 +65,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves return a list of {@link IndexTemplateConfig} that represents
      * the index templates that should be installed and managed.
-     * @param ilmEnabled Indicates whether ILM is enabled, to allow using ILM-less templates if ILM is disabled.
      * @return The configurations for the templates that should be installed.
      */
-    protected abstract List<IndexTemplateConfig> getTemplateConfigs(boolean ilmEnabled);
+    protected abstract List<IndexTemplateConfig> getTemplateConfigs();
 
     /**
      * Retrieves a list of {@link LifecyclePolicyConfig} that represents the ILM
@@ -130,8 +129,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     private void addTemplatesIfMissing(ClusterState state) {
-        boolean ilmSupported = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
-        final List<IndexTemplateConfig> indexTemplates = getTemplateConfigs(ilmSupported);
+        final List<IndexTemplateConfig> indexTemplates = getTemplateConfigs();
         for (IndexTemplateConfig template : indexTemplates) {
             final String templateName = template.getTemplateName();
             final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));

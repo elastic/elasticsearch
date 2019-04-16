@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -40,8 +38,6 @@ final class ProfileScorer extends Scorer {
     private ProfileWeight profileWeight;
 
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer;
-    private final boolean isConstantScoreQuery;
-
 
     ProfileScorer(ProfileWeight w, Scorer scorer, QueryProfileBreakdown profile) throws IOException {
         super(w);
@@ -53,26 +49,6 @@ final class ProfileScorer extends Scorer {
         matchTimer = profile.getTimer(QueryTimingType.MATCH);
         shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
         computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
-        ProfileScorer profileScorer = null;
-        if (w.getQuery() instanceof ConstantScoreQuery && scorer instanceof ProfileScorer) {
-            //Case when we have a totalHits query and it is not cached
-            profileScorer = (ProfileScorer) scorer;
-        } else if (w.getQuery() instanceof ConstantScoreQuery && scorer.getChildren().size() == 1) {
-            //Case when we have a top N query. If the scorer has no children, it is because it is cached
-            //and in that case we do not do any special treatment
-            Scorable childScorer = scorer.getChildren().iterator().next().child;
-            if (childScorer instanceof ProfileScorer) {
-                profileScorer = (ProfileScorer) childScorer;
-            }
-        }
-        if (profileScorer != null) {
-            isConstantScoreQuery = true;
-            profile.setTimer(QueryTimingType.NEXT_DOC, profileScorer.nextDocTimer);
-            profile.setTimer(QueryTimingType.ADVANCE, profileScorer.advanceTimer);
-            profile.setTimer(QueryTimingType.MATCH, profileScorer.matchTimer);
-        } else {
-            isConstantScoreQuery = false;
-        }
     }
 
     @Override
@@ -102,9 +78,6 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public DocIdSetIterator iterator() {
-        if (isConstantScoreQuery) {
-            return scorer.iterator();
-        }
         final DocIdSetIterator in = scorer.iterator();
         return new DocIdSetIterator() {
 
@@ -142,9 +115,6 @@ final class ProfileScorer extends Scorer {
 
     @Override
     public TwoPhaseIterator twoPhaseIterator() {
-        if (isConstantScoreQuery) {
-            return scorer.twoPhaseIterator();
-        }
         final TwoPhaseIterator in = scorer.twoPhaseIterator();
         if (in == null) {
             return null;

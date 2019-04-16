@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -57,13 +59,13 @@ public class EnrichPolicyRunner {
         this.nowSupplier = nowSupplier;
     }
 
-    public void runPolicy(String policyId, ActionListener<EnrichPolicyResult> listener) throws Exception {
+    public void runPolicy(final String policyId, final ActionListener<EnrichPolicyResult> listener) {
         // Look up policy in policy store and execute it
         runPolicy(policyId, enrichStore.getPolicy(policyId), listener);
     }
 
     public void runPolicy(final String policyName, final EnrichPolicy policy,
-                          final ActionListener<EnrichPolicyResult> listener) throws Exception {
+                          final ActionListener<EnrichPolicyResult> listener) {
         // TODO: Index Pattern expansion and Alias support
         // Collect the source index information
         logger.info("Policy [{}]: Running enrich policy", policyName);
@@ -73,8 +75,8 @@ public class EnrichPolicyRunner {
         client.admin().indices().getIndex(getIndexRequest, new ActionListener<GetIndexResponse>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
-                validateMappings(getIndexResponse, sourceIndexPattern, policyName, policy, listener);
-                prepareAndCreateEnrichIndex(getIndexResponse, sourceIndexPattern, policyName, policy, listener);
+                validateMappings(getIndexResponse, policyName, policy, listener);
+                prepareAndCreateEnrichIndex(policyName, policy, listener);
             }
 
             @Override
@@ -84,68 +86,124 @@ public class EnrichPolicyRunner {
         });
     }
 
-    private Map<String, Object> getMappings(GetIndexResponse getIndexResponse, String sourceIndexName) {
+    private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.mappings();
         ImmutableOpenMap<String, MappingMetaData> indexMapping = mappings.get(sourceIndexName);
         // Assuming single mapping
         MappingMetaData typeMapping = indexMapping.iterator().next().value;
-        Map<String, Object> mapping = typeMapping.sourceAsMap();
-        return mapping;
+        return typeMapping.sourceAsMap();
     }
 
-    private void validateMappings(GetIndexResponse getIndexResponse, String sourceIndexPattern, String policyName, EnrichPolicy policy,
-                                  ActionListener<?> listener) {
-        logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndexPattern);
-        Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndexPattern);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = ((Map<String, Object>) mapping.get("properties"));
-        if (properties == null) {
-            listener.onFailure(
-                new ElasticsearchException("Could not read mapping for source [{}]",
-                    sourceIndexPattern));
-        }
-        if (properties.containsKey(policy.getEnrichKey()) == false) {
-            listener.onFailure(
-                new ElasticsearchException("Could not locate primary lookup field [{}] on source mapping for index [{}]",
-                    policy.getEnrichKey(), sourceIndexPattern));
-        }
-        for (String enrichField : policy.getEnrichValues()) {
-            if (properties.containsKey(enrichField) == false) {
-                listener.onFailure(new ElasticsearchException("Could not locate enrichment field [{}] on source mapping for index [{}]",
-                    enrichField, sourceIndexPattern));
+    private void validateMappings(final GetIndexResponse getIndexResponse, final String policyName, final EnrichPolicy policy,
+                                  final ActionListener<?> listener) {
+        String[] sourceIndices = getIndexResponse.getIndices();
+        logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
+        for (String sourceIndex : sourceIndices) {
+            Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = ((Map<String, Object>) mapping.get("properties"));
+            if (properties == null) {
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
+                        policyName, sourceIndex, policy.getIndexPattern()));
+            }
+            if (properties.containsKey(policy.getEnrichKey()) == false) {
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Enrich policy execution for [{}] failed. Could not locate enrich key field [{}] on mapping for index [{}]",
+                        policyName, policy.getEnrichKey(), sourceIndex));
+            }
+            for (String enrichField : policy.getEnrichValues()) {
+                if (properties.containsKey(enrichField) == false) {
+                    listener.onFailure(new ElasticsearchException(
+                        "Enrich policy execution for [{}] failed. Could not locate enrich value field [{}] on mapping for index [{}]",
+                        policyName, enrichField, sourceIndex));
+                }
             }
         }
     }
 
-    private String getEnrichIndexBase(String policyName) {
+    private String getEnrichIndexBase(final String policyName) {
         return ".enrich-" + policyName;
     }
 
-    private Map<String, Object> resolveEnrichMapping(GetIndexResponse getIndexResponse, String sourceIndexName, Set<String> retainFields) {
-        // TODO: Minimize the mappings here, merge mappings from multiple indices
-        Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndexName);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = ((Map<String, Object>) mapping.get("properties"));
-        properties.keySet().retainAll(retainFields);
-        return mapping;
+    private Map<String, Object> resolveEnrichMapping(final EnrichPolicy policy) {
+        // TODO: Modify enrichKeyFieldMapping based on policy type.
+        // Create dynamic mapping templates - one for the enrich key and one for the enrich values
+        Map<String, Object> enrichKeyFieldMapping = MapBuilder.<String, Object>newMapBuilder()
+            .put("type", "{dynamic_type}")
+            .put("indexed", true)
+            .put("doc_values", false)
+            .map();
+
+        Map<String, Object> enrichKeyTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
+            .put("match", policy.getEnrichKey())
+            .put("mapping", enrichKeyFieldMapping)
+            .map();
+
+        Map<String, Object> enrichKeyTemplate = MapBuilder.<String, Object>newMapBuilder()
+            .put("enrich_key_template", enrichKeyTemplateDefinition)
+            .map();
+
+        Map<String, Object> enrichTextValueFieldMapping = MapBuilder.<String, Object>newMapBuilder()
+            .put("type", "keyword")
+            .put("ignore_above", 256)
+            .put("indexed", false)
+            .put("doc_values", true)
+            .map();
+
+        Map<String, Object> enrichTextValueTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
+            .put("match_mapping_type", "string")
+            .put("match", "*")
+            .put("unmatch", policy.getEnrichKey())
+            .put("mapping", enrichTextValueFieldMapping)
+            .map();
+
+        Map<String, Object> enrichTextValueTemplate = MapBuilder.<String, Object>newMapBuilder()
+            .put("enrich_text_value_template", enrichTextValueTemplateDefinition)
+            .map();
+
+        Map<String, Object> enrichValueFieldMapping = MapBuilder.<String, Object>newMapBuilder()
+            .put("type", "{dynamic_type}")
+            .put("indexed", false)
+            .put("doc_values", true)
+            .map();
+
+        Map<String, Object> enrichValueTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
+            .put("match", "*")
+            .put("unmatch", policy.getEnrichKey())
+            .put("mapping", enrichValueFieldMapping)
+            .map();
+
+        Map<String, Object> enrichValueTemplate = MapBuilder.<String, Object>newMapBuilder()
+            .put("enrich_value_template", enrichValueTemplateDefinition)
+            .map();
+
+        List<Map<String, Object>> templates = new ArrayList<>();
+        templates.add(enrichKeyTemplate);
+        templates.add(enrichTextValueTemplate);
+        templates.add(enrichValueTemplate);
+
+        return MapBuilder.<String, Object>newMapBuilder()
+            .put("dynamic_templates", templates)
+            .map();
     }
 
-    private void prepareAndCreateEnrichIndex(GetIndexResponse getIndexResponse, String sourceIndexName, String policyName,
-                                             EnrichPolicy policy, ActionListener<EnrichPolicyResult> listener) {
+    private void prepareAndCreateEnrichIndex(final String policyName, final EnrichPolicy policy,
+                                             final ActionListener<EnrichPolicyResult> listener) {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
+        // TODO: Settings for localizing enrich indices to nodes that are ingest+data only
         Settings enrichIndexSettings = Settings.EMPTY;
-        final Set<String> retainFields = new HashSet<>();
-        retainFields.add(policy.getEnrichKey());
-        retainFields.addAll(policy.getEnrichValues());
-        Map<String, Object> enrichMapping = resolveEnrichMapping(getIndexResponse, sourceIndexName, retainFields);
+        Map<String, Object> enrichMapping = resolveEnrichMapping(policy);
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping("_doc", enrichMapping);
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override
             public void onResponse(CreateIndexResponse createIndexResponse) {
-                transferDataToEnrichIndex(enrichIndexName, retainFields, policyName, policy, listener);
+                transferDataToEnrichIndex(enrichIndexName, policyName, policy, listener);
             }
 
             @Override
@@ -155,12 +213,15 @@ public class EnrichPolicyRunner {
         });
     }
 
-    private void transferDataToEnrichIndex(String destinationIndexName, Set<String> includeFields, String policyName, EnrichPolicy policy,
-                                           ActionListener<EnrichPolicyResult> listener) {
+    private void transferDataToEnrichIndex(final String destinationIndexName, final String policyName, final EnrichPolicy policy,
+                                           final ActionListener<EnrichPolicyResult> listener) {
         logger.debug("Policy [{}]: Transferring source data to new enrich index [{}]", policyName, destinationIndexName);
         // Filter down the source fields to just the ones required by the policy
+        final Set<String> retainFields = new HashSet<>();
+        retainFields.add(policy.getEnrichKey());
+        retainFields.addAll(policy.getEnrichValues());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.fetchSource(includeFields.toArray(new String[0]), new String[0]);
+        searchSourceBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));
         } else {
@@ -181,7 +242,7 @@ public class EnrichPolicyRunner {
                 } else {
                     logger.info("Policy [{}]: Transferred [{}] documents to enrich index [{}]", policyName,
                         bulkByScrollResponse.getCreated(), destinationIndexName);
-                    refreshEnrichIndex(destinationIndexName, policyName, policy, listener);
+                    refreshEnrichIndex(destinationIndexName, policyName, listener);
                 }
             }
 
@@ -192,13 +253,13 @@ public class EnrichPolicyRunner {
         });
     }
 
-    private void refreshEnrichIndex(String destinationIndexName, String policyName, EnrichPolicy policy,
-                                    ActionListener<EnrichPolicyResult> listener) {
+    private void refreshEnrichIndex(final String destinationIndexName, final String policyName,
+                                    final ActionListener<EnrichPolicyResult> listener) {
         logger.debug("Policy [{}]: Refreshing newly created enrich index [{}]", policyName, destinationIndexName);
         client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse refreshResponse) {
-                updateEnrichPolicyAlias(destinationIndexName, policyName, policy, listener);
+                updateEnrichPolicyAlias(destinationIndexName, policyName, listener);
             }
 
             @Override
@@ -208,8 +269,8 @@ public class EnrichPolicyRunner {
         });
     }
 
-    private void updateEnrichPolicyAlias(String destinationIndexName, String policyName, EnrichPolicy policy,
-                                         ActionListener<EnrichPolicyResult> listener) {
+    private void updateEnrichPolicyAlias(final String destinationIndexName, final String policyName,
+                                         final ActionListener<EnrichPolicyResult> listener) {
         String enrichIndexBase = getEnrichIndexBase(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);

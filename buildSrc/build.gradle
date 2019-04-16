@@ -194,10 +194,16 @@ if (project != rootProject) {
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
-  task setupLocalDownloads(type:Copy) {
+  // TODO: keep a single copy once we have testclusters for example plugins
+  task setupLocalDownloadsRenamed(type:Copy) {
     from configurations.distribution
     into localDownloads
     rename { it.replace("-SNAPSHOT", "") }
+  }
+  task setupLocalDownloads(type:Copy) {
+    dependsOn setupLocalDownloadsRenamed
+    from configurations.distribution
+    into localDownloads
   }
     
   task integTest(type: Test) {

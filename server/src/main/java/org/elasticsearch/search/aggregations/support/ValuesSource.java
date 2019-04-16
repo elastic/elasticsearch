@@ -42,6 +42,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.mapper.JsonFieldMapper;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -111,6 +112,15 @@ public abstract class ValuesSource {
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
                     throws IOException;
 
+            /**
+             * Whether this values source is able to provide a mapping between global and segment ordinals,
+             * by returning the underlying {@link OrdinalMap}. If this method returnns false, then calling
+             * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
+             */
+            public boolean supportsGlobalOrdinalsMapping() {
+                return true;
+            }
+
             /** Returns a mapping from segment ordinals to global ordinals. */
             public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
                     throws IOException;
@@ -151,6 +161,11 @@ public abstract class ValuesSource {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
                     final AtomicOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
+                }
+
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return (indexFieldData instanceof JsonFieldMapper.KeyedJsonIndexFieldData) == false;
                 }
 
                 @Override

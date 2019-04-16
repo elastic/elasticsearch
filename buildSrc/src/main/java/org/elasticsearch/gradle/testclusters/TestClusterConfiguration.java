@@ -26,6 +26,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -66,6 +67,8 @@ public interface TestClusterConfiguration {
     void start();
 
     void extraConfigFile(String destination, File from);
+
+    void user(Map<String, String> userSpec);
 
     String getHttpSocketURI();
 

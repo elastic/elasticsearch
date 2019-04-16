@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -83,6 +84,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
     private final Map<String, File> extraConfigFiles = new HashMap<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
+    private final List<Map<String, String>> credentials = new ArrayList<>();
 
     private final Path confPathRepo;
     private final Path configFile;
@@ -293,7 +295,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         copyExtraConfigFiles();
 
+        if (isSettingTrue("xpack.security.enabled")) {
+            if (credentials.isEmpty()) {
+                user(Collections.emptyMap());
+            }
+            credentials.forEach(paramMap -> runElaticsearchBinScript(
+                "elasticsearch-users",
+                    paramMap.entrySet().stream()
+                        .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
+                        .toArray(String[]::new)
+            ));
+        }
+
         startElasticsearchProcess();
+    }
+
+    private boolean isSettingTrue(String name) {
+        return Boolean.valueOf(settings.getOrDefault(name, () -> "false").get().toString());
     }
 
     private void copyExtraConfigFiles() {
@@ -347,6 +365,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 " for " + this);
         }
         extraConfigFiles.put(destination, from);
+    }
+
+    @Override
+    public void user(Map<String, String> userSpec) {
+        Set<String> keys = new HashSet<>(userSpec.keySet());
+        keys.remove("username");
+        keys.remove("password");
+        keys.remove("role");
+        if (keys.isEmpty() == false) {
+            throw new TestClustersException("Unknown keys in user definition " + keys + " for " + this);
+        }
+        Map<String,String> cred = new LinkedHashMap<>();
+        cred.put("useradd", userSpec.getOrDefault("username","test_user"));
+        cred.put("-p", userSpec.getOrDefault("password","x-pack-test-password"));
+        cred.put("-r", userSpec.getOrDefault("role", "superuser"));
+        credentials.add(cred);
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
@@ -725,5 +759,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public String toString() {
         return "node{" + path + ":" + name + "}";
+    }
+
+    List<Map<String, String>> getCredentials() {
+        return credentials;
     }
 }

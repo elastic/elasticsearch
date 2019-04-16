@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessag
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import org.junit.Before;
@@ -93,6 +94,11 @@ public class DataFrameIndexerTests extends ESTestCase {
         @Override
         protected Map<String, String> getFieldMappings() {
             return fieldMappings;
+        }
+
+        @Override
+        protected DataFrameTransformProgress getProgress() {
+            return null;
         }
 
         @Override

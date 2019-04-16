@@ -415,6 +415,15 @@ false          |90             |100
 ;
 
 topHitsAsMinAndMax
+schema::first:s|last:s
+SELECT MIN(first_name) as first, MAX(first_name) as last FROM test_emp;
+
+    first      |   last
+---------------+-------------
+   Alejandro   |   Zvonko
+;
+
+topHitsAsMinAndMaxAndGroupBy
 schema::gender:s|first:s|last:s
 SELECT gender, MIN(first_name) as first, MAX(first_name) as last FROM test_emp GROUP BY gender ORDER BY gender;
 

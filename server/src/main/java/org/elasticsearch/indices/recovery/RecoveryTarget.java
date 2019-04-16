@@ -289,7 +289,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
             assert indexShard.getGlobalCheckpoint() >= indexShard.seqNoStats().getMaxSeqNo() ||
-                indexShard.indexSettings().getIndexVersionCreated().before(Version.V_8_0_0)
+                indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_1_0)
                 : "global checkpoint is not initialized [" + indexShard.seqNoStats() + "]";
             return null;
         });
@@ -399,7 +399,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 store.ensureIndexHasHistoryUUID();
             }
             assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
-                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_8_0_0) :
+                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_1_0) :
                 "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
             final String translogUUID = Translog.createEmptyTranslog(
                 indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());

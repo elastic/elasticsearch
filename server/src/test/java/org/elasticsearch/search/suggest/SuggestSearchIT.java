@@ -1005,6 +1005,52 @@ public class SuggestSearchIT extends ESIntegTestCase {
         assertSuggestion(searchSuggest, 0, "suggestion", "apple");
     }
 
+    public void testPhraseSuggestMinDocFreq() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("text")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).build())
+            .addMapping("type", mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "apple"));
+        builders.add(client().prepareIndex("test", "type").setSource("text", "appfle"));
+        indexRandom(true, false, builders);
+
+        PhraseSuggestionBuilder phraseSuggest = phraseSuggestion("text").text("appple")
+            .size(2)
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular"));
+
+        Suggest searchSuggest = searchSuggest("suggestion", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", 2, "apple", "appfle");
+
+        phraseSuggest = phraseSuggestion("text").text("appple")
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular")
+                .minDocFreq(2));
+
+        searchSuggest = searchSuggest("suggestion", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", 1,"apple");
+
+        phraseSuggest = phraseSuggestion("text").text("appple")
+            .addCandidateGenerator(new DirectCandidateGeneratorBuilder("text")
+                .suggestMode("popular")
+                .minDocFreq(2));
+        searchSuggest = searchSuggest("suggestion", phraseSuggest);
+        assertSuggestion(searchSuggest, 0, "suggestion", 1,"apple");
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(DummyTemplatePlugin.class);

@@ -1024,6 +1024,45 @@
           }
 
 ---
+"Test put job with duplicate detector configurations":
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime"},
+                    {"function":"max", "field_name":"responsetime"}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }
+
+  - do:
+      catch: /illegal_argument_exception.*Duplicate detectors are not allowed/
+      ml.put_job:
+        job_id: jobs-crud-duplicate-detectors-with-explicit-indices
+        body:  >
+          {
+            "analysis_config": {
+                "bucket_span": "1h",
+                "detectors": [
+                    {"function":"max", "field_name":"responsetime", "detector_index": 0},
+                    {"function":"max", "field_name":"responsetime", "detector_index": 1}
+                ]
+            },
+            "data_description": {
+                "time_field": "@timestamp"
+            }
+          }
+
+---
 "Test put job after closing results index":
 
   - do:

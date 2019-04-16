@@ -24,7 +24,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
+import org.elasticsearch.painless.action.PainlessContextConstructorInfo;
+import org.elasticsearch.painless.action.PainlessContextFieldInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
+import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
@@ -35,12 +38,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class ContextDocGenerator {
+public final class ContextDocGenerator {
 
     public static void main(String[] args) throws Exception {
         URLConnection getContextList = new URL(
@@ -97,7 +101,6 @@ public class ContextDocGenerator {
 
                     contextApiIndexStream.println("[[" + contextApiHeader  + "]]");
                     contextApiIndexStream.println("=== " + contextName + " API");
-                    contextApiIndexStream.println(":sectlinks:");
 
                     List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
                     painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
@@ -128,11 +131,20 @@ public class ContextDocGenerator {
                         return compare;
                     });
 
+                    Map<String, String> javaClassNamesToPainlessClassNames = new HashMap<>();
                     SortedMap<String, List<PainlessContextClassInfo>> packagesToPainlessContextClassInfos = new TreeMap<>();
                     String currentPackageName = null;
 
                     for (PainlessContextClassInfo painlessContextClassInfo : painlessContextClassInfos) {
                         String className = painlessContextClassInfo.name;
+
+                        if (painlessContextClassInfo.imported) {
+                            javaClassNamesToPainlessClassNames.put(className,
+                                    className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
+                        } else {
+                            javaClassNamesToPainlessClassNames.put(className, className.replace('$', '.'));
+                        }
+
                         String classPackageName = className.substring(0, className.lastIndexOf('.'));
 
                         if (classPackageName.equals(currentPackageName) == false) {
@@ -154,11 +166,9 @@ public class ContextDocGenerator {
                         Path contextApiPackagePath = contextApiRootPath.resolve(contextApiPackageHeader + ".asciidoc");
 
                         contextApiIndexStream.println();
-                        //contextApiIndexStream.println("==== " + packageName);
-                        contextApiIndexStream.println("==== <<" + contextApiPackageHeader + ", " + packageName + ">>");
+                        contextApiIndexStream.println("==== " + packageName);
+                        contextApiIndexStream.println("<<" + contextApiPackageHeader + ", Expand " + packageName + ">>");
                         contextApiIndexStream.println();
-                        //contextApiIndexStream.println("<<" + contextApiPackageHeader + ", " + packageName + ">>");
-                        contextApiIndexStream.println("test");
 
                         try (PrintStream contextApiPackageStream = new PrintStream(
                                 Files.newOutputStream(contextApiPackagePath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
@@ -166,28 +176,51 @@ public class ContextDocGenerator {
 
                             contextApiPackageStream.println("[role=\"exclude\",id=\"" + contextApiPackageHeader + "\"]");
                             contextApiPackageStream.println("=== " + packageName);
-                            contextApiPackageStream.println("test");
+
+                            for (PainlessContextClassInfo painlessContextClassInfo : packageToPainlessContextClassInfo.getValue()) {
+                                String className = javaClassNamesToPainlessClassNames.get(painlessContextClassInfo.name);
+                                String classHeader = contextApiPackageHeader + "-" + className;
+
+                                contextApiPackageStream.println();
+                                contextApiPackageStream.println("[[" + classHeader + "]]");
+                                contextApiPackageStream.println("==== " + className);
+
+                                for (PainlessContextFieldInfo painlessContextFieldInfo : painlessContextClassInfo.staticFields) {
+                                    printField(contextApiPackageStream, javaClassNamesToPainlessClassNames,
+                                            true, painlessContextFieldInfo);
+                                }
+
+                                for (PainlessContextMethodInfo painlessContextMethodInfo : painlessContextClassInfo.staticMethods) {
+                                    printMethod(contextApiPackageStream, javaClassNamesToPainlessClassNames,
+                                            true, painlessContextMethodInfo);
+                                }
+
+                                for (PainlessContextFieldInfo painlessContextFieldInfo : painlessContextClassInfo.fields) {
+                                    printField(contextApiPackageStream, javaClassNamesToPainlessClassNames,
+                                            false, painlessContextFieldInfo);
+                                }
+
+                                for (PainlessContextConstructorInfo painlessContextConstructorInfo :
+                                        painlessContextClassInfo.constructors) {
+
+                                    printConstructor(contextApiPackageStream, javaClassNamesToPainlessClassNames,
+                                            className, painlessContextConstructorInfo);
+                                }
+
+                                for (PainlessContextMethodInfo painlessContextMethodInfo : painlessContextClassInfo.methods) {
+                                    printMethod(contextApiPackageStream, javaClassNamesToPainlessClassNames,
+                                            false, painlessContextMethodInfo);
+                                }
+
+                                contextApiPackageStream.println();
+
+                                contextApiIndexStream.println("* <<" + classHeader + ", " + className + ">>");
+                            }
+
+                            contextApiPackageStream.println();
                         }
 
-                        /*if (painlessContextClassInfo.imported) {
-                            className = className.substring(className.lastIndexOf('.') + 1).replace('$', '.');
-                        } else {
-                            className = className.replace('$', '.');
-                        }
-
-                        String contextClassApiHeader = contextApiHeader + "-" + className.replace('.', '-');
-                        Path contextClassApiPath = contextApiRootPath.resolve(className.replace('.', '-') + ".asciidoc");
-                        contextClassApiPaths.add(className.replace('.', '-') + ".asciidoc");
-
-                        try (PrintStream contextClassApiStream = new PrintStream(
-                                Files.newOutputStream(contextClassApiPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                                false, StandardCharsets.UTF_8.name())) {
-                            contextClassApiStream.println("[role=\"exclude\",id=\"" + contextClassApiHeader + "\"]");
-                            contextClassApiStream.println("=== " + className);
-                            contextClassApiStream.println("test");
-                        }
-
-                        contextApiIndexStream.println("* <<" + contextClassApiHeader + ", " + className + ">>");*/
+                        contextApiIndexStream.println();
                     }
 
                     contextApiIndexStream.println();
@@ -203,5 +236,227 @@ public class ContextDocGenerator {
                 indexStream.println("include::" + contextApiHeader + "/index.asciidoc[]");
             }
         }
+    }
+
+    private static void printField(
+            PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
+            boolean isStatic, PainlessContextFieldInfo painlessContextFieldInfo) {
+
+        stream.print("* " + (isStatic ? "static " : ""));
+        stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextFieldInfo.type) + " ");
+
+        if (painlessContextFieldInfo.declaring.startsWith("java.")) {
+            stream.println(getFieldJavaDocLink(painlessContextFieldInfo) + "[" + painlessContextFieldInfo.name + "]");
+        } else {
+            stream.println(painlessContextFieldInfo.name);
+        }
+    }
+
+    private static void printConstructor(
+            PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
+            String className, PainlessContextConstructorInfo painlessContextConstructorInfo) {
+
+        stream.print("* ");
+
+        if (painlessContextConstructorInfo.declaring.startsWith("java.")) {
+            stream.print(getConstructorJavaDocLink(painlessContextConstructorInfo) + "[" + className + "](");
+        } else {
+            stream.print(className);
+        }
+
+        stream.print("(");
+
+        for (int parameterIndex = 0;
+             parameterIndex < painlessContextConstructorInfo.parameters.size();
+             ++parameterIndex) {
+
+            stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextConstructorInfo.parameters.get(parameterIndex)));
+
+            if (parameterIndex + 1 < painlessContextConstructorInfo.parameters.size()) {
+                stream.print(", ");
+            }
+        }
+
+        stream.println(")");
+    }
+
+    private static void printMethod(
+            PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
+            boolean isStatic, PainlessContextMethodInfo painlessContextMethodInfo) {
+
+        stream.print("* " + (isStatic ? "static " : ""));
+        stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextMethodInfo.rtn) + " ");
+
+        if (painlessContextMethodInfo.declaring.startsWith("java.")) {
+            stream.print(getMethodJavaDocLink(painlessContextMethodInfo) + "[" + painlessContextMethodInfo.name + "]");
+        } else {
+            stream.print(painlessContextMethodInfo.name);
+        }
+
+        stream.print("(");
+
+        for (int parameterIndex = 0;
+             parameterIndex < painlessContextMethodInfo.parameters.size();
+             ++parameterIndex) {
+
+            stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextMethodInfo.parameters.get(parameterIndex)));
+
+            if (parameterIndex + 1 < painlessContextMethodInfo.parameters.size()) {
+                stream.print(", ");
+            }
+        }
+
+        stream.println(")");
+    }
+
+    private static String getType(Map<String, String> javaClassNamesToPainlessClassNames, String javaType) {
+        int arrayDimensions = 0;
+
+        while (javaType.charAt(arrayDimensions) == '[') {
+            ++arrayDimensions;
+        }
+
+        if (arrayDimensions > 0) {
+            if (javaType.charAt(javaType.length() - 1) == ';') {
+                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
+            } else {
+                javaType = javaType.substring(arrayDimensions);
+            }
+        }
+
+        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
+            javaType = "boolean";
+        } else if ("V".equals(javaType) || "void".equals(javaType)) {
+            javaType = "void";
+        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
+            javaType = "byte";
+        } else if ("S".equals(javaType) || "short".equals(javaType)) {
+            javaType = "short";
+        } else if ("C".equals(javaType) || "char".equals(javaType)) {
+            javaType = "char";
+        } else if ("I".equals(javaType) || "int".equals(javaType)) {
+            javaType = "int";
+        } else if ("J".equals(javaType) || "long".equals(javaType)) {
+            javaType = "long";
+        } else if ("F".equals(javaType) || "float".equals(javaType)) {
+            javaType = "float";
+        } else if ("D".equals(javaType) || "double".equals(javaType)) {
+            javaType = "double";
+        } else if ("def".equals(javaType) == false) {
+            javaType = javaClassNamesToPainlessClassNames.get(javaType);
+        }
+
+        while (arrayDimensions-- > 0) {
+            javaType += "[]";
+        }
+
+        return javaType;
+    }
+
+    private static String getFieldJavaDocLink(PainlessContextFieldInfo painlessContextFieldInfo) {
+        StringBuilder javaDocLink = new StringBuilder();
+
+        javaDocLink.append("{java11-javadoc}/java.base/");
+        javaDocLink.append(painlessContextFieldInfo.declaring.replace('.', '/'));
+        javaDocLink.append(".html#");
+        javaDocLink.append(painlessContextFieldInfo.name);
+
+        return javaDocLink.toString();
+    }
+
+    private static String getConstructorJavaDocLink(PainlessContextConstructorInfo painlessContextConstructorInfo) {
+        StringBuilder javaDocLink = new StringBuilder();
+
+        javaDocLink.append("{java11-javadoc}/java.base/");
+        javaDocLink.append(painlessContextConstructorInfo.declaring.replace('.', '/'));
+        javaDocLink.append(".html#<init>(");
+
+        for (int parameterIndex = 0;
+             parameterIndex < painlessContextConstructorInfo.parameters.size();
+             ++parameterIndex) {
+
+            javaDocLink.append(getLinkType(painlessContextConstructorInfo.parameters.get(parameterIndex)));
+
+            if (parameterIndex + 1 < painlessContextConstructorInfo.parameters.size()) {
+                javaDocLink.append(",");
+            }
+        }
+
+        javaDocLink.append(")");
+
+        return javaDocLink.toString();
+    }
+
+    private static String getMethodJavaDocLink(PainlessContextMethodInfo painlessContextMethodInfo) {
+        StringBuilder javaDocLink = new StringBuilder();
+
+        javaDocLink.append("{java11-javadoc}/java.base/");
+        javaDocLink.append(painlessContextMethodInfo.declaring.replace('.', '/'));
+        javaDocLink.append(".html#");
+        javaDocLink.append(painlessContextMethodInfo.name);
+        javaDocLink.append("(");
+
+        for (int parameterIndex = 0;
+             parameterIndex < painlessContextMethodInfo.parameters.size();
+             ++parameterIndex) {
+
+            javaDocLink.append(getLinkType(painlessContextMethodInfo.parameters.get(parameterIndex)));
+
+            if (parameterIndex + 1 < painlessContextMethodInfo.parameters.size()) {
+                javaDocLink.append(",");
+            }
+        }
+
+        javaDocLink.append(")");
+
+        return javaDocLink.toString();
+    }
+
+    private static String getLinkType(String javaType) {
+        int arrayDimensions = 0;
+
+        while (javaType.charAt(arrayDimensions) == '[') {
+            ++arrayDimensions;
+        }
+
+        if (arrayDimensions > 0) {
+            if (javaType.charAt(javaType.length() - 1) == ';') {
+                javaType = javaType.substring(arrayDimensions + 1, javaType.length() - 1);
+            } else {
+                javaType = javaType.substring(arrayDimensions);
+            }
+        }
+
+        if ("Z".equals(javaType) || "boolean".equals(javaType)) {
+            javaType = "boolean";
+        } else if ("V".equals(javaType) || "void".equals(javaType)) {
+            javaType = "void";
+        } else if ("B".equals(javaType) || "byte".equals(javaType)) {
+            javaType = "byte";
+        } else if ("S".equals(javaType) || "short".equals(javaType)) {
+            javaType = "short";
+        } else if ("C".equals(javaType) || "char".equals(javaType)) {
+            javaType = "char";
+        } else if ("I".equals(javaType) || "int".equals(javaType)) {
+            javaType = "int";
+        } else if ("J".equals(javaType) || "long".equals(javaType)) {
+            javaType = "long";
+        } else if ("F".equals(javaType) || "float".equals(javaType)) {
+            javaType = "float";
+        } else if ("D".equals(javaType) || "double".equals(javaType)) {
+            javaType = "double";
+        } else if ("def".equals(javaType)) {
+            javaType = "java.lang.Object";
+        }
+
+        if (arrayDimensions > 0) {
+            javaType += ":A";
+        }
+
+        return javaType;
+    }
+
+    private ContextDocGenerator() {
+
     }
 }

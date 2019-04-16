@@ -1,90 +1,453 @@
 [[painless-api-reference-score]]
 === Score API
-:sectlinks:
 
-==== <<painless-api-reference-score-java-lang, java.lang>>
+==== java.lang
+<<painless-api-reference-score-java-lang, Expand java.lang>>
 
-test
+* <<painless-api-reference-score-java-lang-Appendable, Appendable>>
+* <<painless-api-reference-score-java-lang-ArithmeticException, ArithmeticException>>
+* <<painless-api-reference-score-java-lang-ArrayIndexOutOfBoundsException, ArrayIndexOutOfBoundsException>>
+* <<painless-api-reference-score-java-lang-ArrayStoreException, ArrayStoreException>>
+* <<painless-api-reference-score-java-lang-Boolean, Boolean>>
+* <<painless-api-reference-score-java-lang-Byte, Byte>>
+* <<painless-api-reference-score-java-lang-CharSequence, CharSequence>>
+* <<painless-api-reference-score-java-lang-Character, Character>>
+* <<painless-api-reference-score-java-lang-Character.Subset, Character.Subset>>
+* <<painless-api-reference-score-java-lang-Character.UnicodeBlock, Character.UnicodeBlock>>
+* <<painless-api-reference-score-java-lang-Character.UnicodeScript, Character.UnicodeScript>>
+* <<painless-api-reference-score-java-lang-ClassCastException, ClassCastException>>
+* <<painless-api-reference-score-java-lang-ClassNotFoundException, ClassNotFoundException>>
+* <<painless-api-reference-score-java-lang-CloneNotSupportedException, CloneNotSupportedException>>
+* <<painless-api-reference-score-java-lang-Comparable, Comparable>>
+* <<painless-api-reference-score-java-lang-Double, Double>>
+* <<painless-api-reference-score-java-lang-Enum, Enum>>
+* <<painless-api-reference-score-java-lang-EnumConstantNotPresentException, EnumConstantNotPresentException>>
+* <<painless-api-reference-score-java-lang-Exception, Exception>>
+* <<painless-api-reference-score-java-lang-Float, Float>>
+* <<painless-api-reference-score-java-lang-IllegalAccessException, IllegalAccessException>>
+* <<painless-api-reference-score-java-lang-IllegalArgumentException, IllegalArgumentException>>
+* <<painless-api-reference-score-java-lang-IllegalMonitorStateException, IllegalMonitorStateException>>
+* <<painless-api-reference-score-java-lang-IllegalStateException, IllegalStateException>>
+* <<painless-api-reference-score-java-lang-IllegalThreadStateException, IllegalThreadStateException>>
+* <<painless-api-reference-score-java-lang-IndexOutOfBoundsException, IndexOutOfBoundsException>>
+* <<painless-api-reference-score-java-lang-InstantiationException, InstantiationException>>
+* <<painless-api-reference-score-java-lang-Integer, Integer>>
+* <<painless-api-reference-score-java-lang-InterruptedException, InterruptedException>>
+* <<painless-api-reference-score-java-lang-Iterable, Iterable>>
+* <<painless-api-reference-score-java-lang-Long, Long>>
+* <<painless-api-reference-score-java-lang-Math, Math>>
+* <<painless-api-reference-score-java-lang-NegativeArraySizeException, NegativeArraySizeException>>
+* <<painless-api-reference-score-java-lang-NoSuchFieldException, NoSuchFieldException>>
+* <<painless-api-reference-score-java-lang-NoSuchMethodException, NoSuchMethodException>>
+* <<painless-api-reference-score-java-lang-NullPointerException, NullPointerException>>
+* <<painless-api-reference-score-java-lang-Number, Number>>
+* <<painless-api-reference-score-java-lang-NumberFormatException, NumberFormatException>>
+* <<painless-api-reference-score-java-lang-Object, Object>>
+* <<painless-api-reference-score-java-lang-ReflectiveOperationException, ReflectiveOperationException>>
+* <<painless-api-reference-score-java-lang-RuntimeException, RuntimeException>>
+* <<painless-api-reference-score-java-lang-SecurityException, SecurityException>>
+* <<painless-api-reference-score-java-lang-Short, Short>>
+* <<painless-api-reference-score-java-lang-StackTraceElement, StackTraceElement>>
+* <<painless-api-reference-score-java-lang-StrictMath, StrictMath>>
+* <<painless-api-reference-score-java-lang-String, String>>
+* <<painless-api-reference-score-java-lang-StringBuffer, StringBuffer>>
+* <<painless-api-reference-score-java-lang-StringBuilder, StringBuilder>>
+* <<painless-api-reference-score-java-lang-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>
+* <<painless-api-reference-score-java-lang-System, System>>
+* <<painless-api-reference-score-java-lang-TypeNotPresentException, TypeNotPresentException>>
+* <<painless-api-reference-score-java-lang-UnsupportedOperationException, UnsupportedOperationException>>
+* <<painless-api-reference-score-java-lang-Void, Void>>
 
-==== <<painless-api-reference-score-java-math, java.math>>
 
-test
+==== java.math
+<<painless-api-reference-score-java-math, Expand java.math>>
 
-==== <<painless-api-reference-score-java-text, java.text>>
+* <<painless-api-reference-score-java-math-BigDecimal, BigDecimal>>
+* <<painless-api-reference-score-java-math-BigInteger, BigInteger>>
+* <<painless-api-reference-score-java-math-MathContext, MathContext>>
+* <<painless-api-reference-score-java-math-RoundingMode, RoundingMode>>
 
-test
 
-==== <<painless-api-reference-score-java-time, java.time>>
+==== java.text
+<<painless-api-reference-score-java-text, Expand java.text>>
 
-test
+* <<painless-api-reference-score-java-text-Annotation, Annotation>>
+* <<painless-api-reference-score-java-text-AttributedCharacterIterator, AttributedCharacterIterator>>
+* <<painless-api-reference-score-java-text-AttributedCharacterIterator.Attribute, AttributedCharacterIterator.Attribute>>
+* <<painless-api-reference-score-java-text-AttributedString, AttributedString>>
+* <<painless-api-reference-score-java-text-Bidi, Bidi>>
+* <<painless-api-reference-score-java-text-BreakIterator, BreakIterator>>
+* <<painless-api-reference-score-java-text-CharacterIterator, CharacterIterator>>
+* <<painless-api-reference-score-java-text-ChoiceFormat, ChoiceFormat>>
+* <<painless-api-reference-score-java-text-CollationElementIterator, CollationElementIterator>>
+* <<painless-api-reference-score-java-text-CollationKey, CollationKey>>
+* <<painless-api-reference-score-java-text-Collator, Collator>>
+* <<painless-api-reference-score-java-text-DateFormat, DateFormat>>
+* <<painless-api-reference-score-java-text-DateFormat.Field, DateFormat.Field>>
+* <<painless-api-reference-score-java-text-DateFormatSymbols, DateFormatSymbols>>
+* <<painless-api-reference-score-java-text-DecimalFormat, DecimalFormat>>
+* <<painless-api-reference-score-java-text-DecimalFormatSymbols, DecimalFormatSymbols>>
+* <<painless-api-reference-score-java-text-FieldPosition, FieldPosition>>
+* <<painless-api-reference-score-java-text-Format, Format>>
+* <<painless-api-reference-score-java-text-Format.Field, Format.Field>>
+* <<painless-api-reference-score-java-text-MessageFormat, MessageFormat>>
+* <<painless-api-reference-score-java-text-MessageFormat.Field, MessageFormat.Field>>
+* <<painless-api-reference-score-java-text-Normalizer, Normalizer>>
+* <<painless-api-reference-score-java-text-Normalizer.Form, Normalizer.Form>>
+* <<painless-api-reference-score-java-text-NumberFormat, NumberFormat>>
+* <<painless-api-reference-score-java-text-NumberFormat.Field, NumberFormat.Field>>
+* <<painless-api-reference-score-java-text-ParseException, ParseException>>
+* <<painless-api-reference-score-java-text-ParsePosition, ParsePosition>>
+* <<painless-api-reference-score-java-text-RuleBasedCollator, RuleBasedCollator>>
+* <<painless-api-reference-score-java-text-SimpleDateFormat, SimpleDateFormat>>
+* <<painless-api-reference-score-java-text-StringCharacterIterator, StringCharacterIterator>>
 
-==== <<painless-api-reference-score-java-time-chrono, java.time.chrono>>
 
-test
+==== java.time
+<<painless-api-reference-score-java-time, Expand java.time>>
 
-==== <<painless-api-reference-score-java-time-format, java.time.format>>
+* <<painless-api-reference-score-java-time-Clock, Clock>>
+* <<painless-api-reference-score-java-time-DateTimeException, DateTimeException>>
+* <<painless-api-reference-score-java-time-DayOfWeek, DayOfWeek>>
+* <<painless-api-reference-score-java-time-Duration, Duration>>
+* <<painless-api-reference-score-java-time-Instant, Instant>>
+* <<painless-api-reference-score-java-time-LocalDate, LocalDate>>
+* <<painless-api-reference-score-java-time-LocalDateTime, LocalDateTime>>
+* <<painless-api-reference-score-java-time-LocalTime, LocalTime>>
+* <<painless-api-reference-score-java-time-Month, Month>>
+* <<painless-api-reference-score-java-time-MonthDay, MonthDay>>
+* <<painless-api-reference-score-java-time-OffsetDateTime, OffsetDateTime>>
+* <<painless-api-reference-score-java-time-OffsetTime, OffsetTime>>
+* <<painless-api-reference-score-java-time-Period, Period>>
+* <<painless-api-reference-score-java-time-Year, Year>>
+* <<painless-api-reference-score-java-time-YearMonth, YearMonth>>
+* <<painless-api-reference-score-java-time-ZoneId, ZoneId>>
+* <<painless-api-reference-score-java-time-ZoneOffset, ZoneOffset>>
+* <<painless-api-reference-score-java-time-ZonedDateTime, ZonedDateTime>>
 
-test
 
-==== <<painless-api-reference-score-java-time-temporal, java.time.temporal>>
+==== java.time.chrono
+<<painless-api-reference-score-java-time-chrono, Expand java.time.chrono>>
 
-test
+* <<painless-api-reference-score-java-time-chrono-AbstractChronology, AbstractChronology>>
+* <<painless-api-reference-score-java-time-chrono-ChronoLocalDate, ChronoLocalDate>>
+* <<painless-api-reference-score-java-time-chrono-ChronoLocalDateTime, ChronoLocalDateTime>>
+* <<painless-api-reference-score-java-time-chrono-ChronoPeriod, ChronoPeriod>>
+* <<painless-api-reference-score-java-time-chrono-ChronoZonedDateTime, ChronoZonedDateTime>>
+* <<painless-api-reference-score-java-time-chrono-Chronology, Chronology>>
+* <<painless-api-reference-score-java-time-chrono-Era, Era>>
+* <<painless-api-reference-score-java-time-chrono-HijrahChronology, HijrahChronology>>
+* <<painless-api-reference-score-java-time-chrono-HijrahDate, HijrahDate>>
+* <<painless-api-reference-score-java-time-chrono-HijrahEra, HijrahEra>>
+* <<painless-api-reference-score-java-time-chrono-IsoChronology, IsoChronology>>
+* <<painless-api-reference-score-java-time-chrono-IsoEra, IsoEra>>
+* <<painless-api-reference-score-java-time-chrono-JapaneseChronology, JapaneseChronology>>
+* <<painless-api-reference-score-java-time-chrono-JapaneseDate, JapaneseDate>>
+* <<painless-api-reference-score-java-time-chrono-JapaneseEra, JapaneseEra>>
+* <<painless-api-reference-score-java-time-chrono-MinguoChronology, MinguoChronology>>
+* <<painless-api-reference-score-java-time-chrono-MinguoDate, MinguoDate>>
+* <<painless-api-reference-score-java-time-chrono-MinguoEra, MinguoEra>>
+* <<painless-api-reference-score-java-time-chrono-ThaiBuddhistChronology, ThaiBuddhistChronology>>
+* <<painless-api-reference-score-java-time-chrono-ThaiBuddhistDate, ThaiBuddhistDate>>
+* <<painless-api-reference-score-java-time-chrono-ThaiBuddhistEra, ThaiBuddhistEra>>
 
-==== <<painless-api-reference-score-java-time-zone, java.time.zone>>
 
-test
+==== java.time.format
+<<painless-api-reference-score-java-time-format, Expand java.time.format>>
 
-==== <<painless-api-reference-score-java-util, java.util>>
+* <<painless-api-reference-score-java-time-format-DateTimeFormatter, DateTimeFormatter>>
+* <<painless-api-reference-score-java-time-format-DateTimeFormatterBuilder, DateTimeFormatterBuilder>>
+* <<painless-api-reference-score-java-time-format-DateTimeParseException, DateTimeParseException>>
+* <<painless-api-reference-score-java-time-format-DecimalStyle, DecimalStyle>>
+* <<painless-api-reference-score-java-time-format-FormatStyle, FormatStyle>>
+* <<painless-api-reference-score-java-time-format-ResolverStyle, ResolverStyle>>
+* <<painless-api-reference-score-java-time-format-SignStyle, SignStyle>>
+* <<painless-api-reference-score-java-time-format-TextStyle, TextStyle>>
 
-test
 
-==== <<painless-api-reference-score-java-util-function, java.util.function>>
+==== java.time.temporal
+<<painless-api-reference-score-java-time-temporal, Expand java.time.temporal>>
 
-test
+* <<painless-api-reference-score-java-time-temporal-ChronoField, ChronoField>>
+* <<painless-api-reference-score-java-time-temporal-ChronoUnit, ChronoUnit>>
+* <<painless-api-reference-score-java-time-temporal-IsoFields, IsoFields>>
+* <<painless-api-reference-score-java-time-temporal-JulianFields, JulianFields>>
+* <<painless-api-reference-score-java-time-temporal-Temporal, Temporal>>
+* <<painless-api-reference-score-java-time-temporal-TemporalAccessor, TemporalAccessor>>
+* <<painless-api-reference-score-java-time-temporal-TemporalAdjuster, TemporalAdjuster>>
+* <<painless-api-reference-score-java-time-temporal-TemporalAdjusters, TemporalAdjusters>>
+* <<painless-api-reference-score-java-time-temporal-TemporalAmount, TemporalAmount>>
+* <<painless-api-reference-score-java-time-temporal-TemporalField, TemporalField>>
+* <<painless-api-reference-score-java-time-temporal-TemporalQueries, TemporalQueries>>
+* <<painless-api-reference-score-java-time-temporal-TemporalQuery, TemporalQuery>>
+* <<painless-api-reference-score-java-time-temporal-TemporalUnit, TemporalUnit>>
+* <<painless-api-reference-score-java-time-temporal-UnsupportedTemporalTypeException, UnsupportedTemporalTypeException>>
+* <<painless-api-reference-score-java-time-temporal-ValueRange, ValueRange>>
+* <<painless-api-reference-score-java-time-temporal-WeekFields, WeekFields>>
 
-==== <<painless-api-reference-score-java-util-regex, java.util.regex>>
 
-test
+==== java.time.zone
+<<painless-api-reference-score-java-time-zone, Expand java.time.zone>>
 
-==== <<painless-api-reference-score-java-util-stream, java.util.stream>>
+* <<painless-api-reference-score-java-time-zone-ZoneOffsetTransition, ZoneOffsetTransition>>
+* <<painless-api-reference-score-java-time-zone-ZoneOffsetTransitionRule, ZoneOffsetTransitionRule>>
+* <<painless-api-reference-score-java-time-zone-ZoneOffsetTransitionRule.TimeDefinition, ZoneOffsetTransitionRule.TimeDefinition>>
+* <<painless-api-reference-score-java-time-zone-ZoneRules, ZoneRules>>
+* <<painless-api-reference-score-java-time-zone-ZoneRulesException, ZoneRulesException>>
+* <<painless-api-reference-score-java-time-zone-ZoneRulesProvider, ZoneRulesProvider>>
 
-test
 
-==== <<painless-api-reference-score-org-apache-lucene-util, org.apache.lucene.util>>
+==== java.util
+<<painless-api-reference-score-java-util, Expand java.util>>
 
-test
+* <<painless-api-reference-score-java-util-AbstractCollection, AbstractCollection>>
+* <<painless-api-reference-score-java-util-AbstractList, AbstractList>>
+* <<painless-api-reference-score-java-util-AbstractMap, AbstractMap>>
+* <<painless-api-reference-score-java-util-AbstractMap.SimpleEntry, AbstractMap.SimpleEntry>>
+* <<painless-api-reference-score-java-util-AbstractMap.SimpleImmutableEntry, AbstractMap.SimpleImmutableEntry>>
+* <<painless-api-reference-score-java-util-AbstractQueue, AbstractQueue>>
+* <<painless-api-reference-score-java-util-AbstractSequentialList, AbstractSequentialList>>
+* <<painless-api-reference-score-java-util-AbstractSet, AbstractSet>>
+* <<painless-api-reference-score-java-util-ArrayDeque, ArrayDeque>>
+* <<painless-api-reference-score-java-util-ArrayList, ArrayList>>
+* <<painless-api-reference-score-java-util-Arrays, Arrays>>
+* <<painless-api-reference-score-java-util-Base64, Base64>>
+* <<painless-api-reference-score-java-util-Base64.Decoder, Base64.Decoder>>
+* <<painless-api-reference-score-java-util-Base64.Encoder, Base64.Encoder>>
+* <<painless-api-reference-score-java-util-BitSet, BitSet>>
+* <<painless-api-reference-score-java-util-Calendar, Calendar>>
+* <<painless-api-reference-score-java-util-Calendar.Builder, Calendar.Builder>>
+* <<painless-api-reference-score-java-util-Collection, Collection>>
+* <<painless-api-reference-score-java-util-Collections, Collections>>
+* <<painless-api-reference-score-java-util-Comparator, Comparator>>
+* <<painless-api-reference-score-java-util-ConcurrentModificationException, ConcurrentModificationException>>
+* <<painless-api-reference-score-java-util-Currency, Currency>>
+* <<painless-api-reference-score-java-util-Date, Date>>
+* <<painless-api-reference-score-java-util-Deque, Deque>>
+* <<painless-api-reference-score-java-util-Dictionary, Dictionary>>
+* <<painless-api-reference-score-java-util-DoubleSummaryStatistics, DoubleSummaryStatistics>>
+* <<painless-api-reference-score-java-util-DuplicateFormatFlagsException, DuplicateFormatFlagsException>>
+* <<painless-api-reference-score-java-util-EmptyStackException, EmptyStackException>>
+* <<painless-api-reference-score-java-util-Enumeration, Enumeration>>
+* <<painless-api-reference-score-java-util-EventListener, EventListener>>
+* <<painless-api-reference-score-java-util-EventListenerProxy, EventListenerProxy>>
+* <<painless-api-reference-score-java-util-EventObject, EventObject>>
+* <<painless-api-reference-score-java-util-FormatFlagsConversionMismatchException, FormatFlagsConversionMismatchException>>
+* <<painless-api-reference-score-java-util-Formattable, Formattable>>
+* <<painless-api-reference-score-java-util-FormattableFlags, FormattableFlags>>
+* <<painless-api-reference-score-java-util-Formatter, Formatter>>
+* <<painless-api-reference-score-java-util-Formatter.BigDecimalLayoutForm, Formatter.BigDecimalLayoutForm>>
+* <<painless-api-reference-score-java-util-FormatterClosedException, FormatterClosedException>>
+* <<painless-api-reference-score-java-util-GregorianCalendar, GregorianCalendar>>
+* <<painless-api-reference-score-java-util-HashMap, HashMap>>
+* <<painless-api-reference-score-java-util-HashSet, HashSet>>
+* <<painless-api-reference-score-java-util-Hashtable, Hashtable>>
+* <<painless-api-reference-score-java-util-IdentityHashMap, IdentityHashMap>>
+* <<painless-api-reference-score-java-util-IllegalFormatCodePointException, IllegalFormatCodePointException>>
+* <<painless-api-reference-score-java-util-IllegalFormatConversionException, IllegalFormatConversionException>>
+* <<painless-api-reference-score-java-util-IllegalFormatException, IllegalFormatException>>
+* <<painless-api-reference-score-java-util-IllegalFormatFlagsException, IllegalFormatFlagsException>>
+* <<painless-api-reference-score-java-util-IllegalFormatPrecisionException, IllegalFormatPrecisionException>>
+* <<painless-api-reference-score-java-util-IllegalFormatWidthException, IllegalFormatWidthException>>
+* <<painless-api-reference-score-java-util-IllformedLocaleException, IllformedLocaleException>>
+* <<painless-api-reference-score-java-util-InputMismatchException, InputMismatchException>>
+* <<painless-api-reference-score-java-util-IntSummaryStatistics, IntSummaryStatistics>>
+* <<painless-api-reference-score-java-util-Iterator, Iterator>>
+* <<painless-api-reference-score-java-util-LinkedHashMap, LinkedHashMap>>
+* <<painless-api-reference-score-java-util-LinkedHashSet, LinkedHashSet>>
+* <<painless-api-reference-score-java-util-LinkedList, LinkedList>>
+* <<painless-api-reference-score-java-util-List, List>>
+* <<painless-api-reference-score-java-util-ListIterator, ListIterator>>
+* <<painless-api-reference-score-java-util-Locale, Locale>>
+* <<painless-api-reference-score-java-util-Locale.Builder, Locale.Builder>>
+* <<painless-api-reference-score-java-util-Locale.Category, Locale.Category>>
+* <<painless-api-reference-score-java-util-Locale.FilteringMode, Locale.FilteringMode>>
+* <<painless-api-reference-score-java-util-Locale.LanguageRange, Locale.LanguageRange>>
+* <<painless-api-reference-score-java-util-LongSummaryStatistics, LongSummaryStatistics>>
+* <<painless-api-reference-score-java-util-Map, Map>>
+* <<painless-api-reference-score-java-util-Map.Entry, Map.Entry>>
+* <<painless-api-reference-score-java-util-MissingFormatArgumentException, MissingFormatArgumentException>>
+* <<painless-api-reference-score-java-util-MissingFormatWidthException, MissingFormatWidthException>>
+* <<painless-api-reference-score-java-util-MissingResourceException, MissingResourceException>>
+* <<painless-api-reference-score-java-util-NavigableMap, NavigableMap>>
+* <<painless-api-reference-score-java-util-NavigableSet, NavigableSet>>
+* <<painless-api-reference-score-java-util-NoSuchElementException, NoSuchElementException>>
+* <<painless-api-reference-score-java-util-Objects, Objects>>
+* <<painless-api-reference-score-java-util-Observable, Observable>>
+* <<painless-api-reference-score-java-util-Observer, Observer>>
+* <<painless-api-reference-score-java-util-Optional, Optional>>
+* <<painless-api-reference-score-java-util-OptionalDouble, OptionalDouble>>
+* <<painless-api-reference-score-java-util-OptionalInt, OptionalInt>>
+* <<painless-api-reference-score-java-util-OptionalLong, OptionalLong>>
+* <<painless-api-reference-score-java-util-PrimitiveIterator, PrimitiveIterator>>
+* <<painless-api-reference-score-java-util-PrimitiveIterator.OfDouble, PrimitiveIterator.OfDouble>>
+* <<painless-api-reference-score-java-util-PrimitiveIterator.OfInt, PrimitiveIterator.OfInt>>
+* <<painless-api-reference-score-java-util-PrimitiveIterator.OfLong, PrimitiveIterator.OfLong>>
+* <<painless-api-reference-score-java-util-PriorityQueue, PriorityQueue>>
+* <<painless-api-reference-score-java-util-Queue, Queue>>
+* <<painless-api-reference-score-java-util-Random, Random>>
+* <<painless-api-reference-score-java-util-RandomAccess, RandomAccess>>
+* <<painless-api-reference-score-java-util-Set, Set>>
+* <<painless-api-reference-score-java-util-SimpleTimeZone, SimpleTimeZone>>
+* <<painless-api-reference-score-java-util-SortedMap, SortedMap>>
+* <<painless-api-reference-score-java-util-SortedSet, SortedSet>>
+* <<painless-api-reference-score-java-util-Spliterator, Spliterator>>
+* <<painless-api-reference-score-java-util-Spliterator.OfDouble, Spliterator.OfDouble>>
+* <<painless-api-reference-score-java-util-Spliterator.OfInt, Spliterator.OfInt>>
+* <<painless-api-reference-score-java-util-Spliterator.OfLong, Spliterator.OfLong>>
+* <<painless-api-reference-score-java-util-Spliterator.OfPrimitive, Spliterator.OfPrimitive>>
+* <<painless-api-reference-score-java-util-Spliterators, Spliterators>>
+* <<painless-api-reference-score-java-util-Stack, Stack>>
+* <<painless-api-reference-score-java-util-StringJoiner, StringJoiner>>
+* <<painless-api-reference-score-java-util-StringTokenizer, StringTokenizer>>
+* <<painless-api-reference-score-java-util-TimeZone, TimeZone>>
+* <<painless-api-reference-score-java-util-TooManyListenersException, TooManyListenersException>>
+* <<painless-api-reference-score-java-util-TreeMap, TreeMap>>
+* <<painless-api-reference-score-java-util-TreeSet, TreeSet>>
+* <<painless-api-reference-score-java-util-UUID, UUID>>
+* <<painless-api-reference-score-java-util-UnknownFormatConversionException, UnknownFormatConversionException>>
+* <<painless-api-reference-score-java-util-UnknownFormatFlagsException, UnknownFormatFlagsException>>
+* <<painless-api-reference-score-java-util-Vector, Vector>>
 
-==== <<painless-api-reference-score-org-elasticsearch-common-geo, org.elasticsearch.common.geo>>
 
-test
+==== java.util.function
+<<painless-api-reference-score-java-util-function, Expand java.util.function>>
 
-==== <<painless-api-reference-score-org-elasticsearch-index-fielddata, org.elasticsearch.index.fielddata>>
+* <<painless-api-reference-score-java-util-function-BiConsumer, BiConsumer>>
+* <<painless-api-reference-score-java-util-function-BiFunction, BiFunction>>
+* <<painless-api-reference-score-java-util-function-BiPredicate, BiPredicate>>
+* <<painless-api-reference-score-java-util-function-BinaryOperator, BinaryOperator>>
+* <<painless-api-reference-score-java-util-function-BooleanSupplier, BooleanSupplier>>
+* <<painless-api-reference-score-java-util-function-Consumer, Consumer>>
+* <<painless-api-reference-score-java-util-function-DoubleBinaryOperator, DoubleBinaryOperator>>
+* <<painless-api-reference-score-java-util-function-DoubleConsumer, DoubleConsumer>>
+* <<painless-api-reference-score-java-util-function-DoubleFunction, DoubleFunction>>
+* <<painless-api-reference-score-java-util-function-DoublePredicate, DoublePredicate>>
+* <<painless-api-reference-score-java-util-function-DoubleSupplier, DoubleSupplier>>
+* <<painless-api-reference-score-java-util-function-DoubleToIntFunction, DoubleToIntFunction>>
+* <<painless-api-reference-score-java-util-function-DoubleToLongFunction, DoubleToLongFunction>>
+* <<painless-api-reference-score-java-util-function-DoubleUnaryOperator, DoubleUnaryOperator>>
+* <<painless-api-reference-score-java-util-function-Function, Function>>
+* <<painless-api-reference-score-java-util-function-IntBinaryOperator, IntBinaryOperator>>
+* <<painless-api-reference-score-java-util-function-IntConsumer, IntConsumer>>
+* <<painless-api-reference-score-java-util-function-IntFunction, IntFunction>>
+* <<painless-api-reference-score-java-util-function-IntPredicate, IntPredicate>>
+* <<painless-api-reference-score-java-util-function-IntSupplier, IntSupplier>>
+* <<painless-api-reference-score-java-util-function-IntToDoubleFunction, IntToDoubleFunction>>
+* <<painless-api-reference-score-java-util-function-IntToLongFunction, IntToLongFunction>>
+* <<painless-api-reference-score-java-util-function-IntUnaryOperator, IntUnaryOperator>>
+* <<painless-api-reference-score-java-util-function-LongBinaryOperator, LongBinaryOperator>>
+* <<painless-api-reference-score-java-util-function-LongConsumer, LongConsumer>>
+* <<painless-api-reference-score-java-util-function-LongFunction, LongFunction>>
+* <<painless-api-reference-score-java-util-function-LongPredicate, LongPredicate>>
+* <<painless-api-reference-score-java-util-function-LongSupplier, LongSupplier>>
+* <<painless-api-reference-score-java-util-function-LongToDoubleFunction, LongToDoubleFunction>>
+* <<painless-api-reference-score-java-util-function-LongToIntFunction, LongToIntFunction>>
+* <<painless-api-reference-score-java-util-function-LongUnaryOperator, LongUnaryOperator>>
+* <<painless-api-reference-score-java-util-function-ObjDoubleConsumer, ObjDoubleConsumer>>
+* <<painless-api-reference-score-java-util-function-ObjIntConsumer, ObjIntConsumer>>
+* <<painless-api-reference-score-java-util-function-ObjLongConsumer, ObjLongConsumer>>
+* <<painless-api-reference-score-java-util-function-Predicate, Predicate>>
+* <<painless-api-reference-score-java-util-function-Supplier, Supplier>>
+* <<painless-api-reference-score-java-util-function-ToDoubleBiFunction, ToDoubleBiFunction>>
+* <<painless-api-reference-score-java-util-function-ToDoubleFunction, ToDoubleFunction>>
+* <<painless-api-reference-score-java-util-function-ToIntBiFunction, ToIntBiFunction>>
+* <<painless-api-reference-score-java-util-function-ToIntFunction, ToIntFunction>>
+* <<painless-api-reference-score-java-util-function-ToLongBiFunction, ToLongBiFunction>>
+* <<painless-api-reference-score-java-util-function-ToLongFunction, ToLongFunction>>
+* <<painless-api-reference-score-java-util-function-UnaryOperator, UnaryOperator>>
 
-test
 
-==== <<painless-api-reference-score-org-elasticsearch-index-mapper, org.elasticsearch.index.mapper>>
+==== java.util.regex
+<<painless-api-reference-score-java-util-regex, Expand java.util.regex>>
 
-test
+* <<painless-api-reference-score-java-util-regex-Matcher, Matcher>>
+* <<painless-api-reference-score-java-util-regex-Pattern, Pattern>>
 
-==== <<painless-api-reference-score-org-elasticsearch-index-query, org.elasticsearch.index.query>>
 
-test
+==== java.util.stream
+<<painless-api-reference-score-java-util-stream, Expand java.util.stream>>
 
-==== <<painless-api-reference-score-org-elasticsearch-index-similarity, org.elasticsearch.index.similarity>>
+* <<painless-api-reference-score-java-util-stream-BaseStream, BaseStream>>
+* <<painless-api-reference-score-java-util-stream-Collector, Collector>>
+* <<painless-api-reference-score-java-util-stream-Collector.Characteristics, Collector.Characteristics>>
+* <<painless-api-reference-score-java-util-stream-Collectors, Collectors>>
+* <<painless-api-reference-score-java-util-stream-DoubleStream, DoubleStream>>
+* <<painless-api-reference-score-java-util-stream-DoubleStream.Builder, DoubleStream.Builder>>
+* <<painless-api-reference-score-java-util-stream-IntStream, IntStream>>
+* <<painless-api-reference-score-java-util-stream-IntStream.Builder, IntStream.Builder>>
+* <<painless-api-reference-score-java-util-stream-LongStream, LongStream>>
+* <<painless-api-reference-score-java-util-stream-LongStream.Builder, LongStream.Builder>>
+* <<painless-api-reference-score-java-util-stream-Stream, Stream>>
+* <<painless-api-reference-score-java-util-stream-Stream.Builder, Stream.Builder>>
 
-test
 
-==== <<painless-api-reference-score-org-elasticsearch-painless-api, org.elasticsearch.painless.api>>
+==== org.apache.lucene.util
+<<painless-api-reference-score-org-apache-lucene-util, Expand org.apache.lucene.util>>
 
-test
+* <<painless-api-reference-score-org-apache-lucene-util-BytesRef, BytesRef>>
 
-==== <<painless-api-reference-score-org-elasticsearch-script, org.elasticsearch.script>>
 
-test
+==== org.elasticsearch.common.geo
+<<painless-api-reference-score-org-elasticsearch-common-geo, Expand org.elasticsearch.common.geo>>
 
-==== <<painless-api-reference-score-org-elasticsearch-search-lookup, org.elasticsearch.search.lookup>>
+* <<painless-api-reference-score-org-elasticsearch-common-geo-GeoPoint, GeoPoint>>
 
-test
+
+==== org.elasticsearch.index.fielddata
+<<painless-api-reference-score-org-elasticsearch-index-fielddata, Expand org.elasticsearch.index.fielddata>>
+
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.Booleans, ScriptDocValues.Booleans>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.BytesRefs, ScriptDocValues.BytesRefs>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.Dates, ScriptDocValues.Dates>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.Doubles, ScriptDocValues.Doubles>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.GeoPoints, ScriptDocValues.GeoPoints>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.Longs, ScriptDocValues.Longs>>
+* <<painless-api-reference-score-org-elasticsearch-index-fielddata-ScriptDocValues.Strings, ScriptDocValues.Strings>>
+
+
+==== org.elasticsearch.index.mapper
+<<painless-api-reference-score-org-elasticsearch-index-mapper, Expand org.elasticsearch.index.mapper>>
+
+* <<painless-api-reference-score-org-elasticsearch-index-mapper-IpFieldMapper.IpFieldType.IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
+
+
+==== org.elasticsearch.index.query
+<<painless-api-reference-score-org-elasticsearch-index-query, Expand org.elasticsearch.index.query>>
+
+* <<painless-api-reference-score-org-elasticsearch-index-query-IntervalFilterScript.Interval, IntervalFilterScript.Interval>>
+* <<painless-api-reference-score-org-elasticsearch-index-query-VectorScriptDocValues, VectorScriptDocValues>>
+* <<painless-api-reference-score-org-elasticsearch-index-query-VectorScriptDocValues.DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
+* <<painless-api-reference-score-org-elasticsearch-index-query-VectorScriptDocValues.SparseVectorScriptDocValues, VectorScriptDocValues.SparseVectorScriptDocValues>>
+
+
+==== org.elasticsearch.index.similarity
+<<painless-api-reference-score-org-elasticsearch-index-similarity, Expand org.elasticsearch.index.similarity>>
+
+* <<painless-api-reference-score-org-elasticsearch-index-similarity-ScriptedSimilarity.Doc, ScriptedSimilarity.Doc>>
+* <<painless-api-reference-score-org-elasticsearch-index-similarity-ScriptedSimilarity.Field, ScriptedSimilarity.Field>>
+* <<painless-api-reference-score-org-elasticsearch-index-similarity-ScriptedSimilarity.Query, ScriptedSimilarity.Query>>
+* <<painless-api-reference-score-org-elasticsearch-index-similarity-ScriptedSimilarity.Term, ScriptedSimilarity.Term>>
+
+
+==== org.elasticsearch.painless.api
+<<painless-api-reference-score-org-elasticsearch-painless-api, Expand org.elasticsearch.painless.api>>
+
+* <<painless-api-reference-score-org-elasticsearch-painless-api-Debug, Debug>>
+
+
+==== org.elasticsearch.script
+<<painless-api-reference-score-org-elasticsearch-script, Expand org.elasticsearch.script>>
+
+* <<painless-api-reference-score-org-elasticsearch-script-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+* <<painless-api-reference-score-org-elasticsearch-script-org.elasticsearch.script.ScoreScript, org.elasticsearch.script.ScoreScript>>
+
+
+==== org.elasticsearch.search.lookup
+<<painless-api-reference-score-org-elasticsearch-search-lookup, Expand org.elasticsearch.search.lookup>>
+
+* <<painless-api-reference-score-org-elasticsearch-search-lookup-FieldLookup, FieldLookup>>
+
 
 include::painless-api-reference-score-java-lang.asciidoc[]
 include::painless-api-reference-score-java-math.asciidoc[]

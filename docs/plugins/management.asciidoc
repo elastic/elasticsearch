@@ -4,7 +4,7 @@
 Management and site plugins offer UIs for managing and interacting with
 Elasticsearch.
 
-deprecated[2.3.0,Site plugins are deprecated and will be removed in 5.0.0.  Instead, site plugins should either be migrated to Kibana or should use a standalone web server.]
+deprecated[2.3.0, Site plugins are deprecated and will be removed in 5.0.0.  Instead&#44; site plugins should either be migrated to Kibana or should use a standalone web server.]
 
 
 [float]

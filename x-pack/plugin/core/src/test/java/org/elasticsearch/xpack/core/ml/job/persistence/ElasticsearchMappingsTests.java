@@ -61,7 +61,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.NESTED,
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE,
+            ElasticsearchMappings.WHITESPACE
+    );
+
+    private static List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
             GetResult._INDEX,
             GetResult._TYPE
@@ -80,6 +83,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }
@@ -95,6 +99,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         Set<String> expected = collectConfigDocFieldNames();
         expected.removeAll(overridden);
+        expected.addAll(INTERNAL_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_CONFIG_FIELD_NAMES);
     }

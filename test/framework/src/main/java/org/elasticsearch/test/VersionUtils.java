@@ -255,11 +255,4 @@ public class VersionUtils {
     public static Version randomIndexCompatibleVersion(Random random) {
         return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
     }
-
-    /**
-     * Returns a random version wire compatible with the current version.
-     */
-    public static Version randomWireCompatibleVersion(Random random) {
-        return randomVersionBetween(random, Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
-    }
 }

@@ -79,15 +79,13 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals("/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/c,d/_search",
             initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
-        // pass-through if already escaped.
+        // re-escape already escaped (no special handling).
         searchRequest.indices("%2f", "%3a");
-        assertEquals("/%2f,%3a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
-
-        // do not allow , and / if already escaped.
+        assertEquals("/%252f,%253a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("%2fcat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "%2fcat,");
+        assertEquals("/%252fcat%2C/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("%3ccat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "%3ccat/");
+        assertEquals("/%253ccat%2F/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
         searchRequest.indices("ok");
         searchRequest.types("cat,");

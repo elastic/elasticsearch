@@ -1,0 +1,10 @@
+[float]
+[[breaking_80_reindex_changes]]
+=== Reindex changes
+
+Reindex from remote would previously allow URL encoded index-names and not
+re-encode them when generating the search request for the remote host. This
+leniency has been removed such that all index-names are correctly encoded when
+reindex generates remote search requests.
+
+Instead, please specify the index-name without any encoding.

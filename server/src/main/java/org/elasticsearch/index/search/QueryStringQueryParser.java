@@ -423,7 +423,7 @@ public class QueryStringQueryParser extends XQueryParser {
         if (fuzzySlop.image.length() == 1) {
             return getFuzzyQuery(field, termImage, fuzziness.asDistance(termImage));
         }
-        return getFuzzyQuery(field, termImage, Fuzziness.build(fuzzySlop.image.substring(1)).asFloat());
+        return getFuzzyQuery(field, termImage, Fuzziness.fromString(fuzzySlop.image.substring(1)).asFloat());
     }
 
     @Override
@@ -434,7 +434,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
         List<Query> queries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
-            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, minSimilarity);
+            Query q = getFuzzyQuerySingle(entry.getKey(), termStr, (int) minSimilarity);
             assert q != null;
             queries.add(applyBoost(q, entry.getValue()));
         }
@@ -447,7 +447,7 @@ public class QueryStringQueryParser extends XQueryParser {
         }
     }
 
-    private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
+    private Query getFuzzyQuerySingle(String field, String termStr, int minSimilarity) throws ParseException {
         currentFieldType = context.fieldMapper(field);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
@@ -455,7 +455,7 @@ public class QueryStringQueryParser extends XQueryParser {
         try {
             Analyzer normalizer = forceAnalyzer == null ? queryBuilder.context.getSearchAnalyzer(currentFieldType) : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
-            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits((int) minSimilarity),
+            return currentFieldType.fuzzyQuery(term, Fuzziness.fromEdits(minSimilarity),
                 getFuzzyPrefixLength(), fuzzyMaxExpansions, fuzzyTranspositions);
         } catch (RuntimeException e) {
             if (lenient) {
@@ -467,7 +467,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
-        int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
+        int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
             fuzzyMaxExpansions, fuzzyTranspositions);
         QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);

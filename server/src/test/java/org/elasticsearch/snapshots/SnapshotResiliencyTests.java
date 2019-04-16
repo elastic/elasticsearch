@@ -47,7 +47,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
@@ -274,29 +273,24 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                             )));
                                     }));
                                 final AtomicInteger countdown = new AtomicInteger(documents);
-                                masterNode.client.admin().indices().putMapping(
-                                    new PutMappingRequest(index).type("_doc").source("foo", "type=text"),
-                                    assertNoFailureListener(r -> {
-                                            for (int i = 0; i < documents; ++i) {
-                                                masterNode.client.bulk(
-                                                    new BulkRequest().add(new IndexRequest(index).source(
-                                                        Collections.singletonMap("foo", "bar" + i)))
-                                                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
-                                                    assertNoFailureListener(
-                                                        bulkResponse -> {
-                                                            assertFalse(
-                                                                "Failures in bulkresponse: " + bulkResponse.buildFailureMessage(),
-                                                                bulkResponse.hasFailures());
-                                                            if (countdown.decrementAndGet() == 0) {
-                                                                afterIndexing.run();
-                                                            }
-                                                        }));
-                                            }
-                                            if (documents == 0) {
-                                                afterIndexing.run();
-                                            }
-                                        }
-                                    ));
+                                for (int i = 0; i < documents; ++i) {
+                                    masterNode.client.bulk(
+                                        new BulkRequest().add(new IndexRequest(index).source(
+                                            Collections.singletonMap("foo", "bar" + i)))
+                                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                                        assertNoFailureListener(
+                                            bulkResponse -> {
+                                                assertFalse(
+                                                    "Failures in bulkresponse: " + bulkResponse.buildFailureMessage(),
+                                                    bulkResponse.hasFailures());
+                                                if (countdown.decrementAndGet() == 0) {
+                                                    afterIndexing.run();
+                                                }
+                                            }));
+                                }
+                                if (documents == 0) {
+                                    afterIndexing.run();
+                                }
                             }))));
         runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
         assertTrue(createdSnapshot.get());
@@ -954,7 +948,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             repositoriesService = new RepositoriesService(
                 settings, clusterService, transportService,
                 Collections.singletonMap(FsRepository.TYPE, metaData -> {
-                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry()) {
+                        final Repository repository = new FsRepository(metaData, environment, xContentRegistry(), threadPool) {
                             @Override
                             protected void assertSnapshotOrGenericThread() {
                                 // eliminate thread name check as we create repo in the test thread

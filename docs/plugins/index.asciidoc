@@ -10,7 +10,7 @@ Plugins are a way to enhance the core Elasticsearch functionality in a custom
 manner. They range from adding custom mapping types, custom analyzers, native
 scripts, custom discovery and more.
 
-deprecated[2.3.0,Site plugins and mixed plugins are deprecated and will be removed in 5.0.0.  Instead, site plugins should either be migrated to Kibana or should use a standalone web server]
+deprecated[2.3.0, Site plugins and mixed plugins are deprecated and will be removed in 5.0.0.  Instead&#44; site plugins should either be migrated to Kibana or should use a standalone web server.]
 
 There are three types of plugins:
 

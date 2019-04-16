@@ -111,7 +111,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         //query:match:type stopped being supported in 6.x
         "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n" +
         "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"number_neighbors\": 10}}\n" +
+        "    \"analysis\": {\"outlier_detection\": {\"k\": 10}}\n" +
         "}";
 
     private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
@@ -119,7 +119,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         // match_all if parsed, adds default values in the options
         "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" +
         "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"number_neighbors\": 10}}\n" +
+        "    \"analysis\": {\"outlier_detection\": {\"k\": 10}}\n" +
         "}";
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {

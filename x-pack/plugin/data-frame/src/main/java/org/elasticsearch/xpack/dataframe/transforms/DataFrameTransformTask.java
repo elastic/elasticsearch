@@ -277,25 +277,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         ));
     }
 
-    private boolean isIrrecoverableFailure(Exception e) {
-        return e instanceof IndexNotFoundException || e instanceof DataFrameConfigurationException;
-    }
-
-    synchronized void handleFailure(Exception e) {
-        if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > MAX_CONTINUOUS_FAILURES) {
-            String failureMessage = isIrrecoverableFailure(e) ?
-                "task encountered irrecoverable failure: " + e.getMessage() :
-                "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
-            auditor.error(transform.getId(), failureMessage);
-            stateReason.set(failureMessage);
-            taskState.set(DataFrameTransformTaskState.FAILED);
-            persistStateToClusterState(getState(), ActionListener.wrap(
-                r -> failureCount.set(0), // Successfully marked as failed, reset counter so that task can be restarted
-                exception -> {} // Noop, internal method logs the failure to update the state
-            ));
-        }
-    }
-
     /**
      * This is called when the persistent task signals that the allocated task should be terminated.
      * Termination in the task framework is essentially voluntary, as the allocated task can only be
@@ -313,13 +294,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     protected class ClientDataFrameIndexer extends DataFrameIndexer {
         private static final int LOAD_TRANSFORM_TIMEOUT_IN_SECONDS = 30;
-        private static final int CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS = 30;
 
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
-        private final Auditor<DataFrameAuditMessage> auditor;
         private volatile DataFrameIndexerTransformStats previouslyPersistedStats = null;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
@@ -331,13 +310,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                       DataFrameTransformsCheckpointService transformsCheckpointService,
                                       AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition, Client client,
                                       Auditor<DataFrameAuditMessage> auditor) {
-            super(threadPool.executor(ThreadPool.Names.GENERIC), initialState, initialPosition,
+            super(threadPool.executor(ThreadPool.Names.GENERIC), auditor, initialState, initialPosition,
                 new DataFrameIndexerTransformStats(transformId));
             this.transformId = transformId;
             this.transformsConfigManager = transformsConfigManager;
             this.transformsCheckpointService = transformsCheckpointService;
             this.client = client;
-            this.auditor = auditor;
         }
 
         @Override
@@ -474,19 +452,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onFailure(Exception exc) {
-            // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
-            // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-            if (exc.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                auditor.warning(transform.getId(), "Data frame transform encountered an exception: " + exc.getMessage());
-                lastAuditedExceptionMessage = exc.getMessage();
+            // the failure handler must not throw an exception due to internal problems
+            try {
+                logger.warn("Data frame transform [" + transform.getId() + "] encountered an exception: ", exc);
+
+                // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
+                // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
+                if (exc.getMessage().equals(lastAuditedExceptionMessage) == false) {
+                    auditor.warning(transform.getId(), "Data frame transform encountered an exception: " + exc.getMessage());
+                    lastAuditedExceptionMessage = exc.getMessage();
+                }
+                handleFailure(exc);
+            } catch (Exception e) {
+                logger.error("Data frame transform encountered an unexpected internal exception: " ,e);
             }
-            logger.warn("Data frame transform [" + transform.getId() + "] encountered an exception: ", exc);
-            handleFailure(exc);
         }
 
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
+                super.onFinish(listener);
                 long checkpoint = currentCheckpoint.incrementAndGet();
                 auditor.info(transform.getId(), "Finished indexing for data frame transform checkpoint [" + checkpoint + "]");
                 logger.info("Finished indexing for data frame transform [" + transform.getId() + "] checkpoint [" + checkpoint + "]");
@@ -514,6 +499,35 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             }, getCheckPointException -> {
                 listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException));
             }));
+        }
+
+        private boolean isIrrecoverableFailure(Exception e) {
+            return e instanceof IndexNotFoundException || e instanceof DataFrameConfigurationException;
+        }
+
+        synchronized void handleFailure(Exception e) {
+            if (handleCircuitBreakingException(e)) {
+                return;
+            }
+
+            if (isIrrecoverableFailure(e) || failureCount.incrementAndGet() > MAX_CONTINUOUS_FAILURES) {
+                String failureMessage = isIrrecoverableFailure(e) ?
+                    "task encountered irrecoverable failure: " + e.getMessage() :
+                    "task encountered more than " + MAX_CONTINUOUS_FAILURES + " failures; latest failure: " + e.getMessage();
+                failIndexer(failureMessage);
+            }
+        }
+
+        @Override
+        protected void failIndexer(String failureMessage) {
+            logger.error("Data frame transform [" + getJobId() + "]:" + failureMessage);
+            auditor.error(transform.getId(), failureMessage);
+            stateReason.set(failureMessage);
+            taskState.set(DataFrameTransformTaskState.FAILED);
+            persistStateToClusterState(DataFrameTransformTask.this.getState(), ActionListener.wrap(
+                r -> failureCount.set(0), // Successfully marked as failed, reset counter so that task can be restarted
+                exception -> {} // Noop, internal method logs the failure to update the state
+            ));
         }
     }
 

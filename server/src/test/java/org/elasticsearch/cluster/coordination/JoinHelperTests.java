@@ -142,7 +142,7 @@ public class JoinHelperTests extends ESTestCase {
 
     public void testZen1JoinValidationRejectsMismatchedClusterUUID() {
         assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            "legacy join validation on cluster state with a different cluster uuid");
+            "mixed-version cluster join validation on cluster state with a different cluster uuid");
     }
 
     public void testJoinValidationRejectsMismatchedClusterUUID() {

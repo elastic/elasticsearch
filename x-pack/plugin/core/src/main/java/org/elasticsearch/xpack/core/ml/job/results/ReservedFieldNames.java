@@ -173,6 +173,7 @@ public final class ReservedFieldNames {
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
             Result.IS_INTERIM.getPreferredName(),
+
             GetResult._ID,
             GetResult._INDEX,
             GetResult._TYPE
@@ -260,7 +261,11 @@ public final class ReservedFieldNames {
             ChunkingConfig.MODE_FIELD.getPreferredName(),
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
-            ElasticsearchMappings.CONFIG_TYPE
+            ElasticsearchMappings.CONFIG_TYPE,
+
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
     };
 
     /**

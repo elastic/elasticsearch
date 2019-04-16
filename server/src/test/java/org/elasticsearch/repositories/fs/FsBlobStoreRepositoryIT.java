@@ -18,12 +18,21 @@
  */
 package org.elasticsearch.repositories.fs;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
@@ -40,5 +49,63 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
     @Override
     protected void afterCreationCheck(Repository repository) {
         assertThat(repository, instanceOf(FsRepository.class));
+    }
+
+    public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, ExecutionException, InterruptedException {
+        final String repoName = randomAsciiName();
+        logger.info("-->  creating repository {}", repoName);
+
+        final Path repoPath = randomRepoPath();
+
+        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
+            .put("location", repoPath)
+            .put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        String indexName = randomAsciiName();
+        int docCount = iterations(10, 1000);
+        logger.info("-->  create random index {} with {} records", indexName, docCount);
+        addRandomDocuments(indexName, docCount);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
+
+        final String snapshotName = randomAsciiName();
+        logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
+        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true).setIndices(indexName));
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+
+        final Path deletedPath;
+        try (Stream<Path> contents = Files.list(repoPath.resolve("indices"))) {
+            //noinspection OptionalGetWithoutIsPresent because we know there's a subdirectory
+            deletedPath = contents.filter(Files::isDirectory).findAny().get();
+            deleteRecursive(deletedPath);
+        }
+        assertFalse(Files.exists(deletedPath));
+
+        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
+            .put("location", repoPath).put("readonly", true)));
+
+        final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
+            client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
+        assertThat(exception.getRootCause(), instanceOf(NoSuchFileException.class));
+
+        assertFalse("deleted path is not recreated in readonly repository", Files.exists(deletedPath));
+    }
+
+    private void deleteRecursive(Path p) throws IOException {
+        if (Files.isDirectory(p)) {
+            try (Stream<Path> contents = Files.list(p)) {
+                contents.forEach(path -> {
+                    try {
+                        deleteRecursive(path);
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                });
+            }
+        }
+        Files.delete(p);
     }
 }

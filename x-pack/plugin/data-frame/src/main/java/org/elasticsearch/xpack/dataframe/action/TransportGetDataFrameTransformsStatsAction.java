@@ -101,17 +101,32 @@ public class TransportGetDataFrameTransformsStatsAction extends
     protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         if (task.isCancelled() == false) {
-            transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
-                    ActionListener.wrap(checkpointStats -> {
-                        listener.onResponse(new Response(Collections.singletonList(
-                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats))));
-            }, e -> {
+            ActionListener<DataFrameTransformCheckpointingInfo> checkpointingInfoActionListener = ActionListener.wrap(
+                checkpointStats -> {
+                    DataFrameTransformStateAndStats stateAndStats =
+                        new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats);
+                    stateAndStats.setProgress(task.getProgress());
                     listener.onResponse(new Response(
-                        Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
-                                task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
+                        Collections.singletonList(stateAndStats),
+                        Collections.emptyList(),
+                        Collections.emptyList()));
+                }, e -> {
+                    DataFrameTransformStateAndStats stateAndStats =
+                        new DataFrameTransformStateAndStats(task.getTransformId(),
+                            task.getState(),
+                            task.getStats(),
+                            DataFrameTransformCheckpointingInfo.EMPTY);
+                    stateAndStats.setProgress(task.getProgress());
+                    listener.onResponse(new Response(
+                        Collections.singletonList(stateAndStats),
                         Collections.emptyList(),
                         Collections.singletonList(new ElasticsearchException("Failed to retrieve checkpointing info", e))));
-            }));
+                }
+            );
+            transformsCheckpointService.getCheckpointStats(task.getTransformId(),
+                task.getCheckpoint(),
+                task.getInProgressCheckpoint(),
+                checkpointingInfoActionListener);
         } else {
             listener.onResponse(new Response(Collections.emptyList()));
         }

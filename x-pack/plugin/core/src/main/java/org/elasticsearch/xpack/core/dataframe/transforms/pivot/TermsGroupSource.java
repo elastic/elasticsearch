@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 
@@ -42,6 +44,18 @@ public class TermsGroupSource extends SingleGroupSource<TermsGroupSource> {
     @Override
     public Type getType() {
         return Type.TERMS;
+    }
+
+    @Override
+    public QueryBuilder getNextBucketsQuery(Object key) {
+        assert key instanceof String;
+        return QueryBuilders.rangeQuery(field).gt(key);
+    }
+
+    @Override
+    public QueryBuilder getCurrentBucketQuery(Object key) {
+        assert key instanceof String;
+        return QueryBuilders.termQuery(field, key);
     }
 
     public static TermsGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {

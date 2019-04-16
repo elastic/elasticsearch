@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
@@ -95,6 +97,10 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
 
     public abstract Type getType();
 
+    public abstract QueryBuilder getNextBucketsQuery(Object key);
+
+    public abstract QueryBuilder getCurrentBucketQuery(Object key);
+
     public String getField() {
         return field;
     }
@@ -117,5 +123,10 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
     @Override
     public int hashCode() {
         return Objects.hash(field);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

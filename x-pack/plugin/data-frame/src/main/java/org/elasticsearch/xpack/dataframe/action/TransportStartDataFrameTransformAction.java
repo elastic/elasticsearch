@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -44,6 +46,7 @@ import java.util.function.Predicate;
 public class TransportStartDataFrameTransformAction extends
     TransportMasterNodeAction<StartDataFrameTransformAction.Request, StartDataFrameTransformAction.Response> {
 
+    private static final Logger logger = LogManager.getLogger(TransportStartDataFrameTransformAction.class);
     private final XPackLicenseState licenseState;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
     private final PersistentTasksService persistentTasksService;
@@ -83,26 +86,21 @@ public class TransportStartDataFrameTransformAction extends
         }
         final DataFrameTransform transformTask = createDataFrameTransform(request.getId(), threadPool);
 
-        // <3> Set the allocated task's state to STARTED
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform>> persistentTaskActionListener = ActionListener.wrap(
-            task -> {
-                waitForDataFrameTaskAllocated(task.getId(),
-                    transformTask,
-                    request.timeout(),
-                    ActionListener.wrap(
-                        taskAssigned -> ClientHelper.executeAsyncWithOrigin(client,
-                            ClientHelper.DATA_FRAME_ORIGIN,
-                            StartDataFrameTransformTaskAction.INSTANCE,
-                            new StartDataFrameTransformTaskAction.Request(request.getId()),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
-                                listener::onFailure)),
-                        listener::onFailure));
+        // <3> Wait for the allocated task's state to STARTED
+        ActionListener<PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform>> newPersistentTaskActionListener =
+            ActionListener.wrap(
+                task -> {
+                    waitForDataFrameTaskStarted(task.getId(),
+                        transformTask,
+                        request.timeout(),
+                        ActionListener.wrap(
+                            taskStarted -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
+                            listener::onFailure));
             },
             listener::onFailure
         );
 
-        // <2> Create the task in cluster state so that it will start executing on the node
+        // <2> Find or Create the task in cluster state so that it will start executing on the node
         ActionListener<DataFrameTransformConfig> getTransformListener = ActionListener.wrap(
             config -> {
                 if (config.isValid() == false) {
@@ -115,10 +113,11 @@ public class TransportStartDataFrameTransformAction extends
                 PersistentTasksCustomMetaData.PersistentTask<DataFrameTransform> existingTask =
                     getExistingTask(transformTask.getId(), state);
                 if (existingTask == null) {
+                    // Create the allocated task and wait for it to be started
                     persistentTasksService.sendStartRequest(transformTask.getId(),
                         DataFrameTransform.NAME,
                         transformTask,
-                        persistentTaskActionListener);
+                        newPersistentTaskActionListener);
                 } else {
                     DataFrameTransformState transformState = (DataFrameTransformState)existingTask.getState();
                     if(transformState.getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
@@ -133,7 +132,26 @@ public class TransportStartDataFrameTransformAction extends
                             "Unable to start data frame transform [" + config.getId() +
                                 "] as it is in state [" + transformState.getTaskState()  + "]", RestStatus.CONFLICT));
                     } else {
-                        persistentTaskActionListener.onResponse(existingTask);
+                        // If the task already exists but is not assigned to a node, something is weird
+                        // return a failure that includes the current assignment explanation (if one exists)
+                        if (existingTask.isAssigned() == false) {
+                            String assignmentExplanation = "";
+                            if (existingTask.getAssignment() != null) {
+                                assignmentExplanation = existingTask.getAssignment().getExplanation();
+                            }
+                            listener.onFailure(new ElasticsearchStatusException("Unable to start data frame transform [" +
+                                config.getId() + "] as it is not assigned to a node, explanation" + assignmentExplanation,
+                                RestStatus.CONFLICT));
+                            return;
+                        }
+                        // If the task already exists and is assigned to a node, simply attempt to set it to start
+                        ClientHelper.executeAsyncWithOrigin(client,
+                            ClientHelper.DATA_FRAME_ORIGIN,
+                            StartDataFrameTransformTaskAction.INSTANCE,
+                            new StartDataFrameTransformTaskAction.Request(request.getId()),
+                            ActionListener.wrap(
+                                r -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
+                                listener::onFailure));
                     }
                 }
             },
@@ -194,10 +212,10 @@ public class TransportStartDataFrameTransformAction extends
         );
     }
 
-    private void waitForDataFrameTaskAllocated(String taskId,
-                                               DataFrameTransform params,
-                                               TimeValue timeout,
-                                               ActionListener<Boolean> listener) {
+    private void waitForDataFrameTaskStarted(String taskId,
+                                             DataFrameTransform params,
+                                             TimeValue timeout,
+                                             ActionListener<Boolean> listener) {
         DataFramePredicate predicate = new DataFramePredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, timeout,
             new PersistentTasksService.WaitForPersistentTaskListener<DataFrameTransform>() {
@@ -249,7 +267,15 @@ public class TransportStartDataFrameTransformAction extends
                 return true;
             }
             // We just want it assigned so we can tell it to start working
-            return assignment != null && assignment.isAssigned();
+            return assignment != null && assignment.isAssigned() && isNotStopped(persistentTask);
+        }
+
+        // checking for `isNotStopped` as the state COULD be marked as failed for any number of reasons
+        // But if it is in a failed state, _stats will show as much and give good reason to the user.
+        // If it is not able to be assigned to a node all together, we should just close the task completely
+        private boolean isNotStopped(PersistentTasksCustomMetaData.PersistentTask<?> task) {
+            DataFrameTransformState state = (DataFrameTransformState)task.getState();
+            return state != null && state.getTaskState().equals(DataFrameTransformTaskState.STOPPED) == false;
         }
     }
 }

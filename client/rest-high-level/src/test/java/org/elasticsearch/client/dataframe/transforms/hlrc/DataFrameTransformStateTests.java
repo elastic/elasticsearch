@@ -24,6 +24,7 @@ import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
@@ -88,6 +89,12 @@ public class DataFrameTransformStateTests extends AbstractHlrcXContentTestCase<D
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
         return new DataFrameTransformCheckpointStats(randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+        long totalDocs = randomNonNegativeLong();
+        Long remainingDocs = randomBoolean() ? null : randomLongBetween(0, totalDocs);
+        return new DataFrameTransformProgress(totalDocs, remainingDocs);
     }
 
     public static DataFrameIndexerTransformStats randomStats(String transformId) {

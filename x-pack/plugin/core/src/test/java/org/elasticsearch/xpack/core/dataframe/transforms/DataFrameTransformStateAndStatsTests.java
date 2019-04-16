@@ -14,16 +14,22 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests.randomDataFrameTransformProgress;
+
 public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
 
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
 
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats(String id) {
-        return new DataFrameTransformStateAndStats(id,
+        DataFrameTransformStateAndStats stats = new DataFrameTransformStateAndStats(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats(id),
                 DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
+        if (randomBoolean()) {
+            stats.setProgress(randomDataFrameTransformProgress());
+        }
+        return stats;
     }
 
     public static DataFrameTransformStateAndStats randomDataFrameTransformStateAndStats() {

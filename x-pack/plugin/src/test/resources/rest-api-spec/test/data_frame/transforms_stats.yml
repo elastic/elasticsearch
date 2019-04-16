@@ -34,6 +34,7 @@ teardown:
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-stats"
+        wait_for_completion: true
 
   - do:
       data_frame.delete_data_frame_transform:
@@ -59,6 +60,9 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
+  - match: { transforms.0.progress.total_docs: 0 }
+  - match: { transforms.0.progress.docs_remaining: 0 }
+  - match: { transforms.0.progress.percent_complete: 1.0 }
 
 ---
 "Test get transform stats on missing transform":
@@ -207,3 +211,4 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
+  - is_false: transforms.0.progress

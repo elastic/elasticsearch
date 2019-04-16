@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,6 +54,18 @@ public class HistogramGroupSource extends SingleGroupSource<HistogramGroupSource
     @Override
     public Type getType() {
         return Type.HISTOGRAM;
+    }
+
+    @Override
+    public QueryBuilder getNextBucketsQuery(Object key) {
+        assert key instanceof Number;
+        return QueryBuilders.rangeQuery(field).gte(interval + ((Number)key).doubleValue());
+    }
+
+    @Override
+    public QueryBuilder getCurrentBucketQuery(Object key) {
+        assert key instanceof Number;
+        return QueryBuilders.rangeQuery(field).lt(((Number)key).doubleValue() - interval).gte(key);
     }
 
     public static HistogramGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {

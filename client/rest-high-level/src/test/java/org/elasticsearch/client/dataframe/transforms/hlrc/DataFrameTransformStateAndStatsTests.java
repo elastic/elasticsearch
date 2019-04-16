@@ -39,10 +39,12 @@ public class DataFrameTransformStateAndStatsTests extends AbstractHlrcXContentTe
     @Override
     public DataFrameTransformStateAndStats convertHlrcToInternal(
             org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats instance) {
-        return new DataFrameTransformStateAndStats(instance.getId(),
+        DataFrameTransformStateAndStats stats = new DataFrameTransformStateAndStats(instance.getId(),
                 DataFrameTransformStateTests.fromHlrc(instance.getTransformState()),
                 DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
                 DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
+        stats.setProgress(DataFrameTransformProgressTests.fromHlrc(instance.getProgress()));
+        return stats;
     }
 
     @Override

@@ -40,6 +40,7 @@ public final class DateUtils {
         .toFormatter().withZone(UTC);
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(UTC);
+    private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}
 
@@ -128,7 +129,7 @@ public final class DateUtils {
     }
 
     public static int getNanoPrecision(Expression precisionExpression, int nano) {
-        int precision = 3;
+        int precision = DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS;
 
         if (precisionExpression != null) {
             try {

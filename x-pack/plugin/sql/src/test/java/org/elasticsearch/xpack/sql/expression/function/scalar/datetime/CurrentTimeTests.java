@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expression> {
 
     public static CurrentTime randomCurrentTime() {
-        return new CurrentTime(EMPTY, Literal.of(EMPTY, randomInt(9) + 1), TestUtils.randomConfiguration());
+        return new CurrentTime(EMPTY, Literal.of(EMPTY, randomInt(9)), TestUtils.randomConfiguration());
     }
 
     @Override
@@ -51,7 +51,7 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
         ZonedDateTime now = instance.configuration().now();
         ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
             ESTestCase::randomZone);
-        return new CurrentTime(instance.source(), Literal.of(EMPTY, randomInt(9) + 1), TestUtils.randomConfiguration(mutatedZoneId));
+        return new CurrentTime(instance.source(), Literal.of(EMPTY, randomInt(9)), TestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override

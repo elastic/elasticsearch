@@ -784,11 +784,13 @@ public class Node implements Closeable {
     // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
+        synchronized (lifecycle) {
+            if (lifecycle.started()) {
+                stop();
+            }
+            if (!lifecycle.moveToClosed()) {
+                return;
+            }
         }
 
         logger.info("closing ...");

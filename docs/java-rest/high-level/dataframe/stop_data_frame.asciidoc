@@ -12,7 +12,9 @@ It accepts a +{request}+ object and responds with a +{response}+ object.
 [id="{upid}-{api}-request"]
 ==== Stop Data Frame Request
 
-A +{request}+ object requires a non-null `id`.
+A +{request}+ object requires a non-null `id`. `id` can be a comma separated list of Ids
+or a single Id. Wildcards, `*` and `_all` are also accepted.
+
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------

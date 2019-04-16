@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -856,14 +857,10 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.addAll(new MlEvaluationNamedXContentProvider().getNamedWriteables());
-        return namedWriteables;
-    }
-
-    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return new MlEvaluationNamedXContentProvider().getNamedXContentParsers();
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        return namedXContent;
     }
 }

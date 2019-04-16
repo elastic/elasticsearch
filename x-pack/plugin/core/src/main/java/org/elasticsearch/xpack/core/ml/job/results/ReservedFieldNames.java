@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -262,15 +263,15 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.ID.getPreferredName(),
             DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
-            DataFrameAnalyticsConfig.ANALYSES.getPreferredName(),
-            DataFrameAnalyticsConfig.ANALYSES_FIELDS.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
+            DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
-            "outlier_detection",
-            "method",
-            "number_neighbours",
+            OutlierDetection.NAME.getPreferredName(),
+            OutlierDetection.NUMBER_NEIGHBORS.getPreferredName(),
+            OutlierDetection.METHOD.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE
     };

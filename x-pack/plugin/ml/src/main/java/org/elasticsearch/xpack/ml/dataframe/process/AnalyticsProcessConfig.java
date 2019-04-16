@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysis;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -51,8 +51,26 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         builder.field(MEMORY_LIMIT, memoryLimit.getBytes());
         builder.field(THREADS, threads);
         builder.field(RESULTS_FIELD, resultsField);
-        builder.field(ANALYSIS, analysis);
+        builder.field(ANALYSIS, new DataFrameAnalysisWrapper(analysis));
         builder.endObject();
         return builder;
+    }
+
+    private static class DataFrameAnalysisWrapper implements ToXContentObject {
+
+        private final DataFrameAnalysis analysis;
+
+        private DataFrameAnalysisWrapper(DataFrameAnalysis analysis) {
+            this.analysis = analysis;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("name", analysis.getWriteableName());
+            builder.field("parameters", analysis.getParams());
+            builder.endObject();
+            return builder;
+        }
     }
 }

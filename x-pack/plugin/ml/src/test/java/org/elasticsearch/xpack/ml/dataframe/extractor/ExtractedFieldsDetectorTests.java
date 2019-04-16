@@ -10,10 +10,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalysisConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 
@@ -222,13 +222,12 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
         return buildAnalyticsConfig(null);
     }
 
-    private static DataFrameAnalyticsConfig buildAnalyticsConfig(FetchSourceContext analysesFields) {
+    private static DataFrameAnalyticsConfig buildAnalyticsConfig(FetchSourceContext analyzedFields) {
         return new DataFrameAnalyticsConfig.Builder("foo")
             .setSource(new DataFrameAnalyticsSource(SOURCE_INDEX, null))
             .setDest(new DataFrameAnalyticsDest(DEST_INDEX, null))
-            .setAnalysesFields(analysesFields)
-            .setAnalyses(Collections.singletonList(new DataFrameAnalysisConfig(
-                Collections.singletonMap("outlier_detection", Collections.emptyMap()))))
+            .setAnalyzedFields(analyzedFields)
+            .setAnalysis(new OutlierDetection())
             .build();
     }
 

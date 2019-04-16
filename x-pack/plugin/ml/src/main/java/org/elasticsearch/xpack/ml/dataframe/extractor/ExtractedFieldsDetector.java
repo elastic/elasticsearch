@@ -110,12 +110,12 @@ public class ExtractedFieldsDetector {
     }
 
     private void includeAndExcludeFields(Set<String> fields, String index) {
-        FetchSourceContext analysesFields = config.getAnalysesFields();
-        if (analysesFields == null) {
+        FetchSourceContext analyzedFields = config.getAnalyzedFields();
+        if (analyzedFields == null) {
             return;
         }
-        String includes = analysesFields.includes().length == 0 ? "*" : Strings.arrayToCommaDelimitedString(analysesFields.includes());
-        String excludes = Strings.arrayToCommaDelimitedString(analysesFields.excludes());
+        String includes = analyzedFields.includes().length == 0 ? "*" : Strings.arrayToCommaDelimitedString(analyzedFields.includes());
+        String excludes = Strings.arrayToCommaDelimitedString(analyzedFields.excludes());
 
         if (Regex.isMatchAllPattern(includes) && excludes.isEmpty()) {
             return;

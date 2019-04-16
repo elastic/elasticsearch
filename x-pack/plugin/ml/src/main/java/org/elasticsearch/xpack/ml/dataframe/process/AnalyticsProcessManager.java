@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysesUtils;
-import org.elasticsearch.xpack.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 
@@ -145,12 +143,8 @@ public class AnalyticsProcessManager {
 
     private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
         DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        List<DataFrameAnalysis> dataFrameAnalyses = DataFrameAnalysesUtils.readAnalyses(config.getAnalyses());
-        // TODO We will not need this assertion after we add support for multiple analyses
-        assert dataFrameAnalyses.size() == 1;
-
         AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), dataFrameAnalyses.get(0));
+                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), config.getAnalysis());
         return processConfig;
     }
 

@@ -19,7 +19,7 @@
             "dest": {
               "index": "missing-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
   - do:
@@ -45,7 +45,7 @@
             "dest": {
               "index": "empty-index-dest"
             },
-            "analyses": [{"outlier_detection":{}}]
+            "analysis": {"outlier_detection":{}}
           }
 
   - do:

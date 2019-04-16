@@ -27,9 +27,12 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetectionTests;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -51,14 +54,18 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+        return new NamedWriteableRegistry(namedWriteables);
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+        return new NamedXContentRegistry(namedXContent);
     }
 
     @Override
@@ -78,14 +85,13 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
         DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
         DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
-        List<DataFrameAnalysisConfig> analyses = Collections.singletonList(DataFrameAnalysisConfigTests.randomConfig());
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setAnalyses(analyses)
+            .setAnalysis(OutlierDetectionTests.createRandom())
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {
-            builder.setAnalysesFields(new FetchSourceContext(true,
+            builder.setAnalyzedFields(new FetchSourceContext(true,
                 generateRandomStringArray(10, 10, false, false),
                 generateRandomStringArray(10, 10, false, false)));
         }
@@ -105,7 +111,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         //query:match:type stopped being supported in 6.x
         "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n" +
         "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}}\n" +
+        "    \"analysis\": {\"outlier_detection\": {\"number_neighbors\": 10}}\n" +
         "}";
 
     private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
@@ -113,7 +119,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractSerializingTestCase<D
         // match_all if parsed, adds default values in the options
         "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" +
         "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analyses\": {\"outlier_detection\": {\"number_neighbours\": 10}}\n" +
+        "    \"analysis\": {\"outlier_detection\": {\"number_neighbors\": 10}}\n" +
         "}";
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {

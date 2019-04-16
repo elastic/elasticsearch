@@ -89,7 +89,7 @@ public class EnrichPolicyRunner {
     private Map<String, Object> getMappings(final GetIndexResponse getIndexResponse, final String sourceIndexName) {
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = getIndexResponse.mappings();
         ImmutableOpenMap<String, MappingMetaData> indexMapping = mappings.get(sourceIndexName);
-        // Assuming single mapping
+        assert indexMapping.keys().size() == 0 : "Expecting only one type per index";
         MappingMetaData typeMapping = indexMapping.iterator().next().value;
         return typeMapping.sourceAsMap();
     }

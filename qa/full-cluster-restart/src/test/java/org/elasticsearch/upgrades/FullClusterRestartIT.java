@@ -820,6 +820,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument("should_have_translog"));
         }
 
+        refresh();
         // Count the documents in the index to make sure we have as many as we put there
         Request countRequest = new Request("GET", "/" + index + "/_search");
         countRequest.addParameter("size", "0");

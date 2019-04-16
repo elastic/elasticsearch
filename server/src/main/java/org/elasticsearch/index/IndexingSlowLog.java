@@ -21,10 +21,9 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -167,7 +166,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    static final class SlowLogParsedDocumentPrinter implements Message, StringBuilderFormattable {
+    static final class SlowLogParsedDocumentPrinter implements LoggerMessage {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;

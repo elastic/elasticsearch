@@ -22,7 +22,7 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.StringBuilders;
 
-public class DeprecatedMessage extends ParameterizedMessage {
+public class DeprecatedMessage extends ParameterizedMessage implements LoggerMessage {
     private String xOpaqueId;
 
     public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {

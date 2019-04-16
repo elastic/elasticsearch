@@ -49,7 +49,7 @@ public class EnrichPolicyRunner {
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private LongSupplier nowSupplier;
 
-    public EnrichPolicyRunner(ClusterService clusterService, Client client, EnrichStore enrichStore,
+    EnrichPolicyRunner(ClusterService clusterService, Client client, EnrichStore enrichStore,
                               IndexNameExpressionResolver indexNameExpressionResolver,
                               LongSupplier nowSupplier) {
         this.clusterService = clusterService;

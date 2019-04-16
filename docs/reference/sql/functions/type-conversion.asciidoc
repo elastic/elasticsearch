@@ -11,7 +11,9 @@ Functions for converting an expression of one data type to another.
 .Synopsis:
 [source, sql]
 ----
-CAST(expression<1> AS data_type<2>)
+CAST(
+    expression <1>
+ AS data_type) <2>
 ----
 
 <1> Expression to cast
@@ -50,7 +52,9 @@ To obtain an {es} `float`, perform casting to its SQL equivalent, `real` type.
 .Synopsis:
 [source, sql]
 ----
-CONVERT(expression<1>, data_type<2>)
+CONVERT(
+    expression, <1>
+    data_type)  <2>
 ----
 
 <1> Expression to convert

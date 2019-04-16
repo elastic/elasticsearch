@@ -146,7 +146,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (value != null) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
                     // treat % as null

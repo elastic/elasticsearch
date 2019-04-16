@@ -13,7 +13,7 @@ Functions for performing string manipulation.
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ASCII(string_exp<1>)
+ASCII(string_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -37,7 +37,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringAscii]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-BIT_LENGTH(string_exp<1>)
+BIT_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -60,7 +60,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringBitLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CHAR(code<1>)
+CHAR(code) <1>
 --------------------------------------------------
 *Input*:
 
@@ -83,7 +83,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringChar]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CHAR_LENGTH(string_exp<1>)
+CHAR_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -106,7 +106,9 @@ include-tagged::{sql-specs}/docs.csv-spec[stringCharLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-CONCAT(string_exp1<1>,string_exp2<2>)
+CONCAT(
+    string_exp1, <1>
+    string_exp2) <2>
 --------------------------------------------------
 *Input*:
 
@@ -130,7 +132,11 @@ include-tagged::{sql-specs}/docs.csv-spec[stringConcat]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-INSERT(source<1>, start<2>, length<3>, replacement<4>)
+INSERT(
+    source,      <1>
+    start,       <2>
+    length,      <3>
+    replacement) <4>
 --------------------------------------------------
 *Input*:
 
@@ -156,7 +162,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringInsert]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LCASE(string_exp<1>)
+LCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -179,7 +185,9 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLCase]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LEFT(string_exp<1>, count<2>)
+LEFT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
@@ -203,7 +211,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLeft]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LENGTH(string_exp<1>)
+LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -226,7 +234,11 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LOCATE(pattern<1>, source<2>[, start]<3>)
+LOCATE(
+    pattern, <1>
+    source   <2>
+    [, start]<3>
+)
 --------------------------------------------------
 *Input*:
 
@@ -256,7 +268,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLocateWithStart]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-LTRIM(string_exp<1>)
+LTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -279,7 +291,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringLTrim]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-OCTET_LENGTH(string_exp<1>)
+OCTET_LENGTH(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -302,7 +314,9 @@ include-tagged::{sql-specs}/docs.csv-spec[stringOctetLength]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-POSITION(string_exp1<1>, string_exp2<2>)
+POSITION(
+    string_exp1, <1>
+    string_exp2) <2>
 --------------------------------------------------
 *Input*:
 
@@ -326,7 +340,9 @@ include-tagged::{sql-specs}/docs.csv-spec[stringPosition]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-REPEAT(string_exp<1>, count<2>)
+REPEAT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
@@ -350,7 +366,10 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRepeat]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-REPLACE(source<1>, pattern<2>, replacement<3>)
+REPLACE(
+    source,      <1>
+    pattern,     <2>
+    replacement) <3>
 --------------------------------------------------
 *Input*:
 
@@ -375,7 +394,9 @@ include-tagged::{sql-specs}/docs.csv-spec[stringReplace]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RIGHT(string_exp<1>, count<2>)
+RIGHT(
+    string_exp, <1>
+    count)      <2>
 --------------------------------------------------
 *Input*:
 
@@ -399,7 +420,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRight]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-RTRIM(string_exp<1>)
+RTRIM(string_exp) <1>
 --------------------------------------------------
 *Input*:
 
@@ -422,7 +443,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringRTrim]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SPACE(count<1>)
+SPACE(count) <1>
 --------------------------------------------------
 *Input*:
 
@@ -445,7 +466,10 @@ include-tagged::{sql-specs}/docs.csv-spec[stringSpace]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SUBSTRING(source<1>, start<2>, length<3>)
+SUBSTRING(
+    source, <1>
+    start,  <2>
+    length) <3>
 --------------------------------------------------
 *Input*:
 
@@ -470,7 +494,7 @@ include-tagged::{sql-specs}/docs.csv-spec[stringSubString]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-UCASE(string_exp<1>)
+UCASE(string_exp) <1>
 --------------------------------------------------
 *Input*:
 

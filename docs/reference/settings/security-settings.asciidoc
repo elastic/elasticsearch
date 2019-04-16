@@ -1208,10 +1208,7 @@ See {stack-ov}/realm-chains.html#authorization_realms[Delegating authorization t
 ===== OpenID Connect realm settings
 
 In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
-can specify  the following settings:
-
-`op.name`::
-The name of the OpenID Connect Provider, used as an identifier.
+can specify the following settings:
 
 `op.issuer`::
 A verifiable Identifier for your OpenID Connect Provider. An Issuer
@@ -1226,11 +1223,11 @@ OpenID Connect Provider. The value for this setting should be provided by your O
 Connect Provider.
 
 `op.token_endpoint`::
-The URL for the Token Endpoint at the  OpenID Connect Provider.
+The URL for the Token Endpoint at the OpenID Connect Provider.
 The value for this setting should be provided by your OpenID Connect Provider.
 
 `op.userinfo_endpoint`::
-The URL for the User Info Endpoint at the  OpenID Connect Provider.
+The URL for the User Info Endpoint at the OpenID Connect Provider.
 The value for this setting should be provided by your OpenID Connect Provider.
 
 `op.endsession_endpoint`::
@@ -1276,7 +1273,7 @@ Defaults to `RSA256`
 
 `rp.requested_scopes`::
 The scope values that will be requested by the OpenID Connect Provider as
-part of the Authentication Request. Defaults to `openid`
+part of the Authentication Request. Optional, defaults to `openid`
 
 `rp.post_logout_redirect_uri`::
 The Redirect URI (usually within {kib}) that the OpenID Connect Provider
@@ -1370,29 +1367,24 @@ authentication (if required). `ssl.key` and `ssl.keystore.path` cannot be used
 at the same time.
 
 `ssl.key_passphrase`::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
+Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
 encrypted. Cannot be used with `ssl.secure_key_passphrase`.
 
 `ssl.secure_key_passphrase` (<<secure-settings,Secure>>)::
-Specifies the
-passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
+Specifies the passphrase to decrypt the PEM encoded private key (`ssl.key`) if it is
 encrypted. Cannot be used with `ssl.key_passphrase`.
 
 `ssl.certificate`::
-Specifies the
-path to the PEM encoded certificate (or certificate chain) that is associated
+Specifies the path to the PEM encoded certificate (or certificate chain) that is associated
 with the key (`ssl.key`). This setting can be used only if `ssl.key` is set.
 
 `ssl.certificate_authorities`::
-Specifies the
-paths to the PEM encoded certificate authority certificates that should be
+Specifies the paths to the PEM encoded certificate authority certificates that should be
 trusted. `ssl.certificate_authorities` and `ssl.truststore.path` cannot be
 used at the same time.
 
 `ssl.keystore.path`::
-Specifies the path to
-the keystore that contains a private key and certificate.
+Specifies the path to the keystore that contains a private key and certificate.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
 `ssl.key` and `ssl.keystore.path` cannot be used at the same time.
 
@@ -1420,8 +1412,7 @@ Defaults to the keystore password. This setting cannot be used with
 `ssl.keystore.key_password`.
 
 `ssl.truststore.path`::
-The path to the
-keystore that contains the certificates to trust.
+The path to the keystore that contains the certificates to trust.
 Must be either a Java Keystore (jks) or a PKCS#12 file.
 `ssl.certificate_authorities` and `ssl.truststore.path` cannot be used at the
 same time.
@@ -1440,8 +1431,7 @@ The password to the truststore (`ssl.truststore.path`). This setting cannot be
 used with `ssl.truststore.password`.
 
 `ssl.verification_mode`::
-One of `full`
-(verify the hostname and the certificate path), `certificate` (verify the
+One of `full` (verify the hostname and the certificate path), `certificate` (verify the
 certificate path, but not the hostname) or `none` (perform no verification).
 Defaults to `full`.
 +

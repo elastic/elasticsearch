@@ -293,9 +293,10 @@ final class IndexShardOperationPermits implements Closeable {
     }
 
     /**
-     * Obtain the active operation count, or zero if all permits are held (even if there are outstanding operations in flight).
+     * Obtain the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} if all permits are held (even if there are
+     * outstanding operations in flight).
      *
-     * @return the active operation count, or zero when all permits are held
+     * @return the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} when all permits are held.
      */
     int getActiveOperationsCount() {
         int availablePermits = semaphore.availablePermits();
@@ -303,9 +304,9 @@ final class IndexShardOperationPermits implements Closeable {
             /*
              * This occurs when either doBlockOperations is holding all the permits or there are outstanding operations in flight and the
              * remainder of the permits are held by doBlockOperations. We do not distinguish between these two cases and simply say that
-             * the active operations count is zero.
+             * the operations are blocked.
              */
-            return 0;
+            return IndexShard.OPERATIONS_BLOCKED;
         } else {
             return TOTAL_PERMITS - availablePermits;
         }

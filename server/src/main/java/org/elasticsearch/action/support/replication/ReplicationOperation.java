@@ -74,7 +74,7 @@ public class ReplicationOperation<
     private final long primaryTerm;
 
     // exposed for tests
-    final ActionListener<PrimaryResultT> resultListener;
+    private final ActionListener<PrimaryResultT> resultListener;
 
     private volatile PrimaryResultT primaryResult = null;
 

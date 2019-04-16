@@ -8,12 +8,6 @@ Full documentation is hosted at https://github.com/elastic/go-elasticsearch[GitH
 and https://godoc.org/github.com/elastic/go-elasticsearch[GoDoc]
 -- this page provides only an overview.
 
-.Work In Progress
-************************************************************************************
-The client is currently available as a public preview. We encourage you to try the
-package in your projects, but please be aware that the public API may change.
-************************************************************************************
-
 === Elasticsearch Version Compatibility
 
 The client major versions correspond to the Elasticsearch major versions:
@@ -28,7 +22,7 @@ Add the package to your `go.mod` file:
 
 [source,text]
 ------------------------------------
-require github.com/elastic/go-elasticsearch {VERSION}
+require github.com/elastic/go-elasticsearch/v7 7.x
 ------------------------------------
 
 === Usage
@@ -40,7 +34,7 @@ package main
 import (
   "log"
 
-  "github.com/elastic/go-elasticsearch"
+  "github.com/elastic/go-elasticsearch/v7"
 )
 
 func main() {
@@ -61,7 +55,7 @@ at https://github.com/elastic/go-elasticsearch/tree/master/_examples.
 
 == License
 
-Copyright 2019-present Elasticsearch
+Copyright 2019 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

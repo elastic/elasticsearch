@@ -226,9 +226,9 @@ primaryExpression
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
-    | name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIME ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    | name=CURRENT_TIME
     ;
 
 castExpression
@@ -340,7 +340,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS

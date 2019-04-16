@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.sql.util;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.time.Instant;
@@ -122,5 +125,26 @@ public final class DateUtils {
             return DAY_IN_MILLIS;
         }
         return l - (l % DAY_IN_MILLIS);
+    }
+
+    public static int getNanoPrecision(Expression precisionExpression, int nano) {
+        int precision = 3;
+
+        if (precisionExpression != null) {
+            try {
+                precision = Foldables.intValueOf(precisionExpression);
+            } catch (Exception e) {
+                throw new ParsingException(precisionExpression.source(), "invalid precision; " + e.getMessage());
+            }
+        }
+
+        if (precision < 0 || precision > 9) {
+            throw new ParsingException(precisionExpression.source(), "precision needs to be between [0-9], received [{}]",
+                precisionExpression.sourceText());
+        }
+
+        // remove the remainder
+        nano = nano - nano % (int) Math.pow(10, (9 - precision));
+        return nano;
     }
 }

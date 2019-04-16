@@ -100,8 +100,7 @@ public class EnrichPolicyRunner {
         logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
         for (String sourceIndex : sourceIndices) {
             Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> properties = ((Map<String, Object>) mapping.get("properties"));
+            Map<?, ?> properties = ((Map<?, ?>) mapping.get("properties"));
             if (properties == null) {
                 listener.onFailure(
                     new ElasticsearchException(

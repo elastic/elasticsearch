@@ -156,9 +156,10 @@ public class JoinHelper {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metaData().clusterUUIDCommitted() &&
                     localState.metaData().clusterUUID().equals(request.getState().metaData().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
+                    throw new CoordinationStateRejectedException("legacy join validation on cluster state" +
                         " with a different cluster uuid " + request.getState().metaData().clusterUUID() +
-                        " than local cluster uuid " + localState.metaData().clusterUUID() + ", rejecting");
+                        " than local cluster uuid " + localState.metaData().clusterUUID()
+                        + ", rejecting");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);

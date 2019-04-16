@@ -140,7 +140,17 @@ public class JoinHelperTests extends ESTestCase {
                         new NotMasterException("test"))), is(Level.DEBUG));
     }
 
+    public void testZen1JoinValidationRejectsMismatchedClusterUUID() {
+        assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
+            "legacy join validation on cluster state with a different cluster uuid");
+    }
+
     public void testJoinValidationRejectsMismatchedClusterUUID() {
+        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME,
+            "join validation on cluster state with a different cluster uuid");
+    }
+
+    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
         MockTransport mockTransport = new MockTransport();
@@ -158,40 +168,19 @@ public class JoinHelperTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        {
-            final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
-                .generateClusterUuidIfNeeded()).build();
+        final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
+            .generateClusterUuidIfNeeded()).build();
 
-            final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-            transportService.sendRequest(localNode, JoinHelper.VALIDATE_JOIN_ACTION_NAME,
-                new ValidateJoinRequest(otherClusterState),
-                new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE));
-            deterministicTaskQueue.runAllTasks();
+        final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
+        transportService.sendRequest(localNode, actionName,
+            new ValidateJoinRequest(otherClusterState),
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE));
+        deterministicTaskQueue.runAllTasks();
 
-            final CoordinationStateRejectedException coordinationStateRejectedException
-                = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
-            assertThat(coordinationStateRejectedException.getMessage(),
-                containsString("join validation on cluster state with a different cluster uuid"));
-            assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metaData().clusterUUID()));
-            assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
-        }
-
-        {
-            final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder()
-                .generateClusterUuidIfNeeded()).build();
-
-            final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-            transportService.sendRequest(localNode, MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(otherClusterState),
-                new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE));
-            deterministicTaskQueue.runAllTasks();
-
-            final CoordinationStateRejectedException coordinationStateRejectedException
-                = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
-            assertThat(coordinationStateRejectedException.getMessage(),
-                containsString("join validation on cluster state with a different cluster uuid"));
-            assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metaData().clusterUUID()));
-            assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
-        }
+        final CoordinationStateRejectedException coordinationStateRejectedException
+            = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
+        assertThat(coordinationStateRejectedException.getMessage(), containsString(expectedMessage));
+        assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metaData().clusterUUID()));
+        assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metaData().clusterUUID()));
     }
 }

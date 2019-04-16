@@ -10,6 +10,7 @@ dependencies {
 
 integTestRunner {
     systemProperty 'tests.security.manager', 'false'
+    // TODO add  tests.config.dir = {cluster.singleNode().getConfigDir()} when converting to testclusters
 }
 
 integTestCluster {

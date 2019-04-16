@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatPoint;
@@ -1042,7 +1044,7 @@ public class NumberFieldMapper extends FieldMapper {
         } else {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException | JsonParseException e) {
                 if (ignoreMalformed.value()) {
                     context.addIgnoredField(fieldType.name());
                     return;

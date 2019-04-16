@@ -105,7 +105,7 @@ public final class ContextDocGenerator {
                     List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
                     painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
                             "short".equals(v.name) || "char".equals(v.name) || "int".equals(v.name) || "long".equals(v.name) ||
-                            "float".equals(v.name) || "double".equals(v.name) || "def".equals(v.name));
+                            "float".equals(v.name) || "double".equals(v.name) || "org.elasticsearch.painless.lookup.def".equals(v.name));
 
                     painlessContextClassInfos.sort((c1, c2) -> {
                         String n1 = c1.name;
@@ -259,7 +259,7 @@ public final class ContextDocGenerator {
         stream.print("* ");
 
         if (painlessContextConstructorInfo.declaring.startsWith("java.")) {
-            stream.print(getConstructorJavaDocLink(painlessContextConstructorInfo) + "[" + className + "](");
+            stream.print(getConstructorJavaDocLink(painlessContextConstructorInfo) + "[" + className + "]");
         } else {
             stream.print(className);
         }
@@ -342,7 +342,9 @@ public final class ContextDocGenerator {
             javaType = "float";
         } else if ("D".equals(javaType) || "double".equals(javaType)) {
             javaType = "double";
-        } else if ("def".equals(javaType) == false) {
+        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
+            javaType = "def";
+        } else {
             javaType = javaClassNamesToPainlessClassNames.get(javaType);
         }
 
@@ -445,12 +447,12 @@ public final class ContextDocGenerator {
             javaType = "float";
         } else if ("D".equals(javaType) || "double".equals(javaType)) {
             javaType = "double";
-        } else if ("def".equals(javaType)) {
+        } else if ("org.elasticsearch.painless.lookup.def".equals(javaType)) {
             javaType = "java.lang.Object";
         }
 
-        if (arrayDimensions > 0) {
-            javaType += ":A";
+        while (arrayDimensions-- > 0) {
+            javaType += "%5B%5D";
         }
 
         return javaType;

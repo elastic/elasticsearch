@@ -216,7 +216,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void stopServices() throws IOException {
+    public void verifyReposThenStopServices() throws IOException {
         try {
             assertNoStaleRepositoryData();
         } finally {
@@ -530,35 +530,47 @@ public class SnapshotResiliencyTests extends ESTestCase {
             final Path latestIndexGenBlob = repoRoot.resolve("index.latest");
             assertTrue("Could not find index.latest blob for repo at [" + repoRoot + ']', Files.exists(latestIndexGenBlob));
             final long latestGen = ByteBuffer.wrap(Files.readAllBytes(latestIndexGenBlob)).getLong(0);
-            try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
-                final long[] indexGenerations = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith("index-"))
-                    .map(p -> p.getFileName().toString().replace("index-", ""))
-                    .mapToLong(Long::parseLong).sorted().toArray();
-                assertEquals(latestGen, indexGenerations[indexGenerations.length - 1]);
-                assertTrue(indexGenerations.length <= 2);
-            }
+            assertIndexGenerations(repoRoot, latestGen);
             final RepositoryData repositoryData;
             try (XContentParser parser =
                      XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
                          new BytesArray(Files.readAllBytes(repoRoot.resolve("index-" + latestGen))), XContentType.JSON)) {
                 repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
             }
-            final List<String> expectedIndexUUIDs =
-                repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
-            try (Stream<Path> indexRoots = Files.list(repoRoot.resolve("indices"))) {
-                final List<String> foundIndexUUIDs = indexRoots.filter(s -> s.getFileName().toString().startsWith("extra") == false)
-                    .map(p -> p.getFileName().toString()).collect(Collectors.toList());
-                assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
-            }
-            final List<String> expectedSnapshotUUIDs =
-                repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
-            for (String prefix : new String[]{"snap-", "meta-"}) {
-                try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
-                    final Collection<String> foundSnapshotUUIDs = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith(prefix))
-                        .map(p -> p.getFileName().toString().replace(prefix, "").replace(".dat", ""))
-                        .collect(Collectors.toSet());
-                    assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
-                }
+            assertIndexUUIDs(repoRoot, repositoryData);
+            assertSnapshotUUIDs(repoRoot, repositoryData);
+        }
+    }
+
+    private static void assertIndexGenerations(Path repoRoot, long latestGen) throws IOException {
+        try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+            final long[] indexGenerations = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith("index-"))
+                .map(p -> p.getFileName().toString().replace("index-", ""))
+                .mapToLong(Long::parseLong).sorted().toArray();
+            assertEquals(latestGen, indexGenerations[indexGenerations.length - 1]);
+            assertTrue(indexGenerations.length <= 2);
+        }
+    }
+
+    private static void assertIndexUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
+        final List<String> expectedIndexUUIDs =
+            repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
+        try (Stream<Path> indexRoots = Files.list(repoRoot.resolve("indices"))) {
+            final List<String> foundIndexUUIDs = indexRoots.filter(s -> s.getFileName().toString().startsWith("extra") == false)
+                .map(p -> p.getFileName().toString()).collect(Collectors.toList());
+            assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        }
+    }
+
+    private static void assertSnapshotUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
+        final List<String> expectedSnapshotUUIDs =
+            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+        for (String prefix : new String[]{"snap-", "meta-"}) {
+            try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+                final Collection<String> foundSnapshotUUIDs = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith(prefix))
+                    .map(p -> p.getFileName().toString().replace(prefix, "").replace(".dat", ""))
+                    .collect(Collectors.toSet());
+                assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
             }
         }
     }

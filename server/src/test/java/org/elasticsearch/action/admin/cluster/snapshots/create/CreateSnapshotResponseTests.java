@@ -64,6 +64,6 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState));
+            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState, null)); // NOCOMMIT generate actual test data maybe?
     }
 }

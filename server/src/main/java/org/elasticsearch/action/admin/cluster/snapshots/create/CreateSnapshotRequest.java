@@ -80,6 +80,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private boolean waitForCompletion;
 
+    private Map<String, Object> userMetadata;
+
     public CreateSnapshotRequest() {
     }
 
@@ -104,6 +106,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
+        userMetadata = in.readMap(); // NOCOMMIT version checking?
     }
 
     @Override
@@ -117,6 +120,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
+        out.writeMap(userMetadata); // NOCOMMIT version checking?
     }
 
     @Override
@@ -378,6 +382,15 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return includeGlobalState;
     }
 
+    public Map<String, Object> userMetadata() {
+        return userMetadata;
+    }
+
+    public CreateSnapshotRequest userMetadata(Map<String, Object> userMetadata) {
+        this.userMetadata = userMetadata;
+        return this;
+    }
+
     /**
      * Parses snapshot definition.
      *
@@ -405,6 +418,11 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
+            } else if (name.equals("_meta")) {
+                if (!(entry.getValue() instanceof Map)) {
+                    throw new IllegalArgumentException("malformed _meta, should be an object");
+                }
+                userMetadata((Map<String, Object>) entry.getValue());
             }
         }
         indicesOptions(IndicesOptions.fromMap(source, indicesOptions));
@@ -433,6 +451,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
+        builder.field("_meta", userMetadata);
         builder.endObject();
         return builder;
     }
@@ -460,12 +479,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             Arrays.equals(indices, that.indices) &&
             Objects.equals(indicesOptions, that.indicesOptions) &&
             Objects.equals(settings, that.settings) &&
-            Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
+            Objects.equals(masterNodeTimeout, that.masterNodeTimeout) &&
+            Objects.equals(userMetadata, that.userMetadata);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, settings, includeGlobalState, waitForCompletion);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, settings, includeGlobalState, waitForCompletion, userMetadata);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }
@@ -482,6 +502,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             ", includeGlobalState=" + includeGlobalState +
             ", waitForCompletion=" + waitForCompletion +
             ", masterNodeTimeout=" + masterNodeTimeout +
+            ", _meta=" + userMetadata +
             '}';
     }
 }

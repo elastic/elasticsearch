@@ -54,7 +54,7 @@ public class GetSnapshotsResponseTests extends AbstractStreamableXContentTestCas
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("indice1", "indice2"), System.currentTimeMillis(), reason,
-                System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean()));
+                System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(), null)); // NOCOMMIT generate actual test data maybe?
 
         }
         return new GetSnapshotsResponse(snapshots);

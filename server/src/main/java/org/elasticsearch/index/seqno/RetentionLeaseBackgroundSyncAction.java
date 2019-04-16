@@ -127,14 +127,16 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
             final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new PrimaryResult<>(request, new ReplicationResponse());
+            final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new PrimaryResult<>(request, new ReplicationResponse());
+        });
     }
 
     @Override

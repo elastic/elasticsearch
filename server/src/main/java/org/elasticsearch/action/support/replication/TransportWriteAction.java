@@ -96,19 +96,19 @@ public abstract class TransportWriteAction<
     }
 
     @Override
-    protected ReplicationOperation.Replicas newReplicasProxy(long primaryTerm) {
-        return new WriteActionReplicasProxy(primaryTerm);
+    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy() {
+        return new WriteActionReplicasProxy();
     }
 
     /**
      * Called on the primary with a reference to the primary {@linkplain IndexShard} to modify.
      *
-     * @return the result of the operation on primary, including current translog location and operation response and failure
-     * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
+     * @param listener listener for the result of the operation on primary, including current translog location and operation response
+     * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
-            Request request, IndexShard primary) throws Exception;
+    protected abstract void shardOperationOnPrimary(
+            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -371,12 +371,9 @@ public abstract class TransportWriteAction<
      */
     class WriteActionReplicasProxy extends ReplicasProxy {
 
-        WriteActionReplicasProxy(long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void failShardIfNeeded(ShardRouting replica, String message, Exception exception, ActionListener<Void> listener) {
+        public void failShardIfNeeded(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                      ActionListener<Void> listener) {
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
@@ -385,7 +382,7 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, ActionListener<Void> listener) {
+        public void markShardCopyAsStaleIfNeeded(ShardId shardId, String allocationId, long primaryTerm, ActionListener<Void> listener) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }

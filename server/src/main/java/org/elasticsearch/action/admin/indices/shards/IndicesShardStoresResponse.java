@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -267,8 +268,10 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             builder.field("node", nodeId());
-            super.toXContent(builder, params);
+            super.innerToXContent(builder, params);
+            builder.endObject();
             return builder;
         }
     }
@@ -361,9 +364,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         if (failures.size() > 0) {
             builder.startArray(Fields.FAILURES);
             for (Failure failure : failures) {
-                builder.startObject();
                 failure.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

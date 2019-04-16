@@ -21,12 +21,14 @@ This field used to index a composite key formed of the `_type` and the `_id`.
 Now that indices cannot have multiple types, this has been removed in favour
 of `_id`.
 
+//tag::notable-breaking-changes[]
 [float]
 ==== The `_default_` mapping is no longer allowed
 
 The `_default_` mapping has been deprecated in 6.0 and is now no longer allowed
 in 7.0. Trying to configure a `_default_` mapping on 7.x indices will result in
 an error.
+//end::notable-breaking-changes[]
 
 [float]
 ==== `index_options` for numeric fields has been removed
@@ -86,3 +88,8 @@ will be removed in a future version.
 The maximum allowed number of completion contexts in a mapping will be limited
 to 10 in the next major version. Completion fields that define more than 10
 contexts in a mapping will log a deprecation warning in this version.
+
+[float]
+==== `include_type_name` now defaults to `false`
+The default for `include_type_name` is now `false` for all APIs that accept
+the parameter.

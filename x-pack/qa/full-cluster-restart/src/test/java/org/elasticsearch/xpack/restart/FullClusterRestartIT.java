@@ -13,7 +13,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -22,16 +21,6 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.core.upgrade.UpgradeField;
-import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
-import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
-import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -60,6 +49,15 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+
+    public static final String INDEX_ACTION_TYPES_DEPRECATION_MESSAGE =
+        "[types removal] Specifying types in a watcher index action is deprecated.";
+
+    public static final String SEARCH_INPUT_TYPES_DEPRECATION_MESSAGE =
+        "[types removal] Specifying types in a watcher search request is deprecated.";
+
+    public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
+    public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     private String type;
 
@@ -123,7 +121,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 if (settingsMap.containsKey("index")) {
                     @SuppressWarnings("unchecked")
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    assertEquals("The security index needs to be upgraded", SecurityIndexManager.INTERNAL_INDEX_FORMAT, format);
+                    assertEquals("The security index needs to be upgraded", SECURITY_EXPECTED_INDEX_FORMAT_VERSION, format);
                 }
             }
 
@@ -144,8 +142,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
             Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
             if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                createBwcWatch.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
-                createBwcThrottlePeriod.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
+                createBwcWatch.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
+                createBwcThrottlePeriod.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
             }
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
@@ -183,7 +181,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    assertEquals("The watches index needs to be upgraded", UpgradeField.EXPECTED_INDEX_FORMAT_VERSION, format);
+                    assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, format);
                 }
             }
 
@@ -450,14 +448,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (getOldClusterVersion().before(Version.V_7_0_0)) {
             getRequest.setOptions(
                 expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE,
-                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
+                    INDEX_ACTION_TYPES_DEPRECATION_MESSAGE,
+                    SEARCH_INPUT_TYPES_DEPRECATION_MESSAGE
                 )
             );
         } else {
             getRequest.setOptions(
                 expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE
+                    INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
                 )
             );
         }
@@ -480,14 +478,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (getOldClusterVersion().before(Version.V_7_0_0)) {
             getRequest.setOptions(
                 expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE,
-                    WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE
+                    INDEX_ACTION_TYPES_DEPRECATION_MESSAGE,
+                    SEARCH_INPUT_TYPES_DEPRECATION_MESSAGE
                 )
             );
         } else {
             getRequest.setOptions(
                 expectWarnings(
-                    IndexAction.TYPES_DEPRECATION_MESSAGE
+                    INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
                 )
             );
         }
@@ -529,10 +527,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertBasicWatchInteractions() throws Exception {
 
-        String watch = new WatchSourceBuilder()
-                .condition(InternalAlwaysCondition.INSTANCE)
-                .trigger(ScheduleTrigger.builder(new IntervalSchedule(IntervalSchedule.Interval.seconds(1))))
-                .addAction("awesome", LoggingAction.builder(new TextTemplate("test"))).buildAsBytes(XContentType.JSON).utf8ToString();
+        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1s\"}},\"input\":{\"none\":{}}," +
+            "\"condition\":{\"always\":{}}," +
+            "\"actions\":{\"awesome\":{\"logging\":{\"level\":\"info\",\"text\":\"test\"}}}}";
         Request createWatchRequest = new Request("PUT", "_watcher/watch/new_watch");
         createWatchRequest.setJsonEntity(watch);
         Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));

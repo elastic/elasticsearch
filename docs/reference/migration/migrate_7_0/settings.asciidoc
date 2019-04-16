@@ -211,3 +211,22 @@ Elastic Stack to handle the indexing part.
 ==== Ingest User Agent processor defaults uses `ecs` output format
 https://github.com/elastic/ecs[ECS] format is now the default.
 The `ecs` setting for the user agent ingest processor now defaults to true.
+
+[float]
+[[remove-action-master-force_local]]
+==== Remove `action.master.force_local`
+
+The `action.master.force_local` setting was an undocumented setting, used
+internally by the tribe node to force reads to local cluster state (instead of
+forwarding to a master, which tribe nodes did not have).  Since the tribe
+node was removed, this setting was removed too.
+
+[float]
+==== Enforce cluster-wide shard limit
+The cluster-wide shard limit is now enforced and not optional. The limit can
+still be adjusted as desired using the cluster settings API.
+
+[float]
+==== HTTP Max content length setting is no longer parsed leniently
+Previously, `http.max_content_length` would reset to `100mb` if the setting was
+`Integer.MAX_VALUE`.  This leniency has been removed.

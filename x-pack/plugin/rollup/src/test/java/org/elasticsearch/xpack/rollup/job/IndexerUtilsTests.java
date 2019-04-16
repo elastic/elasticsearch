@@ -320,53 +320,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         }
     }
 
-    public void testKeyOrderingOldID() {
-        CompositeAggregation composite = mock(CompositeAggregation.class);
-
-        when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
-            List<CompositeAggregation.Bucket> foos = new ArrayList<>();
-
-            CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
-            LinkedHashMap<String, Object> keys = new LinkedHashMap<>(3);
-            keys.put("foo.date_histogram", 123L);
-            keys.put("bar.terms", "baz");
-            keys.put("abc.histogram", 1.9);
-            keys = shuffleMap(keys, Collections.emptySet());
-            when(bucket.getKey()).thenReturn(keys);
-
-            List<Aggregation> list = new ArrayList<>(3);
-            InternalNumericMetricsAggregation.SingleValue mockAgg = mock(InternalNumericMetricsAggregation.SingleValue.class);
-            when(mockAgg.getName()).thenReturn("123");
-            list.add(mockAgg);
-
-            InternalNumericMetricsAggregation.SingleValue mockAgg2 = mock(InternalNumericMetricsAggregation.SingleValue.class);
-            when(mockAgg2.getName()).thenReturn("abc");
-            list.add(mockAgg2);
-
-            InternalNumericMetricsAggregation.SingleValue mockAgg3 = mock(InternalNumericMetricsAggregation.SingleValue.class);
-            when(mockAgg3.getName()).thenReturn("yay");
-            list.add(mockAgg3);
-
-            Collections.shuffle(list, random());
-
-            Aggregations aggs = new Aggregations(list);
-            when(bucket.getAggregations()).thenReturn(aggs);
-            when(bucket.getDocCount()).thenReturn(1L);
-
-            foos.add(bucket);
-
-            return foos;
-        });
-
-        // The content of the config don't actually matter for this test
-        // because the test is just looking at agg keys
-        GroupConfig groupConfig = new GroupConfig(randomDateHistogramGroupConfig(random()), new HistogramGroupConfig(123L, "abc"), null);
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, "foo", new RollupIndexerJobStats(), groupConfig, "foo");
-        assertThat(docs.size(), equalTo(1));
-        assertThat(docs.get(0).id(), equalTo("1237859798"));
-    }
-
-    public void testKeyOrderingNewID() {
+    public void testKeyOrdering() {
         CompositeAggregation composite = mock(CompositeAggregation.class);
 
         when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {
@@ -413,7 +367,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
     /*
         A test to make sure very long keys don't break the hash
      */
-    public void testKeyOrderingNewIDLong() {
+    public void testKeyOrderingLong() {
         CompositeAggregation composite = mock(CompositeAggregation.class);
 
         when(composite.getBuckets()).thenAnswer((Answer<List<CompositeAggregation.Bucket>>) invocationOnMock -> {

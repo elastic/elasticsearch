@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class FindFileStructureRequest implements Validatable, ToXContent {
+public class FindFileStructureRequest implements Validatable, ToXContentFragment {
 
     public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
     public static final ParseField TIMEOUT = new ParseField("timeout");

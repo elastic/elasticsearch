@@ -71,8 +71,7 @@ public class IndexShardSnapshotStatus {
 
     private IndexShardSnapshotStatus(final Stage stage, final long startTime, final long totalTime,
                                      final int incrementalFileCount, final int totalFileCount, final int processedFileCount,
-                                     final long incrementalSize, final long totalSize, final long processedSize,
-        final String failure) {
+                                     final long incrementalSize, final long totalSize, final long processedSize, final String failure) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.startTime = startTime;
         this.totalTime = totalTime;

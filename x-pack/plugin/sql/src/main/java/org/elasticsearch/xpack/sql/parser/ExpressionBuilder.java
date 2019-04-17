@@ -109,7 +109,6 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultCo
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -431,30 +430,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
-        Literal p = null;
-
-        if (ctx.precision != null) {
-            try {
-                Source pSource = source(ctx.precision);
-                short safeShort = DataTypeConversion.safeToShort(StringUtils.parseLong(ctx.precision.getText()));
-                if (safeShort > 9 || safeShort < 0) {
-                    throw new ParsingException(pSource, "Precision needs to be between [0-9], received [{}]", safeShort);
-                }
-                p = Literal.of(pSource, Short.valueOf(safeShort));
-            } catch (SqlIllegalArgumentException siae) {
-                throw new ParsingException(source, siae.getMessage());
-            }
-        }
-        
         String functionName = ctx.name.getText();
 
         switch (ctx.name.getType()) {
             case SqlBaseLexer.CURRENT_TIMESTAMP:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_DATE:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIME:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);
         }

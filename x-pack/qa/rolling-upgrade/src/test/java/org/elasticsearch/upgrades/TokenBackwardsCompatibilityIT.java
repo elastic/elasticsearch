@@ -131,7 +131,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testTokensStayInvalidatedInMixedCluster() throws Exception {
-        // Verify that an old token continues to work during all stages of the rolling upgrade
+        // Verify that an old, invalidated token remains invalidated during all stages of the rolling upgrade
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         Map<String, Object> source = retrieveStoredTokens(client(), 5);
         assertAccessTokenDoesNotWork((String) source.get("token"));

@@ -435,4 +435,19 @@ public class ICUCollationKeywordFieldMapperTests extends ESSingleNodeTestCase {
         fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
     }
+
+    public void testUpdateIgnoreAbove() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE).endObject().endObject()
+            .endObject().endObject());
+
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field").field("type", FIELD_TYPE)
+            .field("ignore_above", 5).endObject().endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+    }
+
 }

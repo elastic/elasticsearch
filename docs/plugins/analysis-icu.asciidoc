@@ -413,6 +413,11 @@ The following parameters are accepted by `icu_collation_keyword` fields:
     Accepts a string value which is substituted for any explicit `null`
     values.  Defaults to `null`, which means the field is treated as missing.
 
+`ignore_above`::
+
+    Strings longer than the `ignore_above` setting will be ignored. Checking is performed on the original string before the collation.
+    The `ignore_above` setting can be updated on existing fields using the {ref}/indices-put-mapping.html[PUT mapping API].
+
 `store`::
 
     Whether the field value should be stored and retrievable separately from

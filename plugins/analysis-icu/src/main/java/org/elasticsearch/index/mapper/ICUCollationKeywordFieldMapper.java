@@ -490,6 +490,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                         builder.nullValue(fieldNode.toString());
                         iterator.remove();
                         break;
+                    case "ignore_above":
+                        builder.ignoreAbove(XContentMapValues.nodeIntegerValue(fieldNode, -1));
+                        iterator.remove();
+                        break;
                     case "norms":
                         builder.omitNorms(!XContentMapValues.nodeBooleanValue(fieldNode, "norms"));
                         iterator.remove();
@@ -540,10 +544,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                         break;
                     case "hiragana_quaternary_mode":
                         builder.hiraganaQuaternaryMode(XContentMapValues.nodeBooleanValue(fieldNode, false));
-                        iterator.remove();
-                        break;
-                    case "ignore_above":
-                        builder.ignoreAbove(XContentMapValues.nodeIntegerValue(fieldNode, -1));
                         iterator.remove();
                         break;
                     default:
@@ -659,9 +659,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             conflicts.add("Cannot update hiragana_quaternary_mode setting for [" + CONTENT_TYPE + "]");
         }
 
-        if (ignoreAbove != icuMergeWith.ignoreAbove) {
-            conflicts.add("Cannot update ignore_above settings for [" + CONTENT_TYPE + "]");
-        }
+        this.ignoreAbove = icuMergeWith.ignoreAbove;
 
         if (!conflicts.isEmpty()) {
             throw new IllegalArgumentException("Can't merge because of conflicts: " + conflicts);

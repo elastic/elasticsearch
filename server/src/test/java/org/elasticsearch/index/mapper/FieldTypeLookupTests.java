@@ -31,10 +31,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldTypeLookupTests extends ESTestCase {
@@ -243,6 +246,22 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         assertTrue(names.contains("bar"));
         assertTrue(names.contains("barometer"));
+    }
+
+    public void testFieldTypeIterator() {
+        MockFieldMapper mapper = new MockFieldMapper("foo");
+        JsonFieldMapper jsonMapper = createJsonMapper("object1.object2.field");
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(mapper, jsonMapper), emptyList());
+
+        Set<String> fieldNames = new HashSet<>();
+        for (MappedFieldType fieldType : lookup) {
+            fieldNames.add(fieldType.name());
+        }
+
+        assertThat(fieldNames, containsInAnyOrder(
+            mapper.name(), jsonMapper.name(), jsonMapper.keyedFieldName()));
     }
 
     public void testIteratorImmutable() {

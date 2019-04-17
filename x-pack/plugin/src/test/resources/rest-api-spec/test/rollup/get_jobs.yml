@@ -78,7 +78,6 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 ---
 "Test get with no jobs":
 
@@ -189,7 +188,6 @@ setup:
             trigger_count: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
         - config:
             id: "bar"
             index_pattern: "bar"
@@ -221,6 +219,5 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
 

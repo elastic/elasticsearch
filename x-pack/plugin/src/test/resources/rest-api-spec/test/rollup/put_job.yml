@@ -78,7 +78,6 @@ setup:
             search_total: 0
           status:
             job_state: "stopped"
-            upgraded_doc_id: true
 
 ---
 "Test put_job with existing name":

@@ -10,7 +10,6 @@ Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 === Enhancements
 
 Distributed::
-* Do not trim unsafe commits when open readonly engine {pull}41041[#41041] (issue: {issue}33888[#33888])
 * Avoid background sync on relocated primary {pull}40800[#40800] (issue: {issue}40731[#40731])
 
 Infra/Packaging::

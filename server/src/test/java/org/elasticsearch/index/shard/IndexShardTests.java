@@ -1457,12 +1457,6 @@ public class IndexShardTests extends IndexShardTestCase {
                     return super.listAll();
                 }
             }
-
-            // temporary override until LUCENE-8735 is integrated
-            @Override
-            public Set<String> getPendingDeletions() throws IOException {
-                return in.getPendingDeletions();
-            }
         };
 
         try (Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory)) {

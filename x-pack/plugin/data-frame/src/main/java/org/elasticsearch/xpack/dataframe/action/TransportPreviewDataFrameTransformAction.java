@@ -35,6 +35,7 @@ import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMP
 public class TransportPreviewDataFrameTransformAction extends
     HandledTransportAction<PreviewDataFrameTransformAction.Request, PreviewDataFrameTransformAction.Response> {
 
+    private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
@@ -77,16 +78,15 @@ public class TransportPreviewDataFrameTransformAction extends
                     ClientHelper.DATA_FRAME_ORIGIN,
                     client,
                     SearchAction.INSTANCE,
-                    pivot.buildSearchRequest(null),
+                    pivot.buildSearchRequest(null, NUMBER_OF_PREVIEW_BUCKETS),
                     ActionListener.wrap(
                         r -> {
                             final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
                             DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
                             // remove all internal fields
                             List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
-                                    .map(record -> {
+                                    .peek(record -> {
                                         record.keySet().removeIf(k -> k.startsWith("_"));
-                                        return record;
                                     }).collect(Collectors.toList());
                             listener.onResponse(results);
                         },

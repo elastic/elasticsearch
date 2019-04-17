@@ -450,6 +450,18 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
+     * Returns the custom metadata that was attached to this snapshot at creation time.
+     * @return custom metadata
+     */
+    @Nullable
+    public Map<String, Object> userMetadata() {
+        if (userMetadata != null) {
+            return Collections.unmodifiableMap(userMetadata);
+        }
+        return null;
+    }
+
+    /**
      * Compares two snapshots by their start time; if the start times are the same, then
      * compares the two snapshots by their snapshot ids.
      */

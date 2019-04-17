@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.enrich;
+package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -28,7 +29,7 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     static final String EXACT_MATCH_TYPE = "exact_match";
-    static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
+    public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
     static final ParseField TYPE = new ParseField("type");
     static final ParseField QUERY = new ParseField("query");
@@ -62,6 +63,10 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
+    }
+
+    public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     private final String type;

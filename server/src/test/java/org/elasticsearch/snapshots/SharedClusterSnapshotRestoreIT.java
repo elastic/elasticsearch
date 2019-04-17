@@ -2714,7 +2714,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                                    System.currentTimeMillis(),
                                                    repositoryData.getGenId(),
                                                    shards.build(),
-                                                   null)); // NOCOMMIT generate test data maybe?
+                                                   SnapshotInfoTests.randomUserMetadata()));
                 return ClusterState.builder(currentState)
                     .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries)))
                     .build();

@@ -56,6 +56,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -720,7 +721,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 Math.abs(randomLong()),
                                 (long) randomIntBetween(0, 1000),
                                 ImmutableOpenMap.of(),
-                                null)); // NOCOMMIT probably generate actual test data
+                                SnapshotInfoTests.randomUserMetadata()));
                     case 1:
                         return new RestoreInProgress.Builder().add(
                             new RestoreInProgress.Entry(

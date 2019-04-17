@@ -70,7 +70,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 shardState.failed() ? randomAlphaOfLength(10) : null));
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards, null); // NOCOMMIT generate actual test data maybe?
+        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
+            SnapshotInfoTests.randomUserMetadata());
     }
 
     @Override

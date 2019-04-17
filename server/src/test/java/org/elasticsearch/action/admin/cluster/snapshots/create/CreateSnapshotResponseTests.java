@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotInfoTests;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 public class CreateSnapshotResponseTests extends AbstractXContentTestCase<CreateSnapshotResponse> {
 
@@ -64,6 +66,13 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState, null)); // NOCOMMIT generate actual test data maybe?
+            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures,
+                globalState, SnapshotInfoTests.randomUserMetadata()));
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Don't inject random fields into the custom snapshot metadata, it causes the equality check after deserialization to fail
+        return field -> field.startsWith("_meta") == false;
     }
 }

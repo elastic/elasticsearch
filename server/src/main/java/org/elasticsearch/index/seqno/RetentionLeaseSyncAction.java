@@ -88,7 +88,7 @@ public class RetentionLeaseSyncAction extends
                 indexNameExpressionResolver,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT);
+                ThreadPool.Names.MANAGEMENT, false);
     }
 
     /**
@@ -123,14 +123,15 @@ public class RetentionLeaseSyncAction extends
     }
 
     @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
-            final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+    protected void shardOperationOnPrimary(Request request, IndexShard primary,
+            ActionListener<PrimaryResult<Request, Response>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+        });
     }
 
     @Override
@@ -157,8 +158,9 @@ public class RetentionLeaseSyncAction extends
             return retentionLeases;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            retentionLeases = new RetentionLeases(in);
         }
 
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
@@ -168,9 +170,8 @@ public class RetentionLeaseSyncAction extends
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            retentionLeases = new RetentionLeases(in);
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

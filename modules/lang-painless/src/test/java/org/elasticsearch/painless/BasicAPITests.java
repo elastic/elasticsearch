@@ -127,7 +127,7 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testPublicMemberAccess() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
             "ft.z = 5; return ft.z;"));
     }
 

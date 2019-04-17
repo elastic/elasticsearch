@@ -113,22 +113,30 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
                     ActionListener.wrap(
                             r -> {},
                             e -> {
-                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
-                                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                                if (ExceptionsHelper.isTransportStoppedForAction(e, ACTION_NAME + "[p]")) {
+                                    // we are likely shutting down
+                                    return;
                                 }
+                                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
+                                    // the shard is closed
+                                    return;
+                                }
+                                getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
                             }));
         }
     }
 
     @Override
-    protected PrimaryResult<Request, ReplicationResponse> shardOperationOnPrimary(
+    protected void shardOperationOnPrimary(
             final Request request,
-            final IndexShard primary) throws WriteStateException {
-        assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(primary);
-        primary.persistRetentionLeases();
-        return new PrimaryResult<>(request, new ReplicationResponse());
+            final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(primary);
+            primary.persistRetentionLeases();
+            return new PrimaryResult<>(request, new ReplicationResponse());
+        });
     }
 
     @Override
@@ -148,8 +156,9 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
             return retentionLeases;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            retentionLeases = new RetentionLeases(in);
         }
 
         public Request(final ShardId shardId, final RetentionLeases retentionLeases) {
@@ -159,9 +168,8 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            retentionLeases = new RetentionLeases(in);
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

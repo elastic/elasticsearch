@@ -109,12 +109,10 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultCo
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
-import java.time.LocalTime;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
@@ -124,11 +122,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
-import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
+import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.ofEscapedLiteral;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
@@ -416,7 +414,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitCastOperatorExpression(SqlBaseParser.CastOperatorExpressionContext ctx) {
-        return new Cast(source(ctx), expression(ctx.valueExpression()), typedParsing(ctx.dataType(), DataType.class));
+        return new Cast(source(ctx), expression(ctx.primaryExpression()), typedParsing(ctx.dataType(), DataType.class));
     }
 
     @Override
@@ -432,28 +430,15 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
         // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
         Source source = source(ctx);
-        Literal p = null;
-
-        if (ctx.precision != null) {
-            try {
-                Source pSource = source(ctx.precision);
-                short safeShort = DataTypeConversion.safeToShort(StringUtils.parseLong(ctx.precision.getText()));
-                if (safeShort > 9 || safeShort < 0) {
-                    throw new ParsingException(pSource, "Precision needs to be between [0-9], received [{}]", safeShort);
-                }
-                p = Literal.of(pSource, Short.valueOf(safeShort));
-            } catch (SqlIllegalArgumentException siae) {
-                throw new ParsingException(source, siae.getMessage());
-            }
-        }
-        
         String functionName = ctx.name.getText();
 
         switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_DATE:
                 return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
-            case SqlBaseLexer.CURRENT_TIMESTAMP:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, p != null ? singletonList(p) : emptyList());
+            case SqlBaseLexer.CURRENT_TIME:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
@@ -768,14 +753,11 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
 
         // parse HH:mm:ss
-        LocalTime lt = null;
         try {
-            lt = LocalTime.parse(string, ISO_LOCAL_TIME);
+            return new Literal(source, asTimeOnly(string), DataType.TIME);
         } catch (DateTimeParseException ex) {
             throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
-
-        throw new SqlIllegalArgumentException("Time (only) literals are not supported; a date component is required as well");
     }
 
     @Override

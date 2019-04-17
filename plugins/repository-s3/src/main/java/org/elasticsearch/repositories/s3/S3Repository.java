@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.Function;
 
@@ -157,19 +158,15 @@ class S3Repository extends BlobStoreRepository {
 
     private final String cannedACL;
 
-    private final RepositoryMetaData repositoryMetaData;
-
     /**
      * Constructs an s3 backed repository
      */
     S3Repository(final RepositoryMetaData metadata,
                  final Settings settings,
                  final NamedXContentRegistry namedXContentRegistry,
-                 final S3Service service) {
-        super(metadata, settings, namedXContentRegistry);
+                 final S3Service service, final ThreadPool threadPool) {
+        super(metadata, settings, namedXContentRegistry, threadPool);
         this.service = service;
-
-        this.repositoryMetaData = metadata;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -216,7 +213,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, repositoryMetaData);
+        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata);
     }
 
     // only use for testing

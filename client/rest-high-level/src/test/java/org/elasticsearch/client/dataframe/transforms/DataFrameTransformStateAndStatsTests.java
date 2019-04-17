@@ -41,7 +41,8 @@ public class DataFrameTransformStateAndStatsTests extends ESTestCase {
     public static DataFrameTransformStateAndStats randomInstance() {
         return new DataFrameTransformStateAndStats(randomAlphaOfLength(10),
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
-                DataFrameIndexerTransformStatsTests.randomStats());
+                DataFrameIndexerTransformStatsTests.randomStats(),
+                DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
     }
 
     public static void toXContent(DataFrameTransformStateAndStats stateAndStats, XContentBuilder builder) throws IOException {
@@ -51,6 +52,8 @@ public class DataFrameTransformStateAndStatsTests extends ESTestCase {
         DataFrameTransformStateTests.toXContent(stateAndStats.getTransformState(), builder);
         builder.field(DataFrameTransformStateAndStats.STATS_FIELD.getPreferredName());
         DataFrameIndexerTransformStatsTests.toXContent(stateAndStats.getTransformStats(), builder);
+        builder.field(DataFrameTransformStateAndStats.CHECKPOINTING_INFO_FIELD.getPreferredName());
+        DataFrameTransformCheckpointingInfoTests.toXContent(stateAndStats.getCheckpointingInfo(), builder);
         builder.endObject();
     }
 }

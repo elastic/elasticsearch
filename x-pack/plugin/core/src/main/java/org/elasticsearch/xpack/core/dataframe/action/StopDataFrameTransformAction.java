@@ -6,17 +6,14 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -24,8 +21,11 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class StopDataFrameTransformAction extends Action<StopDataFrameTransformAction.Response> {
@@ -44,10 +44,11 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContent {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
         private final boolean waitForCompletion;
         private final boolean force;
+        private Set<String> expandedIds;
 
         public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
@@ -67,6 +68,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             id = in.readString();
             waitForCompletion = in.readBoolean();
             force = in.readBoolean();
+            if (in.readBoolean()) {
+                expandedIds = new HashSet<>(Arrays.asList(in.readStringArray()));
+            }
         }
 
         public String getId() {
@@ -85,12 +89,25 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             return force;
         }
 
+        public Set<String> getExpandedIds() {
+            return expandedIds;
+        }
+
+        public void setExpandedIds(Set<String> expandedIds ) {
+            this.expandedIds = expandedIds;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(waitForCompletion);
             out.writeBoolean(force);
+            boolean hasExpandedIds = expandedIds != null;
+            out.writeBoolean(hasExpandedIds);
+            if (hasExpandedIds) {
+                out.writeStringArray(expandedIds.toArray(new String[0]));
+            }
         }
 
         @Override
@@ -99,20 +116,9 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            builder.field(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
-            builder.field(DataFrameField.FORCE.getPreferredName(), force);
-            if (this.getTimeout() != null) {
-                builder.field(DataFrameField.TIMEOUT.getPreferredName(), this.getTimeout());
-            }
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(id, waitForCompletion, force, this.getTimeout());
+            return Objects.hash(id, waitForCompletion, force, expandedIds, this.getTimeout());
         }
 
         @Override
@@ -132,22 +138,21 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             }
 
             return Objects.equals(id, other.id) &&
-                Objects.equals(waitForCompletion, other.waitForCompletion) &&
-                Objects.equals(force, other.force);
+                    Objects.equals(waitForCompletion, other.waitForCompletion) &&
+                    Objects.equals(force, other.force) &&
+                    Objects.equals(expandedIds, other.expandedIds);
         }
 
         @Override
         public boolean match(Task task) {
-            String expectedDescription = DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id;
+            if (task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String id = task.getDescription().substring(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+                if (expandedIds != null) {
+                    return expandedIds.contains(id);
+                }
+            }
 
-            return task.getDescription().equals(expectedDescription);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StopDataFrameTransformAction action) {
-            super(client, action, new Request());
+            return false;
         }
     }
 

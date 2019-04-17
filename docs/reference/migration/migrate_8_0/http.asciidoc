@@ -1,0 +1,15 @@
+[float]
+[[breaking_80_http_changes]]
+=== HTTP changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Removal of old HTTP settings
+
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. It has been replaced by
+`http.tcp.no_delay`.

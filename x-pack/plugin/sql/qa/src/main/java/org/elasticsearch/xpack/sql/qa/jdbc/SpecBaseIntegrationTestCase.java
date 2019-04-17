@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.Properties;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 
 /**
  * Tests that compare the Elasticsearch JDBC client to some other JDBC client
@@ -116,7 +118,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty("timezone", "UTC");
+        connectionProperties.setProperty(JDBC_TIMEZONE, "UTC");
         return connectionProperties;
     }
 
@@ -215,6 +217,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @SuppressForbidden(reason = "test reads from jar")
     public static InputStream readFromJarUrl(URL source) throws IOException {
-        return source.openStream();
+        URLConnection con = source.openConnection();
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
+        return con.getInputStream();
     }
 }

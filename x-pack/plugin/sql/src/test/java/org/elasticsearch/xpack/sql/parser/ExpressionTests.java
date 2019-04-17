@@ -282,6 +282,19 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:12: Does not recognize type [InVaLiD]", ex.getMessage());
     }
 
+    public void testCastOperatorPrecedence() {
+        Expression expr = parser.createExpression("(10* 2::long)");
+        assertEquals(Mul.class, expr.getClass());
+        Mul mul = (Mul) expr;
+        assertEquals(DataType.LONG, mul.dataType());
+        assertEquals(DataType.INTEGER, mul.left().dataType());
+        assertEquals(Cast.class, mul.right().getClass());
+        Cast cast = (Cast) mul.right();
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+    }
+
     public void testCastOperatorWithUnquotedDataType() {
         Expression expr = parser.createExpression("(10* 2)::long");
         assertEquals(Cast.class, expr.getClass());
@@ -369,22 +382,6 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("line 1:13: Does not recognize type [INVALID]", ex.getMessage());
     }
 
-    public void testCurrentDate() {
-        Expression expr = parser.createExpression("CURRENT_DATE");
-        assertEquals(UnresolvedFunction.class, expr.getClass());
-        UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_DATE", ur.sourceText());
-        assertEquals(0, ur.children().size());
-    }
-
-    public void testCurrentDateWithParentheses() {
-        Expression expr = parser.createExpression("CURRENT_DATE(  )");
-        assertEquals(UnresolvedFunction.class, expr.getClass());
-        UnresolvedFunction ur = (UnresolvedFunction) expr;
-        assertEquals("CURRENT_DATE(  )", ur.sourceText());
-        assertEquals(0, ur.children().size());
-    }
-
     public void testCurrentTimestamp() {
         Expression expr = parser.createExpression("CURRENT_TIMESTAMP");
         assertEquals(UnresolvedFunction.class, expr.getClass());
@@ -401,12 +398,42 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 4), child.fold());
+        assertEquals(4, child.fold());
     }
 
-    public void testCurrentTimestampInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
-        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+    public void testCurrentDate() {
+        Expression expr = parser.createExpression("CURRENT_DATE");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentDateWithParentheses() {
+        Expression expr = parser.createExpression("CURRENT_DATE(  )");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_DATE(  )", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTime() {
+        Expression expr = parser.createExpression("CURRENT_TIME");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIME", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimePrecision() {
+        Expression expr = parser.createExpression("CURRENT_TIME(7)");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("CURRENT_TIME(7)", ur.sourceText());
+        assertEquals(1, ur.children().size());
+        Expression child = ur.children().get(0);
+        assertEquals(Literal.class, child.getClass());
+        assertEquals(7, child.fold());
     }
 
     public void testSourceKeyword() {

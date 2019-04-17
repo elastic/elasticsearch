@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,8 +61,8 @@ public class TypeParsersTests extends ESTestCase {
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL)));
 
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings,
-                new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers, null, null);
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
+                null, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
@@ -71,7 +72,7 @@ public class TypeParsersTests extends ESTestCase {
         analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX,
                 createAnalyzerWithMode("my_analyzer", mode)));
         indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers,
-                null, null);
+                Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -98,7 +99,7 @@ public class TypeParsersTests extends ESTestCase {
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
-                    null, analyzers, null, null);
+                    null, analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
@@ -109,7 +110,7 @@ public class TypeParsersTests extends ESTestCase {
                     new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
             indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null,
-                    analyzers, null, null);
+                    analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             MapperException ex = expectThrows(MapperException.class,
                     () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -130,7 +131,7 @@ public class TypeParsersTests extends ESTestCase {
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
-                null, analyzers, null, null);
+                null, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -146,7 +147,7 @@ public class TypeParsersTests extends ESTestCase {
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
         indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers,
-                null, null);
+                Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
     }

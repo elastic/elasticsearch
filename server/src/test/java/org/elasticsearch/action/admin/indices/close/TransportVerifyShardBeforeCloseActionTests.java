@@ -165,7 +165,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(flushRequest.getValue().force(), is(true));
     }
 
-    public void testOperationFailsWithOnGoingOps() {
+    public void testOperationFailsWhenNotBlocked() {
         when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(0, 10));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);

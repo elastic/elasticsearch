@@ -85,9 +85,8 @@ public class TransportPreviewDataFrameTransformAction extends
                             DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
                             // remove all internal fields
                             List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
-                                    .map(record -> {
+                                    .peek(record -> {
                                         record.keySet().removeIf(k -> k.startsWith("_"));
-                                        return record;
                                     }).collect(Collectors.toList());
                             listener.onResponse(results);
                         },

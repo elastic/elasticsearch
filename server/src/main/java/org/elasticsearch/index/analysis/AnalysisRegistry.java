@@ -34,13 +34,19 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -162,8 +168,8 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
-        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings,
-            Collections.unmodifiableMap(this.tokenFilters), prebuiltAnalysis.preConfiguredTokenFilters);
+        return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, this.tokenFilters,
+                prebuiltAnalysis.preConfiguredTokenFilters);
     }
 
     public Map<String, TokenizerFactory> buildTokenizerFactories(IndexSettings indexSettings) throws IOException {
@@ -455,8 +461,8 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(analyzerProviders, normalizerProviders,
-                tokenizerFactoryFactories, charFilterFactoryFactories, tokenFilterFactoryFactories);
+        IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(tokenizerFactoryFactories, charFilterFactoryFactories,
+                tokenFilterFactoryFactories);
         return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer, analyzers, normalizers,
                 whitespaceNormalizers, analysisProviders);
     }
@@ -533,25 +539,68 @@ public final class AnalysisRegistry implements Closeable {
      * be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
      */
     public IndexAnalyzers rebuildIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
-        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexAnalyzers,
-                indexSettings);
-        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexAnalyzers,
-                indexSettings);
+
+        // scan analyzers to collect token filters that we need to reload
+        List<NamedAnalyzer> analyzers = Stream.concat(
+                Stream.of(indexAnalyzers.getDefaultSearchAnalyzer(), indexAnalyzers.getDefaultIndexAnalyzer()),
+                indexAnalyzers.getAnalyzers().values().stream()).collect(Collectors.toList());
+
+        Set<String> filtersThatNeedReloading = filtersThatNeedReloading(analyzers);
+        final Map<String, Settings> tokenFiltersToReloading = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER)
+                .entrySet().stream()
+                .filter(entry -> filtersThatNeedReloading.contains(entry.getKey()))
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+
+        final Map<String, TokenFilterFactory> newTokenFilterFactories = buildMapping(Component.FILTER, indexSettings,
+                tokenFiltersToReloading, this.tokenFilters, prebuiltAnalysis.preConfiguredTokenFilters);
+
+        // fill the rest of the token filter factory map with the entries that are missing (were not reloaded)
+        for (Entry<String, TokenFilterFactory> entry : indexAnalyzers.getTokenFilterFactoryFactories().entrySet()) {
+            newTokenFilterFactories.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+
+        // char filters and tokenizers are not updateable, so we can use the old ones
+        Map<String, CharFilterFactory> currentCharFilterFactories = indexAnalyzers.getCharFilterFactoryFactories();
+        Map<String, TokenizerFactory> currentTokenizerFactories = indexAnalyzers.getTokenizerFactoryFactories();
+        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexSettings,
+                currentCharFilterFactories, currentTokenizerFactories, newTokenFilterFactories);
+        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexSettings,
+                currentCharFilterFactories, currentTokenizerFactories, newTokenFilterFactories);
         Map<String, NamedAnalyzer> newAnalyzers = new HashMap<>();
         for (NamedAnalyzer analyzer : indexAnalyzers.getAnalyzers().values()) {
-            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexAnalyzers, indexSettings));
+            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexSettings, currentCharFilterFactories,
+                    currentTokenizerFactories, newTokenFilterFactories));
         }
+
+        IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(currentTokenizerFactories, currentCharFilterFactories,
+                newTokenFilterFactories);
         return new IndexAnalyzers(indexSettings, indexAnalyzers.getDefaultIndexAnalyzer(), newDefaultSearchAnalyzer,
                 newDefaultSearchQuoteAnalyzer, newAnalyzers, indexAnalyzers.getNormalizers(), indexAnalyzers.getWhitespaceNormalizers(),
-                indexAnalyzers.getAnalysisProviders());
+                analysisProviders);
+    }
+
+    private Set<String> filtersThatNeedReloading(List<NamedAnalyzer> analyzers) {
+        Set<String> filters = new HashSet<>();
+        for (NamedAnalyzer namedAnalyzer : analyzers) {
+            // only rebuild custom analyzers that are in SEARCH_TIME mode
+            if ((namedAnalyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) == true
+                    && (namedAnalyzer.analyzer() instanceof CustomAnalyzer == true)) {
+                TokenFilterFactory[] currentTokenFilters = ((CustomAnalyzer) namedAnalyzer.analyzer()).tokenFilters();
+                // get token filters necessary to re-build the analyzer
+                Arrays.stream(currentTokenFilters).filter(f -> f.getAnalysisMode() == AnalysisMode.SEARCH_TIME).map(f -> f.name())
+                        .collect(Collectors.toCollection(() -> filters));
+            }
+        }
+        return filters;
     }
 
     /**
      * Check if the input analyzer needs to be rebuilt. If not, return analyzer unaltered, otherwise rebuild it. We currently only consider
      * instances of {@link CustomAnalyzer} with {@link AnalysisMode#SEARCH_TIME} to be eligible for rebuilding.
      */
-    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexAnalyzers indexAnalyzers, IndexSettings indexSettings)
-            throws IOException {
+    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexSettings indexSettings,
+            Map<String, CharFilterFactory> charFilterFactories, Map<String, TokenizerFactory> tokenizerFactories,
+            Map<String, TokenFilterFactory> tokenFilterFactories) throws IOException {
         // only rebuild custom analyzers that are in SEARCH_TIME mode
         if ((oldAnalyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) == false
                 || (oldAnalyzer.analyzer() instanceof CustomAnalyzer == false)) {
@@ -559,9 +608,10 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             String analyzerName = oldAnalyzer.name();
             Settings analyzerSettings = indexSettings.getSettings().getAsSettings("index.analysis.analyzer." + analyzerName);
+
             AnalyzerProvider<CustomAnalyzer> analyzerProvider = new CustomAnalyzerProvider(indexSettings, analyzerName, analyzerSettings);
-            return AnalysisRegistry.produceAnalyzer(analyzerName, analyzerProvider, indexAnalyzers.getTokenFilterFactoryFactories(),
-                    indexAnalyzers.getCharFilterFactoryFactories(), indexAnalyzers.getTokenizerFactoryFactories());
+            return AnalysisRegistry.produceAnalyzer(analyzerName, analyzerProvider, tokenFilterFactories, charFilterFactories,
+                    tokenizerFactories);
         }
     }
 

@@ -134,18 +134,6 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         return defaultSearchQuoteAnalyzer;
     }
 
-    public IndexAnalysisProviders getAnalysisProviders() {
-        return analysisProviders;
-    }
-
-    public Map<String, AnalyzerProvider<?>> getAnalyzerProviders() {
-        return analysisProviders.analyzerProviders;
-    }
-
-    public Map<String, AnalyzerProvider<?>> getNormalizerProviders() {
-        return analysisProviders.normalizerProviders;
-    }
-
     public Map<String, TokenizerFactory> getTokenizerFactoryFactories() {
         return analysisProviders.tokenizerFactoryFactories;
     }
@@ -168,19 +156,14 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     static class IndexAnalysisProviders {
 
         static final IndexAnalysisProviders EMPTY = new IndexAnalysisProviders(Collections.emptyMap(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+                Collections.emptyMap());
 
-        private final Map<String, AnalyzerProvider<?>> analyzerProviders;
-        private final Map<String, AnalyzerProvider<?>> normalizerProviders;
         private final Map<String, TokenizerFactory> tokenizerFactoryFactories;
         private final Map<String, CharFilterFactory> charFilterFactoryFactories;
         private final Map<String, TokenFilterFactory> tokenFilterFactoryFactories;
 
-        IndexAnalysisProviders(Map<String, AnalyzerProvider<?>> analyzerProviders,
-                Map<String, AnalyzerProvider<?>> normalizerProviders, Map<String, TokenizerFactory> tokenizerFactoryFactories,
+        IndexAnalysisProviders(Map<String, TokenizerFactory> tokenizerFactoryFactories,
                 Map<String, CharFilterFactory> charFilterFactoryFactories, Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
-            this.analyzerProviders = unmodifiableMap(analyzerProviders);
-            this.normalizerProviders = unmodifiableMap(normalizerProviders);
             this.tokenizerFactoryFactories = unmodifiableMap(tokenizerFactoryFactories);
             this.charFilterFactoryFactories = unmodifiableMap(charFilterFactoryFactories);
             this.tokenFilterFactoryFactories = unmodifiableMap(tokenFilterFactoryFactories);

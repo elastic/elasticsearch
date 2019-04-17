@@ -360,6 +360,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
         closeLock.writeLock().lock();
         try {
+            // No need for locking here since Lifecycle objects can't move from STARTED to INITIALIZED
             if (lifecycle.initialized() == false && lifecycle.started() == false) {
                 throw new IllegalStateException("transport has been stopped");
             }

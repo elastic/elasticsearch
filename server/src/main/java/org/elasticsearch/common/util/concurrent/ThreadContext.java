@@ -131,7 +131,18 @@ public final class ThreadContext implements Closeable, Writeable {
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
         threadLocal.set(null);
-        return () -> threadLocal.set(context);
+        return () -> {
+            // If the node and thus the threadLocal get closed while this task
+            // is still executing, we don't want this runnable to fail with an
+            // uncaught exception
+            try {
+                threadLocal.set(context);
+            } catch (IllegalStateException e) {
+                if (isClosed() == false) {
+                    throw e;
+                }
+            }
+        };
     }
 
     /**

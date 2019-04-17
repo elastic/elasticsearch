@@ -760,13 +760,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
-
-        @Override
-        public Set<String> getPendingDeletions() throws IOException {
-            // FilterDirectory.getPendingDeletions does not delegate, working around it here.
-            // to be removed once fixed in FilterDirectory.
-            return unwrap(this).getPendingDeletions();
-        }
     }
 
     /**

@@ -398,12 +398,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 4), child.fold());
-    }
-
-    public void testCurrentTimestampInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIMESTAMP(100)"));
-        assertEquals("line 1:20: Precision needs to be between [0-9], received [100]", ex.getMessage());
+        assertEquals(4, child.fold());
     }
 
     public void testCurrentDate() {
@@ -438,12 +433,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(1, ur.children().size());
         Expression child = ur.children().get(0);
         assertEquals(Literal.class, child.getClass());
-        assertEquals(Short.valueOf((short) 7), child.fold());
-    }
-
-    public void testCurrentTimeInvalidPrecision() {
-        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CURRENT_TIME(100)"));
-        assertEquals("line 1:15: Precision needs to be between [0-9], received [100]", ex.getMessage());
+        assertEquals(7, child.fold());
     }
 
     public void testSourceKeyword() {

@@ -20,7 +20,8 @@ or has an exact sub-field, it will use it as is, or it will automatically use th
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-expression<1> LIKE constant_exp<2>
+expression        <1>
+LIKE constant_exp <2>
 --------------------------------------------------
 
 <1> typically a field, or a constant expression
@@ -59,7 +60,8 @@ IMPORTANT: Even though `LIKE` is a valid option when searching or filtering in {
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-expression<1> RLIKE constant_exp<2>
+expression         <1>
+RLIKE constant_exp <2>
 --------------------------------------------------
 
 <1> typically a field, or a constant expression

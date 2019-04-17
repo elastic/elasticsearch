@@ -164,7 +164,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getRemainingDocs(), equalTo(800L));
-        assertThat(progress.getPercentComplete(), closeTo(0.20, 0.0000001));
+        assertThat(progress.getPercentComplete(), closeTo(20.0, 0.0000001));
 
         progressFuture = new PlainActionFuture<>();
 
@@ -173,7 +173,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getRemainingDocs(), equalTo(0L));
-        assertThat(progress.getPercentComplete(), equalTo(1.0));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource("timestamp");
         dateHistogramGroupSource.setDateHistogramInterval(DateHistogramInterval.DAY);
@@ -202,7 +202,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getRemainingDocs(), equalTo(949L));
-        assertThat(progress.getPercentComplete(), closeTo(0.051, 0.0000001));
+        assertThat(progress.getPercentComplete(), closeTo(5.1, 0.0000001));
 
 
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
@@ -231,7 +231,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
         assertThat(progress.getTotalDocs(), equalTo(37L));
         assertThat(progress.getRemainingDocs(), equalTo(17L));
-        assertThat(progress.getPercentComplete(), closeTo(0.54054054054, 0.00000001));
+        assertThat(progress.getPercentComplete(), closeTo(54.054054054, 0.00000001));
 
         client().admin().indices().prepareDelete(REVIEWS_INDEX_NAME).get();
     }

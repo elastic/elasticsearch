@@ -23,16 +23,13 @@ import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -50,25 +47,14 @@ public class DataFrameTransformState {
             new ConstructingObjectParser<>("data_frame_transform_state", true,
                     args -> new DataFrameTransformState((DataFrameTransformTaskState) args[0],
                         (IndexerState) args[1],
-                        (HashMap<String, Object>) args[2],
+                        (Map<String, Object>) args[2],
                         (long) args[3],
                         (String) args[4]));
 
     static {
-        PARSER.declareField(constructorArg(),
-            p -> DataFrameTransformTaskState.fromString(p.text()),
-            TASK_STATE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return p.map();
-            }
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> p.mapOrdered(), CURRENT_POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
@@ -80,7 +66,7 @@ public class DataFrameTransformState {
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
     private final long checkpoint;
-    private final SortedMap<String, Object> currentPosition;
+    private final Map<String, Object> currentPosition;
     private final String reason;
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
@@ -90,7 +76,7 @@ public class DataFrameTransformState {
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
+        this.currentPosition = position == null ? null : Collections.unmodifiableMap(position);
         this.checkpoint = checkpoint;
         this.reason = reason;
     }

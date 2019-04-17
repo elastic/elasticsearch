@@ -362,7 +362,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertEquals(null, stateAndStats.getTransformState().getReason());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
             assertNotNull(stateAndStats.getProgress());
-            assertThat(stateAndStats.getProgress().getPercentComplete(), equalTo(1.0));
+            assertThat(stateAndStats.getProgress().getPercentComplete(), equalTo(100.0));
             assertThat(stateAndStats.getProgress().getTotalDocs(), greaterThan(0L));
             assertThat(stateAndStats.getProgress().getRemainingDocs(), equalTo(0L));
         });

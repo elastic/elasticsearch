@@ -94,7 +94,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("progress", transformStats);
             assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
             assertThat("completed_docs is not 1000", progress.get("docs_remaining"), equalTo(0));
-            assertThat("percent_complete is not 1.0", progress.get("percent_complete"), equalTo(1.0));
+            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
         }
 
         // only pivot_1
@@ -173,7 +173,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("progress", transformStats);
             assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(37));
             assertThat("completed_docs is not 1000", progress.get("docs_remaining"), equalTo(0));
-            assertThat("percent_complete is not 1.0", progress.get("percent_complete"), equalTo(1.0));
+            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
         }
     }
 }

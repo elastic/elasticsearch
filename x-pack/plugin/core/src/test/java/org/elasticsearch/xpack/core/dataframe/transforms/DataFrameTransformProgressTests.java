@@ -37,19 +37,19 @@ public class DataFrameTransformProgressTests extends AbstractSerializingDataFram
 
     public void testPercentComplete() {
         DataFrameTransformProgress progress = new DataFrameTransformProgress(0L, 100L);
-        assertThat(progress.getPercentComplete(), equalTo(1.0));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         progress = new DataFrameTransformProgress(100L, 0L);
-        assertThat(progress.getPercentComplete(), equalTo(1.0));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         progress = new DataFrameTransformProgress(100L, 10000L);
-        assertThat(progress.getPercentComplete(), equalTo(1.0));
+        assertThat(progress.getPercentComplete(), equalTo(100.0));
 
         progress = new DataFrameTransformProgress(100L, null);
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
         progress = new DataFrameTransformProgress(100L, 50L);
-        assertThat(progress.getPercentComplete(), closeTo(0.5, 0.000001));
+        assertThat(progress.getPercentComplete(), closeTo(50.0, 0.000001));
     }
 
     public void testConstructor() {

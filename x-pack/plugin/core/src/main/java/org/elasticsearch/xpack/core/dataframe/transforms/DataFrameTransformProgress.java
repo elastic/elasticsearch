@@ -63,13 +63,13 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
 
     public Double getPercentComplete() {
         if (totalDocs == 0) {
-            return 1.0;
+            return 100.0;
         }
         long docsRead = totalDocs - remainingDocs;
         if (docsRead < 0) {
-            return 1.0;
+            return 100.0;
         }
-        return (double)docsRead/totalDocs;
+        return 100.0*(double)docsRead/totalDocs;
     }
 
     public long getTotalDocs() {

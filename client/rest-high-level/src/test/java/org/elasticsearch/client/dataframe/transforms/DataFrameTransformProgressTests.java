@@ -41,7 +41,7 @@ public class DataFrameTransformProgressTests extends ESTestCase {
     public static DataFrameTransformProgress randomInstance() {
         long totalDocs = randomNonNegativeLong();
         Long docsRemaining = randomBoolean() ? null : randomLongBetween(0, totalDocs);
-        double percentComplete = totalDocs == 0 ? 1.0 : docsRemaining == null ? 0.0 : (double)(totalDocs - docsRemaining)/totalDocs;
+        double percentComplete = totalDocs == 0 ? 1.0 : docsRemaining == null ? 0.0 : 100.0*(double)(totalDocs - docsRemaining)/totalDocs;
         return new DataFrameTransformProgress(totalDocs, docsRemaining, percentComplete);
     }
 

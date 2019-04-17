@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -38,7 +36,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     private final long checkpoint;
 
     @Nullable
-    private final SortedMap<String, Object> currentPosition;
+    private final Map<String, Object> currentPosition;
     @Nullable
     private final String reason;
 
@@ -58,28 +56,9 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                 (String) args[4]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return DataFrameTransformTaskState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TASK_STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return IndexerState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-
-        }, INDEXER_STATE, ObjectParser.ValueType.STRING);
-        PARSER.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                return p.map();
-            }
-            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return null;
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
+        PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, CURRENT_POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }
@@ -91,7 +70,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
+        this.currentPosition = position == null ? null : Collections.unmodifiableMap(position);
         this.checkpoint = checkpoint;
         this.reason = reason;
     }
@@ -99,7 +78,8 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public DataFrameTransformState(StreamInput in) throws IOException {
         taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
-        currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
+        Map<String, Object> position = in.readMap();
+        currentPosition = position == null ? null : Collections.unmodifiableMap(position);
         checkpoint = in.readLong();
         reason = in.readOptionalString();
     }
@@ -166,10 +146,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public void writeTo(StreamOutput out) throws IOException {
         taskState.writeTo(out);
         indexerState.writeTo(out);
-        out.writeBoolean(currentPosition != null);
-        if (currentPosition != null) {
-            out.writeMap(currentPosition);
-        }
+        out.writeMap(currentPosition);
         out.writeLong(checkpoint);
         out.writeOptionalString(reason);
     }

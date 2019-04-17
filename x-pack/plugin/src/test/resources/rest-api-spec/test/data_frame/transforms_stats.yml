@@ -62,7 +62,7 @@ teardown:
   - match: { transforms.0.stats.search_failures: 0 }
   - match: { transforms.0.progress.total_docs: 0 }
   - match: { transforms.0.progress.docs_remaining: 0 }
-  - match: { transforms.0.progress.percent_complete: 1.0 }
+  - match: { transforms.0.progress.percent_complete: 100.0 }
 
 ---
 "Test get transform stats on missing transform":

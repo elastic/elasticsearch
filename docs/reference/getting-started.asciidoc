@@ -16,6 +16,7 @@ Here are a few sample use-cases that Elasticsearch could be used for:
 For the rest of this tutorial, you will be guided through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
 --
 
+
 == Basic Concepts
 
 There are a few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
@@ -158,7 +159,7 @@ On macOS, Elasticsearch can also be installed via https://brew.sh[Homebrew]:
 brew install elasticsearch
 --------------------------------------------------
 
-[float]
+[float]]\]]
 === Installation example with MSI Windows Installer
 
 For Windows users, we recommend using the {ref}/windows.html[MSI Installer package]. The package contains a graphical user interface (GUI) that guides you through the installation process.

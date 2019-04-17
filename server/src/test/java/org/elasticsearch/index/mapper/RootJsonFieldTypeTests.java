@@ -21,9 +21,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
@@ -83,9 +86,9 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
         RootJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
-        assertEquals("[fuzzy] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
+        Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true);
+        assertEquals(expected, actual);
     }
 
     public void testRangeQuery() {
@@ -107,17 +110,16 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
         RootJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        UnsupportedOperationException e  = expectThrows(UnsupportedOperationException.class,
-            () -> ft.regexpQuery("valu*", 0, 10, null, null));
-        assertEquals("[regexp] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        Query expected = new RegexpQuery(new Term("field", "val.*"));
+        Query actual = ft.regexpQuery("val.*", 0, 10, null, null);
+        assertEquals(expected, actual);
     }
 
     public void testWildcardQuery() {
         RootJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
-            () -> ft.wildcardQuery("valu*", null, null));
-        assertEquals("[wildcard] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        Query expected = new WildcardQuery(new Term("field", new BytesRef("valu*")));
+        assertEquals(expected, ft.wildcardQuery("valu*", null, null));
     }
 }

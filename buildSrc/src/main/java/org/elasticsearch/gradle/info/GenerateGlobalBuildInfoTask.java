@@ -34,7 +34,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 @CacheableTask
 public class GenerateGlobalBuildInfoTask extends DefaultTask {
-
     private JavaVersion minimumCompilerVersion;
     private JavaVersion minimumRuntimeVersion;
     private File compilerJavaHome;

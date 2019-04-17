@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
@@ -43,6 +44,7 @@ import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -68,6 +70,7 @@ import java.util.regex.Matcher
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
+@CompileStatic
 class BuildPlugin implements Plugin<Project> {
 
     @Override
@@ -102,7 +105,7 @@ class BuildPlugin implements Plugin<Project> {
 
         setupSeed(project)
         configureRepositories(project)
-        project.ext.versions = VersionProperties.versions
+        project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
         configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
@@ -115,6 +118,8 @@ class BuildPlugin implements Plugin<Project> {
 
     static void requireDocker(final Task task) {
         final Project rootProject = task.project.rootProject
+        ExtraPropertiesExtension ext = rootProject.extensions.getByType(ExtraPropertiesExtension)
+
         if (rootProject.hasProperty('requiresDocker') == false) {
             /*
              * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
@@ -142,11 +147,11 @@ class BuildPlugin implements Plugin<Project> {
                 throw new IllegalArgumentException(
                         "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
             }
-            rootProject.rootProject.ext.buildDocker = buildDocker
-            rootProject.rootProject.ext.requiresDocker = []
+
+            ext.set('buildDocker', buildDocker)
+            ext.set('requiresDocker', [])
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
-                final List<String> tasks =
-                        ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
+                final List<String> tasks = taskGraph.allTasks.intersect(ext.get('requiresDocker') as List<Task>).collect { "  ${it.path}".toString()}
                 if (tasks.isEmpty() == false) {
                     /*
                      * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
@@ -199,8 +204,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
-        if (rootProject.buildDocker) {
-            rootProject.requiresDocker.add(task)
+
+        if (ext.get('buildDocker')) {
+            (ext.get('requiresDocker') as List<Task>).add(task)
         } else {
             task.enabled = false
         }

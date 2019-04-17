@@ -10,7 +10,6 @@ import org.gradle.api.tasks.TaskAction;
 import javax.inject.Inject;
 
 public class PrintGlobalBuildInfoTask extends DefaultTask {
-
     private RegularFileProperty buildInfoFile;
 
     @Inject

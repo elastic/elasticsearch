@@ -121,15 +121,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getResourceContents(String resourcePath) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))) {
-            StringBuffer buffer = new StringBuffer();
+            StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (buffer.length() != 0) {
-                    buffer.append('\n');
+                if (b.length() != 0) {
+                    b.append('\n');
                 }
-                buffer.append(line);
+                b.append(line);
             }
 
-            return buffer.toString();
+            return b.toString();
         } catch (IOException e) {
             throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
         }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
@@ -152,7 +151,7 @@ public class BinaryRangeUtilTests extends ESTestCase {
         for (long expected : cases) {
             byte[] encoded = BinaryRangeUtil.encodeLong(expected);
             int offset = 0;
-            int length = BinaryDocValuesRangeQuery.LengthType.VARIABLE.readLength(encoded, offset);
+            int length = BinaryRangeUtil.LengthType.VARIABLE.readLength(encoded, offset);
             assertEquals(expected, BinaryRangeUtil.decodeLong(encoded, offset,  length));
         }
     }

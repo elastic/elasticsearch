@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -70,7 +71,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
-        this.currentPosition = position == null ? null : Collections.unmodifiableMap(position);
+        this.currentPosition = position == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(position));
         this.checkpoint = checkpoint;
         this.reason = reason;
     }

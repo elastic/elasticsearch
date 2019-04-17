@@ -171,10 +171,6 @@ final class RemoteRequestBuilders {
     }
 
     private static String encodeIndex(String s) {
-        if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
-            checkIndexOrType("Index", s);
-            return s;
-        }
         try {
             return URLEncoder.encode(s, "utf-8");
         } catch (UnsupportedEncodingException e) {

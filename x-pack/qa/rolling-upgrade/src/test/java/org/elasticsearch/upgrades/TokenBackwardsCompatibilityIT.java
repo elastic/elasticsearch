@@ -30,7 +30,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Collection<RestClient> twoClients = null;
 
     @Before
-    private void collateClientsByVersion() throws IOException {
+    private void collectClientsByVersion() throws IOException {
         Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
         if (clientsByVersion.size() == 2) {
             // usual case, clients have different versions

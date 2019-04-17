@@ -224,6 +224,11 @@ primaryExpression
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
 
+builtinDateTimeFunction
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    ;
+
 castExpression
     : castTemplate                                                                   
     | FUNCTION_ESC castTemplate ESC_END                                              
@@ -235,11 +240,6 @@ castTemplate
     : CAST '(' expression AS dataType ')'
     ;
 
-builtinDateTimeFunction
-    : name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
-    ;
-    
 convertTemplate
     : CONVERT '(' expression ',' dataType ')'
     ;
@@ -338,7 +338,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIMESTAMP
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS

@@ -6,6 +6,9 @@
 
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -28,6 +31,8 @@ public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
     public static final String DATE_PARSE_FORMAT = "epoch_millis";
+
+    private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
 
     private DateUtils() {}
 
@@ -114,5 +119,26 @@ public final class DateUtils {
             return DAY_IN_MILLIS;
         }
         return l - (l % DAY_IN_MILLIS);
+    }
+
+    public static int getNanoPrecision(Expression precisionExpression, int nano) {
+        int precision = DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS;
+
+        if (precisionExpression != null) {
+            try {
+                precision = Foldables.intValueOf(precisionExpression);
+            } catch (Exception e) {
+                throw new ParsingException(precisionExpression.source(), "invalid precision; " + e.getMessage());
+            }
+        }
+
+        if (precision < 0 || precision > 9) {
+            throw new ParsingException(precisionExpression.source(), "precision needs to be between [0-9], received [{}]",
+                precisionExpression.sourceText());
+        }
+
+        // remove the remainder
+        nano = nano - nano % (int) Math.pow(10, (9 - precision));
+        return nano;
     }
 }

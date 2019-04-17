@@ -87,6 +87,7 @@ import org.elasticsearch.transport.nio.MockNioTransport;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -678,16 +679,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         TestAction.PrimaryShardReference primary = action.new PrimaryShardReference(shard, releasable);
         final Request request = new Request(NO_SHARD_ID);
-        primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
-            final ElasticsearchException exception = new ElasticsearchException("testing");
-            primary.failShard("test", exception);
+        shard.runUnderPrimaryPermit(() ->
+            primary.perform(request, ActionTestUtils.assertNoFailureListener(r -> {
+                final ElasticsearchException exception = new ElasticsearchException("testing");
+                primary.failShard("test", exception);
 
-            verify(shard).failShard("test", exception);
+                verify(shard).failShard("test", exception);
 
-            primary.close();
+                primary.close();
 
-            assertTrue(closed.get());
-        }));
+                assertTrue(closed.get());
+            })), Assert::assertNotNull, null, null);
     }
 
     public void testReplicaProxy() throws InterruptedException, ExecutionException {
@@ -775,10 +777,12 @@ public class TransportReplicationActionTests extends ESTestCase {
                 inSyncIds,
                 shardRoutingTable.getAllAllocationIds()));
         doAnswer(invocation -> {
+            count.incrementAndGet();
             //noinspection unchecked
-            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
+            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(count::decrementAndGet);
             return null;
         }).when(shard).acquirePrimaryOperationPermit(any(), anyString(), anyObject());
+        when(shard.getActiveOperationsCount()).thenAnswer(i -> count.get());
 
         final IndexService indexService = mock(IndexService.class);
         when(indexService.getShard(shard.shardId().id())).thenReturn(shard);
@@ -1286,6 +1290,8 @@ public class TransportReplicationActionTests extends ESTestCase {
             return null;
         }).when(indexShard)
             .acquireReplicaOperationPermit(anyLong(), anyLong(), anyLong(), any(ActionListener.class), anyString(), anyObject());
+        when(indexShard.getActiveOperationsCount()).thenAnswer(i -> count.get());
+
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());

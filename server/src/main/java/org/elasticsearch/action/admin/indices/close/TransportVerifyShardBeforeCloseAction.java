@@ -101,8 +101,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        if (indexShard.getActiveOperationsCount() != 0) {
-            throw new IllegalStateException("On-going operations in progress while checking index shard " + shardId + " before closing");
+        if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
+            throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");
         }
 
         final ClusterBlocks clusterBlocks = clusterService.state().blocks();

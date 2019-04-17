@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.Page;
 

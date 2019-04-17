@@ -476,7 +476,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
         for (IndexId indexId: indices) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(groupedListener) {
 
                 @Override
                 protected void doRun() {
@@ -516,9 +516,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<IndexId> indices,
@@ -648,7 +645,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public RepositoryData getRepositoryData() {
         try {
             final long indexGen = latestIndexBlobId();
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + indexGen;
 
             RepositoryData repositoryData;
             try (InputStream blob = blobContainer().readBlob(snapshotsIndexBlobName)) {
@@ -718,18 +715,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+                repositoryData.snapshotsToXContent(builder);
                 builder.close();
             }
             snapshotsBytes = bStream.bytes();
         }
         // write the index file
-        final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
+        final String indexBlob = INDEX_FILE_PREFIX + newGen;
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
         writeAtomic(indexBlob, snapshotsBytes, true);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
-            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
+            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + (newGen - 2);
             blobContainer().deleteBlobIgnoringIfNotExists(oldSnapshotIndexFile);
         }
 
@@ -752,10 +749,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert isReadOnly() == false; // can not write to a read only repository
         final BytesReference bytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
+            try (StreamOutput stream = new OutputStreamStreamOutput(bStream);
+                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream)) {
                 repositoryData.incompatibleSnapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.close();
             }
             bytes = bStream.bytes();
         }

@@ -249,7 +249,17 @@ class IndicesAndAliasesResolver {
                 Optional<String> foundAlias = aliasMetaData.stream()
                     .map(AliasMetaData::alias)
                     .filter(authorizedIndicesList::contains)
-                    .filter(aliasName -> metaData.getAliasAndIndexLookup().get(aliasName).getIndices().size() == 1)
+                    .filter(aliasName -> {
+                        AliasOrIndex alias = metaData.getAliasAndIndexLookup().get(aliasName);
+                        List<IndexMetaData> indexMetadata = alias.getIndices();
+                        if (indexMetadata.size() == 1) {
+                            return true;
+                        } else {
+                            assert alias instanceof AliasOrIndex.Alias;
+                            IndexMetaData idxMeta = ((AliasOrIndex.Alias) alias).getWriteIndex();
+                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                        }
+                    })
                     .findFirst();
                 resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
             } else {

@@ -575,7 +575,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
                     try {
-                        Files.delete(dir);
+                        // don't delete the root of the repository
+                        if (repoPath.equals(dir) == false) {
+                            Files.delete(dir);
+                        }
                     } catch (DirectoryNotEmptyException e) {
                         // We're only interested in deleting empty trees here, just ignore directories with content
                     }

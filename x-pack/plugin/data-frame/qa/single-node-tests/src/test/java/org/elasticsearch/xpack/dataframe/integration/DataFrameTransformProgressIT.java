@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,8 +39,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer;
 
-import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;

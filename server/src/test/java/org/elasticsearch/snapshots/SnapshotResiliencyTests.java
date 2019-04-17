@@ -169,11 +169,13 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -538,7 +540,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private void assertNoStaleRepositoryData() throws IOException {
         final Path repoPath = tempDir.resolve("repo").toAbsolutePath();
         final List<Path> repos;
-        try (Stream<Path> reposDir = Files.list(repoPath)) {
+        try (Stream<Path> reposDir = repoFilesByPrefix(repoPath)) {
             repos = reposDir.filter(s -> s.getFileName().toString().startsWith("extra") == false).collect(Collectors.toList());
         }
         for (Path repoRoot : repos) {
@@ -575,10 +577,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 @Override
                 public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
                     try {
-                        // don't delete the root of the repository
-                        if (repoPath.equals(dir) == false) {
-                            Files.delete(dir);
-                        }
+                        Files.delete(dir);
                     } catch (DirectoryNotEmptyException e) {
                         // We're only interested in deleting empty trees here, just ignore directories with content
                     }
@@ -591,7 +590,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private static void assertIndexGenerations(Path repoRoot, long latestGen) throws IOException {
-        try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+        try (Stream<Path> repoRootBlobs = repoFilesByPrefix(repoRoot)) {
             final long[] indexGenerations = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith("index-"))
                 .map(p -> p.getFileName().toString().replace("index-", ""))
                 .mapToLong(Long::parseLong).sorted().toArray();
@@ -603,7 +602,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private static void assertIndexUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
         final List<String> expectedIndexUUIDs =
             repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
-        try (Stream<Path> indexRoots = Files.list(repoRoot.resolve("indices"))) {
+        try (Stream<Path> indexRoots = repoFilesByPrefix(repoRoot.resolve("indices"))) {
             final List<String> foundIndexUUIDs = indexRoots.filter(s -> s.getFileName().toString().startsWith("extra") == false)
                 .map(p -> p.getFileName().toString()).collect(Collectors.toList());
             assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
@@ -614,12 +613,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final List<String> expectedSnapshotUUIDs =
             repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
         for (String prefix : new String[]{"snap-", "meta-"}) {
-            try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+            try (Stream<Path> repoRootBlobs = repoFilesByPrefix(repoRoot)) {
                 final Collection<String> foundSnapshotUUIDs = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith(prefix))
                     .map(p -> p.getFileName().toString().replace(prefix, "").replace(".dat", ""))
                     .collect(Collectors.toSet());
                 assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
             }
+        }
+    }
+
+    /**
+     * List contents of a blob path and return an empty stream if the path doesn't exist.
+     * @param prefix Path to find children for
+     * @return stream of child paths
+     * @throws IOException on failure
+     */
+    private static Stream<Path> repoFilesByPrefix(Path prefix) throws IOException {
+        try {
+            return Files.list(prefix);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            return Stream.empty();
         }
     }
 

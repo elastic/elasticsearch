@@ -28,12 +28,12 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
 
     public void testArchiveBrokenIndexSettings() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.emptyList());
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         IndexMetaData src = newIndexMeta("foo", Settings.EMPTY);
         IndexMetaData indexMetaData = service.archiveBrokenIndexSettings(src);
         assertSame(indexMetaData, src);
@@ -58,10 +58,20 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(indexMetaData, src);
     }
 
+    public void testAlreadyUpgradedIndexArchivesBrokenIndexSettings() {
+        final MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
+        final IndexMetaData initial = newIndexMeta(
+            "foo",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.CURRENT).put("index.refresh_interval", "-200").build());
+        assertTrue(service.isUpgraded(initial));
+        final IndexMetaData after = service.upgradeIndexMetaData(initial, Version.CURRENT.minimumIndexCompatibilityVersion());
+        // the index does not need to be upgraded, but checking that it does should archive any broken settings
+        assertThat(after.getSettings().get("archived.index.refresh_interval"), equalTo("-200"));
+        assertNull(after.getSettings().get("index.refresh_interval"));
+    }
+
     public void testUpgrade() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.emptyList());
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));
         src = service.upgradeIndexMetaData(src, Version.CURRENT.minimumIndexCompatibilityVersion());
@@ -72,9 +82,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testIsUpgraded() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.emptyList());
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         IndexMetaData src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
         assertFalse(service.isUpgraded(src));
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion());
@@ -85,9 +93,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
     }
 
     public void testFailUpgrade() {
-        MetaDataIndexUpgradeService service = new MetaDataIndexUpgradeService(Settings.EMPTY, xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, Collections.emptyList());
+        MetaDataIndexUpgradeService service = getMetaDataIndexUpgradeService();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
         Version indexUpgraded = VersionUtils.randomVersionBetween(random(),
             minCompat,
@@ -144,6 +150,15 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
         assertEquals(message, "Cannot upgrade index foo");
     }
 
+    private MetaDataIndexUpgradeService getMetaDataIndexUpgradeService() {
+        return new MetaDataIndexUpgradeService(
+            Settings.EMPTY,
+            xContentRegistry(),
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            Collections.emptyList());
+    }
+
     public static IndexMetaData newIndexMeta(String name, Settings indexSettings) {
         Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
@@ -155,4 +170,5 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
             .build();
         return IndexMetaData.builder(name).settings(build).build();
     }
+
 }

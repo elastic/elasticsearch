@@ -131,13 +131,17 @@ public class MockEventuallyConsistentRepository extends FsRepository {
             }
 
             private void ensureReadAfterWrite(String blobName) {
-                if (cachedMisses.contains(blobName) == false && pendingWrites.containsKey(blobName)) {
+                // TODO: Make this even less consistent by keeping track of blobs that existed before instead of simply ensuring
+                //       read after first write again if the blob doesn't exist
+                if (cachedMisses.contains(blobName) == false && pendingWrites.containsKey(blobName)
+                        && super.blobExists(blobName) == false) {
                     pendingWrites.remove(blobName).run();
                 }
             }
 
             @Override
             public void deleteBlob(String blobName) {
+                ensureReadAfterWrite(blobName);
                 // TODO: simulate longer delays here once the S3 blob store implementation can handle them
                 deterministicTaskQueue.scheduleNow(() -> {
                     try {

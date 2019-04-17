@@ -171,8 +171,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -538,6 +542,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             repos = reposDir.filter(s -> s.getFileName().toString().startsWith("extra") == false).collect(Collectors.toList());
         }
         for (Path repoRoot : repos) {
+            cleanupEmptyTrees(repoRoot);
             final Path latestIndexGenBlob = repoRoot.resolve("index.latest");
             assertTrue("Could not find index.latest blob for repo at [" + repoRoot + ']', Files.exists(latestIndexGenBlob));
             final long latestGen = ByteBuffer.wrap(Files.readAllBytes(latestIndexGenBlob)).getLong(0);
@@ -550,6 +555,35 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
             assertIndexUUIDs(repoRoot, repositoryData);
             assertSnapshotUUIDs(repoRoot, repositoryData);
+        }
+    }
+
+    // Lucene's mock file system randomly generates empty `extra0` files that break the deletion of blob-store directories.
+    // We clean those up here before checking a blob-store for stale files in this test.
+    private void cleanupEmptyTrees(Path repoPath) {
+        try {
+            Files.walkFileTree(repoPath, new SimpleFileVisitor<>() {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().startsWith("extra")) {
+                        Files.delete(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    try {
+                        Files.delete(dir);
+                    } catch (DirectoryNotEmptyException e) {
+                        // We're only interested in deleting empty trees here, just ignore directories with content
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

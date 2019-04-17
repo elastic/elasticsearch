@@ -108,7 +108,7 @@
   - match: { hits.total: 8 }
 
 ---
-"Get the indexed refresh token and use if to get another access token and authenticate":
+"Get the indexed refresh token and use it to get another access token and authenticate":
   - skip:
       features: headers
 

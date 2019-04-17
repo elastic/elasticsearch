@@ -42,15 +42,14 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
         } else {
             settings = Settings.EMPTY;
         }
-        return new FsBlobStore(settings, createTempDir());
+        return new FsBlobStore(settings, createTempDir(), false);
     }
 
     public void testReadOnly() throws Exception {
-        Settings settings = Settings.builder().put("readonly", true).build();
         Path tempDir = createTempDir();
         Path path = tempDir.resolve("bar");
 
-        try (FsBlobStore store = new FsBlobStore(settings, path)) {
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, true)) {
             assertFalse(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             store.blobContainer(blobPath);
@@ -61,8 +60,7 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
             assertFalse(Files.exists(storePath));
         }
 
-        settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("readonly", false).build();
-        try (FsBlobStore store = new FsBlobStore(settings, path)) {
+        try (FsBlobStore store = new FsBlobStore(Settings.EMPTY, path, false)) {
             assertTrue(Files.exists(path));
             BlobPath blobPath = BlobPath.cleanPath().add("foo");
             BlobContainer container = store.blobContainer(blobPath);

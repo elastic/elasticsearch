@@ -78,7 +78,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRefreshingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-        // Creates another access and refresh tokens and tries to use the refresh tokens several times
+        // Creates access and refresh tokens and uses the refresh token. The new resulting tokens are used in different phases
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
@@ -88,7 +88,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
         storeTokens(client(), 3, accessToken, refreshToken);
 
-        // refresh the new token
+        // refresh the token just created. The old token is invalid (tested further) and the new refresh token is tested in the upgraded
+        // cluster
         Map<String, Object> refreshResponseMap = refreshToken(client(), refreshToken);
         String refreshedAccessToken = (String) refreshResponseMap.get("access_token");
         String refreshedRefreshToken = (String) refreshResponseMap.get("refresh_token");
@@ -103,7 +104,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testInvalidatingTokensInOldCluster() throws Exception {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
-        // Creates another access and refresh tokens and tries to use the refresh tokens several times
+        // Creates access and refresh tokens and tries to use the access tokens several times
         Map<String, Object> responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         String accessToken = (String) responseMap.get("access_token");
         assertNotNull(accessToken);
@@ -165,7 +166,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
-        // verify new nodes can refresh tokens from the old cluster
+        // verify new nodes can refresh tokens created by old nodes and vice versa 
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");

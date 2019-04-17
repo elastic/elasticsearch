@@ -226,6 +226,78 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
+    /**
+     * Aligns the data in this buffer along the underlying pages. If the beginning of this buffer is in the
+     * middle of a page, it will be copied to the beginning of a new page. The amount of copied into
+     * alignment with the underlying pages is configured by the length parameter. As this operation might add
+     * or remove pages, the it can modify the buffers capacity.
+     *
+     * @param length of the data to align
+     */
+    public void align(long length) {
+        if (offset == 0 || pages.size() == 0) {
+            return;
+        }
+
+        if (pageIndex(length + offset) == 0) {
+            Page oldPage = pages.removeFirst();
+            ByteBuffer oldByteBuffer = oldPage.getByteBuffer().duplicate();
+            oldByteBuffer.position(offset);
+            oldByteBuffer.limit(oldByteBuffer.position() + Math.toIntExact(length));
+            Page newPage = pageSupplier.get();
+            newPage.getByteBuffer().put(oldByteBuffer);
+            newPage.getByteBuffer().clear();
+            pages.addFirst(newPage);
+            oldPage.close();
+        } else {
+            long indexWithOffset = length + offset;
+            int newPageCount = pageIndex(length);
+            int finalLimit = indexInPage(indexWithOffset);
+            if (finalLimit != 0) {
+                newPageCount += 1;
+            }
+            Page[] newPages = new Page[newPageCount];
+
+            Page newPage = pageSupplier.get();
+            ByteBuffer newByteBuffer = newPage.getByteBuffer();
+            Page oldPage = pages.removeFirst();
+            ByteBuffer oldByteBuffer = oldPage.getByteBuffer().duplicate();
+            oldByteBuffer.position(offset);
+            long bytesToCopy = internalIndex;
+            int newBufferIndex = 0;
+            while (bytesToCopy > 0) {
+                if (newByteBuffer.remaining() == 0) {
+                    newPages[newBufferIndex] = newPage;
+                    newPage = pageSupplier.get();
+                    newByteBuffer = newPage.getByteBuffer();
+                    ++newBufferIndex;
+                }
+                if (oldByteBuffer.remaining() == 0) {
+                    oldPage.close();
+                    oldPage = pages.removeFirst();
+                    oldByteBuffer = oldPage.getByteBuffer().duplicate();
+                }
+
+                int limitDelta = Math.min(Math.min((int) bytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
+                oldByteBuffer.limit(oldByteBuffer.position() + limitDelta);
+                newByteBuffer.put(oldByteBuffer);
+                bytesToCopy -= limitDelta;
+                oldByteBuffer.limit(oldByteBuffer.capacity());
+            }
+
+            newPages[newBufferIndex] = newPage;
+
+            for (int i = newPageCount - 1; i >= 0; --i) {
+                Page page = newPages[i];
+                page.getByteBuffer().clear();
+                pages.addFirst(newPage);
+            }
+        }
+
+        offset = 0;
+        capacity = pages.size() * PAGE_SIZE;
+    }
+
     public void incrementIndex(long delta) {
         if (delta < 0) {
             throw new IllegalArgumentException("Cannot increment an index with a negative delta [" + delta + "]");

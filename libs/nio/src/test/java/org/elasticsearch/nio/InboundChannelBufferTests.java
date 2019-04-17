@@ -259,4 +259,83 @@ public class InboundChannelBufferTests extends ESTestCase {
 
         assertEquals(0, channelBuffer.sliceBuffersFrom(channelBuffer.getIndex()).length);
     }
+
+    public void testAlignAlreadyAligned() {
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier);
+        channelBuffer.ensureCapacity(3 * PAGE_SIZE);
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        byteBuffers[1].put((byte) 1);
+        channelBuffer.incrementIndex(PAGE_SIZE + 1);
+        channelBuffer.release(PAGE_SIZE);
+        ByteBuffer[] buffersUnaligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(1, buffersUnaligned.length);
+        assertEquals(channelBuffer.getIndex(), buffersUnaligned[0].remaining());
+        assertEquals((PAGE_SIZE * 2), channelBuffer.getCapacity());
+        channelBuffer.align(channelBuffer.getIndex());
+        ByteBuffer[] buffersAligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(1, buffersAligned.length);
+        assertEquals(channelBuffer.getIndex(), buffersAligned[0].remaining());
+        assertEquals((byte) 1, buffersAligned[0].get((int) channelBuffer.getIndex() - 1));
+        assertEquals(PAGE_SIZE * 2, channelBuffer.getCapacity());
+    }
+
+    public void testAlignFitsInSingleOldBuffer() {
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier);
+        channelBuffer.ensureCapacity(2 * PAGE_SIZE);
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        byteBuffers[0].put(byteBuffers[0].limit() - 2, (byte) 1);
+        channelBuffer.incrementIndex(PAGE_SIZE - 1);
+        channelBuffer.release(1);
+        ByteBuffer[] buffersUnaligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(1, buffersUnaligned.length);
+        assertEquals(channelBuffer.getIndex(), buffersUnaligned[0].remaining());
+        assertEquals((PAGE_SIZE * 2) - 1, channelBuffer.getCapacity());
+        channelBuffer.align(channelBuffer.getIndex());
+        ByteBuffer[] buffersAligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(1, buffersAligned.length);
+        assertEquals(channelBuffer.getIndex(), buffersAligned[0].remaining());
+        assertEquals((byte) 1, buffersAligned[0].get((int) channelBuffer.getIndex() - 1));
+        assertEquals(PAGE_SIZE * 2, channelBuffer.getCapacity());
+    }
+
+    public void testAlignSingleNewBuffer() {
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier);
+        channelBuffer.ensureCapacity(3 * PAGE_SIZE);
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        byteBuffers[1].put((byte) 1);
+        channelBuffer.incrementIndex(PAGE_SIZE + 1);
+        channelBuffer.release(3);
+        ByteBuffer[] buffersUnaligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(2, buffersUnaligned.length);
+        assertEquals(PAGE_SIZE - 3, buffersUnaligned[0].remaining());
+        assertEquals(1, buffersUnaligned[1].remaining());
+        assertEquals((PAGE_SIZE * 3) - 3, channelBuffer.getCapacity());
+        channelBuffer.align(channelBuffer.getIndex());
+        ByteBuffer[] buffersAligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(1, buffersAligned.length);
+        assertEquals(channelBuffer.getIndex(), buffersAligned[0].remaining());
+        assertEquals((byte) 1, buffersAligned[0].get((int) channelBuffer.getIndex() - 1));
+        assertEquals(PAGE_SIZE * 2, channelBuffer.getCapacity());
+    }
+
+    public void testAlignMultipleNewBuffers() {
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier);
+        channelBuffer.ensureCapacity(3 * PAGE_SIZE);
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        byteBuffers[1].put(1, (byte) 1);
+        channelBuffer.incrementIndex(PAGE_SIZE + 2);
+        channelBuffer.release(1);
+        ByteBuffer[] buffersUnaligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(2, buffersUnaligned.length);
+        assertEquals(PAGE_SIZE - 1, buffersUnaligned[0].remaining());
+        assertEquals(2, buffersUnaligned[1].remaining());
+        assertEquals((PAGE_SIZE * 3) - 1, channelBuffer.getCapacity());
+        channelBuffer.align(channelBuffer.getIndex());
+        ByteBuffer[] buffersAligned = channelBuffer.sliceBuffersTo(channelBuffer.getIndex());
+        assertEquals(2, buffersAligned.length);
+        assertEquals(buffersAligned[0].capacity(), buffersAligned[0].remaining());
+        assertEquals(1, buffersAligned[1].remaining());
+        assertEquals((byte) 1, buffersAligned[1].get(0));
+        assertEquals(PAGE_SIZE * 3, channelBuffer.getCapacity());
+    }
 }

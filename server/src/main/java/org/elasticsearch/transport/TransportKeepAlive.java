@@ -136,8 +136,10 @@ final class TransportKeepAlive implements Closeable {
 
     @Override
     public void close() {
-        lifecycle.moveToStopped();
-        lifecycle.moveToClosed();
+        synchronized (lifecycle) {
+            lifecycle.moveToStopped();
+            lifecycle.moveToClosed();
+        }
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {

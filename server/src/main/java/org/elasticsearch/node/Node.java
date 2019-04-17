@@ -783,11 +783,13 @@ public class Node implements Closeable {
     // In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() throws IOException {
-        if (lifecycle.started()) {
-            stop();
-        }
-        if (!lifecycle.moveToClosed()) {
-            return;
+        synchronized (lifecycle) {
+            if (lifecycle.started()) {
+                stop();
+            }
+            if (!lifecycle.moveToClosed()) {
+                return;
+            }
         }
 
         logger.info("closing ...");
@@ -835,20 +837,11 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(ScriptService.class));
 
         toClose.add(() -> stopWatch.stop().start("thread_pool"));
-        // TODO this should really use ThreadPool.terminate()
         toClose.add(() -> injector.getInstance(ThreadPool.class).shutdown());
-        toClose.add(() -> {
-            try {
-                injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                // ignore
-            }
-        });
-
-        toClose.add(() -> stopWatch.stop().start("thread_pool_force_shutdown"));
-        toClose.add(() -> injector.getInstance(ThreadPool.class).shutdownNow());
+        // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
+        // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
+        // awaitClose if the node doesn't finish closing within the specified time.
         toClose.add(() -> stopWatch.stop());
-
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
         toClose.add(injector.getInstance(PageCacheRecycler.class));
@@ -860,6 +853,30 @@ public class Node implements Closeable {
         logger.info("closed");
     }
 
+    /**
+     * Wait for this node to be effectively closed.
+     */
+    // synchronized to prevent running concurrently with close()
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        if (lifecycle.closed() == false) {
+            // We don't want to shutdown the threadpool or interrupt threads on a node that is not
+            // closed yet.
+            throw new IllegalStateException("Call close() first");
+        }
+
+
+        ThreadPool threadPool = injector.getInstance(ThreadPool.class);
+        final boolean terminated = ThreadPool.terminate(threadPool, timeout, timeUnit);
+        if (terminated) {
+            // All threads terminated successfully. Because search, recovery and all other operations
+            // that run on shards run in the threadpool, indices should be effectively closed by now.
+            if (nodeService.awaitClose(0, TimeUnit.MILLISECONDS) == false) {
+                throw new IllegalStateException("Some shards are still open after the threadpool terminated. " +
+                        "Something is leaking index readers or store references.");
+            }
+        }
+        return terminated;
+    }
 
     /**
      * Returns {@code true} if the node is closed.

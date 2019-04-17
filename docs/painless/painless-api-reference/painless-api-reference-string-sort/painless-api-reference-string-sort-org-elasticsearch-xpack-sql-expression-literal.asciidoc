@@ -1,0 +1,17 @@
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal"]
+=== org.elasticsearch.xpack.sql.expression.literal
+
+[[painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-IntervalDayTime]]
+==== IntervalDayTime
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-IntervalYearMonth]]
+==== IntervalYearMonth
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

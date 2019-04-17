@@ -1,0 +1,13 @@
+[role="exclude",id="painless-api-reference-painless-test-org-elasticsearch-index-query"]
+=== org.elasticsearch.index.query
+
+[[painless-api-reference-painless-test-org-elasticsearch-index-query-IntervalFilterScript.Interval]]
+==== IntervalFilterScript.Interval
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int getEnd()
+* int getGaps()
+* int getStart()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

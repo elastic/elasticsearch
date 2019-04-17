@@ -1,0 +1,483 @@
+[[painless-api-reference-aggs]]
+=== Aggs API
+
+==== java.lang
+<<painless-api-reference-aggs-java-lang, Expand java.lang>>
+
+* <<painless-api-reference-aggs-java-lang-Appendable, Appendable>>
+* <<painless-api-reference-aggs-java-lang-ArithmeticException, ArithmeticException>>
+* <<painless-api-reference-aggs-java-lang-ArrayIndexOutOfBoundsException, ArrayIndexOutOfBoundsException>>
+* <<painless-api-reference-aggs-java-lang-ArrayStoreException, ArrayStoreException>>
+* <<painless-api-reference-aggs-java-lang-Boolean, Boolean>>
+* <<painless-api-reference-aggs-java-lang-Byte, Byte>>
+* <<painless-api-reference-aggs-java-lang-CharSequence, CharSequence>>
+* <<painless-api-reference-aggs-java-lang-Character, Character>>
+* <<painless-api-reference-aggs-java-lang-Character.Subset, Character.Subset>>
+* <<painless-api-reference-aggs-java-lang-Character.UnicodeBlock, Character.UnicodeBlock>>
+* <<painless-api-reference-aggs-java-lang-Character.UnicodeScript, Character.UnicodeScript>>
+* <<painless-api-reference-aggs-java-lang-ClassCastException, ClassCastException>>
+* <<painless-api-reference-aggs-java-lang-ClassNotFoundException, ClassNotFoundException>>
+* <<painless-api-reference-aggs-java-lang-CloneNotSupportedException, CloneNotSupportedException>>
+* <<painless-api-reference-aggs-java-lang-Comparable, Comparable>>
+* <<painless-api-reference-aggs-java-lang-Double, Double>>
+* <<painless-api-reference-aggs-java-lang-Enum, Enum>>
+* <<painless-api-reference-aggs-java-lang-EnumConstantNotPresentException, EnumConstantNotPresentException>>
+* <<painless-api-reference-aggs-java-lang-Exception, Exception>>
+* <<painless-api-reference-aggs-java-lang-Float, Float>>
+* <<painless-api-reference-aggs-java-lang-IllegalAccessException, IllegalAccessException>>
+* <<painless-api-reference-aggs-java-lang-IllegalArgumentException, IllegalArgumentException>>
+* <<painless-api-reference-aggs-java-lang-IllegalMonitorStateException, IllegalMonitorStateException>>
+* <<painless-api-reference-aggs-java-lang-IllegalStateException, IllegalStateException>>
+* <<painless-api-reference-aggs-java-lang-IllegalThreadStateException, IllegalThreadStateException>>
+* <<painless-api-reference-aggs-java-lang-IndexOutOfBoundsException, IndexOutOfBoundsException>>
+* <<painless-api-reference-aggs-java-lang-InstantiationException, InstantiationException>>
+* <<painless-api-reference-aggs-java-lang-Integer, Integer>>
+* <<painless-api-reference-aggs-java-lang-InterruptedException, InterruptedException>>
+* <<painless-api-reference-aggs-java-lang-Iterable, Iterable>>
+* <<painless-api-reference-aggs-java-lang-Long, Long>>
+* <<painless-api-reference-aggs-java-lang-Math, Math>>
+* <<painless-api-reference-aggs-java-lang-NegativeArraySizeException, NegativeArraySizeException>>
+* <<painless-api-reference-aggs-java-lang-NoSuchFieldException, NoSuchFieldException>>
+* <<painless-api-reference-aggs-java-lang-NoSuchMethodException, NoSuchMethodException>>
+* <<painless-api-reference-aggs-java-lang-NullPointerException, NullPointerException>>
+* <<painless-api-reference-aggs-java-lang-Number, Number>>
+* <<painless-api-reference-aggs-java-lang-NumberFormatException, NumberFormatException>>
+* <<painless-api-reference-aggs-java-lang-Object, Object>>
+* <<painless-api-reference-aggs-java-lang-ReflectiveOperationException, ReflectiveOperationException>>
+* <<painless-api-reference-aggs-java-lang-RuntimeException, RuntimeException>>
+* <<painless-api-reference-aggs-java-lang-SecurityException, SecurityException>>
+* <<painless-api-reference-aggs-java-lang-Short, Short>>
+* <<painless-api-reference-aggs-java-lang-StackTraceElement, StackTraceElement>>
+* <<painless-api-reference-aggs-java-lang-StrictMath, StrictMath>>
+* <<painless-api-reference-aggs-java-lang-String, String>>
+* <<painless-api-reference-aggs-java-lang-StringBuffer, StringBuffer>>
+* <<painless-api-reference-aggs-java-lang-StringBuilder, StringBuilder>>
+* <<painless-api-reference-aggs-java-lang-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>
+* <<painless-api-reference-aggs-java-lang-System, System>>
+* <<painless-api-reference-aggs-java-lang-TypeNotPresentException, TypeNotPresentException>>
+* <<painless-api-reference-aggs-java-lang-UnsupportedOperationException, UnsupportedOperationException>>
+* <<painless-api-reference-aggs-java-lang-Void, Void>>
+
+
+==== java.math
+<<painless-api-reference-aggs-java-math, Expand java.math>>
+
+* <<painless-api-reference-aggs-java-math-BigDecimal, BigDecimal>>
+* <<painless-api-reference-aggs-java-math-BigInteger, BigInteger>>
+* <<painless-api-reference-aggs-java-math-MathContext, MathContext>>
+* <<painless-api-reference-aggs-java-math-RoundingMode, RoundingMode>>
+
+
+==== java.text
+<<painless-api-reference-aggs-java-text, Expand java.text>>
+
+* <<painless-api-reference-aggs-java-text-Annotation, Annotation>>
+* <<painless-api-reference-aggs-java-text-AttributedCharacterIterator, AttributedCharacterIterator>>
+* <<painless-api-reference-aggs-java-text-AttributedCharacterIterator.Attribute, AttributedCharacterIterator.Attribute>>
+* <<painless-api-reference-aggs-java-text-AttributedString, AttributedString>>
+* <<painless-api-reference-aggs-java-text-Bidi, Bidi>>
+* <<painless-api-reference-aggs-java-text-BreakIterator, BreakIterator>>
+* <<painless-api-reference-aggs-java-text-CharacterIterator, CharacterIterator>>
+* <<painless-api-reference-aggs-java-text-ChoiceFormat, ChoiceFormat>>
+* <<painless-api-reference-aggs-java-text-CollationElementIterator, CollationElementIterator>>
+* <<painless-api-reference-aggs-java-text-CollationKey, CollationKey>>
+* <<painless-api-reference-aggs-java-text-Collator, Collator>>
+* <<painless-api-reference-aggs-java-text-DateFormat, DateFormat>>
+* <<painless-api-reference-aggs-java-text-DateFormat.Field, DateFormat.Field>>
+* <<painless-api-reference-aggs-java-text-DateFormatSymbols, DateFormatSymbols>>
+* <<painless-api-reference-aggs-java-text-DecimalFormat, DecimalFormat>>
+* <<painless-api-reference-aggs-java-text-DecimalFormatSymbols, DecimalFormatSymbols>>
+* <<painless-api-reference-aggs-java-text-FieldPosition, FieldPosition>>
+* <<painless-api-reference-aggs-java-text-Format, Format>>
+* <<painless-api-reference-aggs-java-text-Format.Field, Format.Field>>
+* <<painless-api-reference-aggs-java-text-MessageFormat, MessageFormat>>
+* <<painless-api-reference-aggs-java-text-MessageFormat.Field, MessageFormat.Field>>
+* <<painless-api-reference-aggs-java-text-Normalizer, Normalizer>>
+* <<painless-api-reference-aggs-java-text-Normalizer.Form, Normalizer.Form>>
+* <<painless-api-reference-aggs-java-text-NumberFormat, NumberFormat>>
+* <<painless-api-reference-aggs-java-text-NumberFormat.Field, NumberFormat.Field>>
+* <<painless-api-reference-aggs-java-text-ParseException, ParseException>>
+* <<painless-api-reference-aggs-java-text-ParsePosition, ParsePosition>>
+* <<painless-api-reference-aggs-java-text-RuleBasedCollator, RuleBasedCollator>>
+* <<painless-api-reference-aggs-java-text-SimpleDateFormat, SimpleDateFormat>>
+* <<painless-api-reference-aggs-java-text-StringCharacterIterator, StringCharacterIterator>>
+
+
+==== java.time
+<<painless-api-reference-aggs-java-time, Expand java.time>>
+
+* <<painless-api-reference-aggs-java-time-Clock, Clock>>
+* <<painless-api-reference-aggs-java-time-DateTimeException, DateTimeException>>
+* <<painless-api-reference-aggs-java-time-DayOfWeek, DayOfWeek>>
+* <<painless-api-reference-aggs-java-time-Duration, Duration>>
+* <<painless-api-reference-aggs-java-time-Instant, Instant>>
+* <<painless-api-reference-aggs-java-time-LocalDate, LocalDate>>
+* <<painless-api-reference-aggs-java-time-LocalDateTime, LocalDateTime>>
+* <<painless-api-reference-aggs-java-time-LocalTime, LocalTime>>
+* <<painless-api-reference-aggs-java-time-Month, Month>>
+* <<painless-api-reference-aggs-java-time-MonthDay, MonthDay>>
+* <<painless-api-reference-aggs-java-time-OffsetDateTime, OffsetDateTime>>
+* <<painless-api-reference-aggs-java-time-OffsetTime, OffsetTime>>
+* <<painless-api-reference-aggs-java-time-Period, Period>>
+* <<painless-api-reference-aggs-java-time-Year, Year>>
+* <<painless-api-reference-aggs-java-time-YearMonth, YearMonth>>
+* <<painless-api-reference-aggs-java-time-ZoneId, ZoneId>>
+* <<painless-api-reference-aggs-java-time-ZoneOffset, ZoneOffset>>
+* <<painless-api-reference-aggs-java-time-ZonedDateTime, ZonedDateTime>>
+
+
+==== java.time.chrono
+<<painless-api-reference-aggs-java-time-chrono, Expand java.time.chrono>>
+
+* <<painless-api-reference-aggs-java-time-chrono-AbstractChronology, AbstractChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-ChronoLocalDate, ChronoLocalDate>>
+* <<painless-api-reference-aggs-java-time-chrono-ChronoLocalDateTime, ChronoLocalDateTime>>
+* <<painless-api-reference-aggs-java-time-chrono-ChronoPeriod, ChronoPeriod>>
+* <<painless-api-reference-aggs-java-time-chrono-ChronoZonedDateTime, ChronoZonedDateTime>>
+* <<painless-api-reference-aggs-java-time-chrono-Chronology, Chronology>>
+* <<painless-api-reference-aggs-java-time-chrono-Era, Era>>
+* <<painless-api-reference-aggs-java-time-chrono-HijrahChronology, HijrahChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-HijrahDate, HijrahDate>>
+* <<painless-api-reference-aggs-java-time-chrono-HijrahEra, HijrahEra>>
+* <<painless-api-reference-aggs-java-time-chrono-IsoChronology, IsoChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-IsoEra, IsoEra>>
+* <<painless-api-reference-aggs-java-time-chrono-JapaneseChronology, JapaneseChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-JapaneseDate, JapaneseDate>>
+* <<painless-api-reference-aggs-java-time-chrono-JapaneseEra, JapaneseEra>>
+* <<painless-api-reference-aggs-java-time-chrono-MinguoChronology, MinguoChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-MinguoDate, MinguoDate>>
+* <<painless-api-reference-aggs-java-time-chrono-MinguoEra, MinguoEra>>
+* <<painless-api-reference-aggs-java-time-chrono-ThaiBuddhistChronology, ThaiBuddhistChronology>>
+* <<painless-api-reference-aggs-java-time-chrono-ThaiBuddhistDate, ThaiBuddhistDate>>
+* <<painless-api-reference-aggs-java-time-chrono-ThaiBuddhistEra, ThaiBuddhistEra>>
+
+
+==== java.time.format
+<<painless-api-reference-aggs-java-time-format, Expand java.time.format>>
+
+* <<painless-api-reference-aggs-java-time-format-DateTimeFormatter, DateTimeFormatter>>
+* <<painless-api-reference-aggs-java-time-format-DateTimeFormatterBuilder, DateTimeFormatterBuilder>>
+* <<painless-api-reference-aggs-java-time-format-DateTimeParseException, DateTimeParseException>>
+* <<painless-api-reference-aggs-java-time-format-DecimalStyle, DecimalStyle>>
+* <<painless-api-reference-aggs-java-time-format-FormatStyle, FormatStyle>>
+* <<painless-api-reference-aggs-java-time-format-ResolverStyle, ResolverStyle>>
+* <<painless-api-reference-aggs-java-time-format-SignStyle, SignStyle>>
+* <<painless-api-reference-aggs-java-time-format-TextStyle, TextStyle>>
+
+
+==== java.time.temporal
+<<painless-api-reference-aggs-java-time-temporal, Expand java.time.temporal>>
+
+* <<painless-api-reference-aggs-java-time-temporal-ChronoField, ChronoField>>
+* <<painless-api-reference-aggs-java-time-temporal-ChronoUnit, ChronoUnit>>
+* <<painless-api-reference-aggs-java-time-temporal-IsoFields, IsoFields>>
+* <<painless-api-reference-aggs-java-time-temporal-JulianFields, JulianFields>>
+* <<painless-api-reference-aggs-java-time-temporal-Temporal, Temporal>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalAccessor, TemporalAccessor>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalAdjuster, TemporalAdjuster>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalAdjusters, TemporalAdjusters>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalAmount, TemporalAmount>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalField, TemporalField>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalQueries, TemporalQueries>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalQuery, TemporalQuery>>
+* <<painless-api-reference-aggs-java-time-temporal-TemporalUnit, TemporalUnit>>
+* <<painless-api-reference-aggs-java-time-temporal-UnsupportedTemporalTypeException, UnsupportedTemporalTypeException>>
+* <<painless-api-reference-aggs-java-time-temporal-ValueRange, ValueRange>>
+* <<painless-api-reference-aggs-java-time-temporal-WeekFields, WeekFields>>
+
+
+==== java.time.zone
+<<painless-api-reference-aggs-java-time-zone, Expand java.time.zone>>
+
+* <<painless-api-reference-aggs-java-time-zone-ZoneOffsetTransition, ZoneOffsetTransition>>
+* <<painless-api-reference-aggs-java-time-zone-ZoneOffsetTransitionRule, ZoneOffsetTransitionRule>>
+* <<painless-api-reference-aggs-java-time-zone-ZoneOffsetTransitionRule.TimeDefinition, ZoneOffsetTransitionRule.TimeDefinition>>
+* <<painless-api-reference-aggs-java-time-zone-ZoneRules, ZoneRules>>
+* <<painless-api-reference-aggs-java-time-zone-ZoneRulesException, ZoneRulesException>>
+* <<painless-api-reference-aggs-java-time-zone-ZoneRulesProvider, ZoneRulesProvider>>
+
+
+==== java.util
+<<painless-api-reference-aggs-java-util, Expand java.util>>
+
+* <<painless-api-reference-aggs-java-util-AbstractCollection, AbstractCollection>>
+* <<painless-api-reference-aggs-java-util-AbstractList, AbstractList>>
+* <<painless-api-reference-aggs-java-util-AbstractMap, AbstractMap>>
+* <<painless-api-reference-aggs-java-util-AbstractMap.SimpleEntry, AbstractMap.SimpleEntry>>
+* <<painless-api-reference-aggs-java-util-AbstractMap.SimpleImmutableEntry, AbstractMap.SimpleImmutableEntry>>
+* <<painless-api-reference-aggs-java-util-AbstractQueue, AbstractQueue>>
+* <<painless-api-reference-aggs-java-util-AbstractSequentialList, AbstractSequentialList>>
+* <<painless-api-reference-aggs-java-util-AbstractSet, AbstractSet>>
+* <<painless-api-reference-aggs-java-util-ArrayDeque, ArrayDeque>>
+* <<painless-api-reference-aggs-java-util-ArrayList, ArrayList>>
+* <<painless-api-reference-aggs-java-util-Arrays, Arrays>>
+* <<painless-api-reference-aggs-java-util-Base64, Base64>>
+* <<painless-api-reference-aggs-java-util-Base64.Decoder, Base64.Decoder>>
+* <<painless-api-reference-aggs-java-util-Base64.Encoder, Base64.Encoder>>
+* <<painless-api-reference-aggs-java-util-BitSet, BitSet>>
+* <<painless-api-reference-aggs-java-util-Calendar, Calendar>>
+* <<painless-api-reference-aggs-java-util-Calendar.Builder, Calendar.Builder>>
+* <<painless-api-reference-aggs-java-util-Collection, Collection>>
+* <<painless-api-reference-aggs-java-util-Collections, Collections>>
+* <<painless-api-reference-aggs-java-util-Comparator, Comparator>>
+* <<painless-api-reference-aggs-java-util-ConcurrentModificationException, ConcurrentModificationException>>
+* <<painless-api-reference-aggs-java-util-Currency, Currency>>
+* <<painless-api-reference-aggs-java-util-Date, Date>>
+* <<painless-api-reference-aggs-java-util-Deque, Deque>>
+* <<painless-api-reference-aggs-java-util-Dictionary, Dictionary>>
+* <<painless-api-reference-aggs-java-util-DoubleSummaryStatistics, DoubleSummaryStatistics>>
+* <<painless-api-reference-aggs-java-util-DuplicateFormatFlagsException, DuplicateFormatFlagsException>>
+* <<painless-api-reference-aggs-java-util-EmptyStackException, EmptyStackException>>
+* <<painless-api-reference-aggs-java-util-Enumeration, Enumeration>>
+* <<painless-api-reference-aggs-java-util-EventListener, EventListener>>
+* <<painless-api-reference-aggs-java-util-EventListenerProxy, EventListenerProxy>>
+* <<painless-api-reference-aggs-java-util-EventObject, EventObject>>
+* <<painless-api-reference-aggs-java-util-FormatFlagsConversionMismatchException, FormatFlagsConversionMismatchException>>
+* <<painless-api-reference-aggs-java-util-Formattable, Formattable>>
+* <<painless-api-reference-aggs-java-util-FormattableFlags, FormattableFlags>>
+* <<painless-api-reference-aggs-java-util-Formatter, Formatter>>
+* <<painless-api-reference-aggs-java-util-Formatter.BigDecimalLayoutForm, Formatter.BigDecimalLayoutForm>>
+* <<painless-api-reference-aggs-java-util-FormatterClosedException, FormatterClosedException>>
+* <<painless-api-reference-aggs-java-util-GregorianCalendar, GregorianCalendar>>
+* <<painless-api-reference-aggs-java-util-HashMap, HashMap>>
+* <<painless-api-reference-aggs-java-util-HashSet, HashSet>>
+* <<painless-api-reference-aggs-java-util-Hashtable, Hashtable>>
+* <<painless-api-reference-aggs-java-util-IdentityHashMap, IdentityHashMap>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatCodePointException, IllegalFormatCodePointException>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatConversionException, IllegalFormatConversionException>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatException, IllegalFormatException>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatFlagsException, IllegalFormatFlagsException>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatPrecisionException, IllegalFormatPrecisionException>>
+* <<painless-api-reference-aggs-java-util-IllegalFormatWidthException, IllegalFormatWidthException>>
+* <<painless-api-reference-aggs-java-util-IllformedLocaleException, IllformedLocaleException>>
+* <<painless-api-reference-aggs-java-util-InputMismatchException, InputMismatchException>>
+* <<painless-api-reference-aggs-java-util-IntSummaryStatistics, IntSummaryStatistics>>
+* <<painless-api-reference-aggs-java-util-Iterator, Iterator>>
+* <<painless-api-reference-aggs-java-util-LinkedHashMap, LinkedHashMap>>
+* <<painless-api-reference-aggs-java-util-LinkedHashSet, LinkedHashSet>>
+* <<painless-api-reference-aggs-java-util-LinkedList, LinkedList>>
+* <<painless-api-reference-aggs-java-util-List, List>>
+* <<painless-api-reference-aggs-java-util-ListIterator, ListIterator>>
+* <<painless-api-reference-aggs-java-util-Locale, Locale>>
+* <<painless-api-reference-aggs-java-util-Locale.Builder, Locale.Builder>>
+* <<painless-api-reference-aggs-java-util-Locale.Category, Locale.Category>>
+* <<painless-api-reference-aggs-java-util-Locale.FilteringMode, Locale.FilteringMode>>
+* <<painless-api-reference-aggs-java-util-Locale.LanguageRange, Locale.LanguageRange>>
+* <<painless-api-reference-aggs-java-util-LongSummaryStatistics, LongSummaryStatistics>>
+* <<painless-api-reference-aggs-java-util-Map, Map>>
+* <<painless-api-reference-aggs-java-util-Map.Entry, Map.Entry>>
+* <<painless-api-reference-aggs-java-util-MissingFormatArgumentException, MissingFormatArgumentException>>
+* <<painless-api-reference-aggs-java-util-MissingFormatWidthException, MissingFormatWidthException>>
+* <<painless-api-reference-aggs-java-util-MissingResourceException, MissingResourceException>>
+* <<painless-api-reference-aggs-java-util-NavigableMap, NavigableMap>>
+* <<painless-api-reference-aggs-java-util-NavigableSet, NavigableSet>>
+* <<painless-api-reference-aggs-java-util-NoSuchElementException, NoSuchElementException>>
+* <<painless-api-reference-aggs-java-util-Objects, Objects>>
+* <<painless-api-reference-aggs-java-util-Observable, Observable>>
+* <<painless-api-reference-aggs-java-util-Observer, Observer>>
+* <<painless-api-reference-aggs-java-util-Optional, Optional>>
+* <<painless-api-reference-aggs-java-util-OptionalDouble, OptionalDouble>>
+* <<painless-api-reference-aggs-java-util-OptionalInt, OptionalInt>>
+* <<painless-api-reference-aggs-java-util-OptionalLong, OptionalLong>>
+* <<painless-api-reference-aggs-java-util-PrimitiveIterator, PrimitiveIterator>>
+* <<painless-api-reference-aggs-java-util-PrimitiveIterator.OfDouble, PrimitiveIterator.OfDouble>>
+* <<painless-api-reference-aggs-java-util-PrimitiveIterator.OfInt, PrimitiveIterator.OfInt>>
+* <<painless-api-reference-aggs-java-util-PrimitiveIterator.OfLong, PrimitiveIterator.OfLong>>
+* <<painless-api-reference-aggs-java-util-PriorityQueue, PriorityQueue>>
+* <<painless-api-reference-aggs-java-util-Queue, Queue>>
+* <<painless-api-reference-aggs-java-util-Random, Random>>
+* <<painless-api-reference-aggs-java-util-RandomAccess, RandomAccess>>
+* <<painless-api-reference-aggs-java-util-Set, Set>>
+* <<painless-api-reference-aggs-java-util-SimpleTimeZone, SimpleTimeZone>>
+* <<painless-api-reference-aggs-java-util-SortedMap, SortedMap>>
+* <<painless-api-reference-aggs-java-util-SortedSet, SortedSet>>
+* <<painless-api-reference-aggs-java-util-Spliterator, Spliterator>>
+* <<painless-api-reference-aggs-java-util-Spliterator.OfDouble, Spliterator.OfDouble>>
+* <<painless-api-reference-aggs-java-util-Spliterator.OfInt, Spliterator.OfInt>>
+* <<painless-api-reference-aggs-java-util-Spliterator.OfLong, Spliterator.OfLong>>
+* <<painless-api-reference-aggs-java-util-Spliterator.OfPrimitive, Spliterator.OfPrimitive>>
+* <<painless-api-reference-aggs-java-util-Spliterators, Spliterators>>
+* <<painless-api-reference-aggs-java-util-Stack, Stack>>
+* <<painless-api-reference-aggs-java-util-StringJoiner, StringJoiner>>
+* <<painless-api-reference-aggs-java-util-StringTokenizer, StringTokenizer>>
+* <<painless-api-reference-aggs-java-util-TimeZone, TimeZone>>
+* <<painless-api-reference-aggs-java-util-TooManyListenersException, TooManyListenersException>>
+* <<painless-api-reference-aggs-java-util-TreeMap, TreeMap>>
+* <<painless-api-reference-aggs-java-util-TreeSet, TreeSet>>
+* <<painless-api-reference-aggs-java-util-UUID, UUID>>
+* <<painless-api-reference-aggs-java-util-UnknownFormatConversionException, UnknownFormatConversionException>>
+* <<painless-api-reference-aggs-java-util-UnknownFormatFlagsException, UnknownFormatFlagsException>>
+* <<painless-api-reference-aggs-java-util-Vector, Vector>>
+
+
+==== java.util.function
+<<painless-api-reference-aggs-java-util-function, Expand java.util.function>>
+
+* <<painless-api-reference-aggs-java-util-function-BiConsumer, BiConsumer>>
+* <<painless-api-reference-aggs-java-util-function-BiFunction, BiFunction>>
+* <<painless-api-reference-aggs-java-util-function-BiPredicate, BiPredicate>>
+* <<painless-api-reference-aggs-java-util-function-BinaryOperator, BinaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-BooleanSupplier, BooleanSupplier>>
+* <<painless-api-reference-aggs-java-util-function-Consumer, Consumer>>
+* <<painless-api-reference-aggs-java-util-function-DoubleBinaryOperator, DoubleBinaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-DoubleConsumer, DoubleConsumer>>
+* <<painless-api-reference-aggs-java-util-function-DoubleFunction, DoubleFunction>>
+* <<painless-api-reference-aggs-java-util-function-DoublePredicate, DoublePredicate>>
+* <<painless-api-reference-aggs-java-util-function-DoubleSupplier, DoubleSupplier>>
+* <<painless-api-reference-aggs-java-util-function-DoubleToIntFunction, DoubleToIntFunction>>
+* <<painless-api-reference-aggs-java-util-function-DoubleToLongFunction, DoubleToLongFunction>>
+* <<painless-api-reference-aggs-java-util-function-DoubleUnaryOperator, DoubleUnaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-Function, Function>>
+* <<painless-api-reference-aggs-java-util-function-IntBinaryOperator, IntBinaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-IntConsumer, IntConsumer>>
+* <<painless-api-reference-aggs-java-util-function-IntFunction, IntFunction>>
+* <<painless-api-reference-aggs-java-util-function-IntPredicate, IntPredicate>>
+* <<painless-api-reference-aggs-java-util-function-IntSupplier, IntSupplier>>
+* <<painless-api-reference-aggs-java-util-function-IntToDoubleFunction, IntToDoubleFunction>>
+* <<painless-api-reference-aggs-java-util-function-IntToLongFunction, IntToLongFunction>>
+* <<painless-api-reference-aggs-java-util-function-IntUnaryOperator, IntUnaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-LongBinaryOperator, LongBinaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-LongConsumer, LongConsumer>>
+* <<painless-api-reference-aggs-java-util-function-LongFunction, LongFunction>>
+* <<painless-api-reference-aggs-java-util-function-LongPredicate, LongPredicate>>
+* <<painless-api-reference-aggs-java-util-function-LongSupplier, LongSupplier>>
+* <<painless-api-reference-aggs-java-util-function-LongToDoubleFunction, LongToDoubleFunction>>
+* <<painless-api-reference-aggs-java-util-function-LongToIntFunction, LongToIntFunction>>
+* <<painless-api-reference-aggs-java-util-function-LongUnaryOperator, LongUnaryOperator>>
+* <<painless-api-reference-aggs-java-util-function-ObjDoubleConsumer, ObjDoubleConsumer>>
+* <<painless-api-reference-aggs-java-util-function-ObjIntConsumer, ObjIntConsumer>>
+* <<painless-api-reference-aggs-java-util-function-ObjLongConsumer, ObjLongConsumer>>
+* <<painless-api-reference-aggs-java-util-function-Predicate, Predicate>>
+* <<painless-api-reference-aggs-java-util-function-Supplier, Supplier>>
+* <<painless-api-reference-aggs-java-util-function-ToDoubleBiFunction, ToDoubleBiFunction>>
+* <<painless-api-reference-aggs-java-util-function-ToDoubleFunction, ToDoubleFunction>>
+* <<painless-api-reference-aggs-java-util-function-ToIntBiFunction, ToIntBiFunction>>
+* <<painless-api-reference-aggs-java-util-function-ToIntFunction, ToIntFunction>>
+* <<painless-api-reference-aggs-java-util-function-ToLongBiFunction, ToLongBiFunction>>
+* <<painless-api-reference-aggs-java-util-function-ToLongFunction, ToLongFunction>>
+* <<painless-api-reference-aggs-java-util-function-UnaryOperator, UnaryOperator>>
+
+
+==== java.util.regex
+<<painless-api-reference-aggs-java-util-regex, Expand java.util.regex>>
+
+* <<painless-api-reference-aggs-java-util-regex-Matcher, Matcher>>
+* <<painless-api-reference-aggs-java-util-regex-Pattern, Pattern>>
+
+
+==== java.util.stream
+<<painless-api-reference-aggs-java-util-stream, Expand java.util.stream>>
+
+* <<painless-api-reference-aggs-java-util-stream-BaseStream, BaseStream>>
+* <<painless-api-reference-aggs-java-util-stream-Collector, Collector>>
+* <<painless-api-reference-aggs-java-util-stream-Collector.Characteristics, Collector.Characteristics>>
+* <<painless-api-reference-aggs-java-util-stream-Collectors, Collectors>>
+* <<painless-api-reference-aggs-java-util-stream-DoubleStream, DoubleStream>>
+* <<painless-api-reference-aggs-java-util-stream-DoubleStream.Builder, DoubleStream.Builder>>
+* <<painless-api-reference-aggs-java-util-stream-IntStream, IntStream>>
+* <<painless-api-reference-aggs-java-util-stream-IntStream.Builder, IntStream.Builder>>
+* <<painless-api-reference-aggs-java-util-stream-LongStream, LongStream>>
+* <<painless-api-reference-aggs-java-util-stream-LongStream.Builder, LongStream.Builder>>
+* <<painless-api-reference-aggs-java-util-stream-Stream, Stream>>
+* <<painless-api-reference-aggs-java-util-stream-Stream.Builder, Stream.Builder>>
+
+
+==== org.apache.lucene.util
+<<painless-api-reference-aggs-org-apache-lucene-util, Expand org.apache.lucene.util>>
+
+* <<painless-api-reference-aggs-org-apache-lucene-util-BytesRef, BytesRef>>
+
+
+==== org.elasticsearch.common.geo
+<<painless-api-reference-aggs-org-elasticsearch-common-geo, Expand org.elasticsearch.common.geo>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-common-geo-GeoPoint, GeoPoint>>
+
+
+==== org.elasticsearch.index.fielddata
+<<painless-api-reference-aggs-org-elasticsearch-index-fielddata, Expand org.elasticsearch.index.fielddata>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.Booleans, ScriptDocValues.Booleans>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.BytesRefs, ScriptDocValues.BytesRefs>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.Dates, ScriptDocValues.Dates>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.Doubles, ScriptDocValues.Doubles>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.GeoPoints, ScriptDocValues.GeoPoints>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.Longs, ScriptDocValues.Longs>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-fielddata-ScriptDocValues.Strings, ScriptDocValues.Strings>>
+
+
+==== org.elasticsearch.index.mapper
+<<painless-api-reference-aggs-org-elasticsearch-index-mapper, Expand org.elasticsearch.index.mapper>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-index-mapper-IpFieldMapper.IpFieldType.IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
+
+
+==== org.elasticsearch.index.query
+<<painless-api-reference-aggs-org-elasticsearch-index-query, Expand org.elasticsearch.index.query>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-index-query-IntervalFilterScript.Interval, IntervalFilterScript.Interval>>
+
+
+==== org.elasticsearch.index.similarity
+<<painless-api-reference-aggs-org-elasticsearch-index-similarity, Expand org.elasticsearch.index.similarity>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-index-similarity-ScriptedSimilarity.Doc, ScriptedSimilarity.Doc>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-similarity-ScriptedSimilarity.Field, ScriptedSimilarity.Field>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-similarity-ScriptedSimilarity.Query, ScriptedSimilarity.Query>>
+* <<painless-api-reference-aggs-org-elasticsearch-index-similarity-ScriptedSimilarity.Term, ScriptedSimilarity.Term>>
+
+
+==== org.elasticsearch.painless.api
+<<painless-api-reference-aggs-org-elasticsearch-painless-api, Expand org.elasticsearch.painless.api>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-painless-api-Debug, Debug>>
+
+
+==== org.elasticsearch.script
+<<painless-api-reference-aggs-org-elasticsearch-script, Expand org.elasticsearch.script>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-script-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+
+
+==== org.elasticsearch.search.lookup
+<<painless-api-reference-aggs-org-elasticsearch-search-lookup, Expand org.elasticsearch.search.lookup>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-search-lookup-FieldLookup, FieldLookup>>
+
+
+==== org.elasticsearch.xpack.sql.expression.function.scalar.whitelist
+<<painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist, Expand org.elasticsearch.xpack.sql.expression.function.scalar.whitelist>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist-InternalSqlScriptUtils, InternalSqlScriptUtils>>
+
+
+==== org.elasticsearch.xpack.sql.expression.literal
+<<painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal, Expand org.elasticsearch.xpack.sql.expression.literal>>
+
+* <<painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal-IntervalDayTime, IntervalDayTime>>
+* <<painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal-IntervalYearMonth, IntervalYearMonth>>
+
+
+include::painless-api-reference-aggs-java-lang.asciidoc[]
+include::painless-api-reference-aggs-java-math.asciidoc[]
+include::painless-api-reference-aggs-java-text.asciidoc[]
+include::painless-api-reference-aggs-java-time.asciidoc[]
+include::painless-api-reference-aggs-java-time-chrono.asciidoc[]
+include::painless-api-reference-aggs-java-time-format.asciidoc[]
+include::painless-api-reference-aggs-java-time-temporal.asciidoc[]
+include::painless-api-reference-aggs-java-time-zone.asciidoc[]
+include::painless-api-reference-aggs-java-util.asciidoc[]
+include::painless-api-reference-aggs-java-util-function.asciidoc[]
+include::painless-api-reference-aggs-java-util-regex.asciidoc[]
+include::painless-api-reference-aggs-java-util-stream.asciidoc[]
+include::painless-api-reference-aggs-org-apache-lucene-util.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-common-geo.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-index-fielddata.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-index-mapper.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-index-query.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-index-similarity.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-painless-api.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-script.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-search-lookup.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist.asciidoc[]
+include::painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal.asciidoc[]

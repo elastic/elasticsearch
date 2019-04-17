@@ -1,0 +1,13 @@
+[role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-search-lookup"]
+=== org.elasticsearch.search.lookup
+
+[[painless-api-reference-aggregation-selector-org-elasticsearch-search-lookup-FieldLookup]]
+==== FieldLookup
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* def getValue()
+* List getValues()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean isEmpty()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

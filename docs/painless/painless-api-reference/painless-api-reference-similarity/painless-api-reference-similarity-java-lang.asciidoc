@@ -1,0 +1,1395 @@
+[role="exclude",id="painless-api-reference-similarity-java-lang"]
+=== java.lang
+
+[[painless-api-reference-similarity-java-lang-Appendable]]
+==== Appendable
+* Appendable {java11-javadoc}/java.base/java/lang/Appendable.html#append(java.lang.CharSequence,int,int)[append](CharSequence, int, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ArithmeticException]]
+==== ArithmeticException
+* {java11-javadoc}/java.base/java/lang/ArithmeticException.html#<init>()[ArithmeticException]()
+* {java11-javadoc}/java.base/java/lang/ArithmeticException.html#<init>(java.lang.String)[ArithmeticException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ArrayIndexOutOfBoundsException]]
+==== ArrayIndexOutOfBoundsException
+* {java11-javadoc}/java.base/java/lang/ArrayIndexOutOfBoundsException.html#<init>()[ArrayIndexOutOfBoundsException]()
+* {java11-javadoc}/java.base/java/lang/ArrayIndexOutOfBoundsException.html#<init>(java.lang.String)[ArrayIndexOutOfBoundsException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ArrayStoreException]]
+==== ArrayStoreException
+* {java11-javadoc}/java.base/java/lang/ArrayStoreException.html#<init>()[ArrayStoreException]()
+* {java11-javadoc}/java.base/java/lang/ArrayStoreException.html#<init>(java.lang.String)[ArrayStoreException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Boolean]]
+==== Boolean
+* static Boolean {java11-javadoc}/java.base/java/lang/Boolean.html#FALSE[FALSE]
+* static Boolean {java11-javadoc}/java.base/java/lang/Boolean.html#TRUE[TRUE]
+* static int {java11-javadoc}/java.base/java/lang/Boolean.html#compare(boolean,boolean)[compare](boolean, boolean)
+* static int {java11-javadoc}/java.base/java/lang/Boolean.html#hashCode(boolean)[hashCode](boolean)
+* static boolean {java11-javadoc}/java.base/java/lang/Boolean.html#logicalAnd(boolean,boolean)[logicalAnd](boolean, boolean)
+* static boolean {java11-javadoc}/java.base/java/lang/Boolean.html#logicalOr(boolean,boolean)[logicalOr](boolean, boolean)
+* static boolean {java11-javadoc}/java.base/java/lang/Boolean.html#logicalXor(boolean,boolean)[logicalXor](boolean, boolean)
+* static boolean {java11-javadoc}/java.base/java/lang/Boolean.html#parseBoolean(java.lang.String)[parseBoolean](String)
+* static String {java11-javadoc}/java.base/java/lang/Boolean.html#toString(boolean)[toString](boolean)
+* static Boolean {java11-javadoc}/java.base/java/lang/Boolean.html#valueOf(boolean)[valueOf](boolean)
+* boolean {java11-javadoc}/java.base/java/lang/Boolean.html#booleanValue()[booleanValue]()
+* int {java11-javadoc}/java.base/java/lang/Boolean.html#compareTo(java.lang.Boolean)[compareTo](Boolean)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Byte]]
+==== Byte
+* static int {java11-javadoc}/java.base/java/lang/Byte.html#BYTES[BYTES]
+* static byte {java11-javadoc}/java.base/java/lang/Byte.html#MAX_VALUE[MAX_VALUE]
+* static byte {java11-javadoc}/java.base/java/lang/Byte.html#MIN_VALUE[MIN_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Byte.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Byte.html#compare(byte,byte)[compare](byte, byte)
+* static Byte {java11-javadoc}/java.base/java/lang/Byte.html#decode(java.lang.String)[decode](String)
+* static int {java11-javadoc}/java.base/java/lang/Byte.html#hashCode(byte)[hashCode](byte)
+* static byte {java11-javadoc}/java.base/java/lang/Byte.html#parseByte(java.lang.String)[parseByte](String)
+* static byte {java11-javadoc}/java.base/java/lang/Byte.html#parseByte(java.lang.String,int)[parseByte](String, int)
+* static String {java11-javadoc}/java.base/java/lang/Byte.html#toString(byte)[toString](byte)
+* static int {java11-javadoc}/java.base/java/lang/Byte.html#toUnsignedInt(byte)[toUnsignedInt](byte)
+* static long {java11-javadoc}/java.base/java/lang/Byte.html#toUnsignedLong(byte)[toUnsignedLong](byte)
+* static Byte {java11-javadoc}/java.base/java/lang/Byte.html#valueOf(byte)[valueOf](byte)
+* static Byte {java11-javadoc}/java.base/java/lang/Byte.html#valueOf(java.lang.String,int)[valueOf](String, int)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Byte.html#compareTo(java.lang.Byte)[compareTo](Byte)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-CharSequence]]
+==== CharSequence
+* char {java11-javadoc}/java.base/java/lang/CharSequence.html#charAt(int)[charAt](int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#chars()[chars]()
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#codePoints()[codePoints]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/CharSequence.html#length()[length]()
+* String replaceAll(Pattern, Function)
+* String replaceFirst(Pattern, Function)
+* CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
+* String {java11-javadoc}/java.base/java/lang/CharSequence.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Character]]
+==== Character
+* static int {java11-javadoc}/java.base/java/lang/Character.html#BYTES[BYTES]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#COMBINING_SPACING_MARK[COMBINING_SPACING_MARK]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#CONNECTOR_PUNCTUATION[CONNECTOR_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#CONTROL[CONTROL]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#CURRENCY_SYMBOL[CURRENCY_SYMBOL]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DASH_PUNCTUATION[DASH_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DECIMAL_DIGIT_NUMBER[DECIMAL_DIGIT_NUMBER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_ARABIC_NUMBER[DIRECTIONALITY_ARABIC_NUMBER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_BOUNDARY_NEUTRAL[DIRECTIONALITY_BOUNDARY_NEUTRAL]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_COMMON_NUMBER_SEPARATOR[DIRECTIONALITY_COMMON_NUMBER_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_EUROPEAN_NUMBER[DIRECTIONALITY_EUROPEAN_NUMBER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR[DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR[DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_LEFT_TO_RIGHT[DIRECTIONALITY_LEFT_TO_RIGHT]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING[DIRECTIONALITY_LEFT_TO_RIGHT_EMBEDDING]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE[DIRECTIONALITY_LEFT_TO_RIGHT_OVERRIDE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_NONSPACING_MARK[DIRECTIONALITY_NONSPACING_MARK]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_OTHER_NEUTRALS[DIRECTIONALITY_OTHER_NEUTRALS]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_PARAGRAPH_SEPARATOR[DIRECTIONALITY_PARAGRAPH_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_POP_DIRECTIONAL_FORMAT[DIRECTIONALITY_POP_DIRECTIONAL_FORMAT]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_RIGHT_TO_LEFT[DIRECTIONALITY_RIGHT_TO_LEFT]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC[DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING[DIRECTIONALITY_RIGHT_TO_LEFT_EMBEDDING]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE[DIRECTIONALITY_RIGHT_TO_LEFT_OVERRIDE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_SEGMENT_SEPARATOR[DIRECTIONALITY_SEGMENT_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_UNDEFINED[DIRECTIONALITY_UNDEFINED]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#DIRECTIONALITY_WHITESPACE[DIRECTIONALITY_WHITESPACE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#ENCLOSING_MARK[ENCLOSING_MARK]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#END_PUNCTUATION[END_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#FINAL_QUOTE_PUNCTUATION[FINAL_QUOTE_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#FORMAT[FORMAT]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#INITIAL_QUOTE_PUNCTUATION[INITIAL_QUOTE_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#LETTER_NUMBER[LETTER_NUMBER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#LINE_SEPARATOR[LINE_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#LOWERCASE_LETTER[LOWERCASE_LETTER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#MATH_SYMBOL[MATH_SYMBOL]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#MAX_CODE_POINT[MAX_CODE_POINT]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MAX_HIGH_SURROGATE[MAX_HIGH_SURROGATE]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MAX_LOW_SURROGATE[MAX_LOW_SURROGATE]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#MAX_RADIX[MAX_RADIX]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MAX_SURROGATE[MAX_SURROGATE]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MAX_VALUE[MAX_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#MIN_CODE_POINT[MIN_CODE_POINT]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MIN_HIGH_SURROGATE[MIN_HIGH_SURROGATE]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MIN_LOW_SURROGATE[MIN_LOW_SURROGATE]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#MIN_RADIX[MIN_RADIX]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#MIN_SUPPLEMENTARY_CODE_POINT[MIN_SUPPLEMENTARY_CODE_POINT]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MIN_SURROGATE[MIN_SURROGATE]
+* static char {java11-javadoc}/java.base/java/lang/Character.html#MIN_VALUE[MIN_VALUE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#MODIFIER_LETTER[MODIFIER_LETTER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#MODIFIER_SYMBOL[MODIFIER_SYMBOL]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#NON_SPACING_MARK[NON_SPACING_MARK]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#OTHER_LETTER[OTHER_LETTER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#OTHER_NUMBER[OTHER_NUMBER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#OTHER_PUNCTUATION[OTHER_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#OTHER_SYMBOL[OTHER_SYMBOL]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#PARAGRAPH_SEPARATOR[PARAGRAPH_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#PRIVATE_USE[PRIVATE_USE]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#SIZE[SIZE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#SPACE_SEPARATOR[SPACE_SEPARATOR]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#START_PUNCTUATION[START_PUNCTUATION]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#SURROGATE[SURROGATE]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#TITLECASE_LETTER[TITLECASE_LETTER]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#UNASSIGNED[UNASSIGNED]
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#UPPERCASE_LETTER[UPPERCASE_LETTER]
+* static int {java11-javadoc}/java.base/java/lang/Character.html#charCount(int)[charCount](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#codePointAt(java.lang.CharSequence,int)[codePointAt](CharSequence, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#codePointAt(char%5B%5D,int,int)[codePointAt](char[], int, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#codePointBefore(java.lang.CharSequence,int)[codePointBefore](CharSequence, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#codePointBefore(char%5B%5D,int,int)[codePointBefore](char[], int, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#codePointCount(java.lang.CharSequence,int,int)[codePointCount](CharSequence, int, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#compare(char,char)[compare](char, char)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#digit(int,int)[digit](int, int)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#forDigit(int,int)[forDigit](int, int)
+* static byte {java11-javadoc}/java.base/java/lang/Character.html#getDirectionality(int)[getDirectionality](int)
+* static String {java11-javadoc}/java.base/java/lang/Character.html#getName(int)[getName](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#getNumericValue(int)[getNumericValue](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#getType(int)[getType](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#hashCode(char)[hashCode](char)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#highSurrogate(int)[highSurrogate](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isAlphabetic(int)[isAlphabetic](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isBmpCodePoint(int)[isBmpCodePoint](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isDefined(int)[isDefined](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isDigit(int)[isDigit](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isHighSurrogate(char)[isHighSurrogate](char)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isISOControl(int)[isISOControl](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isIdentifierIgnorable(int)[isIdentifierIgnorable](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isIdeographic(int)[isIdeographic](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isJavaIdentifierPart(int)[isJavaIdentifierPart](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isJavaIdentifierStart(int)[isJavaIdentifierStart](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isLetter(int)[isLetter](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isLetterOrDigit(int)[isLetterOrDigit](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isLowerCase(int)[isLowerCase](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isMirrored(int)[isMirrored](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isSpaceChar(int)[isSpaceChar](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isSupplementaryCodePoint(int)[isSupplementaryCodePoint](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isSurrogate(char)[isSurrogate](char)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isSurrogatePair(char,char)[isSurrogatePair](char, char)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isTitleCase(int)[isTitleCase](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isUnicodeIdentifierPart(int)[isUnicodeIdentifierPart](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isUnicodeIdentifierStart(int)[isUnicodeIdentifierStart](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isUpperCase(int)[isUpperCase](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isValidCodePoint(int)[isValidCodePoint](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Character.html#isWhitespace(int)[isWhitespace](int)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#lowSurrogate(int)[lowSurrogate](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#offsetByCodePoints(java.lang.CharSequence,int,int)[offsetByCodePoints](CharSequence, int, int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#offsetByCodePoints(char%5B%5D,int,int,int,int)[offsetByCodePoints](char[], int, int, int, int)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#reverseBytes(char)[reverseBytes](char)
+* static char[] {java11-javadoc}/java.base/java/lang/Character.html#toChars(int)[toChars](int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#toChars(int,char%5B%5D,int)[toChars](int, char[], int)
+* static int {java11-javadoc}/java.base/java/lang/Character.html#toCodePoint(char,char)[toCodePoint](char, char)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#toLowerCase(char)[toLowerCase](char)
+* static String {java11-javadoc}/java.base/java/lang/Character.html#toString(char)[toString](char)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#toTitleCase(char)[toTitleCase](char)
+* static char {java11-javadoc}/java.base/java/lang/Character.html#toUpperCase(char)[toUpperCase](char)
+* static Character {java11-javadoc}/java.base/java/lang/Character.html#valueOf(char)[valueOf](char)
+* char {java11-javadoc}/java.base/java/lang/Character.html#charValue()[charValue]()
+* int {java11-javadoc}/java.base/java/lang/Character.html#compareTo(java.lang.Character)[compareTo](Character)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Character.Subset]]
+==== Character.Subset
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Character.UnicodeBlock]]
+==== Character.UnicodeBlock
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#AEGEAN_NUMBERS[AEGEAN_NUMBERS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ALCHEMICAL_SYMBOLS[ALCHEMICAL_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ALPHABETIC_PRESENTATION_FORMS[ALPHABETIC_PRESENTATION_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ANCIENT_GREEK_MUSICAL_NOTATION[ANCIENT_GREEK_MUSICAL_NOTATION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ANCIENT_GREEK_NUMBERS[ANCIENT_GREEK_NUMBERS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ANCIENT_SYMBOLS[ANCIENT_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC[ARABIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC_EXTENDED_A[ARABIC_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS[ARABIC_MATHEMATICAL_ALPHABETIC_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC_PRESENTATION_FORMS_A[ARABIC_PRESENTATION_FORMS_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC_PRESENTATION_FORMS_B[ARABIC_PRESENTATION_FORMS_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARABIC_SUPPLEMENT[ARABIC_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARMENIAN[ARMENIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ARROWS[ARROWS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#AVESTAN[AVESTAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BALINESE[BALINESE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BAMUM[BAMUM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BAMUM_SUPPLEMENT[BAMUM_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BASIC_LATIN[BASIC_LATIN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BATAK[BATAK]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BENGALI[BENGALI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BLOCK_ELEMENTS[BLOCK_ELEMENTS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BOPOMOFO[BOPOMOFO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BOPOMOFO_EXTENDED[BOPOMOFO_EXTENDED]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BOX_DRAWING[BOX_DRAWING]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BRAHMI[BRAHMI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BRAILLE_PATTERNS[BRAILLE_PATTERNS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BUGINESE[BUGINESE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BUHID[BUHID]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#BYZANTINE_MUSICAL_SYMBOLS[BYZANTINE_MUSICAL_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CARIAN[CARIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CHAKMA[CHAKMA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CHAM[CHAM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CHEROKEE[CHEROKEE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_COMPATIBILITY[CJK_COMPATIBILITY]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_COMPATIBILITY_FORMS[CJK_COMPATIBILITY_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_COMPATIBILITY_IDEOGRAPHS[CJK_COMPATIBILITY_IDEOGRAPHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT[CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_RADICALS_SUPPLEMENT[CJK_RADICALS_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_STROKES[CJK_STROKES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_SYMBOLS_AND_PUNCTUATION[CJK_SYMBOLS_AND_PUNCTUATION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_UNIFIED_IDEOGRAPHS[CJK_UNIFIED_IDEOGRAPHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A[CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B[CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C[CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D[CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COMBINING_DIACRITICAL_MARKS[COMBINING_DIACRITICAL_MARKS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COMBINING_DIACRITICAL_MARKS_SUPPLEMENT[COMBINING_DIACRITICAL_MARKS_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COMBINING_HALF_MARKS[COMBINING_HALF_MARKS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COMBINING_MARKS_FOR_SYMBOLS[COMBINING_MARKS_FOR_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COMMON_INDIC_NUMBER_FORMS[COMMON_INDIC_NUMBER_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CONTROL_PICTURES[CONTROL_PICTURES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COPTIC[COPTIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#COUNTING_ROD_NUMERALS[COUNTING_ROD_NUMERALS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CUNEIFORM[CUNEIFORM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CUNEIFORM_NUMBERS_AND_PUNCTUATION[CUNEIFORM_NUMBERS_AND_PUNCTUATION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CURRENCY_SYMBOLS[CURRENCY_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CYPRIOT_SYLLABARY[CYPRIOT_SYLLABARY]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CYRILLIC[CYRILLIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CYRILLIC_EXTENDED_A[CYRILLIC_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CYRILLIC_EXTENDED_B[CYRILLIC_EXTENDED_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#CYRILLIC_SUPPLEMENTARY[CYRILLIC_SUPPLEMENTARY]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#DESERET[DESERET]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#DEVANAGARI[DEVANAGARI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#DEVANAGARI_EXTENDED[DEVANAGARI_EXTENDED]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#DINGBATS[DINGBATS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#DOMINO_TILES[DOMINO_TILES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#EGYPTIAN_HIEROGLYPHS[EGYPTIAN_HIEROGLYPHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#EMOTICONS[EMOTICONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ENCLOSED_ALPHANUMERICS[ENCLOSED_ALPHANUMERICS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ENCLOSED_ALPHANUMERIC_SUPPLEMENT[ENCLOSED_ALPHANUMERIC_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ENCLOSED_CJK_LETTERS_AND_MONTHS[ENCLOSED_CJK_LETTERS_AND_MONTHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ENCLOSED_IDEOGRAPHIC_SUPPLEMENT[ENCLOSED_IDEOGRAPHIC_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ETHIOPIC[ETHIOPIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ETHIOPIC_EXTENDED[ETHIOPIC_EXTENDED]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ETHIOPIC_EXTENDED_A[ETHIOPIC_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ETHIOPIC_SUPPLEMENT[ETHIOPIC_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GENERAL_PUNCTUATION[GENERAL_PUNCTUATION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GEOMETRIC_SHAPES[GEOMETRIC_SHAPES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GEORGIAN[GEORGIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GEORGIAN_SUPPLEMENT[GEORGIAN_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GLAGOLITIC[GLAGOLITIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GOTHIC[GOTHIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GREEK[GREEK]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GREEK_EXTENDED[GREEK_EXTENDED]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GUJARATI[GUJARATI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#GURMUKHI[GURMUKHI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HALFWIDTH_AND_FULLWIDTH_FORMS[HALFWIDTH_AND_FULLWIDTH_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANGUL_COMPATIBILITY_JAMO[HANGUL_COMPATIBILITY_JAMO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANGUL_JAMO[HANGUL_JAMO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANGUL_JAMO_EXTENDED_A[HANGUL_JAMO_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANGUL_JAMO_EXTENDED_B[HANGUL_JAMO_EXTENDED_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANGUL_SYLLABLES[HANGUL_SYLLABLES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HANUNOO[HANUNOO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HEBREW[HEBREW]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HIGH_PRIVATE_USE_SURROGATES[HIGH_PRIVATE_USE_SURROGATES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HIGH_SURROGATES[HIGH_SURROGATES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#HIRAGANA[HIRAGANA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#IDEOGRAPHIC_DESCRIPTION_CHARACTERS[IDEOGRAPHIC_DESCRIPTION_CHARACTERS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#IMPERIAL_ARAMAIC[IMPERIAL_ARAMAIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#INSCRIPTIONAL_PAHLAVI[INSCRIPTIONAL_PAHLAVI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#INSCRIPTIONAL_PARTHIAN[INSCRIPTIONAL_PARTHIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#IPA_EXTENSIONS[IPA_EXTENSIONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#JAVANESE[JAVANESE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KAITHI[KAITHI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KANA_SUPPLEMENT[KANA_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KANBUN[KANBUN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KANGXI_RADICALS[KANGXI_RADICALS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KANNADA[KANNADA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KATAKANA[KATAKANA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KATAKANA_PHONETIC_EXTENSIONS[KATAKANA_PHONETIC_EXTENSIONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KAYAH_LI[KAYAH_LI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KHAROSHTHI[KHAROSHTHI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KHMER[KHMER]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#KHMER_SYMBOLS[KHMER_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LAO[LAO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_1_SUPPLEMENT[LATIN_1_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_EXTENDED_A[LATIN_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_EXTENDED_ADDITIONAL[LATIN_EXTENDED_ADDITIONAL]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_EXTENDED_B[LATIN_EXTENDED_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_EXTENDED_C[LATIN_EXTENDED_C]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LATIN_EXTENDED_D[LATIN_EXTENDED_D]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LEPCHA[LEPCHA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LETTERLIKE_SYMBOLS[LETTERLIKE_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LIMBU[LIMBU]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LINEAR_B_IDEOGRAMS[LINEAR_B_IDEOGRAMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LINEAR_B_SYLLABARY[LINEAR_B_SYLLABARY]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LISU[LISU]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LOW_SURROGATES[LOW_SURROGATES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LYCIAN[LYCIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#LYDIAN[LYDIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MAHJONG_TILES[MAHJONG_TILES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MALAYALAM[MALAYALAM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MANDAIC[MANDAIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MATHEMATICAL_ALPHANUMERIC_SYMBOLS[MATHEMATICAL_ALPHANUMERIC_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MATHEMATICAL_OPERATORS[MATHEMATICAL_OPERATORS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MEETEI_MAYEK[MEETEI_MAYEK]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MEETEI_MAYEK_EXTENSIONS[MEETEI_MAYEK_EXTENSIONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MEROITIC_CURSIVE[MEROITIC_CURSIVE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MEROITIC_HIEROGLYPHS[MEROITIC_HIEROGLYPHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MIAO[MIAO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A[MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B[MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_SYMBOLS[MISCELLANEOUS_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_SYMBOLS_AND_ARROWS[MISCELLANEOUS_SYMBOLS_AND_ARROWS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS[MISCELLANEOUS_SYMBOLS_AND_PICTOGRAPHS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MISCELLANEOUS_TECHNICAL[MISCELLANEOUS_TECHNICAL]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MODIFIER_TONE_LETTERS[MODIFIER_TONE_LETTERS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MONGOLIAN[MONGOLIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MUSICAL_SYMBOLS[MUSICAL_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MYANMAR[MYANMAR]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#MYANMAR_EXTENDED_A[MYANMAR_EXTENDED_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#NEW_TAI_LUE[NEW_TAI_LUE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#NKO[NKO]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#NUMBER_FORMS[NUMBER_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OGHAM[OGHAM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OLD_ITALIC[OLD_ITALIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OLD_PERSIAN[OLD_PERSIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OLD_SOUTH_ARABIAN[OLD_SOUTH_ARABIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OLD_TURKIC[OLD_TURKIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OL_CHIKI[OL_CHIKI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OPTICAL_CHARACTER_RECOGNITION[OPTICAL_CHARACTER_RECOGNITION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#ORIYA[ORIYA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#OSMANYA[OSMANYA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PHAGS_PA[PHAGS_PA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PHAISTOS_DISC[PHAISTOS_DISC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PHOENICIAN[PHOENICIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PHONETIC_EXTENSIONS[PHONETIC_EXTENSIONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PHONETIC_EXTENSIONS_SUPPLEMENT[PHONETIC_EXTENSIONS_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PLAYING_CARDS[PLAYING_CARDS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#PRIVATE_USE_AREA[PRIVATE_USE_AREA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#REJANG[REJANG]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#RUMI_NUMERAL_SYMBOLS[RUMI_NUMERAL_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#RUNIC[RUNIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SAMARITAN[SAMARITAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SAURASHTRA[SAURASHTRA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SHARADA[SHARADA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SHAVIAN[SHAVIAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SINHALA[SINHALA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SMALL_FORM_VARIANTS[SMALL_FORM_VARIANTS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SORA_SOMPENG[SORA_SOMPENG]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SPACING_MODIFIER_LETTERS[SPACING_MODIFIER_LETTERS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SPECIALS[SPECIALS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUNDANESE[SUNDANESE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUNDANESE_SUPPLEMENT[SUNDANESE_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPERSCRIPTS_AND_SUBSCRIPTS[SUPERSCRIPTS_AND_SUBSCRIPTS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTAL_ARROWS_A[SUPPLEMENTAL_ARROWS_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTAL_ARROWS_B[SUPPLEMENTAL_ARROWS_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTAL_MATHEMATICAL_OPERATORS[SUPPLEMENTAL_MATHEMATICAL_OPERATORS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTAL_PUNCTUATION[SUPPLEMENTAL_PUNCTUATION]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTARY_PRIVATE_USE_AREA_A[SUPPLEMENTARY_PRIVATE_USE_AREA_A]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SUPPLEMENTARY_PRIVATE_USE_AREA_B[SUPPLEMENTARY_PRIVATE_USE_AREA_B]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SYLOTI_NAGRI[SYLOTI_NAGRI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#SYRIAC[SYRIAC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAGALOG[TAGALOG]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAGBANWA[TAGBANWA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAGS[TAGS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAI_LE[TAI_LE]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAI_THAM[TAI_THAM]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAI_VIET[TAI_VIET]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAI_XUAN_JING_SYMBOLS[TAI_XUAN_JING_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAKRI[TAKRI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TAMIL[TAMIL]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TELUGU[TELUGU]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#THAANA[THAANA]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#THAI[THAI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TIBETAN[TIBETAN]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TIFINAGH[TIFINAGH]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#TRANSPORT_AND_MAP_SYMBOLS[TRANSPORT_AND_MAP_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#UGARITIC[UGARITIC]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS[UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED[UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS_EXTENDED]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#VAI[VAI]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#VARIATION_SELECTORS[VARIATION_SELECTORS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#VARIATION_SELECTORS_SUPPLEMENT[VARIATION_SELECTORS_SUPPLEMENT]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#VEDIC_EXTENSIONS[VEDIC_EXTENSIONS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#VERTICAL_FORMS[VERTICAL_FORMS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#YIJING_HEXAGRAM_SYMBOLS[YIJING_HEXAGRAM_SYMBOLS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#YI_RADICALS[YI_RADICALS]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#YI_SYLLABLES[YI_SYLLABLES]
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#forName(java.lang.String)[forName](String)
+* static Character.UnicodeBlock {java11-javadoc}/java.base/java/lang/Character$UnicodeBlock.html#of(int)[of](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Character.UnicodeScript]]
+==== Character.UnicodeScript
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#ARABIC[ARABIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#ARMENIAN[ARMENIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#AVESTAN[AVESTAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BALINESE[BALINESE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BAMUM[BAMUM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BATAK[BATAK]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BENGALI[BENGALI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BOPOMOFO[BOPOMOFO]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BRAHMI[BRAHMI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BRAILLE[BRAILLE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BUGINESE[BUGINESE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#BUHID[BUHID]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CANADIAN_ABORIGINAL[CANADIAN_ABORIGINAL]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CARIAN[CARIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CHAKMA[CHAKMA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CHAM[CHAM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CHEROKEE[CHEROKEE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#COMMON[COMMON]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#COPTIC[COPTIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CUNEIFORM[CUNEIFORM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CYPRIOT[CYPRIOT]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#CYRILLIC[CYRILLIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#DESERET[DESERET]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#DEVANAGARI[DEVANAGARI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#EGYPTIAN_HIEROGLYPHS[EGYPTIAN_HIEROGLYPHS]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#ETHIOPIC[ETHIOPIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GEORGIAN[GEORGIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GLAGOLITIC[GLAGOLITIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GOTHIC[GOTHIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GREEK[GREEK]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GUJARATI[GUJARATI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#GURMUKHI[GURMUKHI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#HAN[HAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#HANGUL[HANGUL]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#HANUNOO[HANUNOO]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#HEBREW[HEBREW]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#HIRAGANA[HIRAGANA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#IMPERIAL_ARAMAIC[IMPERIAL_ARAMAIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#INHERITED[INHERITED]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#INSCRIPTIONAL_PAHLAVI[INSCRIPTIONAL_PAHLAVI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#INSCRIPTIONAL_PARTHIAN[INSCRIPTIONAL_PARTHIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#JAVANESE[JAVANESE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KAITHI[KAITHI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KANNADA[KANNADA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KATAKANA[KATAKANA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KAYAH_LI[KAYAH_LI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KHAROSHTHI[KHAROSHTHI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#KHMER[KHMER]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LAO[LAO]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LATIN[LATIN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LEPCHA[LEPCHA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LIMBU[LIMBU]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LINEAR_B[LINEAR_B]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LISU[LISU]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LYCIAN[LYCIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#LYDIAN[LYDIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MALAYALAM[MALAYALAM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MANDAIC[MANDAIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MEETEI_MAYEK[MEETEI_MAYEK]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MEROITIC_CURSIVE[MEROITIC_CURSIVE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MEROITIC_HIEROGLYPHS[MEROITIC_HIEROGLYPHS]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MIAO[MIAO]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MONGOLIAN[MONGOLIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#MYANMAR[MYANMAR]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#NEW_TAI_LUE[NEW_TAI_LUE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#NKO[NKO]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OGHAM[OGHAM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OLD_ITALIC[OLD_ITALIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OLD_PERSIAN[OLD_PERSIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OLD_SOUTH_ARABIAN[OLD_SOUTH_ARABIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OLD_TURKIC[OLD_TURKIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OL_CHIKI[OL_CHIKI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#ORIYA[ORIYA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#OSMANYA[OSMANYA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#PHAGS_PA[PHAGS_PA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#PHOENICIAN[PHOENICIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#REJANG[REJANG]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#RUNIC[RUNIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SAMARITAN[SAMARITAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SAURASHTRA[SAURASHTRA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SHARADA[SHARADA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SHAVIAN[SHAVIAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SINHALA[SINHALA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SORA_SOMPENG[SORA_SOMPENG]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SUNDANESE[SUNDANESE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SYLOTI_NAGRI[SYLOTI_NAGRI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#SYRIAC[SYRIAC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAGALOG[TAGALOG]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAGBANWA[TAGBANWA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAI_LE[TAI_LE]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAI_THAM[TAI_THAM]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAI_VIET[TAI_VIET]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAKRI[TAKRI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TAMIL[TAMIL]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TELUGU[TELUGU]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#THAANA[THAANA]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#THAI[THAI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TIBETAN[TIBETAN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#TIFINAGH[TIFINAGH]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#UGARITIC[UGARITIC]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#UNKNOWN[UNKNOWN]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#VAI[VAI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#YI[YI]
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#forName(java.lang.String)[forName](String)
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#of(int)[of](int)
+* static Character.UnicodeScript {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#valueOf(java.lang.String)[valueOf](String)
+* static Character.UnicodeScript[] {java11-javadoc}/java.base/java/lang/Character$UnicodeScript.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ClassCastException]]
+==== ClassCastException
+* {java11-javadoc}/java.base/java/lang/ClassCastException.html#<init>()[ClassCastException]()
+* {java11-javadoc}/java.base/java/lang/ClassCastException.html#<init>(java.lang.String)[ClassCastException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ClassNotFoundException]]
+==== ClassNotFoundException
+* {java11-javadoc}/java.base/java/lang/ClassNotFoundException.html#<init>()[ClassNotFoundException]()
+* {java11-javadoc}/java.base/java/lang/ClassNotFoundException.html#<init>(java.lang.String)[ClassNotFoundException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-CloneNotSupportedException]]
+==== CloneNotSupportedException
+* {java11-javadoc}/java.base/java/lang/CloneNotSupportedException.html#<init>()[CloneNotSupportedException]()
+* {java11-javadoc}/java.base/java/lang/CloneNotSupportedException.html#<init>(java.lang.String)[CloneNotSupportedException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Comparable]]
+==== Comparable
+* int {java11-javadoc}/java.base/java/lang/Comparable.html#compareTo(java.lang.Object)[compareTo](def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Double]]
+==== Double
+* static int {java11-javadoc}/java.base/java/lang/Double.html#BYTES[BYTES]
+* static int {java11-javadoc}/java.base/java/lang/Double.html#MAX_EXPONENT[MAX_EXPONENT]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#MAX_VALUE[MAX_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Double.html#MIN_EXPONENT[MIN_EXPONENT]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#MIN_NORMAL[MIN_NORMAL]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#MIN_VALUE[MIN_VALUE]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#NEGATIVE_INFINITY[NEGATIVE_INFINITY]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#NaN[NaN]
+* static double {java11-javadoc}/java.base/java/lang/Double.html#POSITIVE_INFINITY[POSITIVE_INFINITY]
+* static int {java11-javadoc}/java.base/java/lang/Double.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Double.html#compare(double,double)[compare](double, double)
+* static long {java11-javadoc}/java.base/java/lang/Double.html#doubleToLongBits(double)[doubleToLongBits](double)
+* static long {java11-javadoc}/java.base/java/lang/Double.html#doubleToRawLongBits(double)[doubleToRawLongBits](double)
+* static int {java11-javadoc}/java.base/java/lang/Double.html#hashCode(double)[hashCode](double)
+* static boolean {java11-javadoc}/java.base/java/lang/Double.html#isFinite(double)[isFinite](double)
+* static boolean {java11-javadoc}/java.base/java/lang/Double.html#isInfinite(double)[isInfinite](double)
+* static boolean {java11-javadoc}/java.base/java/lang/Double.html#isNaN(double)[isNaN](double)
+* static double {java11-javadoc}/java.base/java/lang/Double.html#longBitsToDouble(long)[longBitsToDouble](long)
+* static double {java11-javadoc}/java.base/java/lang/Double.html#max(double,double)[max](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Double.html#min(double,double)[min](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Double.html#parseDouble(java.lang.String)[parseDouble](String)
+* static double {java11-javadoc}/java.base/java/lang/Double.html#sum(double,double)[sum](double, double)
+* static String {java11-javadoc}/java.base/java/lang/Double.html#toHexString(double)[toHexString](double)
+* static String {java11-javadoc}/java.base/java/lang/Double.html#toString(double)[toString](double)
+* static Double {java11-javadoc}/java.base/java/lang/Double.html#valueOf(double)[valueOf](double)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Double.html#compareTo(java.lang.Double)[compareTo](Double)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Double.html#isInfinite()[isInfinite]()
+* boolean {java11-javadoc}/java.base/java/lang/Double.html#isNaN()[isNaN]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Enum]]
+==== Enum
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-EnumConstantNotPresentException]]
+==== EnumConstantNotPresentException
+* String {java11-javadoc}/java.base/java/lang/EnumConstantNotPresentException.html#constantName()[constantName]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Exception]]
+==== Exception
+* {java11-javadoc}/java.base/java/lang/Exception.html#<init>()[Exception]()
+* {java11-javadoc}/java.base/java/lang/Exception.html#<init>(java.lang.String)[Exception](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Float]]
+==== Float
+* static int {java11-javadoc}/java.base/java/lang/Float.html#BYTES[BYTES]
+* static int {java11-javadoc}/java.base/java/lang/Float.html#MAX_EXPONENT[MAX_EXPONENT]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#MAX_VALUE[MAX_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Float.html#MIN_EXPONENT[MIN_EXPONENT]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#MIN_NORMAL[MIN_NORMAL]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#MIN_VALUE[MIN_VALUE]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#NEGATIVE_INFINITY[NEGATIVE_INFINITY]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#NaN[NaN]
+* static float {java11-javadoc}/java.base/java/lang/Float.html#POSITIVE_INFINITY[POSITIVE_INFINITY]
+* static int {java11-javadoc}/java.base/java/lang/Float.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Float.html#compare(float,float)[compare](float, float)
+* static int {java11-javadoc}/java.base/java/lang/Float.html#floatToIntBits(float)[floatToIntBits](float)
+* static int {java11-javadoc}/java.base/java/lang/Float.html#floatToRawIntBits(float)[floatToRawIntBits](float)
+* static int {java11-javadoc}/java.base/java/lang/Float.html#hashCode(float)[hashCode](float)
+* static float {java11-javadoc}/java.base/java/lang/Float.html#intBitsToFloat(int)[intBitsToFloat](int)
+* static boolean {java11-javadoc}/java.base/java/lang/Float.html#isFinite(float)[isFinite](float)
+* static boolean {java11-javadoc}/java.base/java/lang/Float.html#isInfinite(float)[isInfinite](float)
+* static boolean {java11-javadoc}/java.base/java/lang/Float.html#isNaN(float)[isNaN](float)
+* static float {java11-javadoc}/java.base/java/lang/Float.html#max(float,float)[max](float, float)
+* static float {java11-javadoc}/java.base/java/lang/Float.html#min(float,float)[min](float, float)
+* static float {java11-javadoc}/java.base/java/lang/Float.html#parseFloat(java.lang.String)[parseFloat](String)
+* static float {java11-javadoc}/java.base/java/lang/Float.html#sum(float,float)[sum](float, float)
+* static String {java11-javadoc}/java.base/java/lang/Float.html#toHexString(float)[toHexString](float)
+* static String {java11-javadoc}/java.base/java/lang/Float.html#toString(float)[toString](float)
+* static Float {java11-javadoc}/java.base/java/lang/Float.html#valueOf(float)[valueOf](float)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Float.html#compareTo(java.lang.Float)[compareTo](Float)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Float.html#isInfinite()[isInfinite]()
+* boolean {java11-javadoc}/java.base/java/lang/Float.html#isNaN()[isNaN]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IllegalAccessException]]
+==== IllegalAccessException
+* {java11-javadoc}/java.base/java/lang/IllegalAccessException.html#<init>()[IllegalAccessException]()
+* {java11-javadoc}/java.base/java/lang/IllegalAccessException.html#<init>(java.lang.String)[IllegalAccessException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IllegalArgumentException]]
+==== IllegalArgumentException
+* {java11-javadoc}/java.base/java/lang/IllegalArgumentException.html#<init>()[IllegalArgumentException]()
+* {java11-javadoc}/java.base/java/lang/IllegalArgumentException.html#<init>(java.lang.String)[IllegalArgumentException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IllegalMonitorStateException]]
+==== IllegalMonitorStateException
+* {java11-javadoc}/java.base/java/lang/IllegalMonitorStateException.html#<init>()[IllegalMonitorStateException]()
+* {java11-javadoc}/java.base/java/lang/IllegalMonitorStateException.html#<init>(java.lang.String)[IllegalMonitorStateException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IllegalStateException]]
+==== IllegalStateException
+* {java11-javadoc}/java.base/java/lang/IllegalStateException.html#<init>()[IllegalStateException]()
+* {java11-javadoc}/java.base/java/lang/IllegalStateException.html#<init>(java.lang.String)[IllegalStateException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IllegalThreadStateException]]
+==== IllegalThreadStateException
+* {java11-javadoc}/java.base/java/lang/IllegalThreadStateException.html#<init>()[IllegalThreadStateException]()
+* {java11-javadoc}/java.base/java/lang/IllegalThreadStateException.html#<init>(java.lang.String)[IllegalThreadStateException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-IndexOutOfBoundsException]]
+==== IndexOutOfBoundsException
+* {java11-javadoc}/java.base/java/lang/IndexOutOfBoundsException.html#<init>()[IndexOutOfBoundsException]()
+* {java11-javadoc}/java.base/java/lang/IndexOutOfBoundsException.html#<init>(java.lang.String)[IndexOutOfBoundsException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-InstantiationException]]
+==== InstantiationException
+* {java11-javadoc}/java.base/java/lang/InstantiationException.html#<init>()[InstantiationException]()
+* {java11-javadoc}/java.base/java/lang/InstantiationException.html#<init>(java.lang.String)[InstantiationException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Integer]]
+==== Integer
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#BYTES[BYTES]
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#MAX_VALUE[MAX_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#MIN_VALUE[MIN_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#bitCount(int)[bitCount](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#compare(int,int)[compare](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#compareUnsigned(int,int)[compareUnsigned](int, int)
+* static Integer {java11-javadoc}/java.base/java/lang/Integer.html#decode(java.lang.String)[decode](String)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#divideUnsigned(int,int)[divideUnsigned](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#hashCode(int)[hashCode](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#highestOneBit(int)[highestOneBit](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#lowestOneBit(int)[lowestOneBit](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#max(int,int)[max](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#min(int,int)[min](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#numberOfLeadingZeros(int)[numberOfLeadingZeros](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#numberOfTrailingZeros(int)[numberOfTrailingZeros](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#parseInt(java.lang.String)[parseInt](String)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#parseInt(java.lang.String,int)[parseInt](String, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#parseUnsignedInt(java.lang.String)[parseUnsignedInt](String)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#parseUnsignedInt(java.lang.String,int)[parseUnsignedInt](String, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#remainderUnsigned(int,int)[remainderUnsigned](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#reverse(int)[reverse](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#reverseBytes(int)[reverseBytes](int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#rotateLeft(int,int)[rotateLeft](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#rotateRight(int,int)[rotateRight](int, int)
+* static int {java11-javadoc}/java.base/java/lang/Integer.html#signum(int)[signum](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toBinaryString(int)[toBinaryString](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toHexString(int)[toHexString](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toOctalString(int)[toOctalString](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toString(int)[toString](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toString(int,int)[toString](int, int)
+* static long {java11-javadoc}/java.base/java/lang/Integer.html#toUnsignedLong(int)[toUnsignedLong](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toUnsignedString(int)[toUnsignedString](int)
+* static String {java11-javadoc}/java.base/java/lang/Integer.html#toUnsignedString(int,int)[toUnsignedString](int, int)
+* static Integer {java11-javadoc}/java.base/java/lang/Integer.html#valueOf(int)[valueOf](int)
+* static Integer {java11-javadoc}/java.base/java/lang/Integer.html#valueOf(java.lang.String,int)[valueOf](String, int)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Integer.html#compareTo(java.lang.Integer)[compareTo](Integer)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-InterruptedException]]
+==== InterruptedException
+* {java11-javadoc}/java.base/java/lang/InterruptedException.html#<init>()[InterruptedException]()
+* {java11-javadoc}/java.base/java/lang/InterruptedException.html#<init>(java.lang.String)[InterruptedException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Iterable]]
+==== Iterable
+* boolean any(Predicate)
+* Collection asCollection()
+* List asList()
+* def each(Consumer)
+* def eachWithIndex(ObjIntConsumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* boolean every(Predicate)
+* List findResults(Function)
+* void {java11-javadoc}/java.base/java/lang/Iterable.html#forEach(java.util.function.Consumer)[forEach](Consumer)
+* Map groupBy(Function)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Iterator {java11-javadoc}/java.base/java/lang/Iterable.html#iterator()[iterator]()
+* String join(String)
+* Spliterator {java11-javadoc}/java.base/java/lang/Iterable.html#spliterator()[spliterator]()
+* double sum()
+* double sum(ToDoubleFunction)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Long]]
+==== Long
+* static int {java11-javadoc}/java.base/java/lang/Long.html#BYTES[BYTES]
+* static long {java11-javadoc}/java.base/java/lang/Long.html#MAX_VALUE[MAX_VALUE]
+* static long {java11-javadoc}/java.base/java/lang/Long.html#MIN_VALUE[MIN_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Long.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Long.html#bitCount(long)[bitCount](long)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#compare(long,long)[compare](long, long)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#compareUnsigned(long,long)[compareUnsigned](long, long)
+* static Long {java11-javadoc}/java.base/java/lang/Long.html#decode(java.lang.String)[decode](String)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#divideUnsigned(long,long)[divideUnsigned](long, long)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#hashCode(long)[hashCode](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#highestOneBit(long)[highestOneBit](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#lowestOneBit(long)[lowestOneBit](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#max(long,long)[max](long, long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#min(long,long)[min](long, long)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#numberOfLeadingZeros(long)[numberOfLeadingZeros](long)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#numberOfTrailingZeros(long)[numberOfTrailingZeros](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#parseLong(java.lang.String)[parseLong](String)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#parseLong(java.lang.String,int)[parseLong](String, int)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#parseUnsignedLong(java.lang.String)[parseUnsignedLong](String)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#parseUnsignedLong(java.lang.String,int)[parseUnsignedLong](String, int)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#remainderUnsigned(long,long)[remainderUnsigned](long, long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#reverse(long)[reverse](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#reverseBytes(long)[reverseBytes](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#rotateLeft(long,int)[rotateLeft](long, int)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#rotateRight(long,int)[rotateRight](long, int)
+* static int {java11-javadoc}/java.base/java/lang/Long.html#signum(long)[signum](long)
+* static long {java11-javadoc}/java.base/java/lang/Long.html#sum(long,long)[sum](long, long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toBinaryString(long)[toBinaryString](long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toHexString(long)[toHexString](long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toOctalString(long)[toOctalString](long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toString(long)[toString](long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toString(long,int)[toString](long, int)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toUnsignedString(long)[toUnsignedString](long)
+* static String {java11-javadoc}/java.base/java/lang/Long.html#toUnsignedString(long,int)[toUnsignedString](long, int)
+* static Long {java11-javadoc}/java.base/java/lang/Long.html#valueOf(long)[valueOf](long)
+* static Long {java11-javadoc}/java.base/java/lang/Long.html#valueOf(java.lang.String,int)[valueOf](String, int)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Long.html#compareTo(java.lang.Long)[compareTo](Long)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Math]]
+==== Math
+* static double {java11-javadoc}/java.base/java/lang/Math.html#E[E]
+* static double {java11-javadoc}/java.base/java/lang/Math.html#PI[PI]
+* static double {java11-javadoc}/java.base/java/lang/Math.html#IEEEremainder(double,double)[IEEEremainder](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#abs(double)[abs](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#acos(double)[acos](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#asin(double)[asin](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#atan(double)[atan](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#atan2(double,double)[atan2](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#cbrt(double)[cbrt](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#ceil(double)[ceil](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#copySign(double,double)[copySign](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#cos(double)[cos](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#cosh(double)[cosh](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#exp(double)[exp](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#expm1(double)[expm1](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#floor(double)[floor](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#hypot(double,double)[hypot](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#log(double)[log](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#log10(double)[log10](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#log1p(double)[log1p](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#max(double,double)[max](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#min(double,double)[min](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#nextAfter(double,double)[nextAfter](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#nextDown(double)[nextDown](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#nextUp(double)[nextUp](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#pow(double,double)[pow](double, double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#random()[random]()
+* static double {java11-javadoc}/java.base/java/lang/Math.html#rint(double)[rint](double)
+* static long {java11-javadoc}/java.base/java/lang/Math.html#round(double)[round](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#scalb(double,int)[scalb](double, int)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#signum(double)[signum](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#sin(double)[sin](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#sinh(double)[sinh](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#sqrt(double)[sqrt](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#tan(double)[tan](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#tanh(double)[tanh](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#toDegrees(double)[toDegrees](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#toRadians(double)[toRadians](double)
+* static double {java11-javadoc}/java.base/java/lang/Math.html#ulp(double)[ulp](double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-NegativeArraySizeException]]
+==== NegativeArraySizeException
+* {java11-javadoc}/java.base/java/lang/NegativeArraySizeException.html#<init>()[NegativeArraySizeException]()
+* {java11-javadoc}/java.base/java/lang/NegativeArraySizeException.html#<init>(java.lang.String)[NegativeArraySizeException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-NoSuchFieldException]]
+==== NoSuchFieldException
+* {java11-javadoc}/java.base/java/lang/NoSuchFieldException.html#<init>()[NoSuchFieldException]()
+* {java11-javadoc}/java.base/java/lang/NoSuchFieldException.html#<init>(java.lang.String)[NoSuchFieldException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-NoSuchMethodException]]
+==== NoSuchMethodException
+* {java11-javadoc}/java.base/java/lang/NoSuchMethodException.html#<init>()[NoSuchMethodException]()
+* {java11-javadoc}/java.base/java/lang/NoSuchMethodException.html#<init>(java.lang.String)[NoSuchMethodException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-NullPointerException]]
+==== NullPointerException
+* {java11-javadoc}/java.base/java/lang/NullPointerException.html#<init>()[NullPointerException]()
+* {java11-javadoc}/java.base/java/lang/NullPointerException.html#<init>(java.lang.String)[NullPointerException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Number]]
+==== Number
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-NumberFormatException]]
+==== NumberFormatException
+* {java11-javadoc}/java.base/java/lang/NumberFormatException.html#<init>()[NumberFormatException]()
+* {java11-javadoc}/java.base/java/lang/NumberFormatException.html#<init>(java.lang.String)[NumberFormatException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Object]]
+==== Object
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-ReflectiveOperationException]]
+==== ReflectiveOperationException
+* {java11-javadoc}/java.base/java/lang/ReflectiveOperationException.html#<init>()[ReflectiveOperationException]()
+* {java11-javadoc}/java.base/java/lang/ReflectiveOperationException.html#<init>(java.lang.String)[ReflectiveOperationException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-RuntimeException]]
+==== RuntimeException
+* {java11-javadoc}/java.base/java/lang/RuntimeException.html#<init>()[RuntimeException]()
+* {java11-javadoc}/java.base/java/lang/RuntimeException.html#<init>(java.lang.String)[RuntimeException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-SecurityException]]
+==== SecurityException
+* {java11-javadoc}/java.base/java/lang/SecurityException.html#<init>()[SecurityException]()
+* {java11-javadoc}/java.base/java/lang/SecurityException.html#<init>(java.lang.String)[SecurityException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Short]]
+==== Short
+* static int {java11-javadoc}/java.base/java/lang/Short.html#BYTES[BYTES]
+* static short {java11-javadoc}/java.base/java/lang/Short.html#MAX_VALUE[MAX_VALUE]
+* static short {java11-javadoc}/java.base/java/lang/Short.html#MIN_VALUE[MIN_VALUE]
+* static int {java11-javadoc}/java.base/java/lang/Short.html#SIZE[SIZE]
+* static int {java11-javadoc}/java.base/java/lang/Short.html#compare(short,short)[compare](short, short)
+* static Short {java11-javadoc}/java.base/java/lang/Short.html#decode(java.lang.String)[decode](String)
+* static int {java11-javadoc}/java.base/java/lang/Short.html#hashCode(short)[hashCode](short)
+* static short {java11-javadoc}/java.base/java/lang/Short.html#parseShort(java.lang.String)[parseShort](String)
+* static short {java11-javadoc}/java.base/java/lang/Short.html#parseShort(java.lang.String,int)[parseShort](String, int)
+* static short {java11-javadoc}/java.base/java/lang/Short.html#reverseBytes(short)[reverseBytes](short)
+* static String {java11-javadoc}/java.base/java/lang/Short.html#toString(short)[toString](short)
+* static int {java11-javadoc}/java.base/java/lang/Short.html#toUnsignedInt(short)[toUnsignedInt](short)
+* static long {java11-javadoc}/java.base/java/lang/Short.html#toUnsignedLong(short)[toUnsignedLong](short)
+* static Short {java11-javadoc}/java.base/java/lang/Short.html#valueOf(short)[valueOf](short)
+* static Short {java11-javadoc}/java.base/java/lang/Short.html#valueOf(java.lang.String,int)[valueOf](String, int)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* int {java11-javadoc}/java.base/java/lang/Short.html#compareTo(java.lang.Short)[compareTo](Short)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-StackTraceElement]]
+==== StackTraceElement
+* {java11-javadoc}/java.base/java/lang/StackTraceElement.html#<init>(java.lang.String,java.lang.String,java.lang.String,int)[StackTraceElement](String, String, String, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/StackTraceElement.html#getClassName()[getClassName]()
+* String {java11-javadoc}/java.base/java/lang/StackTraceElement.html#getFileName()[getFileName]()
+* int {java11-javadoc}/java.base/java/lang/StackTraceElement.html#getLineNumber()[getLineNumber]()
+* String {java11-javadoc}/java.base/java/lang/StackTraceElement.html#getMethodName()[getMethodName]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/lang/StackTraceElement.html#isNativeMethod()[isNativeMethod]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-StrictMath]]
+==== StrictMath
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#E[E]
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#PI[PI]
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#IEEEremainder(double,double)[IEEEremainder](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#abs(double)[abs](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#acos(double)[acos](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#asin(double)[asin](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#atan(double)[atan](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#atan2(double,double)[atan2](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#cbrt(double)[cbrt](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#ceil(double)[ceil](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#copySign(double,double)[copySign](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#cos(double)[cos](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#cosh(double)[cosh](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#exp(double)[exp](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#expm1(double)[expm1](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#floor(double)[floor](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#hypot(double,double)[hypot](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#log(double)[log](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#log10(double)[log10](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#log1p(double)[log1p](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#max(double,double)[max](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#min(double,double)[min](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#nextAfter(double,double)[nextAfter](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#nextDown(double)[nextDown](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#nextUp(double)[nextUp](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#pow(double,double)[pow](double, double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#random()[random]()
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#rint(double)[rint](double)
+* static long {java11-javadoc}/java.base/java/lang/StrictMath.html#round(double)[round](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#scalb(double,int)[scalb](double, int)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#signum(double)[signum](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#sin(double)[sin](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#sinh(double)[sinh](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#sqrt(double)[sqrt](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#tan(double)[tan](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#tanh(double)[tanh](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#toDegrees(double)[toDegrees](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#toRadians(double)[toRadians](double)
+* static double {java11-javadoc}/java.base/java/lang/StrictMath.html#ulp(double)[ulp](double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-String]]
+==== String
+* static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D)[copyValueOf](char[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#copyValueOf(char%5B%5D,int,int)[copyValueOf](char[], int, int)
+* static String {java11-javadoc}/java.base/java/lang/String.html#format(java.lang.String,java.lang.Object%5B%5D)[format](String, def[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#format(java.util.Locale,java.lang.String,java.lang.Object%5B%5D)[format](Locale, String, def[])
+* static String {java11-javadoc}/java.base/java/lang/String.html#join(java.lang.CharSequence,java.lang.Iterable)[join](CharSequence, Iterable)
+* static String {java11-javadoc}/java.base/java/lang/String.html#valueOf(java.lang.Object)[valueOf](def)
+* {java11-javadoc}/java.base/java/lang/String.html#<init>()[String]()
+* char {java11-javadoc}/java.base/java/lang/CharSequence.html#charAt(int)[charAt](int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#chars()[chars]()
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointAt(int)[codePointAt](int)
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointBefore(int)[codePointBefore](int)
+* int {java11-javadoc}/java.base/java/lang/String.html#codePointCount(int,int)[codePointCount](int, int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#codePoints()[codePoints]()
+* int {java11-javadoc}/java.base/java/lang/String.html#compareTo(java.lang.String)[compareTo](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#compareToIgnoreCase(java.lang.String)[compareToIgnoreCase](String)
+* String {java11-javadoc}/java.base/java/lang/String.html#concat(java.lang.String)[concat](String)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#contains(java.lang.CharSequence)[contains](CharSequence)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#contentEquals(java.lang.CharSequence)[contentEquals](CharSequence)
+* String decodeBase64()
+* String encodeBase64()
+* boolean {java11-javadoc}/java.base/java/lang/String.html#endsWith(java.lang.String)[endsWith](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#equalsIgnoreCase(java.lang.String)[equalsIgnoreCase](String)
+* void {java11-javadoc}/java.base/java/lang/String.html#getChars(int,int,char%5B%5D,int)[getChars](int, int, char[], int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/String.html#indexOf(java.lang.String)[indexOf](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#indexOf(java.lang.String,int)[indexOf](String, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#isEmpty()[isEmpty]()
+* int {java11-javadoc}/java.base/java/lang/String.html#lastIndexOf(java.lang.String)[lastIndexOf](String)
+* int {java11-javadoc}/java.base/java/lang/String.html#lastIndexOf(java.lang.String,int)[lastIndexOf](String, int)
+* int {java11-javadoc}/java.base/java/lang/CharSequence.html#length()[length]()
+* int {java11-javadoc}/java.base/java/lang/String.html#offsetByCodePoints(int,int)[offsetByCodePoints](int, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#regionMatches(int,java.lang.String,int,int)[regionMatches](int, String, int, int)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#regionMatches(boolean,int,java.lang.String,int,int)[regionMatches](boolean, int, String, int, int)
+* String {java11-javadoc}/java.base/java/lang/String.html#replace(java.lang.CharSequence,java.lang.CharSequence)[replace](CharSequence, CharSequence)
+* String replaceAll(Pattern, Function)
+* String replaceFirst(Pattern, Function)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String)[startsWith](String)
+* boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String,int)[startsWith](String, int)
+* CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
+* String {java11-javadoc}/java.base/java/lang/String.html#substring(int)[substring](int)
+* String {java11-javadoc}/java.base/java/lang/String.html#substring(int,int)[substring](int, int)
+* char[] {java11-javadoc}/java.base/java/lang/String.html#toCharArray()[toCharArray]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toLowerCase()[toLowerCase]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toLowerCase(java.util.Locale)[toLowerCase](Locale)
+* String {java11-javadoc}/java.base/java/lang/CharSequence.html#toString()[toString]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toUpperCase()[toUpperCase]()
+* String {java11-javadoc}/java.base/java/lang/String.html#toUpperCase(java.util.Locale)[toUpperCase](Locale)
+* String {java11-javadoc}/java.base/java/lang/String.html#trim()[trim]()
+
+
+[[painless-api-reference-similarity-java-lang-StringBuffer]]
+==== StringBuffer
+* {java11-javadoc}/java.base/java/lang/StringBuffer.html#<init>()[StringBuffer]()
+* {java11-javadoc}/java.base/java/lang/StringBuffer.html#<init>(java.lang.CharSequence)[StringBuffer](CharSequence)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#append(java.lang.Object)[append](def)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#append(java.lang.CharSequence,int,int)[append](CharSequence, int, int)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#appendCodePoint(int)[appendCodePoint](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#capacity()[capacity]()
+* char {java11-javadoc}/java.base/java/lang/CharSequence.html#charAt(int)[charAt](int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#chars()[chars]()
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#codePointAt(int)[codePointAt](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#codePointBefore(int)[codePointBefore](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#codePointCount(int,int)[codePointCount](int, int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#codePoints()[codePoints]()
+* int {java11-javadoc}/java.base/java/lang/Comparable.html#compareTo(java.lang.Object)[compareTo](def)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#delete(int,int)[delete](int, int)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#deleteCharAt(int)[deleteCharAt](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* void {java11-javadoc}/java.base/java/lang/StringBuffer.html#getChars(int,int,char%5B%5D,int)[getChars](int, int, char[], int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#indexOf(java.lang.String)[indexOf](String)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#indexOf(java.lang.String,int)[indexOf](String, int)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#insert(int,java.lang.Object)[insert](int, def)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#lastIndexOf(java.lang.String)[lastIndexOf](String)
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#lastIndexOf(java.lang.String,int)[lastIndexOf](String, int)
+* int {java11-javadoc}/java.base/java/lang/CharSequence.html#length()[length]()
+* int {java11-javadoc}/java.base/java/lang/StringBuffer.html#offsetByCodePoints(int,int)[offsetByCodePoints](int, int)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#replace(int,int,java.lang.String)[replace](int, int, String)
+* String replaceAll(Pattern, Function)
+* String replaceFirst(Pattern, Function)
+* StringBuffer {java11-javadoc}/java.base/java/lang/StringBuffer.html#reverse()[reverse]()
+* void {java11-javadoc}/java.base/java/lang/StringBuffer.html#setCharAt(int,char)[setCharAt](int, char)
+* void {java11-javadoc}/java.base/java/lang/StringBuffer.html#setLength(int)[setLength](int)
+* CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
+* String {java11-javadoc}/java.base/java/lang/StringBuffer.html#substring(int)[substring](int)
+* String {java11-javadoc}/java.base/java/lang/StringBuffer.html#substring(int,int)[substring](int, int)
+* String {java11-javadoc}/java.base/java/lang/CharSequence.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-StringBuilder]]
+==== StringBuilder
+* {java11-javadoc}/java.base/java/lang/StringBuilder.html#<init>()[StringBuilder]()
+* {java11-javadoc}/java.base/java/lang/StringBuilder.html#<init>(java.lang.CharSequence)[StringBuilder](CharSequence)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#append(java.lang.Object)[append](def)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#append(java.lang.CharSequence,int,int)[append](CharSequence, int, int)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#appendCodePoint(int)[appendCodePoint](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#capacity()[capacity]()
+* char {java11-javadoc}/java.base/java/lang/CharSequence.html#charAt(int)[charAt](int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#chars()[chars]()
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#codePointAt(int)[codePointAt](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#codePointBefore(int)[codePointBefore](int)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#codePointCount(int,int)[codePointCount](int, int)
+* IntStream {java11-javadoc}/java.base/java/lang/CharSequence.html#codePoints()[codePoints]()
+* int {java11-javadoc}/java.base/java/lang/Comparable.html#compareTo(java.lang.Object)[compareTo](def)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#delete(int,int)[delete](int, int)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#deleteCharAt(int)[deleteCharAt](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* void {java11-javadoc}/java.base/java/lang/StringBuilder.html#getChars(int,int,char%5B%5D,int)[getChars](int, int, char[], int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#indexOf(java.lang.String)[indexOf](String)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#indexOf(java.lang.String,int)[indexOf](String, int)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#insert(int,java.lang.Object)[insert](int, def)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#lastIndexOf(java.lang.String)[lastIndexOf](String)
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#lastIndexOf(java.lang.String,int)[lastIndexOf](String, int)
+* int {java11-javadoc}/java.base/java/lang/CharSequence.html#length()[length]()
+* int {java11-javadoc}/java.base/java/lang/StringBuilder.html#offsetByCodePoints(int,int)[offsetByCodePoints](int, int)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#replace(int,int,java.lang.String)[replace](int, int, String)
+* String replaceAll(Pattern, Function)
+* String replaceFirst(Pattern, Function)
+* StringBuilder {java11-javadoc}/java.base/java/lang/StringBuilder.html#reverse()[reverse]()
+* void {java11-javadoc}/java.base/java/lang/StringBuilder.html#setCharAt(int,char)[setCharAt](int, char)
+* void {java11-javadoc}/java.base/java/lang/StringBuilder.html#setLength(int)[setLength](int)
+* CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)
+* String {java11-javadoc}/java.base/java/lang/StringBuilder.html#substring(int)[substring](int)
+* String {java11-javadoc}/java.base/java/lang/StringBuilder.html#substring(int,int)[substring](int, int)
+* String {java11-javadoc}/java.base/java/lang/CharSequence.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-StringIndexOutOfBoundsException]]
+==== StringIndexOutOfBoundsException
+* {java11-javadoc}/java.base/java/lang/StringIndexOutOfBoundsException.html#<init>()[StringIndexOutOfBoundsException]()
+* {java11-javadoc}/java.base/java/lang/StringIndexOutOfBoundsException.html#<init>(java.lang.String)[StringIndexOutOfBoundsException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-System]]
+==== System
+* static void {java11-javadoc}/java.base/java/lang/System.html#arraycopy(java.lang.Object,int,java.lang.Object,int,int)[arraycopy](Object, int, Object, int, int)
+* static long {java11-javadoc}/java.base/java/lang/System.html#currentTimeMillis()[currentTimeMillis]()
+* static long {java11-javadoc}/java.base/java/lang/System.html#nanoTime()[nanoTime]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-TypeNotPresentException]]
+==== TypeNotPresentException
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* String {java11-javadoc}/java.base/java/lang/TypeNotPresentException.html#typeName()[typeName]()
+
+
+[[painless-api-reference-similarity-java-lang-UnsupportedOperationException]]
+==== UnsupportedOperationException
+* {java11-javadoc}/java.base/java/lang/UnsupportedOperationException.html#<init>()[UnsupportedOperationException]()
+* {java11-javadoc}/java.base/java/lang/UnsupportedOperationException.html#<init>(java.lang.String)[UnsupportedOperationException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-lang-Void]]
+==== Void
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

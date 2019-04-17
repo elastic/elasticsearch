@@ -1,0 +1,18 @@
+[role="exclude",id="painless-api-reference-analysis-org-elasticsearch-analysis-common"]
+=== org.elasticsearch.analysis.common
+
+[[painless-api-reference-analysis-org-elasticsearch-analysis-common-AnalysisPredicateScript.Token]]
+==== AnalysisPredicateScript.Token
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int getEndOffset()
+* int getPosition()
+* int getPositionIncrement()
+* int getPositionLength()
+* int getStartOffset()
+* CharSequence getTerm()
+* String getType()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean isKeyword()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

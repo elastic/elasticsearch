@@ -1,0 +1,12 @@
+[role="exclude",id="painless-api-reference-template-org-elasticsearch-common-geo"]
+=== org.elasticsearch.common.geo
+
+[[painless-api-reference-template-org-elasticsearch-common-geo-GeoPoint]]
+==== GeoPoint
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* double getLat()
+* double getLon()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

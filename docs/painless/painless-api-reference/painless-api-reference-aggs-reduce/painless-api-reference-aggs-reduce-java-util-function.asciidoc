@@ -1,0 +1,387 @@
+[role="exclude",id="painless-api-reference-aggs-reduce-java-util-function"]
+=== java.util.function
+
+[[painless-api-reference-aggs-reduce-java-util-function-BiConsumer]]
+==== BiConsumer
+* void {java11-javadoc}/java.base/java/util/function/BiConsumer.html#accept(java.lang.Object,java.lang.Object)[accept](def, def)
+* BiConsumer {java11-javadoc}/java.base/java/util/function/BiConsumer.html#andThen(java.util.function.BiConsumer)[andThen](BiConsumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-BiFunction]]
+==== BiFunction
+* BiFunction {java11-javadoc}/java.base/java/util/function/BiFunction.html#andThen(java.util.function.Function)[andThen](Function)
+* def {java11-javadoc}/java.base/java/util/function/BiFunction.html#apply(java.lang.Object,java.lang.Object)[apply](def, def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-BiPredicate]]
+==== BiPredicate
+* BiPredicate {java11-javadoc}/java.base/java/util/function/BiPredicate.html#and(java.util.function.BiPredicate)[and](BiPredicate)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* BiPredicate {java11-javadoc}/java.base/java/util/function/BiPredicate.html#negate()[negate]()
+* BiPredicate {java11-javadoc}/java.base/java/util/function/BiPredicate.html#or(java.util.function.BiPredicate)[or](BiPredicate)
+* boolean {java11-javadoc}/java.base/java/util/function/BiPredicate.html#test(java.lang.Object,java.lang.Object)[test](def, def)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-BinaryOperator]]
+==== BinaryOperator
+* static BinaryOperator {java11-javadoc}/java.base/java/util/function/BinaryOperator.html#maxBy(java.util.Comparator)[maxBy](Comparator)
+* static BinaryOperator {java11-javadoc}/java.base/java/util/function/BinaryOperator.html#minBy(java.util.Comparator)[minBy](Comparator)
+* BiFunction {java11-javadoc}/java.base/java/util/function/BiFunction.html#andThen(java.util.function.Function)[andThen](Function)
+* def {java11-javadoc}/java.base/java/util/function/BiFunction.html#apply(java.lang.Object,java.lang.Object)[apply](def, def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-BooleanSupplier]]
+==== BooleanSupplier
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/util/function/BooleanSupplier.html#getAsBoolean()[getAsBoolean]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-Consumer]]
+==== Consumer
+* void {java11-javadoc}/java.base/java/util/function/Consumer.html#accept(java.lang.Object)[accept](def)
+* Consumer {java11-javadoc}/java.base/java/util/function/Consumer.html#andThen(java.util.function.Consumer)[andThen](Consumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleBinaryOperator]]
+==== DoubleBinaryOperator
+* double {java11-javadoc}/java.base/java/util/function/DoubleBinaryOperator.html#applyAsDouble(double,double)[applyAsDouble](double, double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleConsumer]]
+==== DoubleConsumer
+* void {java11-javadoc}/java.base/java/util/function/DoubleConsumer.html#accept(double)[accept](double)
+* DoubleConsumer {java11-javadoc}/java.base/java/util/function/DoubleConsumer.html#andThen(java.util.function.DoubleConsumer)[andThen](DoubleConsumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleFunction]]
+==== DoubleFunction
+* def {java11-javadoc}/java.base/java/util/function/DoubleFunction.html#apply(double)[apply](double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoublePredicate]]
+==== DoublePredicate
+* DoublePredicate {java11-javadoc}/java.base/java/util/function/DoublePredicate.html#and(java.util.function.DoublePredicate)[and](DoublePredicate)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* DoublePredicate {java11-javadoc}/java.base/java/util/function/DoublePredicate.html#negate()[negate]()
+* DoublePredicate {java11-javadoc}/java.base/java/util/function/DoublePredicate.html#or(java.util.function.DoublePredicate)[or](DoublePredicate)
+* boolean {java11-javadoc}/java.base/java/util/function/DoublePredicate.html#test(double)[test](double)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleSupplier]]
+==== DoubleSupplier
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* double {java11-javadoc}/java.base/java/util/function/DoubleSupplier.html#getAsDouble()[getAsDouble]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleToIntFunction]]
+==== DoubleToIntFunction
+* int {java11-javadoc}/java.base/java/util/function/DoubleToIntFunction.html#applyAsInt(double)[applyAsInt](double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleToLongFunction]]
+==== DoubleToLongFunction
+* long {java11-javadoc}/java.base/java/util/function/DoubleToLongFunction.html#applyAsLong(double)[applyAsLong](double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-DoubleUnaryOperator]]
+==== DoubleUnaryOperator
+* static DoubleUnaryOperator {java11-javadoc}/java.base/java/util/function/DoubleUnaryOperator.html#identity()[identity]()
+* DoubleUnaryOperator {java11-javadoc}/java.base/java/util/function/DoubleUnaryOperator.html#andThen(java.util.function.DoubleUnaryOperator)[andThen](DoubleUnaryOperator)
+* double {java11-javadoc}/java.base/java/util/function/DoubleUnaryOperator.html#applyAsDouble(double)[applyAsDouble](double)
+* DoubleUnaryOperator {java11-javadoc}/java.base/java/util/function/DoubleUnaryOperator.html#compose(java.util.function.DoubleUnaryOperator)[compose](DoubleUnaryOperator)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-Function]]
+==== Function
+* static Function {java11-javadoc}/java.base/java/util/function/Function.html#identity()[identity]()
+* Function {java11-javadoc}/java.base/java/util/function/Function.html#andThen(java.util.function.Function)[andThen](Function)
+* def {java11-javadoc}/java.base/java/util/function/Function.html#apply(java.lang.Object)[apply](def)
+* Function {java11-javadoc}/java.base/java/util/function/Function.html#compose(java.util.function.Function)[compose](Function)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntBinaryOperator]]
+==== IntBinaryOperator
+* int {java11-javadoc}/java.base/java/util/function/IntBinaryOperator.html#applyAsInt(int,int)[applyAsInt](int, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntConsumer]]
+==== IntConsumer
+* void {java11-javadoc}/java.base/java/util/function/IntConsumer.html#accept(int)[accept](int)
+* IntConsumer {java11-javadoc}/java.base/java/util/function/IntConsumer.html#andThen(java.util.function.IntConsumer)[andThen](IntConsumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntFunction]]
+==== IntFunction
+* def {java11-javadoc}/java.base/java/util/function/IntFunction.html#apply(int)[apply](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntPredicate]]
+==== IntPredicate
+* IntPredicate {java11-javadoc}/java.base/java/util/function/IntPredicate.html#and(java.util.function.IntPredicate)[and](IntPredicate)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* IntPredicate {java11-javadoc}/java.base/java/util/function/IntPredicate.html#negate()[negate]()
+* IntPredicate {java11-javadoc}/java.base/java/util/function/IntPredicate.html#or(java.util.function.IntPredicate)[or](IntPredicate)
+* boolean {java11-javadoc}/java.base/java/util/function/IntPredicate.html#test(int)[test](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntSupplier]]
+==== IntSupplier
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/util/function/IntSupplier.html#getAsInt()[getAsInt]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntToDoubleFunction]]
+==== IntToDoubleFunction
+* double {java11-javadoc}/java.base/java/util/function/IntToDoubleFunction.html#applyAsDouble(int)[applyAsDouble](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntToLongFunction]]
+==== IntToLongFunction
+* long {java11-javadoc}/java.base/java/util/function/IntToLongFunction.html#applyAsLong(int)[applyAsLong](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-IntUnaryOperator]]
+==== IntUnaryOperator
+* static IntUnaryOperator {java11-javadoc}/java.base/java/util/function/IntUnaryOperator.html#identity()[identity]()
+* IntUnaryOperator {java11-javadoc}/java.base/java/util/function/IntUnaryOperator.html#andThen(java.util.function.IntUnaryOperator)[andThen](IntUnaryOperator)
+* int {java11-javadoc}/java.base/java/util/function/IntUnaryOperator.html#applyAsInt(int)[applyAsInt](int)
+* IntUnaryOperator {java11-javadoc}/java.base/java/util/function/IntUnaryOperator.html#compose(java.util.function.IntUnaryOperator)[compose](IntUnaryOperator)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongBinaryOperator]]
+==== LongBinaryOperator
+* long {java11-javadoc}/java.base/java/util/function/LongBinaryOperator.html#applyAsLong(long,long)[applyAsLong](long, long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongConsumer]]
+==== LongConsumer
+* void {java11-javadoc}/java.base/java/util/function/LongConsumer.html#accept(long)[accept](long)
+* LongConsumer {java11-javadoc}/java.base/java/util/function/LongConsumer.html#andThen(java.util.function.LongConsumer)[andThen](LongConsumer)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongFunction]]
+==== LongFunction
+* def {java11-javadoc}/java.base/java/util/function/LongFunction.html#apply(long)[apply](long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongPredicate]]
+==== LongPredicate
+* LongPredicate {java11-javadoc}/java.base/java/util/function/LongPredicate.html#and(java.util.function.LongPredicate)[and](LongPredicate)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* LongPredicate {java11-javadoc}/java.base/java/util/function/LongPredicate.html#negate()[negate]()
+* LongPredicate {java11-javadoc}/java.base/java/util/function/LongPredicate.html#or(java.util.function.LongPredicate)[or](LongPredicate)
+* boolean {java11-javadoc}/java.base/java/util/function/LongPredicate.html#test(long)[test](long)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongSupplier]]
+==== LongSupplier
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* long {java11-javadoc}/java.base/java/util/function/LongSupplier.html#getAsLong()[getAsLong]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongToDoubleFunction]]
+==== LongToDoubleFunction
+* double {java11-javadoc}/java.base/java/util/function/LongToDoubleFunction.html#applyAsDouble(long)[applyAsDouble](long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongToIntFunction]]
+==== LongToIntFunction
+* int {java11-javadoc}/java.base/java/util/function/LongToIntFunction.html#applyAsInt(long)[applyAsInt](long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-LongUnaryOperator]]
+==== LongUnaryOperator
+* static LongUnaryOperator {java11-javadoc}/java.base/java/util/function/LongUnaryOperator.html#identity()[identity]()
+* LongUnaryOperator {java11-javadoc}/java.base/java/util/function/LongUnaryOperator.html#andThen(java.util.function.LongUnaryOperator)[andThen](LongUnaryOperator)
+* long {java11-javadoc}/java.base/java/util/function/LongUnaryOperator.html#applyAsLong(long)[applyAsLong](long)
+* LongUnaryOperator {java11-javadoc}/java.base/java/util/function/LongUnaryOperator.html#compose(java.util.function.LongUnaryOperator)[compose](LongUnaryOperator)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ObjDoubleConsumer]]
+==== ObjDoubleConsumer
+* void {java11-javadoc}/java.base/java/util/function/ObjDoubleConsumer.html#accept(java.lang.Object,double)[accept](def, double)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ObjIntConsumer]]
+==== ObjIntConsumer
+* void {java11-javadoc}/java.base/java/util/function/ObjIntConsumer.html#accept(java.lang.Object,int)[accept](def, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ObjLongConsumer]]
+==== ObjLongConsumer
+* void {java11-javadoc}/java.base/java/util/function/ObjLongConsumer.html#accept(java.lang.Object,long)[accept](def, long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-Predicate]]
+==== Predicate
+* static Predicate {java11-javadoc}/java.base/java/util/function/Predicate.html#isEqual(java.lang.Object)[isEqual](def)
+* Predicate {java11-javadoc}/java.base/java/util/function/Predicate.html#and(java.util.function.Predicate)[and](Predicate)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Predicate {java11-javadoc}/java.base/java/util/function/Predicate.html#negate()[negate]()
+* Predicate {java11-javadoc}/java.base/java/util/function/Predicate.html#or(java.util.function.Predicate)[or](Predicate)
+* boolean {java11-javadoc}/java.base/java/util/function/Predicate.html#test(java.lang.Object)[test](def)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-Supplier]]
+==== Supplier
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* def {java11-javadoc}/java.base/java/util/function/Supplier.html#get()[get]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToDoubleBiFunction]]
+==== ToDoubleBiFunction
+* double {java11-javadoc}/java.base/java/util/function/ToDoubleBiFunction.html#applyAsDouble(java.lang.Object,java.lang.Object)[applyAsDouble](def, def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToDoubleFunction]]
+==== ToDoubleFunction
+* double {java11-javadoc}/java.base/java/util/function/ToDoubleFunction.html#applyAsDouble(java.lang.Object)[applyAsDouble](def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToIntBiFunction]]
+==== ToIntBiFunction
+* int {java11-javadoc}/java.base/java/util/function/ToIntBiFunction.html#applyAsInt(java.lang.Object,java.lang.Object)[applyAsInt](def, def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToIntFunction]]
+==== ToIntFunction
+* int {java11-javadoc}/java.base/java/util/function/ToIntFunction.html#applyAsInt(java.lang.Object)[applyAsInt](def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToLongBiFunction]]
+==== ToLongBiFunction
+* long {java11-javadoc}/java.base/java/util/function/ToLongBiFunction.html#applyAsLong(java.lang.Object,java.lang.Object)[applyAsLong](def, def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-ToLongFunction]]
+==== ToLongFunction
+* long {java11-javadoc}/java.base/java/util/function/ToLongFunction.html#applyAsLong(java.lang.Object)[applyAsLong](def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-reduce-java-util-function-UnaryOperator]]
+==== UnaryOperator
+* static UnaryOperator {java11-javadoc}/java.base/java/util/function/UnaryOperator.html#identity()[identity]()
+* Function {java11-javadoc}/java.base/java/util/function/Function.html#andThen(java.util.function.Function)[andThen](Function)
+* def {java11-javadoc}/java.base/java/util/function/Function.html#apply(java.lang.Object)[apply](def)
+* Function {java11-javadoc}/java.base/java/util/function/Function.html#compose(java.util.function.Function)[compose](Function)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

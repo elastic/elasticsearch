@@ -1,0 +1,483 @@
+[[painless-api-reference-string-sort]]
+=== String Sort API
+
+==== java.lang
+<<painless-api-reference-string-sort-java-lang, Expand java.lang>>
+
+* <<painless-api-reference-string-sort-java-lang-Appendable, Appendable>>
+* <<painless-api-reference-string-sort-java-lang-ArithmeticException, ArithmeticException>>
+* <<painless-api-reference-string-sort-java-lang-ArrayIndexOutOfBoundsException, ArrayIndexOutOfBoundsException>>
+* <<painless-api-reference-string-sort-java-lang-ArrayStoreException, ArrayStoreException>>
+* <<painless-api-reference-string-sort-java-lang-Boolean, Boolean>>
+* <<painless-api-reference-string-sort-java-lang-Byte, Byte>>
+* <<painless-api-reference-string-sort-java-lang-CharSequence, CharSequence>>
+* <<painless-api-reference-string-sort-java-lang-Character, Character>>
+* <<painless-api-reference-string-sort-java-lang-Character.Subset, Character.Subset>>
+* <<painless-api-reference-string-sort-java-lang-Character.UnicodeBlock, Character.UnicodeBlock>>
+* <<painless-api-reference-string-sort-java-lang-Character.UnicodeScript, Character.UnicodeScript>>
+* <<painless-api-reference-string-sort-java-lang-ClassCastException, ClassCastException>>
+* <<painless-api-reference-string-sort-java-lang-ClassNotFoundException, ClassNotFoundException>>
+* <<painless-api-reference-string-sort-java-lang-CloneNotSupportedException, CloneNotSupportedException>>
+* <<painless-api-reference-string-sort-java-lang-Comparable, Comparable>>
+* <<painless-api-reference-string-sort-java-lang-Double, Double>>
+* <<painless-api-reference-string-sort-java-lang-Enum, Enum>>
+* <<painless-api-reference-string-sort-java-lang-EnumConstantNotPresentException, EnumConstantNotPresentException>>
+* <<painless-api-reference-string-sort-java-lang-Exception, Exception>>
+* <<painless-api-reference-string-sort-java-lang-Float, Float>>
+* <<painless-api-reference-string-sort-java-lang-IllegalAccessException, IllegalAccessException>>
+* <<painless-api-reference-string-sort-java-lang-IllegalArgumentException, IllegalArgumentException>>
+* <<painless-api-reference-string-sort-java-lang-IllegalMonitorStateException, IllegalMonitorStateException>>
+* <<painless-api-reference-string-sort-java-lang-IllegalStateException, IllegalStateException>>
+* <<painless-api-reference-string-sort-java-lang-IllegalThreadStateException, IllegalThreadStateException>>
+* <<painless-api-reference-string-sort-java-lang-IndexOutOfBoundsException, IndexOutOfBoundsException>>
+* <<painless-api-reference-string-sort-java-lang-InstantiationException, InstantiationException>>
+* <<painless-api-reference-string-sort-java-lang-Integer, Integer>>
+* <<painless-api-reference-string-sort-java-lang-InterruptedException, InterruptedException>>
+* <<painless-api-reference-string-sort-java-lang-Iterable, Iterable>>
+* <<painless-api-reference-string-sort-java-lang-Long, Long>>
+* <<painless-api-reference-string-sort-java-lang-Math, Math>>
+* <<painless-api-reference-string-sort-java-lang-NegativeArraySizeException, NegativeArraySizeException>>
+* <<painless-api-reference-string-sort-java-lang-NoSuchFieldException, NoSuchFieldException>>
+* <<painless-api-reference-string-sort-java-lang-NoSuchMethodException, NoSuchMethodException>>
+* <<painless-api-reference-string-sort-java-lang-NullPointerException, NullPointerException>>
+* <<painless-api-reference-string-sort-java-lang-Number, Number>>
+* <<painless-api-reference-string-sort-java-lang-NumberFormatException, NumberFormatException>>
+* <<painless-api-reference-string-sort-java-lang-Object, Object>>
+* <<painless-api-reference-string-sort-java-lang-ReflectiveOperationException, ReflectiveOperationException>>
+* <<painless-api-reference-string-sort-java-lang-RuntimeException, RuntimeException>>
+* <<painless-api-reference-string-sort-java-lang-SecurityException, SecurityException>>
+* <<painless-api-reference-string-sort-java-lang-Short, Short>>
+* <<painless-api-reference-string-sort-java-lang-StackTraceElement, StackTraceElement>>
+* <<painless-api-reference-string-sort-java-lang-StrictMath, StrictMath>>
+* <<painless-api-reference-string-sort-java-lang-String, String>>
+* <<painless-api-reference-string-sort-java-lang-StringBuffer, StringBuffer>>
+* <<painless-api-reference-string-sort-java-lang-StringBuilder, StringBuilder>>
+* <<painless-api-reference-string-sort-java-lang-StringIndexOutOfBoundsException, StringIndexOutOfBoundsException>>
+* <<painless-api-reference-string-sort-java-lang-System, System>>
+* <<painless-api-reference-string-sort-java-lang-TypeNotPresentException, TypeNotPresentException>>
+* <<painless-api-reference-string-sort-java-lang-UnsupportedOperationException, UnsupportedOperationException>>
+* <<painless-api-reference-string-sort-java-lang-Void, Void>>
+
+
+==== java.math
+<<painless-api-reference-string-sort-java-math, Expand java.math>>
+
+* <<painless-api-reference-string-sort-java-math-BigDecimal, BigDecimal>>
+* <<painless-api-reference-string-sort-java-math-BigInteger, BigInteger>>
+* <<painless-api-reference-string-sort-java-math-MathContext, MathContext>>
+* <<painless-api-reference-string-sort-java-math-RoundingMode, RoundingMode>>
+
+
+==== java.text
+<<painless-api-reference-string-sort-java-text, Expand java.text>>
+
+* <<painless-api-reference-string-sort-java-text-Annotation, Annotation>>
+* <<painless-api-reference-string-sort-java-text-AttributedCharacterIterator, AttributedCharacterIterator>>
+* <<painless-api-reference-string-sort-java-text-AttributedCharacterIterator.Attribute, AttributedCharacterIterator.Attribute>>
+* <<painless-api-reference-string-sort-java-text-AttributedString, AttributedString>>
+* <<painless-api-reference-string-sort-java-text-Bidi, Bidi>>
+* <<painless-api-reference-string-sort-java-text-BreakIterator, BreakIterator>>
+* <<painless-api-reference-string-sort-java-text-CharacterIterator, CharacterIterator>>
+* <<painless-api-reference-string-sort-java-text-ChoiceFormat, ChoiceFormat>>
+* <<painless-api-reference-string-sort-java-text-CollationElementIterator, CollationElementIterator>>
+* <<painless-api-reference-string-sort-java-text-CollationKey, CollationKey>>
+* <<painless-api-reference-string-sort-java-text-Collator, Collator>>
+* <<painless-api-reference-string-sort-java-text-DateFormat, DateFormat>>
+* <<painless-api-reference-string-sort-java-text-DateFormat.Field, DateFormat.Field>>
+* <<painless-api-reference-string-sort-java-text-DateFormatSymbols, DateFormatSymbols>>
+* <<painless-api-reference-string-sort-java-text-DecimalFormat, DecimalFormat>>
+* <<painless-api-reference-string-sort-java-text-DecimalFormatSymbols, DecimalFormatSymbols>>
+* <<painless-api-reference-string-sort-java-text-FieldPosition, FieldPosition>>
+* <<painless-api-reference-string-sort-java-text-Format, Format>>
+* <<painless-api-reference-string-sort-java-text-Format.Field, Format.Field>>
+* <<painless-api-reference-string-sort-java-text-MessageFormat, MessageFormat>>
+* <<painless-api-reference-string-sort-java-text-MessageFormat.Field, MessageFormat.Field>>
+* <<painless-api-reference-string-sort-java-text-Normalizer, Normalizer>>
+* <<painless-api-reference-string-sort-java-text-Normalizer.Form, Normalizer.Form>>
+* <<painless-api-reference-string-sort-java-text-NumberFormat, NumberFormat>>
+* <<painless-api-reference-string-sort-java-text-NumberFormat.Field, NumberFormat.Field>>
+* <<painless-api-reference-string-sort-java-text-ParseException, ParseException>>
+* <<painless-api-reference-string-sort-java-text-ParsePosition, ParsePosition>>
+* <<painless-api-reference-string-sort-java-text-RuleBasedCollator, RuleBasedCollator>>
+* <<painless-api-reference-string-sort-java-text-SimpleDateFormat, SimpleDateFormat>>
+* <<painless-api-reference-string-sort-java-text-StringCharacterIterator, StringCharacterIterator>>
+
+
+==== java.time
+<<painless-api-reference-string-sort-java-time, Expand java.time>>
+
+* <<painless-api-reference-string-sort-java-time-Clock, Clock>>
+* <<painless-api-reference-string-sort-java-time-DateTimeException, DateTimeException>>
+* <<painless-api-reference-string-sort-java-time-DayOfWeek, DayOfWeek>>
+* <<painless-api-reference-string-sort-java-time-Duration, Duration>>
+* <<painless-api-reference-string-sort-java-time-Instant, Instant>>
+* <<painless-api-reference-string-sort-java-time-LocalDate, LocalDate>>
+* <<painless-api-reference-string-sort-java-time-LocalDateTime, LocalDateTime>>
+* <<painless-api-reference-string-sort-java-time-LocalTime, LocalTime>>
+* <<painless-api-reference-string-sort-java-time-Month, Month>>
+* <<painless-api-reference-string-sort-java-time-MonthDay, MonthDay>>
+* <<painless-api-reference-string-sort-java-time-OffsetDateTime, OffsetDateTime>>
+* <<painless-api-reference-string-sort-java-time-OffsetTime, OffsetTime>>
+* <<painless-api-reference-string-sort-java-time-Period, Period>>
+* <<painless-api-reference-string-sort-java-time-Year, Year>>
+* <<painless-api-reference-string-sort-java-time-YearMonth, YearMonth>>
+* <<painless-api-reference-string-sort-java-time-ZoneId, ZoneId>>
+* <<painless-api-reference-string-sort-java-time-ZoneOffset, ZoneOffset>>
+* <<painless-api-reference-string-sort-java-time-ZonedDateTime, ZonedDateTime>>
+
+
+==== java.time.chrono
+<<painless-api-reference-string-sort-java-time-chrono, Expand java.time.chrono>>
+
+* <<painless-api-reference-string-sort-java-time-chrono-AbstractChronology, AbstractChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-ChronoLocalDate, ChronoLocalDate>>
+* <<painless-api-reference-string-sort-java-time-chrono-ChronoLocalDateTime, ChronoLocalDateTime>>
+* <<painless-api-reference-string-sort-java-time-chrono-ChronoPeriod, ChronoPeriod>>
+* <<painless-api-reference-string-sort-java-time-chrono-ChronoZonedDateTime, ChronoZonedDateTime>>
+* <<painless-api-reference-string-sort-java-time-chrono-Chronology, Chronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-Era, Era>>
+* <<painless-api-reference-string-sort-java-time-chrono-HijrahChronology, HijrahChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-HijrahDate, HijrahDate>>
+* <<painless-api-reference-string-sort-java-time-chrono-HijrahEra, HijrahEra>>
+* <<painless-api-reference-string-sort-java-time-chrono-IsoChronology, IsoChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-IsoEra, IsoEra>>
+* <<painless-api-reference-string-sort-java-time-chrono-JapaneseChronology, JapaneseChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-JapaneseDate, JapaneseDate>>
+* <<painless-api-reference-string-sort-java-time-chrono-JapaneseEra, JapaneseEra>>
+* <<painless-api-reference-string-sort-java-time-chrono-MinguoChronology, MinguoChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-MinguoDate, MinguoDate>>
+* <<painless-api-reference-string-sort-java-time-chrono-MinguoEra, MinguoEra>>
+* <<painless-api-reference-string-sort-java-time-chrono-ThaiBuddhistChronology, ThaiBuddhistChronology>>
+* <<painless-api-reference-string-sort-java-time-chrono-ThaiBuddhistDate, ThaiBuddhistDate>>
+* <<painless-api-reference-string-sort-java-time-chrono-ThaiBuddhistEra, ThaiBuddhistEra>>
+
+
+==== java.time.format
+<<painless-api-reference-string-sort-java-time-format, Expand java.time.format>>
+
+* <<painless-api-reference-string-sort-java-time-format-DateTimeFormatter, DateTimeFormatter>>
+* <<painless-api-reference-string-sort-java-time-format-DateTimeFormatterBuilder, DateTimeFormatterBuilder>>
+* <<painless-api-reference-string-sort-java-time-format-DateTimeParseException, DateTimeParseException>>
+* <<painless-api-reference-string-sort-java-time-format-DecimalStyle, DecimalStyle>>
+* <<painless-api-reference-string-sort-java-time-format-FormatStyle, FormatStyle>>
+* <<painless-api-reference-string-sort-java-time-format-ResolverStyle, ResolverStyle>>
+* <<painless-api-reference-string-sort-java-time-format-SignStyle, SignStyle>>
+* <<painless-api-reference-string-sort-java-time-format-TextStyle, TextStyle>>
+
+
+==== java.time.temporal
+<<painless-api-reference-string-sort-java-time-temporal, Expand java.time.temporal>>
+
+* <<painless-api-reference-string-sort-java-time-temporal-ChronoField, ChronoField>>
+* <<painless-api-reference-string-sort-java-time-temporal-ChronoUnit, ChronoUnit>>
+* <<painless-api-reference-string-sort-java-time-temporal-IsoFields, IsoFields>>
+* <<painless-api-reference-string-sort-java-time-temporal-JulianFields, JulianFields>>
+* <<painless-api-reference-string-sort-java-time-temporal-Temporal, Temporal>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalAccessor, TemporalAccessor>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalAdjuster, TemporalAdjuster>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalAdjusters, TemporalAdjusters>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalAmount, TemporalAmount>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalField, TemporalField>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalQueries, TemporalQueries>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalQuery, TemporalQuery>>
+* <<painless-api-reference-string-sort-java-time-temporal-TemporalUnit, TemporalUnit>>
+* <<painless-api-reference-string-sort-java-time-temporal-UnsupportedTemporalTypeException, UnsupportedTemporalTypeException>>
+* <<painless-api-reference-string-sort-java-time-temporal-ValueRange, ValueRange>>
+* <<painless-api-reference-string-sort-java-time-temporal-WeekFields, WeekFields>>
+
+
+==== java.time.zone
+<<painless-api-reference-string-sort-java-time-zone, Expand java.time.zone>>
+
+* <<painless-api-reference-string-sort-java-time-zone-ZoneOffsetTransition, ZoneOffsetTransition>>
+* <<painless-api-reference-string-sort-java-time-zone-ZoneOffsetTransitionRule, ZoneOffsetTransitionRule>>
+* <<painless-api-reference-string-sort-java-time-zone-ZoneOffsetTransitionRule.TimeDefinition, ZoneOffsetTransitionRule.TimeDefinition>>
+* <<painless-api-reference-string-sort-java-time-zone-ZoneRules, ZoneRules>>
+* <<painless-api-reference-string-sort-java-time-zone-ZoneRulesException, ZoneRulesException>>
+* <<painless-api-reference-string-sort-java-time-zone-ZoneRulesProvider, ZoneRulesProvider>>
+
+
+==== java.util
+<<painless-api-reference-string-sort-java-util, Expand java.util>>
+
+* <<painless-api-reference-string-sort-java-util-AbstractCollection, AbstractCollection>>
+* <<painless-api-reference-string-sort-java-util-AbstractList, AbstractList>>
+* <<painless-api-reference-string-sort-java-util-AbstractMap, AbstractMap>>
+* <<painless-api-reference-string-sort-java-util-AbstractMap.SimpleEntry, AbstractMap.SimpleEntry>>
+* <<painless-api-reference-string-sort-java-util-AbstractMap.SimpleImmutableEntry, AbstractMap.SimpleImmutableEntry>>
+* <<painless-api-reference-string-sort-java-util-AbstractQueue, AbstractQueue>>
+* <<painless-api-reference-string-sort-java-util-AbstractSequentialList, AbstractSequentialList>>
+* <<painless-api-reference-string-sort-java-util-AbstractSet, AbstractSet>>
+* <<painless-api-reference-string-sort-java-util-ArrayDeque, ArrayDeque>>
+* <<painless-api-reference-string-sort-java-util-ArrayList, ArrayList>>
+* <<painless-api-reference-string-sort-java-util-Arrays, Arrays>>
+* <<painless-api-reference-string-sort-java-util-Base64, Base64>>
+* <<painless-api-reference-string-sort-java-util-Base64.Decoder, Base64.Decoder>>
+* <<painless-api-reference-string-sort-java-util-Base64.Encoder, Base64.Encoder>>
+* <<painless-api-reference-string-sort-java-util-BitSet, BitSet>>
+* <<painless-api-reference-string-sort-java-util-Calendar, Calendar>>
+* <<painless-api-reference-string-sort-java-util-Calendar.Builder, Calendar.Builder>>
+* <<painless-api-reference-string-sort-java-util-Collection, Collection>>
+* <<painless-api-reference-string-sort-java-util-Collections, Collections>>
+* <<painless-api-reference-string-sort-java-util-Comparator, Comparator>>
+* <<painless-api-reference-string-sort-java-util-ConcurrentModificationException, ConcurrentModificationException>>
+* <<painless-api-reference-string-sort-java-util-Currency, Currency>>
+* <<painless-api-reference-string-sort-java-util-Date, Date>>
+* <<painless-api-reference-string-sort-java-util-Deque, Deque>>
+* <<painless-api-reference-string-sort-java-util-Dictionary, Dictionary>>
+* <<painless-api-reference-string-sort-java-util-DoubleSummaryStatistics, DoubleSummaryStatistics>>
+* <<painless-api-reference-string-sort-java-util-DuplicateFormatFlagsException, DuplicateFormatFlagsException>>
+* <<painless-api-reference-string-sort-java-util-EmptyStackException, EmptyStackException>>
+* <<painless-api-reference-string-sort-java-util-Enumeration, Enumeration>>
+* <<painless-api-reference-string-sort-java-util-EventListener, EventListener>>
+* <<painless-api-reference-string-sort-java-util-EventListenerProxy, EventListenerProxy>>
+* <<painless-api-reference-string-sort-java-util-EventObject, EventObject>>
+* <<painless-api-reference-string-sort-java-util-FormatFlagsConversionMismatchException, FormatFlagsConversionMismatchException>>
+* <<painless-api-reference-string-sort-java-util-Formattable, Formattable>>
+* <<painless-api-reference-string-sort-java-util-FormattableFlags, FormattableFlags>>
+* <<painless-api-reference-string-sort-java-util-Formatter, Formatter>>
+* <<painless-api-reference-string-sort-java-util-Formatter.BigDecimalLayoutForm, Formatter.BigDecimalLayoutForm>>
+* <<painless-api-reference-string-sort-java-util-FormatterClosedException, FormatterClosedException>>
+* <<painless-api-reference-string-sort-java-util-GregorianCalendar, GregorianCalendar>>
+* <<painless-api-reference-string-sort-java-util-HashMap, HashMap>>
+* <<painless-api-reference-string-sort-java-util-HashSet, HashSet>>
+* <<painless-api-reference-string-sort-java-util-Hashtable, Hashtable>>
+* <<painless-api-reference-string-sort-java-util-IdentityHashMap, IdentityHashMap>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatCodePointException, IllegalFormatCodePointException>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatConversionException, IllegalFormatConversionException>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatException, IllegalFormatException>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatFlagsException, IllegalFormatFlagsException>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatPrecisionException, IllegalFormatPrecisionException>>
+* <<painless-api-reference-string-sort-java-util-IllegalFormatWidthException, IllegalFormatWidthException>>
+* <<painless-api-reference-string-sort-java-util-IllformedLocaleException, IllformedLocaleException>>
+* <<painless-api-reference-string-sort-java-util-InputMismatchException, InputMismatchException>>
+* <<painless-api-reference-string-sort-java-util-IntSummaryStatistics, IntSummaryStatistics>>
+* <<painless-api-reference-string-sort-java-util-Iterator, Iterator>>
+* <<painless-api-reference-string-sort-java-util-LinkedHashMap, LinkedHashMap>>
+* <<painless-api-reference-string-sort-java-util-LinkedHashSet, LinkedHashSet>>
+* <<painless-api-reference-string-sort-java-util-LinkedList, LinkedList>>
+* <<painless-api-reference-string-sort-java-util-List, List>>
+* <<painless-api-reference-string-sort-java-util-ListIterator, ListIterator>>
+* <<painless-api-reference-string-sort-java-util-Locale, Locale>>
+* <<painless-api-reference-string-sort-java-util-Locale.Builder, Locale.Builder>>
+* <<painless-api-reference-string-sort-java-util-Locale.Category, Locale.Category>>
+* <<painless-api-reference-string-sort-java-util-Locale.FilteringMode, Locale.FilteringMode>>
+* <<painless-api-reference-string-sort-java-util-Locale.LanguageRange, Locale.LanguageRange>>
+* <<painless-api-reference-string-sort-java-util-LongSummaryStatistics, LongSummaryStatistics>>
+* <<painless-api-reference-string-sort-java-util-Map, Map>>
+* <<painless-api-reference-string-sort-java-util-Map.Entry, Map.Entry>>
+* <<painless-api-reference-string-sort-java-util-MissingFormatArgumentException, MissingFormatArgumentException>>
+* <<painless-api-reference-string-sort-java-util-MissingFormatWidthException, MissingFormatWidthException>>
+* <<painless-api-reference-string-sort-java-util-MissingResourceException, MissingResourceException>>
+* <<painless-api-reference-string-sort-java-util-NavigableMap, NavigableMap>>
+* <<painless-api-reference-string-sort-java-util-NavigableSet, NavigableSet>>
+* <<painless-api-reference-string-sort-java-util-NoSuchElementException, NoSuchElementException>>
+* <<painless-api-reference-string-sort-java-util-Objects, Objects>>
+* <<painless-api-reference-string-sort-java-util-Observable, Observable>>
+* <<painless-api-reference-string-sort-java-util-Observer, Observer>>
+* <<painless-api-reference-string-sort-java-util-Optional, Optional>>
+* <<painless-api-reference-string-sort-java-util-OptionalDouble, OptionalDouble>>
+* <<painless-api-reference-string-sort-java-util-OptionalInt, OptionalInt>>
+* <<painless-api-reference-string-sort-java-util-OptionalLong, OptionalLong>>
+* <<painless-api-reference-string-sort-java-util-PrimitiveIterator, PrimitiveIterator>>
+* <<painless-api-reference-string-sort-java-util-PrimitiveIterator.OfDouble, PrimitiveIterator.OfDouble>>
+* <<painless-api-reference-string-sort-java-util-PrimitiveIterator.OfInt, PrimitiveIterator.OfInt>>
+* <<painless-api-reference-string-sort-java-util-PrimitiveIterator.OfLong, PrimitiveIterator.OfLong>>
+* <<painless-api-reference-string-sort-java-util-PriorityQueue, PriorityQueue>>
+* <<painless-api-reference-string-sort-java-util-Queue, Queue>>
+* <<painless-api-reference-string-sort-java-util-Random, Random>>
+* <<painless-api-reference-string-sort-java-util-RandomAccess, RandomAccess>>
+* <<painless-api-reference-string-sort-java-util-Set, Set>>
+* <<painless-api-reference-string-sort-java-util-SimpleTimeZone, SimpleTimeZone>>
+* <<painless-api-reference-string-sort-java-util-SortedMap, SortedMap>>
+* <<painless-api-reference-string-sort-java-util-SortedSet, SortedSet>>
+* <<painless-api-reference-string-sort-java-util-Spliterator, Spliterator>>
+* <<painless-api-reference-string-sort-java-util-Spliterator.OfDouble, Spliterator.OfDouble>>
+* <<painless-api-reference-string-sort-java-util-Spliterator.OfInt, Spliterator.OfInt>>
+* <<painless-api-reference-string-sort-java-util-Spliterator.OfLong, Spliterator.OfLong>>
+* <<painless-api-reference-string-sort-java-util-Spliterator.OfPrimitive, Spliterator.OfPrimitive>>
+* <<painless-api-reference-string-sort-java-util-Spliterators, Spliterators>>
+* <<painless-api-reference-string-sort-java-util-Stack, Stack>>
+* <<painless-api-reference-string-sort-java-util-StringJoiner, StringJoiner>>
+* <<painless-api-reference-string-sort-java-util-StringTokenizer, StringTokenizer>>
+* <<painless-api-reference-string-sort-java-util-TimeZone, TimeZone>>
+* <<painless-api-reference-string-sort-java-util-TooManyListenersException, TooManyListenersException>>
+* <<painless-api-reference-string-sort-java-util-TreeMap, TreeMap>>
+* <<painless-api-reference-string-sort-java-util-TreeSet, TreeSet>>
+* <<painless-api-reference-string-sort-java-util-UUID, UUID>>
+* <<painless-api-reference-string-sort-java-util-UnknownFormatConversionException, UnknownFormatConversionException>>
+* <<painless-api-reference-string-sort-java-util-UnknownFormatFlagsException, UnknownFormatFlagsException>>
+* <<painless-api-reference-string-sort-java-util-Vector, Vector>>
+
+
+==== java.util.function
+<<painless-api-reference-string-sort-java-util-function, Expand java.util.function>>
+
+* <<painless-api-reference-string-sort-java-util-function-BiConsumer, BiConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-BiFunction, BiFunction>>
+* <<painless-api-reference-string-sort-java-util-function-BiPredicate, BiPredicate>>
+* <<painless-api-reference-string-sort-java-util-function-BinaryOperator, BinaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-BooleanSupplier, BooleanSupplier>>
+* <<painless-api-reference-string-sort-java-util-function-Consumer, Consumer>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleBinaryOperator, DoubleBinaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleConsumer, DoubleConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleFunction, DoubleFunction>>
+* <<painless-api-reference-string-sort-java-util-function-DoublePredicate, DoublePredicate>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleSupplier, DoubleSupplier>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleToIntFunction, DoubleToIntFunction>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleToLongFunction, DoubleToLongFunction>>
+* <<painless-api-reference-string-sort-java-util-function-DoubleUnaryOperator, DoubleUnaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-Function, Function>>
+* <<painless-api-reference-string-sort-java-util-function-IntBinaryOperator, IntBinaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-IntConsumer, IntConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-IntFunction, IntFunction>>
+* <<painless-api-reference-string-sort-java-util-function-IntPredicate, IntPredicate>>
+* <<painless-api-reference-string-sort-java-util-function-IntSupplier, IntSupplier>>
+* <<painless-api-reference-string-sort-java-util-function-IntToDoubleFunction, IntToDoubleFunction>>
+* <<painless-api-reference-string-sort-java-util-function-IntToLongFunction, IntToLongFunction>>
+* <<painless-api-reference-string-sort-java-util-function-IntUnaryOperator, IntUnaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-LongBinaryOperator, LongBinaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-LongConsumer, LongConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-LongFunction, LongFunction>>
+* <<painless-api-reference-string-sort-java-util-function-LongPredicate, LongPredicate>>
+* <<painless-api-reference-string-sort-java-util-function-LongSupplier, LongSupplier>>
+* <<painless-api-reference-string-sort-java-util-function-LongToDoubleFunction, LongToDoubleFunction>>
+* <<painless-api-reference-string-sort-java-util-function-LongToIntFunction, LongToIntFunction>>
+* <<painless-api-reference-string-sort-java-util-function-LongUnaryOperator, LongUnaryOperator>>
+* <<painless-api-reference-string-sort-java-util-function-ObjDoubleConsumer, ObjDoubleConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-ObjIntConsumer, ObjIntConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-ObjLongConsumer, ObjLongConsumer>>
+* <<painless-api-reference-string-sort-java-util-function-Predicate, Predicate>>
+* <<painless-api-reference-string-sort-java-util-function-Supplier, Supplier>>
+* <<painless-api-reference-string-sort-java-util-function-ToDoubleBiFunction, ToDoubleBiFunction>>
+* <<painless-api-reference-string-sort-java-util-function-ToDoubleFunction, ToDoubleFunction>>
+* <<painless-api-reference-string-sort-java-util-function-ToIntBiFunction, ToIntBiFunction>>
+* <<painless-api-reference-string-sort-java-util-function-ToIntFunction, ToIntFunction>>
+* <<painless-api-reference-string-sort-java-util-function-ToLongBiFunction, ToLongBiFunction>>
+* <<painless-api-reference-string-sort-java-util-function-ToLongFunction, ToLongFunction>>
+* <<painless-api-reference-string-sort-java-util-function-UnaryOperator, UnaryOperator>>
+
+
+==== java.util.regex
+<<painless-api-reference-string-sort-java-util-regex, Expand java.util.regex>>
+
+* <<painless-api-reference-string-sort-java-util-regex-Matcher, Matcher>>
+* <<painless-api-reference-string-sort-java-util-regex-Pattern, Pattern>>
+
+
+==== java.util.stream
+<<painless-api-reference-string-sort-java-util-stream, Expand java.util.stream>>
+
+* <<painless-api-reference-string-sort-java-util-stream-BaseStream, BaseStream>>
+* <<painless-api-reference-string-sort-java-util-stream-Collector, Collector>>
+* <<painless-api-reference-string-sort-java-util-stream-Collector.Characteristics, Collector.Characteristics>>
+* <<painless-api-reference-string-sort-java-util-stream-Collectors, Collectors>>
+* <<painless-api-reference-string-sort-java-util-stream-DoubleStream, DoubleStream>>
+* <<painless-api-reference-string-sort-java-util-stream-DoubleStream.Builder, DoubleStream.Builder>>
+* <<painless-api-reference-string-sort-java-util-stream-IntStream, IntStream>>
+* <<painless-api-reference-string-sort-java-util-stream-IntStream.Builder, IntStream.Builder>>
+* <<painless-api-reference-string-sort-java-util-stream-LongStream, LongStream>>
+* <<painless-api-reference-string-sort-java-util-stream-LongStream.Builder, LongStream.Builder>>
+* <<painless-api-reference-string-sort-java-util-stream-Stream, Stream>>
+* <<painless-api-reference-string-sort-java-util-stream-Stream.Builder, Stream.Builder>>
+
+
+==== org.apache.lucene.util
+<<painless-api-reference-string-sort-org-apache-lucene-util, Expand org.apache.lucene.util>>
+
+* <<painless-api-reference-string-sort-org-apache-lucene-util-BytesRef, BytesRef>>
+
+
+==== org.elasticsearch.common.geo
+<<painless-api-reference-string-sort-org-elasticsearch-common-geo, Expand org.elasticsearch.common.geo>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-common-geo-GeoPoint, GeoPoint>>
+
+
+==== org.elasticsearch.index.fielddata
+<<painless-api-reference-string-sort-org-elasticsearch-index-fielddata, Expand org.elasticsearch.index.fielddata>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.Booleans, ScriptDocValues.Booleans>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.BytesRefs, ScriptDocValues.BytesRefs>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.Dates, ScriptDocValues.Dates>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.Doubles, ScriptDocValues.Doubles>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.GeoPoints, ScriptDocValues.GeoPoints>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.Longs, ScriptDocValues.Longs>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-fielddata-ScriptDocValues.Strings, ScriptDocValues.Strings>>
+
+
+==== org.elasticsearch.index.mapper
+<<painless-api-reference-string-sort-org-elasticsearch-index-mapper, Expand org.elasticsearch.index.mapper>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-index-mapper-IpFieldMapper.IpFieldType.IpScriptDocValues, IpFieldMapper.IpFieldType.IpScriptDocValues>>
+
+
+==== org.elasticsearch.index.query
+<<painless-api-reference-string-sort-org-elasticsearch-index-query, Expand org.elasticsearch.index.query>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-index-query-IntervalFilterScript.Interval, IntervalFilterScript.Interval>>
+
+
+==== org.elasticsearch.index.similarity
+<<painless-api-reference-string-sort-org-elasticsearch-index-similarity, Expand org.elasticsearch.index.similarity>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-index-similarity-ScriptedSimilarity.Doc, ScriptedSimilarity.Doc>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-similarity-ScriptedSimilarity.Field, ScriptedSimilarity.Field>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-similarity-ScriptedSimilarity.Query, ScriptedSimilarity.Query>>
+* <<painless-api-reference-string-sort-org-elasticsearch-index-similarity-ScriptedSimilarity.Term, ScriptedSimilarity.Term>>
+
+
+==== org.elasticsearch.painless.api
+<<painless-api-reference-string-sort-org-elasticsearch-painless-api, Expand org.elasticsearch.painless.api>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-painless-api-Debug, Debug>>
+
+
+==== org.elasticsearch.script
+<<painless-api-reference-string-sort-org-elasticsearch-script, Expand org.elasticsearch.script>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-script-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+
+
+==== org.elasticsearch.search.lookup
+<<painless-api-reference-string-sort-org-elasticsearch-search-lookup, Expand org.elasticsearch.search.lookup>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-search-lookup-FieldLookup, FieldLookup>>
+
+
+==== org.elasticsearch.xpack.sql.expression.function.scalar.whitelist
+<<painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist, Expand org.elasticsearch.xpack.sql.expression.function.scalar.whitelist>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist-InternalSqlScriptUtils, InternalSqlScriptUtils>>
+
+
+==== org.elasticsearch.xpack.sql.expression.literal
+<<painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal, Expand org.elasticsearch.xpack.sql.expression.literal>>
+
+* <<painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-IntervalDayTime, IntervalDayTime>>
+* <<painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-IntervalYearMonth, IntervalYearMonth>>
+
+
+include::painless-api-reference-string-sort-java-lang.asciidoc[]
+include::painless-api-reference-string-sort-java-math.asciidoc[]
+include::painless-api-reference-string-sort-java-text.asciidoc[]
+include::painless-api-reference-string-sort-java-time.asciidoc[]
+include::painless-api-reference-string-sort-java-time-chrono.asciidoc[]
+include::painless-api-reference-string-sort-java-time-format.asciidoc[]
+include::painless-api-reference-string-sort-java-time-temporal.asciidoc[]
+include::painless-api-reference-string-sort-java-time-zone.asciidoc[]
+include::painless-api-reference-string-sort-java-util.asciidoc[]
+include::painless-api-reference-string-sort-java-util-function.asciidoc[]
+include::painless-api-reference-string-sort-java-util-regex.asciidoc[]
+include::painless-api-reference-string-sort-java-util-stream.asciidoc[]
+include::painless-api-reference-string-sort-org-apache-lucene-util.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-common-geo.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-index-fielddata.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-index-mapper.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-index-query.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-index-similarity.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-painless-api.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-script.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-search-lookup.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist.asciidoc[]
+include::painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal.asciidoc[]

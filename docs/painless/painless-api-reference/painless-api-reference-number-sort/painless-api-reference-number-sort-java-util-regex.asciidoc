@@ -1,0 +1,52 @@
+[role="exclude",id="painless-api-reference-number-sort-java-util-regex"]
+=== java.util.regex
+
+[[painless-api-reference-number-sort-java-util-regex-Matcher]]
+==== Matcher
+* static String {java11-javadoc}/java.base/java/util/regex/Matcher.html#quoteReplacement(java.lang.String)[quoteReplacement](String)
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#end()[end]()
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#end(int)[end](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#find()[find]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#find(int)[find](int)
+* String {java11-javadoc}/java.base/java/util/regex/Matcher.html#group()[group]()
+* String {java11-javadoc}/java.base/java/util/regex/Matcher.html#group(int)[group](int)
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#groupCount()[groupCount]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#hasAnchoringBounds()[hasAnchoringBounds]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#hasTransparentBounds()[hasTransparentBounds]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#hitEnd()[hitEnd]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#lookingAt()[lookingAt]()
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#matches()[matches]()
+* String namedGroup(String)
+* Pattern {java11-javadoc}/java.base/java/util/regex/Matcher.html#pattern()[pattern]()
+* Matcher {java11-javadoc}/java.base/java/util/regex/Matcher.html#region(int,int)[region](int, int)
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#regionEnd()[regionEnd]()
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#regionStart()[regionStart]()
+* String {java11-javadoc}/java.base/java/util/regex/Matcher.html#replaceAll(java.lang.String)[replaceAll](String)
+* String {java11-javadoc}/java.base/java/util/regex/Matcher.html#replaceFirst(java.lang.String)[replaceFirst](String)
+* boolean {java11-javadoc}/java.base/java/util/regex/Matcher.html#requireEnd()[requireEnd]()
+* Matcher {java11-javadoc}/java.base/java/util/regex/Matcher.html#reset()[reset]()
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#start()[start]()
+* int {java11-javadoc}/java.base/java/util/regex/Matcher.html#start(int)[start](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* Matcher {java11-javadoc}/java.base/java/util/regex/Matcher.html#useAnchoringBounds(boolean)[useAnchoringBounds](boolean)
+* Matcher {java11-javadoc}/java.base/java/util/regex/Matcher.html#usePattern(java.util.regex.Pattern)[usePattern](Pattern)
+* Matcher {java11-javadoc}/java.base/java/util/regex/Matcher.html#useTransparentBounds(boolean)[useTransparentBounds](boolean)
+
+
+[[painless-api-reference-number-sort-java-util-regex-Pattern]]
+==== Pattern
+* static String {java11-javadoc}/java.base/java/util/regex/Pattern.html#quote(java.lang.String)[quote](String)
+* Predicate {java11-javadoc}/java.base/java/util/regex/Pattern.html#asPredicate()[asPredicate]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/util/regex/Pattern.html#flags()[flags]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Matcher {java11-javadoc}/java.base/java/util/regex/Pattern.html#matcher(java.lang.CharSequence)[matcher](CharSequence)
+* String {java11-javadoc}/java.base/java/util/regex/Pattern.html#pattern()[pattern]()
+* String[] {java11-javadoc}/java.base/java/util/regex/Pattern.html#split(java.lang.CharSequence)[split](CharSequence)
+* String[] {java11-javadoc}/java.base/java/util/regex/Pattern.html#split(java.lang.CharSequence,int)[split](CharSequence, int)
+* Stream {java11-javadoc}/java.base/java/util/regex/Pattern.html#splitAsStream(java.lang.CharSequence)[splitAsStream](CharSequence)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

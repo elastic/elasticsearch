@@ -1,0 +1,291 @@
+[role="exclude",id="painless-api-reference-aggregation-selector-java-time-temporal"]
+=== java.time.temporal
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-ChronoField]]
+==== ChronoField
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#ALIGNED_DAY_OF_WEEK_IN_MONTH[ALIGNED_DAY_OF_WEEK_IN_MONTH]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#ALIGNED_DAY_OF_WEEK_IN_YEAR[ALIGNED_DAY_OF_WEEK_IN_YEAR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#ALIGNED_WEEK_OF_MONTH[ALIGNED_WEEK_OF_MONTH]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#ALIGNED_WEEK_OF_YEAR[ALIGNED_WEEK_OF_YEAR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#AMPM_OF_DAY[AMPM_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#CLOCK_HOUR_OF_AMPM[CLOCK_HOUR_OF_AMPM]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#CLOCK_HOUR_OF_DAY[CLOCK_HOUR_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#DAY_OF_MONTH[DAY_OF_MONTH]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#DAY_OF_WEEK[DAY_OF_WEEK]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#DAY_OF_YEAR[DAY_OF_YEAR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#EPOCH_DAY[EPOCH_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#ERA[ERA]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#HOUR_OF_AMPM[HOUR_OF_AMPM]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#HOUR_OF_DAY[HOUR_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#INSTANT_SECONDS[INSTANT_SECONDS]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MICRO_OF_DAY[MICRO_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MICRO_OF_SECOND[MICRO_OF_SECOND]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MILLI_OF_DAY[MILLI_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MILLI_OF_SECOND[MILLI_OF_SECOND]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MINUTE_OF_DAY[MINUTE_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MINUTE_OF_HOUR[MINUTE_OF_HOUR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#MONTH_OF_YEAR[MONTH_OF_YEAR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#NANO_OF_DAY[NANO_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#NANO_OF_SECOND[NANO_OF_SECOND]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#OFFSET_SECONDS[OFFSET_SECONDS]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#PROLEPTIC_MONTH[PROLEPTIC_MONTH]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#SECOND_OF_DAY[SECOND_OF_DAY]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#SECOND_OF_MINUTE[SECOND_OF_MINUTE]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#YEAR[YEAR]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#YEAR_OF_ERA[YEAR_OF_ERA]
+* static ChronoField {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#valueOf(java.lang.String)[valueOf](String)
+* static ChronoField[] {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#values()[values]()
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#adjustInto(java.time.temporal.Temporal,long)[adjustInto](Temporal, long)
+* int {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#checkValidIntValue(long)[checkValidIntValue](long)
+* long {java11-javadoc}/java.base/java/time/temporal/ChronoField.html#checkValidValue(long)[checkValidValue](long)
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* TemporalUnit {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getBaseUnit()[getBaseUnit]()
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getDisplayName(java.util.Locale)[getDisplayName](Locale)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getFrom(java.time.temporal.TemporalAccessor)[getFrom](TemporalAccessor)
+* TemporalUnit {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getRangeUnit()[getRangeUnit]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isDateBased()[isDateBased]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isSupportedBy(java.time.temporal.TemporalAccessor)[isSupportedBy](TemporalAccessor)
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isTimeBased()[isTimeBased]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#range()[range]()
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#rangeRefinedBy(java.time.temporal.TemporalAccessor)[rangeRefinedBy](TemporalAccessor)
+* TemporalAccessor {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#resolve(java.util.Map,java.time.temporal.TemporalAccessor,java.time.format.ResolverStyle)[resolve](Map, TemporalAccessor, ResolverStyle)
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-ChronoUnit]]
+==== ChronoUnit
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#CENTURIES[CENTURIES]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#DAYS[DAYS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#DECADES[DECADES]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#ERAS[ERAS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#FOREVER[FOREVER]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#HALF_DAYS[HALF_DAYS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#HOURS[HOURS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#MICROS[MICROS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#MILLENNIA[MILLENNIA]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#MILLIS[MILLIS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#MINUTES[MINUTES]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#MONTHS[MONTHS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#NANOS[NANOS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#SECONDS[SECONDS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#WEEKS[WEEKS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#YEARS[YEARS]
+* static ChronoUnit {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#valueOf(java.lang.String)[valueOf](String)
+* static ChronoUnit[] {java11-javadoc}/java.base/java/time/temporal/ChronoUnit.html#values()[values]()
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#addTo(java.time.temporal.Temporal,long)[addTo](Temporal, long)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#between(java.time.temporal.Temporal,java.time.temporal.Temporal)[between](Temporal, Temporal)
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* Duration {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#getDuration()[getDuration]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isDateBased()[isDateBased]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isDurationEstimated()[isDurationEstimated]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isSupportedBy(java.time.temporal.Temporal)[isSupportedBy](Temporal)
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isTimeBased()[isTimeBased]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-IsoFields]]
+==== IsoFields
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#DAY_OF_QUARTER[DAY_OF_QUARTER]
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#QUARTER_OF_YEAR[QUARTER_OF_YEAR]
+* static TemporalUnit {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#QUARTER_YEARS[QUARTER_YEARS]
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#WEEK_BASED_YEAR[WEEK_BASED_YEAR]
+* static TemporalUnit {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#WEEK_BASED_YEARS[WEEK_BASED_YEARS]
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/IsoFields.html#WEEK_OF_WEEK_BASED_YEAR[WEEK_OF_WEEK_BASED_YEAR]
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-JulianFields]]
+==== JulianFields
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/JulianFields.html#JULIAN_DAY[JULIAN_DAY]
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/JulianFields.html#MODIFIED_JULIAN_DAY[MODIFIED_JULIAN_DAY]
+* static TemporalField {java11-javadoc}/java.base/java/time/temporal/JulianFields.html#RATA_DIE[RATA_DIE]
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-Temporal]]
+==== Temporal
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#get(java.time.temporal.TemporalField)[get](TemporalField)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#getLong(java.time.temporal.TemporalField)[getLong](TemporalField)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#isSupported(java.time.temporal.TemporalField)[isSupported](TemporalField)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#minus(java.time.temporal.TemporalAmount)[minus](TemporalAmount)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#minus(long,java.time.temporal.TemporalUnit)[minus](long, TemporalUnit)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#plus(java.time.temporal.TemporalAmount)[plus](TemporalAmount)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#plus(long,java.time.temporal.TemporalUnit)[plus](long, TemporalUnit)
+* def {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#query(java.time.temporal.TemporalQuery)[query](TemporalQuery)
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#range(java.time.temporal.TemporalField)[range](TemporalField)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* long {java11-javadoc}/java.base/java/time/temporal/Temporal.html#until(java.time.temporal.Temporal,java.time.temporal.TemporalUnit)[until](Temporal, TemporalUnit)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#with(java.time.temporal.TemporalAdjuster)[with](TemporalAdjuster)
+* Temporal {java11-javadoc}/java.base/java/time/temporal/Temporal.html#with(java.time.temporal.TemporalField,long)[with](TemporalField, long)
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalAccessor]]
+==== TemporalAccessor
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#get(java.time.temporal.TemporalField)[get](TemporalField)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#getLong(java.time.temporal.TemporalField)[getLong](TemporalField)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#isSupported(java.time.temporal.TemporalField)[isSupported](TemporalField)
+* def {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#query(java.time.temporal.TemporalQuery)[query](TemporalQuery)
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#range(java.time.temporal.TemporalField)[range](TemporalField)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalAdjuster]]
+==== TemporalAdjuster
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalAdjuster.html#adjustInto(java.time.temporal.Temporal)[adjustInto](Temporal)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalAdjusters]]
+==== TemporalAdjusters
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#dayOfWeekInMonth(int,java.time.DayOfWeek)[dayOfWeekInMonth](int, DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#firstDayOfMonth()[firstDayOfMonth]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#firstDayOfNextMonth()[firstDayOfNextMonth]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#firstDayOfNextYear()[firstDayOfNextYear]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#firstDayOfYear()[firstDayOfYear]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#firstInMonth(java.time.DayOfWeek)[firstInMonth](DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#lastDayOfMonth()[lastDayOfMonth]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#lastDayOfYear()[lastDayOfYear]()
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#lastInMonth(java.time.DayOfWeek)[lastInMonth](DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#next(java.time.DayOfWeek)[next](DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#nextOrSame(java.time.DayOfWeek)[nextOrSame](DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#ofDateAdjuster(java.util.function.UnaryOperator)[ofDateAdjuster](UnaryOperator)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#previous(java.time.DayOfWeek)[previous](DayOfWeek)
+* static TemporalAdjuster {java11-javadoc}/java.base/java/time/temporal/TemporalAdjusters.html#previousOrSame(java.time.DayOfWeek)[previousOrSame](DayOfWeek)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalAmount]]
+==== TemporalAmount
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalAmount.html#addTo(java.time.temporal.Temporal)[addTo](Temporal)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalAmount.html#get(java.time.temporal.TemporalUnit)[get](TemporalUnit)
+* List {java11-javadoc}/java.base/java/time/temporal/TemporalAmount.html#getUnits()[getUnits]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalAmount.html#subtractFrom(java.time.temporal.Temporal)[subtractFrom](Temporal)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalField]]
+==== TemporalField
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#adjustInto(java.time.temporal.Temporal,long)[adjustInto](Temporal, long)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* TemporalUnit {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getBaseUnit()[getBaseUnit]()
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getDisplayName(java.util.Locale)[getDisplayName](Locale)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getFrom(java.time.temporal.TemporalAccessor)[getFrom](TemporalAccessor)
+* TemporalUnit {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#getRangeUnit()[getRangeUnit]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isDateBased()[isDateBased]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isSupportedBy(java.time.temporal.TemporalAccessor)[isSupportedBy](TemporalAccessor)
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#isTimeBased()[isTimeBased]()
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#range()[range]()
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#rangeRefinedBy(java.time.temporal.TemporalAccessor)[rangeRefinedBy](TemporalAccessor)
+* TemporalAccessor {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#resolve(java.util.Map,java.time.temporal.TemporalAccessor,java.time.format.ResolverStyle)[resolve](Map, TemporalAccessor, ResolverStyle)
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalField.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalQueries]]
+==== TemporalQueries
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#chronology()[chronology]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#localDate()[localDate]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#localTime()[localTime]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#offset()[offset]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#precision()[precision]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#zone()[zone]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/temporal/TemporalQueries.html#zoneId()[zoneId]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalQuery]]
+==== TemporalQuery
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* def {java11-javadoc}/java.base/java/time/temporal/TemporalQuery.html#queryFrom(java.time.temporal.TemporalAccessor)[queryFrom](TemporalAccessor)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-TemporalUnit]]
+==== TemporalUnit
+* Temporal {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#addTo(java.time.temporal.Temporal,long)[addTo](Temporal, long)
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#between(java.time.temporal.Temporal,java.time.temporal.Temporal)[between](Temporal, Temporal)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* Duration {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#getDuration()[getDuration]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isDateBased()[isDateBased]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isDurationEstimated()[isDurationEstimated]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isSupportedBy(java.time.temporal.Temporal)[isSupportedBy](Temporal)
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#isTimeBased()[isTimeBased]()
+* String {java11-javadoc}/java.base/java/time/temporal/TemporalUnit.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-UnsupportedTemporalTypeException]]
+==== UnsupportedTemporalTypeException
+* {java11-javadoc}/java.base/java/time/temporal/UnsupportedTemporalTypeException.html#<init>(java.lang.String)[UnsupportedTemporalTypeException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-ValueRange]]
+==== ValueRange
+* static ValueRange {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#of(long,long)[of](long, long)
+* static ValueRange {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#of(long,long,long)[of](long, long, long)
+* static ValueRange {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#of(long,long,long,long)[of](long, long, long, long)
+* int {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#checkValidIntValue(long,java.time.temporal.TemporalField)[checkValidIntValue](long, TemporalField)
+* long {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#checkValidValue(long,java.time.temporal.TemporalField)[checkValidValue](long, TemporalField)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* long {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#getLargestMinimum()[getLargestMinimum]()
+* long {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#getMaximum()[getMaximum]()
+* long {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#getMinimum()[getMinimum]()
+* long {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#getSmallestMaximum()[getSmallestMaximum]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#isFixed()[isFixed]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#isIntValue()[isIntValue]()
+* boolean {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#isValidIntValue(long)[isValidIntValue](long)
+* boolean {java11-javadoc}/java.base/java/time/temporal/ValueRange.html#isValidValue(long)[isValidValue](long)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-java-time-temporal-WeekFields]]
+==== WeekFields
+* static WeekFields {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#ISO[ISO]
+* static WeekFields {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#SUNDAY_START[SUNDAY_START]
+* static TemporalUnit {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#WEEK_BASED_YEARS[WEEK_BASED_YEARS]
+* static WeekFields {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#of(java.util.Locale)[of](Locale)
+* static WeekFields {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#of(java.time.DayOfWeek,int)[of](DayOfWeek, int)
+* TemporalField {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#dayOfWeek()[dayOfWeek]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* DayOfWeek {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#getFirstDayOfWeek()[getFirstDayOfWeek]()
+* int {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#getMinimalDaysInFirstWeek()[getMinimalDaysInFirstWeek]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* TemporalField {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#weekBasedYear()[weekBasedYear]()
+* TemporalField {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#weekOfMonth()[weekOfMonth]()
+* TemporalField {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#weekOfWeekBasedYear()[weekOfWeekBasedYear]()
+* TemporalField {java11-javadoc}/java.base/java/time/temporal/WeekFields.html#weekOfYear()[weekOfYear]()
+
+

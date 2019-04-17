@@ -1,0 +1,157 @@
+[role="exclude",id="painless-api-reference-similarity-java-math"]
+=== java.math
+
+[[painless-api-reference-similarity-java-math-BigDecimal]]
+==== BigDecimal
+* static BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#ONE[ONE]
+* static BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#TEN[TEN]
+* static BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#ZERO[ZERO]
+* static BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#valueOf(double)[valueOf](double)
+* {java11-javadoc}/java.base/java/math/BigDecimal.html#<init>(java.lang.String)[BigDecimal](String)
+* {java11-javadoc}/java.base/java/math/BigDecimal.html#<init>(java.lang.String,java.math.MathContext)[BigDecimal](String, MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#abs()[abs]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#abs(java.math.MathContext)[abs](MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#add(java.math.BigDecimal)[add](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#add(java.math.BigDecimal,java.math.MathContext)[add](BigDecimal, MathContext)
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* byte {java11-javadoc}/java.base/java/math/BigDecimal.html#byteValueExact()[byteValueExact]()
+* int {java11-javadoc}/java.base/java/math/BigDecimal.html#compareTo(java.math.BigDecimal)[compareTo](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#divide(java.math.BigDecimal)[divide](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#divide(java.math.BigDecimal,java.math.MathContext)[divide](BigDecimal, MathContext)
+* BigDecimal[] {java11-javadoc}/java.base/java/math/BigDecimal.html#divideAndRemainder(java.math.BigDecimal)[divideAndRemainder](BigDecimal)
+* BigDecimal[] {java11-javadoc}/java.base/java/math/BigDecimal.html#divideAndRemainder(java.math.BigDecimal,java.math.MathContext)[divideAndRemainder](BigDecimal, MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#divideToIntegralValue(java.math.BigDecimal)[divideToIntegralValue](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#divideToIntegralValue(java.math.BigDecimal,java.math.MathContext)[divideToIntegralValue](BigDecimal, MathContext)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* int {java11-javadoc}/java.base/java/math/BigDecimal.html#intValueExact()[intValueExact]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* long {java11-javadoc}/java.base/java/math/BigDecimal.html#longValueExact()[longValueExact]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#max(java.math.BigDecimal)[max](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#min(java.math.BigDecimal)[min](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#movePointLeft(int)[movePointLeft](int)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#movePointRight(int)[movePointRight](int)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#multiply(java.math.BigDecimal)[multiply](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#multiply(java.math.BigDecimal,java.math.MathContext)[multiply](BigDecimal, MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#negate()[negate]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#negate(java.math.MathContext)[negate](MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#plus()[plus]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#plus(java.math.MathContext)[plus](MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#pow(int)[pow](int)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#pow(int,java.math.MathContext)[pow](int, MathContext)
+* int {java11-javadoc}/java.base/java/math/BigDecimal.html#precision()[precision]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#remainder(java.math.BigDecimal)[remainder](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#remainder(java.math.BigDecimal,java.math.MathContext)[remainder](BigDecimal, MathContext)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#round(java.math.MathContext)[round](MathContext)
+* int {java11-javadoc}/java.base/java/math/BigDecimal.html#scale()[scale]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#scaleByPowerOfTen(int)[scaleByPowerOfTen](int)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#setScale(int)[setScale](int)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#setScale(int,java.math.RoundingMode)[setScale](int, RoundingMode)
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* short {java11-javadoc}/java.base/java/math/BigDecimal.html#shortValueExact()[shortValueExact]()
+* int {java11-javadoc}/java.base/java/math/BigDecimal.html#signum()[signum]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#stripTrailingZeros()[stripTrailingZeros]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#subtract(java.math.BigDecimal)[subtract](BigDecimal)
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#subtract(java.math.BigDecimal,java.math.MathContext)[subtract](BigDecimal, MathContext)
+* BigInteger {java11-javadoc}/java.base/java/math/BigDecimal.html#toBigInteger()[toBigInteger]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigDecimal.html#toBigIntegerExact()[toBigIntegerExact]()
+* String {java11-javadoc}/java.base/java/math/BigDecimal.html#toEngineeringString()[toEngineeringString]()
+* String {java11-javadoc}/java.base/java/math/BigDecimal.html#toPlainString()[toPlainString]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* BigDecimal {java11-javadoc}/java.base/java/math/BigDecimal.html#ulp()[ulp]()
+
+
+[[painless-api-reference-similarity-java-math-BigInteger]]
+==== BigInteger
+* static BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#ONE[ONE]
+* static BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#TEN[TEN]
+* static BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#ZERO[ZERO]
+* static BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#valueOf(long)[valueOf](long)
+* {java11-javadoc}/java.base/java/math/BigInteger.html#<init>(java.lang.String)[BigInteger](String)
+* {java11-javadoc}/java.base/java/math/BigInteger.html#<init>(java.lang.String,int)[BigInteger](String, int)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#abs()[abs]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#add(java.math.BigInteger)[add](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#and(java.math.BigInteger)[and](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#andNot(java.math.BigInteger)[andNot](BigInteger)
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#bitCount()[bitCount]()
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#bitLength()[bitLength]()
+* byte {java11-javadoc}/java.base/java/lang/Number.html#byteValue()[byteValue]()
+* byte {java11-javadoc}/java.base/java/math/BigInteger.html#byteValueExact()[byteValueExact]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#clearBit(int)[clearBit](int)
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#compareTo(java.math.BigInteger)[compareTo](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#divide(java.math.BigInteger)[divide](BigInteger)
+* BigInteger[] {java11-javadoc}/java.base/java/math/BigInteger.html#divideAndRemainder(java.math.BigInteger)[divideAndRemainder](BigInteger)
+* double {java11-javadoc}/java.base/java/lang/Number.html#doubleValue()[doubleValue]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#flipBit(int)[flipBit](int)
+* float {java11-javadoc}/java.base/java/lang/Number.html#floatValue()[floatValue]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#gcd(java.math.BigInteger)[gcd](BigInteger)
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#getLowestSetBit()[getLowestSetBit]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/lang/Number.html#intValue()[intValue]()
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#intValueExact()[intValueExact]()
+* long {java11-javadoc}/java.base/java/lang/Number.html#longValue()[longValue]()
+* long {java11-javadoc}/java.base/java/math/BigInteger.html#longValueExact()[longValueExact]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#max(java.math.BigInteger)[max](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#min(java.math.BigInteger)[min](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#mod(java.math.BigInteger)[mod](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#modInverse(java.math.BigInteger)[modInverse](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#modPow(java.math.BigInteger,java.math.BigInteger)[modPow](BigInteger, BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#multiply(java.math.BigInteger)[multiply](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#negate()[negate]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#not()[not]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#or(java.math.BigInteger)[or](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#pow(int)[pow](int)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#remainder(java.math.BigInteger)[remainder](BigInteger)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#setBit(int)[setBit](int)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#shiftLeft(int)[shiftLeft](int)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#shiftRight(int)[shiftRight](int)
+* short {java11-javadoc}/java.base/java/lang/Number.html#shortValue()[shortValue]()
+* short {java11-javadoc}/java.base/java/math/BigInteger.html#shortValueExact()[shortValueExact]()
+* int {java11-javadoc}/java.base/java/math/BigInteger.html#signum()[signum]()
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#subtract(java.math.BigInteger)[subtract](BigInteger)
+* boolean {java11-javadoc}/java.base/java/math/BigInteger.html#testBit(int)[testBit](int)
+* byte[] {java11-javadoc}/java.base/java/math/BigInteger.html#toByteArray()[toByteArray]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* String {java11-javadoc}/java.base/java/math/BigInteger.html#toString(int)[toString](int)
+* BigInteger {java11-javadoc}/java.base/java/math/BigInteger.html#xor(java.math.BigInteger)[xor](BigInteger)
+
+
+[[painless-api-reference-similarity-java-math-MathContext]]
+==== MathContext
+* static MathContext {java11-javadoc}/java.base/java/math/MathContext.html#DECIMAL128[DECIMAL128]
+* static MathContext {java11-javadoc}/java.base/java/math/MathContext.html#DECIMAL32[DECIMAL32]
+* static MathContext {java11-javadoc}/java.base/java/math/MathContext.html#DECIMAL64[DECIMAL64]
+* static MathContext {java11-javadoc}/java.base/java/math/MathContext.html#UNLIMITED[UNLIMITED]
+* {java11-javadoc}/java.base/java/math/MathContext.html#<init>(int)[MathContext](int)
+* {java11-javadoc}/java.base/java/math/MathContext.html#<init>(int,java.math.RoundingMode)[MathContext](int, RoundingMode)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/math/MathContext.html#getPrecision()[getPrecision]()
+* RoundingMode {java11-javadoc}/java.base/java/math/MathContext.html#getRoundingMode()[getRoundingMode]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-similarity-java-math-RoundingMode]]
+==== RoundingMode
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#CEILING[CEILING]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#DOWN[DOWN]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#FLOOR[FLOOR]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#HALF_DOWN[HALF_DOWN]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#HALF_EVEN[HALF_EVEN]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#HALF_UP[HALF_UP]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#UNNECESSARY[UNNECESSARY]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#UP[UP]
+* static RoundingMode {java11-javadoc}/java.base/java/math/RoundingMode.html#valueOf(java.lang.String)[valueOf](String)
+* static RoundingMode[] {java11-javadoc}/java.base/java/math/RoundingMode.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

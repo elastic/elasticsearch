@@ -1,0 +1,98 @@
+[role="exclude",id="painless-api-reference-analysis-java-time-zone"]
+=== java.time.zone
+
+[[painless-api-reference-analysis-java-time-zone-ZoneOffsetTransition]]
+==== ZoneOffsetTransition
+* static ZoneOffsetTransition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#of(java.time.LocalDateTime,java.time.ZoneOffset,java.time.ZoneOffset)[of](LocalDateTime, ZoneOffset, ZoneOffset)
+* int {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#compareTo(java.time.zone.ZoneOffsetTransition)[compareTo](ZoneOffsetTransition)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* LocalDateTime {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getDateTimeAfter()[getDateTimeAfter]()
+* LocalDateTime {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getDateTimeBefore()[getDateTimeBefore]()
+* Duration {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getDuration()[getDuration]()
+* Instant {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getInstant()[getInstant]()
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getOffsetAfter()[getOffsetAfter]()
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#getOffsetBefore()[getOffsetBefore]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#isGap()[isGap]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#isOverlap()[isOverlap]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#isValidOffset(java.time.ZoneOffset)[isValidOffset](ZoneOffset)
+* long {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransition.html#toEpochSecond()[toEpochSecond]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-analysis-java-time-zone-ZoneOffsetTransitionRule]]
+==== ZoneOffsetTransitionRule
+* static ZoneOffsetTransitionRule {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#of(java.time.Month,int,java.time.DayOfWeek,java.time.LocalTime,boolean,java.time.zone.ZoneOffsetTransitionRule$TimeDefinition,java.time.ZoneOffset,java.time.ZoneOffset,java.time.ZoneOffset)[of](Month, int, DayOfWeek, LocalTime, boolean, ZoneOffsetTransitionRule.TimeDefinition, ZoneOffset, ZoneOffset, ZoneOffset)
+* ZoneOffsetTransition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#createTransition(int)[createTransition](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getDayOfMonthIndicator()[getDayOfMonthIndicator]()
+* DayOfWeek {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getDayOfWeek()[getDayOfWeek]()
+* LocalTime {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getLocalTime()[getLocalTime]()
+* Month {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getMonth()[getMonth]()
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getOffsetAfter()[getOffsetAfter]()
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getOffsetBefore()[getOffsetBefore]()
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getStandardOffset()[getStandardOffset]()
+* ZoneOffsetTransitionRule.TimeDefinition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#getTimeDefinition()[getTimeDefinition]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule.html#isMidnightEndOfDay()[isMidnightEndOfDay]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-analysis-java-time-zone-ZoneOffsetTransitionRule.TimeDefinition]]
+==== ZoneOffsetTransitionRule.TimeDefinition
+* static ZoneOffsetTransitionRule.TimeDefinition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#STANDARD[STANDARD]
+* static ZoneOffsetTransitionRule.TimeDefinition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#UTC[UTC]
+* static ZoneOffsetTransitionRule.TimeDefinition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#WALL[WALL]
+* static ZoneOffsetTransitionRule.TimeDefinition {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#valueOf(java.lang.String)[valueOf](String)
+* static ZoneOffsetTransitionRule.TimeDefinition[] {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* LocalDateTime {java11-javadoc}/java.base/java/time/zone/ZoneOffsetTransitionRule$TimeDefinition.html#createDateTime(java.time.LocalDateTime,java.time.ZoneOffset,java.time.ZoneOffset)[createDateTime](LocalDateTime, ZoneOffset, ZoneOffset)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-analysis-java-time-zone-ZoneRules]]
+==== ZoneRules
+* static ZoneRules {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#of(java.time.ZoneOffset)[of](ZoneOffset)
+* static ZoneRules {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#of(java.time.ZoneOffset,java.time.ZoneOffset,java.util.List,java.util.List,java.util.List)[of](ZoneOffset, ZoneOffset, List, List, List)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* Duration {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getDaylightSavings(java.time.Instant)[getDaylightSavings](Instant)
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getOffset(java.time.Instant)[getOffset](Instant)
+* ZoneOffset {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getStandardOffset(java.time.Instant)[getStandardOffset](Instant)
+* ZoneOffsetTransition {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getTransition(java.time.LocalDateTime)[getTransition](LocalDateTime)
+* List {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getTransitionRules()[getTransitionRules]()
+* List {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getTransitions()[getTransitions]()
+* List {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#getValidOffsets(java.time.LocalDateTime)[getValidOffsets](LocalDateTime)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#isDaylightSavings(java.time.Instant)[isDaylightSavings](Instant)
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#isFixedOffset()[isFixedOffset]()
+* boolean {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#isValidOffset(java.time.LocalDateTime,java.time.ZoneOffset)[isValidOffset](LocalDateTime, ZoneOffset)
+* ZoneOffsetTransition {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#nextTransition(java.time.Instant)[nextTransition](Instant)
+* ZoneOffsetTransition {java11-javadoc}/java.base/java/time/zone/ZoneRules.html#previousTransition(java.time.Instant)[previousTransition](Instant)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-analysis-java-time-zone-ZoneRulesException]]
+==== ZoneRulesException
+* {java11-javadoc}/java.base/java/time/zone/ZoneRulesException.html#<init>(java.lang.String)[ZoneRulesException](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-analysis-java-time-zone-ZoneRulesProvider]]
+==== ZoneRulesProvider
+* static Set {java11-javadoc}/java.base/java/time/zone/ZoneRulesProvider.html#getAvailableZoneIds()[getAvailableZoneIds]()
+* static ZoneRules {java11-javadoc}/java.base/java/time/zone/ZoneRulesProvider.html#getRules(java.lang.String,boolean)[getRules](String, boolean)
+* static NavigableMap {java11-javadoc}/java.base/java/time/zone/ZoneRulesProvider.html#getVersions(java.lang.String)[getVersions](String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

@@ -1,0 +1,16 @@
+[role="exclude",id="painless-api-reference-script-heuristic-org-apache-lucene-util"]
+=== org.apache.lucene.util
+
+[[painless-api-reference-script-heuristic-org-apache-lucene-util-BytesRef]]
+==== BytesRef
+* byte[] bytes
+* int length
+* int offset
+* boolean bytesEquals(BytesRef)
+* int {java11-javadoc}/java.base/java/lang/Comparable.html#compareTo(java.lang.Object)[compareTo](def)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* String utf8ToString()
+
+

@@ -1,0 +1,707 @@
+[role="exclude",id="painless-api-reference-update-java-text"]
+=== java.text
+
+[[painless-api-reference-update-java-text-Annotation]]
+==== Annotation
+* {java11-javadoc}/java.base/java/text/Annotation.html#<init>(java.lang.Object)[Annotation](Object)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* def {java11-javadoc}/java.base/java/text/Annotation.html#getValue()[getValue]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-AttributedCharacterIterator]]
+==== AttributedCharacterIterator
+* def {java11-javadoc}/java.base/java/text/CharacterIterator.html#clone()[clone]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#current()[current]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#first()[first]()
+* Set {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getAllAttributeKeys()[getAllAttributeKeys]()
+* def {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getAttribute(java.text.AttributedCharacterIterator$Attribute)[getAttribute](AttributedCharacterIterator.Attribute)
+* Map {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getAttributes()[getAttributes]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getBeginIndex()[getBeginIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getEndIndex()[getEndIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getIndex()[getIndex]()
+* int {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getRunLimit()[getRunLimit]()
+* int {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getRunLimit(java.util.Set)[getRunLimit](Set)
+* int {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getRunStart()[getRunStart]()
+* int {java11-javadoc}/java.base/java/text/AttributedCharacterIterator.html#getRunStart(java.util.Set)[getRunStart](Set)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#last()[last]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#next()[next]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#previous()[previous]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#setIndex(int)[setIndex](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-AttributedCharacterIterator.Attribute]]
+==== AttributedCharacterIterator.Attribute
+* static AttributedCharacterIterator.Attribute {java11-javadoc}/java.base/java/text/AttributedCharacterIterator$Attribute.html#INPUT_METHOD_SEGMENT[INPUT_METHOD_SEGMENT]
+* static AttributedCharacterIterator.Attribute {java11-javadoc}/java.base/java/text/AttributedCharacterIterator$Attribute.html#LANGUAGE[LANGUAGE]
+* static AttributedCharacterIterator.Attribute {java11-javadoc}/java.base/java/text/AttributedCharacterIterator$Attribute.html#READING[READING]
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-AttributedString]]
+==== AttributedString
+* {java11-javadoc}/java.base/java/text/AttributedString.html#<init>(java.lang.String)[AttributedString](String)
+* {java11-javadoc}/java.base/java/text/AttributedString.html#<init>(java.lang.String,java.util.Map)[AttributedString](String, Map)
+* void {java11-javadoc}/java.base/java/text/AttributedString.html#addAttribute(java.text.AttributedCharacterIterator$Attribute,java.lang.Object)[addAttribute](AttributedCharacterIterator.Attribute, Object)
+* void {java11-javadoc}/java.base/java/text/AttributedString.html#addAttribute(java.text.AttributedCharacterIterator$Attribute,java.lang.Object,int,int)[addAttribute](AttributedCharacterIterator.Attribute, Object, int, int)
+* void {java11-javadoc}/java.base/java/text/AttributedString.html#addAttributes(java.util.Map,int,int)[addAttributes](Map, int, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/AttributedString.html#getIterator()[getIterator]()
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/AttributedString.html#getIterator(java.text.AttributedCharacterIterator$Attribute%5B%5D)[getIterator](AttributedCharacterIterator.Attribute[])
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/AttributedString.html#getIterator(java.text.AttributedCharacterIterator$Attribute%5B%5D,int,int)[getIterator](AttributedCharacterIterator.Attribute[], int, int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Bidi]]
+==== Bidi
+* static int {java11-javadoc}/java.base/java/text/Bidi.html#DIRECTION_DEFAULT_LEFT_TO_RIGHT[DIRECTION_DEFAULT_LEFT_TO_RIGHT]
+* static int {java11-javadoc}/java.base/java/text/Bidi.html#DIRECTION_DEFAULT_RIGHT_TO_LEFT[DIRECTION_DEFAULT_RIGHT_TO_LEFT]
+* static int {java11-javadoc}/java.base/java/text/Bidi.html#DIRECTION_LEFT_TO_RIGHT[DIRECTION_LEFT_TO_RIGHT]
+* static int {java11-javadoc}/java.base/java/text/Bidi.html#DIRECTION_RIGHT_TO_LEFT[DIRECTION_RIGHT_TO_LEFT]
+* static void {java11-javadoc}/java.base/java/text/Bidi.html#reorderVisually(byte%5B%5D,int,java.lang.Object%5B%5D,int,int)[reorderVisually](byte[], int, Object[], int, int)
+* static boolean {java11-javadoc}/java.base/java/text/Bidi.html#requiresBidi(char%5B%5D,int,int)[requiresBidi](char[], int, int)
+* {java11-javadoc}/java.base/java/text/Bidi.html#<init>(java.text.AttributedCharacterIterator)[Bidi](AttributedCharacterIterator)
+* {java11-javadoc}/java.base/java/text/Bidi.html#<init>(java.lang.String,int)[Bidi](String, int)
+* {java11-javadoc}/java.base/java/text/Bidi.html#<init>(char%5B%5D,int,byte%5B%5D,int,int,int)[Bidi](char[], int, byte[], int, int, int)
+* boolean {java11-javadoc}/java.base/java/text/Bidi.html#baseIsLeftToRight()[baseIsLeftToRight]()
+* Bidi {java11-javadoc}/java.base/java/text/Bidi.html#createLineBidi(int,int)[createLineBidi](int, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getBaseLevel()[getBaseLevel]()
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getLength()[getLength]()
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getLevelAt(int)[getLevelAt](int)
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getRunCount()[getRunCount]()
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getRunLevel(int)[getRunLevel](int)
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getRunLimit(int)[getRunLimit](int)
+* int {java11-javadoc}/java.base/java/text/Bidi.html#getRunStart(int)[getRunStart](int)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/Bidi.html#isLeftToRight()[isLeftToRight]()
+* boolean {java11-javadoc}/java.base/java/text/Bidi.html#isMixed()[isMixed]()
+* boolean {java11-javadoc}/java.base/java/text/Bidi.html#isRightToLeft()[isRightToLeft]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-BreakIterator]]
+==== BreakIterator
+* static int {java11-javadoc}/java.base/java/text/BreakIterator.html#DONE[DONE]
+* static Locale[] {java11-javadoc}/java.base/java/text/BreakIterator.html#getAvailableLocales()[getAvailableLocales]()
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getCharacterInstance()[getCharacterInstance]()
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getCharacterInstance(java.util.Locale)[getCharacterInstance](Locale)
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getLineInstance()[getLineInstance]()
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getLineInstance(java.util.Locale)[getLineInstance](Locale)
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getSentenceInstance()[getSentenceInstance]()
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getSentenceInstance(java.util.Locale)[getSentenceInstance](Locale)
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getWordInstance()[getWordInstance]()
+* static BreakIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getWordInstance(java.util.Locale)[getWordInstance](Locale)
+* def {java11-javadoc}/java.base/java/text/BreakIterator.html#clone()[clone]()
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#current()[current]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#first()[first]()
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#following(int)[following](int)
+* CharacterIterator {java11-javadoc}/java.base/java/text/BreakIterator.html#getText()[getText]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/BreakIterator.html#isBoundary(int)[isBoundary](int)
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#last()[last]()
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#next()[next]()
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#next(int)[next](int)
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#preceding(int)[preceding](int)
+* int {java11-javadoc}/java.base/java/text/BreakIterator.html#previous()[previous]()
+* void {java11-javadoc}/java.base/java/text/BreakIterator.html#setText(java.lang.String)[setText](String)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-CharacterIterator]]
+==== CharacterIterator
+* static char {java11-javadoc}/java.base/java/text/CharacterIterator.html#DONE[DONE]
+* def {java11-javadoc}/java.base/java/text/CharacterIterator.html#clone()[clone]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#current()[current]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#first()[first]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getBeginIndex()[getBeginIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getEndIndex()[getEndIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getIndex()[getIndex]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#last()[last]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#next()[next]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#previous()[previous]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#setIndex(int)[setIndex](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-ChoiceFormat]]
+==== ChoiceFormat
+* static double {java11-javadoc}/java.base/java/text/ChoiceFormat.html#nextDouble(double)[nextDouble](double)
+* static double {java11-javadoc}/java.base/java/text/ChoiceFormat.html#nextDouble(double,boolean)[nextDouble](double, boolean)
+* static double {java11-javadoc}/java.base/java/text/ChoiceFormat.html#previousDouble(double)[previousDouble](double)
+* {java11-javadoc}/java.base/java/text/ChoiceFormat.html#<init>(java.lang.String)[ChoiceFormat](String)
+* {java11-javadoc}/java.base/java/text/ChoiceFormat.html#<init>(double%5B%5D,java.lang.String%5B%5D)[ChoiceFormat](double[], String[])
+* void {java11-javadoc}/java.base/java/text/ChoiceFormat.html#applyPattern(java.lang.String)[applyPattern](String)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Currency {java11-javadoc}/java.base/java/text/NumberFormat.html#getCurrency()[getCurrency]()
+* def[] {java11-javadoc}/java.base/java/text/ChoiceFormat.html#getFormats()[getFormats]()
+* double[] {java11-javadoc}/java.base/java/text/ChoiceFormat.html#getLimits()[getLimits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumFractionDigits()[getMaximumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumIntegerDigits()[getMaximumIntegerDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumFractionDigits()[getMinimumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumIntegerDigits()[getMinimumIntegerDigits]()
+* RoundingMode {java11-javadoc}/java.base/java/text/NumberFormat.html#getRoundingMode()[getRoundingMode]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isGroupingUsed()[isGroupingUsed]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isParseIntegerOnly()[isParseIntegerOnly]()
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String)[parse](String)
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/ChoiceFormat.html#setChoices(double%5B%5D,java.lang.String%5B%5D)[setChoices](double[], String[])
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setCurrency(java.util.Currency)[setCurrency](Currency)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setGroupingUsed(boolean)[setGroupingUsed](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumFractionDigits(int)[setMaximumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumIntegerDigits(int)[setMaximumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumFractionDigits(int)[setMinimumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumIntegerDigits(int)[setMinimumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setParseIntegerOnly(boolean)[setParseIntegerOnly](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setRoundingMode(java.math.RoundingMode)[setRoundingMode](RoundingMode)
+* String {java11-javadoc}/java.base/java/text/ChoiceFormat.html#toPattern()[toPattern]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-CollationElementIterator]]
+==== CollationElementIterator
+* static int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#NULLORDER[NULLORDER]
+* static int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#primaryOrder(int)[primaryOrder](int)
+* static short {java11-javadoc}/java.base/java/text/CollationElementIterator.html#secondaryOrder(int)[secondaryOrder](int)
+* static short {java11-javadoc}/java.base/java/text/CollationElementIterator.html#tertiaryOrder(int)[tertiaryOrder](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#getMaxExpansion(int)[getMaxExpansion](int)
+* int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#getOffset()[getOffset]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#next()[next]()
+* int {java11-javadoc}/java.base/java/text/CollationElementIterator.html#previous()[previous]()
+* void {java11-javadoc}/java.base/java/text/CollationElementIterator.html#reset()[reset]()
+* void {java11-javadoc}/java.base/java/text/CollationElementIterator.html#setOffset(int)[setOffset](int)
+* void {java11-javadoc}/java.base/java/text/CollationElementIterator.html#setText(java.lang.String)[setText](String)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-CollationKey]]
+==== CollationKey
+* int {java11-javadoc}/java.base/java/text/CollationKey.html#compareTo(java.text.CollationKey)[compareTo](CollationKey)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/CollationKey.html#getSourceString()[getSourceString]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* byte[] {java11-javadoc}/java.base/java/text/CollationKey.html#toByteArray()[toByteArray]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Collator]]
+==== Collator
+* static int {java11-javadoc}/java.base/java/text/Collator.html#CANONICAL_DECOMPOSITION[CANONICAL_DECOMPOSITION]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#FULL_DECOMPOSITION[FULL_DECOMPOSITION]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#IDENTICAL[IDENTICAL]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#NO_DECOMPOSITION[NO_DECOMPOSITION]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#PRIMARY[PRIMARY]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#SECONDARY[SECONDARY]
+* static int {java11-javadoc}/java.base/java/text/Collator.html#TERTIARY[TERTIARY]
+* static Locale[] {java11-javadoc}/java.base/java/text/Collator.html#getAvailableLocales()[getAvailableLocales]()
+* static Collator {java11-javadoc}/java.base/java/text/Collator.html#getInstance()[getInstance]()
+* static Collator {java11-javadoc}/java.base/java/text/Collator.html#getInstance(java.util.Locale)[getInstance](Locale)
+* def {java11-javadoc}/java.base/java/text/Collator.html#clone()[clone]()
+* int {java11-javadoc}/java.base/java/util/Comparator.html#compare(java.lang.Object,java.lang.Object)[compare](def, def)
+* boolean {java11-javadoc}/java.base/java/util/Comparator.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/text/Collator.html#equals(java.lang.String,java.lang.String)[equals](String, String)
+* CollationKey {java11-javadoc}/java.base/java/text/Collator.html#getCollationKey(java.lang.String)[getCollationKey](String)
+* int {java11-javadoc}/java.base/java/text/Collator.html#getDecomposition()[getDecomposition]()
+* int {java11-javadoc}/java.base/java/text/Collator.html#getStrength()[getStrength]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#reversed()[reversed]()
+* void {java11-javadoc}/java.base/java/text/Collator.html#setDecomposition(int)[setDecomposition](int)
+* void {java11-javadoc}/java.base/java/text/Collator.html#setStrength(int)[setStrength](int)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparing(java.util.Comparator)[thenComparing](Comparator)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparing(java.util.function.Function,java.util.Comparator)[thenComparing](Function, Comparator)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingDouble(java.util.function.ToDoubleFunction)[thenComparingDouble](ToDoubleFunction)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingInt(java.util.function.ToIntFunction)[thenComparingInt](ToIntFunction)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingLong(java.util.function.ToLongFunction)[thenComparingLong](ToLongFunction)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-DateFormat]]
+==== DateFormat
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#AM_PM_FIELD[AM_PM_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#DATE_FIELD[DATE_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#DAY_OF_WEEK_FIELD[DAY_OF_WEEK_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#DAY_OF_WEEK_IN_MONTH_FIELD[DAY_OF_WEEK_IN_MONTH_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#DAY_OF_YEAR_FIELD[DAY_OF_YEAR_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#DEFAULT[DEFAULT]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#ERA_FIELD[ERA_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#FULL[FULL]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#HOUR0_FIELD[HOUR0_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#HOUR1_FIELD[HOUR1_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#HOUR_OF_DAY0_FIELD[HOUR_OF_DAY0_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#HOUR_OF_DAY1_FIELD[HOUR_OF_DAY1_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#LONG[LONG]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#MEDIUM[MEDIUM]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#MILLISECOND_FIELD[MILLISECOND_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#MINUTE_FIELD[MINUTE_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#MONTH_FIELD[MONTH_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#SECOND_FIELD[SECOND_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#SHORT[SHORT]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#TIMEZONE_FIELD[TIMEZONE_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#WEEK_OF_MONTH_FIELD[WEEK_OF_MONTH_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#WEEK_OF_YEAR_FIELD[WEEK_OF_YEAR_FIELD]
+* static int {java11-javadoc}/java.base/java/text/DateFormat.html#YEAR_FIELD[YEAR_FIELD]
+* static Locale[] {java11-javadoc}/java.base/java/text/DateFormat.html#getAvailableLocales()[getAvailableLocales]()
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateInstance()[getDateInstance]()
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateInstance(int)[getDateInstance](int)
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateInstance(int,java.util.Locale)[getDateInstance](int, Locale)
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateTimeInstance()[getDateTimeInstance]()
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateTimeInstance(int,int)[getDateTimeInstance](int, int)
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getDateTimeInstance(int,int,java.util.Locale)[getDateTimeInstance](int, int, Locale)
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getInstance()[getInstance]()
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getTimeInstance()[getTimeInstance]()
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getTimeInstance(int)[getTimeInstance](int)
+* static DateFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getTimeInstance(int,java.util.Locale)[getTimeInstance](int, Locale)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Calendar {java11-javadoc}/java.base/java/text/DateFormat.html#getCalendar()[getCalendar]()
+* NumberFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getNumberFormat()[getNumberFormat]()
+* TimeZone {java11-javadoc}/java.base/java/text/DateFormat.html#getTimeZone()[getTimeZone]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/DateFormat.html#isLenient()[isLenient]()
+* Date {java11-javadoc}/java.base/java/text/DateFormat.html#parse(java.lang.String)[parse](String)
+* Date {java11-javadoc}/java.base/java/text/DateFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setCalendar(java.util.Calendar)[setCalendar](Calendar)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setLenient(boolean)[setLenient](boolean)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setNumberFormat(java.text.NumberFormat)[setNumberFormat](NumberFormat)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setTimeZone(java.util.TimeZone)[setTimeZone](TimeZone)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-DateFormat.Field]]
+==== DateFormat.Field
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#AM_PM[AM_PM]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#DAY_OF_MONTH[DAY_OF_MONTH]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#DAY_OF_WEEK[DAY_OF_WEEK]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#DAY_OF_WEEK_IN_MONTH[DAY_OF_WEEK_IN_MONTH]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#DAY_OF_YEAR[DAY_OF_YEAR]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#ERA[ERA]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#HOUR0[HOUR0]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#HOUR1[HOUR1]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#HOUR_OF_DAY0[HOUR_OF_DAY0]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#HOUR_OF_DAY1[HOUR_OF_DAY1]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#MILLISECOND[MILLISECOND]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#MINUTE[MINUTE]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#MONTH[MONTH]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#SECOND[SECOND]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#TIME_ZONE[TIME_ZONE]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#WEEK_OF_MONTH[WEEK_OF_MONTH]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#WEEK_OF_YEAR[WEEK_OF_YEAR]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#YEAR[YEAR]
+* static DateFormat.Field {java11-javadoc}/java.base/java/text/DateFormat$Field.html#ofCalendarField(int)[ofCalendarField](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/DateFormat$Field.html#getCalendarField()[getCalendarField]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-DateFormatSymbols]]
+==== DateFormatSymbols
+* static Locale[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getAvailableLocales()[getAvailableLocales]()
+* static DateFormatSymbols {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getInstance()[getInstance]()
+* static DateFormatSymbols {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getInstance(java.util.Locale)[getInstance](Locale)
+* {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#<init>()[DateFormatSymbols]()
+* {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#<init>(java.util.Locale)[DateFormatSymbols](Locale)
+* def {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getAmPmStrings()[getAmPmStrings]()
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getEras()[getEras]()
+* String {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getLocalPatternChars()[getLocalPatternChars]()
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getMonths()[getMonths]()
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getShortMonths()[getShortMonths]()
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getShortWeekdays()[getShortWeekdays]()
+* String[] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getWeekdays()[getWeekdays]()
+* String[][] {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#getZoneStrings()[getZoneStrings]()
+* int {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#hashCode()[hashCode]()
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setAmPmStrings(java.lang.String%5B%5D)[setAmPmStrings](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setEras(java.lang.String%5B%5D)[setEras](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setLocalPatternChars(java.lang.String)[setLocalPatternChars](String)
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setMonths(java.lang.String%5B%5D)[setMonths](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setShortMonths(java.lang.String%5B%5D)[setShortMonths](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setShortWeekdays(java.lang.String%5B%5D)[setShortWeekdays](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setWeekdays(java.lang.String%5B%5D)[setWeekdays](String[])
+* void {java11-javadoc}/java.base/java/text/DateFormatSymbols.html#setZoneStrings(java.lang.String%5B%5D%5B%5D)[setZoneStrings](String[][])
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-DecimalFormat]]
+==== DecimalFormat
+* {java11-javadoc}/java.base/java/text/DecimalFormat.html#<init>()[DecimalFormat]()
+* {java11-javadoc}/java.base/java/text/DecimalFormat.html#<init>(java.lang.String)[DecimalFormat](String)
+* {java11-javadoc}/java.base/java/text/DecimalFormat.html#<init>(java.lang.String,java.text.DecimalFormatSymbols)[DecimalFormat](String, DecimalFormatSymbols)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#applyLocalizedPattern(java.lang.String)[applyLocalizedPattern](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#applyPattern(java.lang.String)[applyPattern](String)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Currency {java11-javadoc}/java.base/java/text/NumberFormat.html#getCurrency()[getCurrency]()
+* DecimalFormatSymbols {java11-javadoc}/java.base/java/text/DecimalFormat.html#getDecimalFormatSymbols()[getDecimalFormatSymbols]()
+* int {java11-javadoc}/java.base/java/text/DecimalFormat.html#getGroupingSize()[getGroupingSize]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumFractionDigits()[getMaximumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumIntegerDigits()[getMaximumIntegerDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumFractionDigits()[getMinimumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumIntegerDigits()[getMinimumIntegerDigits]()
+* int {java11-javadoc}/java.base/java/text/DecimalFormat.html#getMultiplier()[getMultiplier]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#getNegativePrefix()[getNegativePrefix]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#getNegativeSuffix()[getNegativeSuffix]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#getPositivePrefix()[getPositivePrefix]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#getPositiveSuffix()[getPositiveSuffix]()
+* RoundingMode {java11-javadoc}/java.base/java/text/NumberFormat.html#getRoundingMode()[getRoundingMode]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/DecimalFormat.html#isDecimalSeparatorAlwaysShown()[isDecimalSeparatorAlwaysShown]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isGroupingUsed()[isGroupingUsed]()
+* boolean {java11-javadoc}/java.base/java/text/DecimalFormat.html#isParseBigDecimal()[isParseBigDecimal]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isParseIntegerOnly()[isParseIntegerOnly]()
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String)[parse](String)
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setCurrency(java.util.Currency)[setCurrency](Currency)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setDecimalFormatSymbols(java.text.DecimalFormatSymbols)[setDecimalFormatSymbols](DecimalFormatSymbols)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setDecimalSeparatorAlwaysShown(boolean)[setDecimalSeparatorAlwaysShown](boolean)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setGroupingSize(int)[setGroupingSize](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setGroupingUsed(boolean)[setGroupingUsed](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumFractionDigits(int)[setMaximumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumIntegerDigits(int)[setMaximumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumFractionDigits(int)[setMinimumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumIntegerDigits(int)[setMinimumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setMultiplier(int)[setMultiplier](int)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setNegativePrefix(java.lang.String)[setNegativePrefix](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setNegativeSuffix(java.lang.String)[setNegativeSuffix](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setParseBigDecimal(boolean)[setParseBigDecimal](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setParseIntegerOnly(boolean)[setParseIntegerOnly](boolean)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setPositivePrefix(java.lang.String)[setPositivePrefix](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormat.html#setPositiveSuffix(java.lang.String)[setPositiveSuffix](String)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setRoundingMode(java.math.RoundingMode)[setRoundingMode](RoundingMode)
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#toLocalizedPattern()[toLocalizedPattern]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormat.html#toPattern()[toPattern]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-DecimalFormatSymbols]]
+==== DecimalFormatSymbols
+* static Locale[] {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getAvailableLocales()[getAvailableLocales]()
+* static DecimalFormatSymbols {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getInstance()[getInstance]()
+* static DecimalFormatSymbols {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getInstance(java.util.Locale)[getInstance](Locale)
+* {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#<init>()[DecimalFormatSymbols]()
+* {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#<init>(java.util.Locale)[DecimalFormatSymbols](Locale)
+* def {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* Currency {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getCurrency()[getCurrency]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getCurrencySymbol()[getCurrencySymbol]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getDecimalSeparator()[getDecimalSeparator]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getDigit()[getDigit]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getExponentSeparator()[getExponentSeparator]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getGroupingSeparator()[getGroupingSeparator]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getInfinity()[getInfinity]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getInternationalCurrencySymbol()[getInternationalCurrencySymbol]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getMinusSign()[getMinusSign]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getMonetaryDecimalSeparator()[getMonetaryDecimalSeparator]()
+* String {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getNaN()[getNaN]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getPatternSeparator()[getPatternSeparator]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getPerMill()[getPerMill]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getPercent()[getPercent]()
+* char {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#getZeroDigit()[getZeroDigit]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setCurrency(java.util.Currency)[setCurrency](Currency)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setCurrencySymbol(java.lang.String)[setCurrencySymbol](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setDecimalSeparator(char)[setDecimalSeparator](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setDigit(char)[setDigit](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setExponentSeparator(java.lang.String)[setExponentSeparator](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setGroupingSeparator(char)[setGroupingSeparator](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setInfinity(java.lang.String)[setInfinity](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setInternationalCurrencySymbol(java.lang.String)[setInternationalCurrencySymbol](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setMinusSign(char)[setMinusSign](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setMonetaryDecimalSeparator(char)[setMonetaryDecimalSeparator](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setNaN(java.lang.String)[setNaN](String)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setPatternSeparator(char)[setPatternSeparator](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setPerMill(char)[setPerMill](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setPercent(char)[setPercent](char)
+* void {java11-javadoc}/java.base/java/text/DecimalFormatSymbols.html#setZeroDigit(char)[setZeroDigit](char)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-FieldPosition]]
+==== FieldPosition
+* {java11-javadoc}/java.base/java/text/FieldPosition.html#<init>(int)[FieldPosition](int)
+* {java11-javadoc}/java.base/java/text/FieldPosition.html#<init>(java.text.Format$Field,int)[FieldPosition](Format.Field, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/FieldPosition.html#getBeginIndex()[getBeginIndex]()
+* int {java11-javadoc}/java.base/java/text/FieldPosition.html#getEndIndex()[getEndIndex]()
+* int {java11-javadoc}/java.base/java/text/FieldPosition.html#getField()[getField]()
+* Format.Field {java11-javadoc}/java.base/java/text/FieldPosition.html#getFieldAttribute()[getFieldAttribute]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* void {java11-javadoc}/java.base/java/text/FieldPosition.html#setBeginIndex(int)[setBeginIndex](int)
+* void {java11-javadoc}/java.base/java/text/FieldPosition.html#setEndIndex(int)[setEndIndex](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Format]]
+==== Format
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Format.Field]]
+==== Format.Field
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-MessageFormat]]
+==== MessageFormat
+* static String {java11-javadoc}/java.base/java/text/MessageFormat.html#format(java.lang.String,java.lang.Object%5B%5D)[format](String, Object[])
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#applyPattern(java.lang.String)[applyPattern](String)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Format[] {java11-javadoc}/java.base/java/text/MessageFormat.html#getFormats()[getFormats]()
+* Format[] {java11-javadoc}/java.base/java/text/MessageFormat.html#getFormatsByArgumentIndex()[getFormatsByArgumentIndex]()
+* Locale {java11-javadoc}/java.base/java/text/MessageFormat.html#getLocale()[getLocale]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Object[] {java11-javadoc}/java.base/java/text/MessageFormat.html#parse(java.lang.String)[parse](String)
+* Object[] {java11-javadoc}/java.base/java/text/MessageFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#setFormat(int,java.text.Format)[setFormat](int, Format)
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#setFormatByArgumentIndex(int,java.text.Format)[setFormatByArgumentIndex](int, Format)
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#setFormats(java.text.Format%5B%5D)[setFormats](Format[])
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#setFormatsByArgumentIndex(java.text.Format%5B%5D)[setFormatsByArgumentIndex](Format[])
+* void {java11-javadoc}/java.base/java/text/MessageFormat.html#setLocale(java.util.Locale)[setLocale](Locale)
+* String {java11-javadoc}/java.base/java/text/MessageFormat.html#toPattern()[toPattern]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-MessageFormat.Field]]
+==== MessageFormat.Field
+* static MessageFormat.Field {java11-javadoc}/java.base/java/text/MessageFormat$Field.html#ARGUMENT[ARGUMENT]
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Normalizer]]
+==== Normalizer
+* static boolean {java11-javadoc}/java.base/java/text/Normalizer.html#isNormalized(java.lang.CharSequence,java.text.Normalizer$Form)[isNormalized](CharSequence, Normalizer.Form)
+* static String {java11-javadoc}/java.base/java/text/Normalizer.html#normalize(java.lang.CharSequence,java.text.Normalizer$Form)[normalize](CharSequence, Normalizer.Form)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-Normalizer.Form]]
+==== Normalizer.Form
+* static Normalizer.Form {java11-javadoc}/java.base/java/text/Normalizer$Form.html#NFC[NFC]
+* static Normalizer.Form {java11-javadoc}/java.base/java/text/Normalizer$Form.html#NFD[NFD]
+* static Normalizer.Form {java11-javadoc}/java.base/java/text/Normalizer$Form.html#NFKC[NFKC]
+* static Normalizer.Form {java11-javadoc}/java.base/java/text/Normalizer$Form.html#NFKD[NFKD]
+* static Normalizer.Form {java11-javadoc}/java.base/java/text/Normalizer$Form.html#valueOf(java.lang.String)[valueOf](String)
+* static Normalizer.Form[] {java11-javadoc}/java.base/java/text/Normalizer$Form.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-NumberFormat]]
+==== NumberFormat
+* static int {java11-javadoc}/java.base/java/text/NumberFormat.html#FRACTION_FIELD[FRACTION_FIELD]
+* static int {java11-javadoc}/java.base/java/text/NumberFormat.html#INTEGER_FIELD[INTEGER_FIELD]
+* static Locale[] {java11-javadoc}/java.base/java/text/NumberFormat.html#getAvailableLocales()[getAvailableLocales]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getCurrencyInstance()[getCurrencyInstance]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getCurrencyInstance(java.util.Locale)[getCurrencyInstance](Locale)
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getInstance()[getInstance]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getInstance(java.util.Locale)[getInstance](Locale)
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getIntegerInstance()[getIntegerInstance]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getIntegerInstance(java.util.Locale)[getIntegerInstance](Locale)
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getNumberInstance()[getNumberInstance]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getNumberInstance(java.util.Locale)[getNumberInstance](Locale)
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getPercentInstance()[getPercentInstance]()
+* static NumberFormat {java11-javadoc}/java.base/java/text/NumberFormat.html#getPercentInstance(java.util.Locale)[getPercentInstance](Locale)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Currency {java11-javadoc}/java.base/java/text/NumberFormat.html#getCurrency()[getCurrency]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumFractionDigits()[getMaximumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMaximumIntegerDigits()[getMaximumIntegerDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumFractionDigits()[getMinimumFractionDigits]()
+* int {java11-javadoc}/java.base/java/text/NumberFormat.html#getMinimumIntegerDigits()[getMinimumIntegerDigits]()
+* RoundingMode {java11-javadoc}/java.base/java/text/NumberFormat.html#getRoundingMode()[getRoundingMode]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isGroupingUsed()[isGroupingUsed]()
+* boolean {java11-javadoc}/java.base/java/text/NumberFormat.html#isParseIntegerOnly()[isParseIntegerOnly]()
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String)[parse](String)
+* Number {java11-javadoc}/java.base/java/text/NumberFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setCurrency(java.util.Currency)[setCurrency](Currency)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setGroupingUsed(boolean)[setGroupingUsed](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumFractionDigits(int)[setMaximumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMaximumIntegerDigits(int)[setMaximumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumFractionDigits(int)[setMinimumFractionDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setMinimumIntegerDigits(int)[setMinimumIntegerDigits](int)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setParseIntegerOnly(boolean)[setParseIntegerOnly](boolean)
+* void {java11-javadoc}/java.base/java/text/NumberFormat.html#setRoundingMode(java.math.RoundingMode)[setRoundingMode](RoundingMode)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-NumberFormat.Field]]
+==== NumberFormat.Field
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#CURRENCY[CURRENCY]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#DECIMAL_SEPARATOR[DECIMAL_SEPARATOR]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#EXPONENT[EXPONENT]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#EXPONENT_SIGN[EXPONENT_SIGN]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#EXPONENT_SYMBOL[EXPONENT_SYMBOL]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#FRACTION[FRACTION]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#GROUPING_SEPARATOR[GROUPING_SEPARATOR]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#INTEGER[INTEGER]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#PERCENT[PERCENT]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#PERMILLE[PERMILLE]
+* static NumberFormat.Field {java11-javadoc}/java.base/java/text/NumberFormat$Field.html#SIGN[SIGN]
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-ParseException]]
+==== ParseException
+* {java11-javadoc}/java.base/java/text/ParseException.html#<init>(java.lang.String,int)[ParseException](String, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/ParseException.html#getErrorOffset()[getErrorOffset]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-ParsePosition]]
+==== ParsePosition
+* {java11-javadoc}/java.base/java/text/ParsePosition.html#<init>(int)[ParsePosition](int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/text/ParsePosition.html#getErrorIndex()[getErrorIndex]()
+* int {java11-javadoc}/java.base/java/text/ParsePosition.html#getIndex()[getIndex]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* void {java11-javadoc}/java.base/java/text/ParsePosition.html#setErrorIndex(int)[setErrorIndex](int)
+* void {java11-javadoc}/java.base/java/text/ParsePosition.html#setIndex(int)[setIndex](int)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-RuleBasedCollator]]
+==== RuleBasedCollator
+* {java11-javadoc}/java.base/java/text/RuleBasedCollator.html#<init>(java.lang.String)[RuleBasedCollator](String)
+* def {java11-javadoc}/java.base/java/text/Collator.html#clone()[clone]()
+* int {java11-javadoc}/java.base/java/util/Comparator.html#compare(java.lang.Object,java.lang.Object)[compare](def, def)
+* boolean {java11-javadoc}/java.base/java/util/Comparator.html#equals(java.lang.Object)[equals](Object)
+* boolean {java11-javadoc}/java.base/java/text/Collator.html#equals(java.lang.String,java.lang.String)[equals](String, String)
+* CollationElementIterator {java11-javadoc}/java.base/java/text/RuleBasedCollator.html#getCollationElementIterator(java.lang.String)[getCollationElementIterator](String)
+* CollationKey {java11-javadoc}/java.base/java/text/Collator.html#getCollationKey(java.lang.String)[getCollationKey](String)
+* int {java11-javadoc}/java.base/java/text/Collator.html#getDecomposition()[getDecomposition]()
+* String {java11-javadoc}/java.base/java/text/RuleBasedCollator.html#getRules()[getRules]()
+* int {java11-javadoc}/java.base/java/text/Collator.html#getStrength()[getStrength]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#reversed()[reversed]()
+* void {java11-javadoc}/java.base/java/text/Collator.html#setDecomposition(int)[setDecomposition](int)
+* void {java11-javadoc}/java.base/java/text/Collator.html#setStrength(int)[setStrength](int)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparing(java.util.Comparator)[thenComparing](Comparator)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparing(java.util.function.Function,java.util.Comparator)[thenComparing](Function, Comparator)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingDouble(java.util.function.ToDoubleFunction)[thenComparingDouble](ToDoubleFunction)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingInt(java.util.function.ToIntFunction)[thenComparingInt](ToIntFunction)
+* Comparator {java11-javadoc}/java.base/java/util/Comparator.html#thenComparingLong(java.util.function.ToLongFunction)[thenComparingLong](ToLongFunction)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-SimpleDateFormat]]
+==== SimpleDateFormat
+* {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#<init>()[SimpleDateFormat]()
+* {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#<init>(java.lang.String)[SimpleDateFormat](String)
+* {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#<init>(java.lang.String,java.util.Locale)[SimpleDateFormat](String, Locale)
+* void {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#applyLocalizedPattern(java.lang.String)[applyLocalizedPattern](String)
+* void {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#applyPattern(java.lang.String)[applyPattern](String)
+* def {java11-javadoc}/java.base/java/text/Format.html#clone()[clone]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object)[format](Object)
+* StringBuffer {java11-javadoc}/java.base/java/text/Format.html#format(java.lang.Object,java.lang.StringBuffer,java.text.FieldPosition)[format](Object, StringBuffer, FieldPosition)
+* AttributedCharacterIterator {java11-javadoc}/java.base/java/text/Format.html#formatToCharacterIterator(java.lang.Object)[formatToCharacterIterator](Object)
+* Date {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#get2DigitYearStart()[get2DigitYearStart]()
+* Calendar {java11-javadoc}/java.base/java/text/DateFormat.html#getCalendar()[getCalendar]()
+* DateFormatSymbols {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#getDateFormatSymbols()[getDateFormatSymbols]()
+* NumberFormat {java11-javadoc}/java.base/java/text/DateFormat.html#getNumberFormat()[getNumberFormat]()
+* TimeZone {java11-javadoc}/java.base/java/text/DateFormat.html#getTimeZone()[getTimeZone]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/text/DateFormat.html#isLenient()[isLenient]()
+* Date {java11-javadoc}/java.base/java/text/DateFormat.html#parse(java.lang.String)[parse](String)
+* Date {java11-javadoc}/java.base/java/text/DateFormat.html#parse(java.lang.String,java.text.ParsePosition)[parse](String, ParsePosition)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String)[parseObject](String)
+* Object {java11-javadoc}/java.base/java/text/Format.html#parseObject(java.lang.String,java.text.ParsePosition)[parseObject](String, ParsePosition)
+* void {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#set2DigitYearStart(java.util.Date)[set2DigitYearStart](Date)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setCalendar(java.util.Calendar)[setCalendar](Calendar)
+* void {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#setDateFormatSymbols(java.text.DateFormatSymbols)[setDateFormatSymbols](DateFormatSymbols)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setLenient(boolean)[setLenient](boolean)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setNumberFormat(java.text.NumberFormat)[setNumberFormat](NumberFormat)
+* void {java11-javadoc}/java.base/java/text/DateFormat.html#setTimeZone(java.util.TimeZone)[setTimeZone](TimeZone)
+* String {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#toLocalizedPattern()[toLocalizedPattern]()
+* String {java11-javadoc}/java.base/java/text/SimpleDateFormat.html#toPattern()[toPattern]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-update-java-text-StringCharacterIterator]]
+==== StringCharacterIterator
+* {java11-javadoc}/java.base/java/text/StringCharacterIterator.html#<init>(java.lang.String)[StringCharacterIterator](String)
+* {java11-javadoc}/java.base/java/text/StringCharacterIterator.html#<init>(java.lang.String,int)[StringCharacterIterator](String, int)
+* {java11-javadoc}/java.base/java/text/StringCharacterIterator.html#<init>(java.lang.String,int,int,int)[StringCharacterIterator](String, int, int, int)
+* def {java11-javadoc}/java.base/java/text/CharacterIterator.html#clone()[clone]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#current()[current]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#first()[first]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getBeginIndex()[getBeginIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getEndIndex()[getEndIndex]()
+* int {java11-javadoc}/java.base/java/text/CharacterIterator.html#getIndex()[getIndex]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#last()[last]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#next()[next]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#previous()[previous]()
+* char {java11-javadoc}/java.base/java/text/CharacterIterator.html#setIndex(int)[setIndex](int)
+* void {java11-javadoc}/java.base/java/text/StringCharacterIterator.html#setText(java.lang.String)[setText](String)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

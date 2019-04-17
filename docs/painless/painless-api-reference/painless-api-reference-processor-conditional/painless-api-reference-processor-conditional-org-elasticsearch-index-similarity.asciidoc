@@ -1,0 +1,39 @@
+[role="exclude",id="painless-api-reference-processor-conditional-org-elasticsearch-index-similarity"]
+=== org.elasticsearch.index.similarity
+
+[[painless-api-reference-processor-conditional-org-elasticsearch-index-similarity-ScriptedSimilarity.Doc]]
+==== ScriptedSimilarity.Doc
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float getFreq()
+* int getLength()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-processor-conditional-org-elasticsearch-index-similarity-ScriptedSimilarity.Field]]
+==== ScriptedSimilarity.Field
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* long getDocCount()
+* long getSumDocFreq()
+* long getSumTotalTermFreq()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-processor-conditional-org-elasticsearch-index-similarity-ScriptedSimilarity.Query]]
+==== ScriptedSimilarity.Query
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* float getBoost()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-processor-conditional-org-elasticsearch-index-similarity-ScriptedSimilarity.Term]]
+==== ScriptedSimilarity.Term
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* long getDocFreq()
+* long getTotalTermFreq()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

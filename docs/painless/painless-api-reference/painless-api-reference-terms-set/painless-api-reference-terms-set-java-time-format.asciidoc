@@ -1,0 +1,198 @@
+[role="exclude",id="painless-api-reference-terms-set-java-time-format"]
+=== java.time.format
+
+[[painless-api-reference-terms-set-java-time-format-DateTimeFormatter]]
+==== DateTimeFormatter
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#BASIC_ISO_DATE[BASIC_ISO_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_DATE[ISO_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_DATE_TIME[ISO_DATE_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_INSTANT[ISO_INSTANT]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_LOCAL_DATE[ISO_LOCAL_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_LOCAL_DATE_TIME[ISO_LOCAL_DATE_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_LOCAL_TIME[ISO_LOCAL_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_OFFSET_DATE[ISO_OFFSET_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_OFFSET_DATE_TIME[ISO_OFFSET_DATE_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_OFFSET_TIME[ISO_OFFSET_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_ORDINAL_DATE[ISO_ORDINAL_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_TIME[ISO_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_WEEK_DATE[ISO_WEEK_DATE]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ISO_ZONED_DATE_TIME[ISO_ZONED_DATE_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#RFC_1123_DATE_TIME[RFC_1123_DATE_TIME]
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofLocalizedDate(java.time.format.FormatStyle)[ofLocalizedDate](FormatStyle)
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofLocalizedDateTime(java.time.format.FormatStyle)[ofLocalizedDateTime](FormatStyle)
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofLocalizedDateTime(java.time.format.FormatStyle,java.time.format.FormatStyle)[ofLocalizedDateTime](FormatStyle, FormatStyle)
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofLocalizedTime(java.time.format.FormatStyle)[ofLocalizedTime](FormatStyle)
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofPattern(java.lang.String)[ofPattern](String)
+* static DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#ofPattern(java.lang.String,java.util.Locale)[ofPattern](String, Locale)
+* static TemporalQuery {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parsedExcessDays()[parsedExcessDays]()
+* static TemporalQuery {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parsedLeapSecond()[parsedLeapSecond]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#format(java.time.temporal.TemporalAccessor)[format](TemporalAccessor)
+* void {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#formatTo(java.time.temporal.TemporalAccessor,java.lang.Appendable)[formatTo](TemporalAccessor, Appendable)
+* Chronology {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getChronology()[getChronology]()
+* DecimalStyle {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getDecimalStyle()[getDecimalStyle]()
+* Locale {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getLocale()[getLocale]()
+* Set {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getResolverFields()[getResolverFields]()
+* ResolverStyle {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getResolverStyle()[getResolverStyle]()
+* ZoneId {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#getZone()[getZone]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* TemporalAccessor {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parse(java.lang.CharSequence)[parse](CharSequence)
+* def {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parse(java.lang.CharSequence,java.time.temporal.TemporalQuery)[parse](CharSequence, TemporalQuery)
+* TemporalAccessor {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parseBest(java.lang.CharSequence,java.time.temporal.TemporalQuery%5B%5D)[parseBest](CharSequence, TemporalQuery[])
+* TemporalAccessor {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#parseUnresolved(java.lang.CharSequence,java.text.ParsePosition)[parseUnresolved](CharSequence, ParsePosition)
+* Format {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#toFormat()[toFormat]()
+* Format {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#toFormat(java.time.temporal.TemporalQuery)[toFormat](TemporalQuery)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withChronology(java.time.chrono.Chronology)[withChronology](Chronology)
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withDecimalStyle(java.time.format.DecimalStyle)[withDecimalStyle](DecimalStyle)
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withLocale(java.util.Locale)[withLocale](Locale)
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withResolverFields(java.util.Set)[withResolverFields](Set)
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withResolverStyle(java.time.format.ResolverStyle)[withResolverStyle](ResolverStyle)
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html#withZone(java.time.ZoneId)[withZone](ZoneId)
+
+
+[[painless-api-reference-terms-set-java-time-format-DateTimeFormatterBuilder]]
+==== DateTimeFormatterBuilder
+* static String {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#getLocalizedDateTimePattern(java.time.format.FormatStyle,java.time.format.FormatStyle,java.time.chrono.Chronology,java.util.Locale)[getLocalizedDateTimePattern](FormatStyle, FormatStyle, Chronology, Locale)
+* {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#<init>()[DateTimeFormatterBuilder]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#append(java.time.format.DateTimeFormatter)[append](DateTimeFormatter)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendChronologyId()[appendChronologyId]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendChronologyText(java.time.format.TextStyle)[appendChronologyText](TextStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendFraction(java.time.temporal.TemporalField,int,int,boolean)[appendFraction](TemporalField, int, int, boolean)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendInstant()[appendInstant]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendInstant(int)[appendInstant](int)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendLiteral(java.lang.String)[appendLiteral](String)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendLocalized(java.time.format.FormatStyle,java.time.format.FormatStyle)[appendLocalized](FormatStyle, FormatStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendLocalizedOffset(java.time.format.TextStyle)[appendLocalizedOffset](TextStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendOffset(java.lang.String,java.lang.String)[appendOffset](String, String)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendOffsetId()[appendOffsetId]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendOptional(java.time.format.DateTimeFormatter)[appendOptional](DateTimeFormatter)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendPattern(java.lang.String)[appendPattern](String)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendText(java.time.temporal.TemporalField)[appendText](TemporalField)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendText(java.time.temporal.TemporalField,java.time.format.TextStyle)[appendText](TemporalField, TextStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendValue(java.time.temporal.TemporalField)[appendValue](TemporalField)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendValue(java.time.temporal.TemporalField,int)[appendValue](TemporalField, int)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendValue(java.time.temporal.TemporalField,int,int,java.time.format.SignStyle)[appendValue](TemporalField, int, int, SignStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendValueReduced(java.time.temporal.TemporalField,int,int,int)[appendValueReduced](TemporalField, int, int, int)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendZoneId()[appendZoneId]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendZoneOrOffsetId()[appendZoneOrOffsetId]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendZoneRegionId()[appendZoneRegionId]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendZoneText(java.time.format.TextStyle)[appendZoneText](TextStyle)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#appendZoneText(java.time.format.TextStyle,java.util.Set)[appendZoneText](TextStyle, Set)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#optionalEnd()[optionalEnd]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#optionalStart()[optionalStart]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#padNext(int)[padNext](int)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#padNext(int,char)[padNext](int, char)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#parseCaseInsensitive()[parseCaseInsensitive]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#parseCaseSensitive()[parseCaseSensitive]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#parseDefaulting(java.time.temporal.TemporalField,long)[parseDefaulting](TemporalField, long)
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#parseLenient()[parseLenient]()
+* DateTimeFormatterBuilder {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#parseStrict()[parseStrict]()
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#toFormatter()[toFormatter]()
+* DateTimeFormatter {java11-javadoc}/java.base/java/time/format/DateTimeFormatterBuilder.html#toFormatter(java.util.Locale)[toFormatter](Locale)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-terms-set-java-time-format-DateTimeParseException]]
+==== DateTimeParseException
+* {java11-javadoc}/java.base/java/time/format/DateTimeParseException.html#<init>(java.lang.String,java.lang.CharSequence,int)[DateTimeParseException](String, CharSequence, int)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/time/format/DateTimeParseException.html#getErrorIndex()[getErrorIndex]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getLocalizedMessage()[getLocalizedMessage]()
+* String {java11-javadoc}/java.base/java/lang/Throwable.html#getMessage()[getMessage]()
+* String {java11-javadoc}/java.base/java/time/format/DateTimeParseException.html#getParsedString()[getParsedString]()
+* StackTraceElement[] {java11-javadoc}/java.base/java/lang/Throwable.html#getStackTrace()[getStackTrace]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-terms-set-java-time-format-DecimalStyle]]
+==== DecimalStyle
+* static DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#STANDARD[STANDARD]
+* static Set {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#getAvailableLocales()[getAvailableLocales]()
+* static DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#of(java.util.Locale)[of](Locale)
+* static DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#ofDefaultLocale()[ofDefaultLocale]()
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* char {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#getDecimalSeparator()[getDecimalSeparator]()
+* char {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#getNegativeSign()[getNegativeSign]()
+* char {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#getPositiveSign()[getPositiveSign]()
+* char {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#getZeroDigit()[getZeroDigit]()
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+* DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#withDecimalSeparator(char)[withDecimalSeparator](char)
+* DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#withNegativeSign(char)[withNegativeSign](char)
+* DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#withPositiveSign(char)[withPositiveSign](char)
+* DecimalStyle {java11-javadoc}/java.base/java/time/format/DecimalStyle.html#withZeroDigit(char)[withZeroDigit](char)
+
+
+[[painless-api-reference-terms-set-java-time-format-FormatStyle]]
+==== FormatStyle
+* static FormatStyle {java11-javadoc}/java.base/java/time/format/FormatStyle.html#FULL[FULL]
+* static FormatStyle {java11-javadoc}/java.base/java/time/format/FormatStyle.html#LONG[LONG]
+* static FormatStyle {java11-javadoc}/java.base/java/time/format/FormatStyle.html#MEDIUM[MEDIUM]
+* static FormatStyle {java11-javadoc}/java.base/java/time/format/FormatStyle.html#SHORT[SHORT]
+* static FormatStyle {java11-javadoc}/java.base/java/time/format/FormatStyle.html#valueOf(java.lang.String)[valueOf](String)
+* static FormatStyle[] {java11-javadoc}/java.base/java/time/format/FormatStyle.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-terms-set-java-time-format-ResolverStyle]]
+==== ResolverStyle
+* static ResolverStyle {java11-javadoc}/java.base/java/time/format/ResolverStyle.html#LENIENT[LENIENT]
+* static ResolverStyle {java11-javadoc}/java.base/java/time/format/ResolverStyle.html#SMART[SMART]
+* static ResolverStyle {java11-javadoc}/java.base/java/time/format/ResolverStyle.html#STRICT[STRICT]
+* static ResolverStyle {java11-javadoc}/java.base/java/time/format/ResolverStyle.html#valueOf(java.lang.String)[valueOf](String)
+* static ResolverStyle[] {java11-javadoc}/java.base/java/time/format/ResolverStyle.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-terms-set-java-time-format-SignStyle]]
+==== SignStyle
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#ALWAYS[ALWAYS]
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#EXCEEDS_PAD[EXCEEDS_PAD]
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#NEVER[NEVER]
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#NORMAL[NORMAL]
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#NOT_NEGATIVE[NOT_NEGATIVE]
+* static SignStyle {java11-javadoc}/java.base/java/time/format/SignStyle.html#valueOf(java.lang.String)[valueOf](String)
+* static SignStyle[] {java11-javadoc}/java.base/java/time/format/SignStyle.html#values()[values]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-terms-set-java-time-format-TextStyle]]
+==== TextStyle
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#FULL[FULL]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#FULL_STANDALONE[FULL_STANDALONE]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#NARROW[NARROW]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#NARROW_STANDALONE[NARROW_STANDALONE]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#SHORT[SHORT]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#SHORT_STANDALONE[SHORT_STANDALONE]
+* static TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#valueOf(java.lang.String)[valueOf](String)
+* static TextStyle[] {java11-javadoc}/java.base/java/time/format/TextStyle.html#values()[values]()
+* TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#asNormal()[asNormal]()
+* TextStyle {java11-javadoc}/java.base/java/time/format/TextStyle.html#asStandalone()[asStandalone]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#compareTo(java.lang.Enum)[compareTo](Enum)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/format/TextStyle.html#isStandalone()[isStandalone]()
+* String {java11-javadoc}/java.base/java/lang/Enum.html#name()[name]()
+* int {java11-javadoc}/java.base/java/lang/Enum.html#ordinal()[ordinal]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

@@ -42,6 +42,7 @@ integTestCluster {
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'path.repo', new File(buildDir, "cluster/shared/repo")
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
   }
@@ -1136,3 +1137,13 @@ buildRestTests.setups['seats'] = '''
             {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
             {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+// Used by snapshot lifecycle management docs
+buildRestTests.setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+'''

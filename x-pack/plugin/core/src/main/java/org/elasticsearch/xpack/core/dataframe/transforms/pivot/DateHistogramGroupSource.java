@@ -20,7 +20,7 @@ import java.time.ZoneOffset;
 import java.util.Objects;
 
 
-public class DateHistogramGroupSource extends SingleGroupSource<DateHistogramGroupSource> {
+public class DateHistogramGroupSource extends SingleGroupSource {
 
     private static final String NAME = "data_frame_date_histogram_group";
     private static final ParseField TIME_ZONE = new ParseField("time_zone");
@@ -51,7 +51,7 @@ public class DateHistogramGroupSource extends SingleGroupSource<DateHistogramGro
             return new DateHistogramGroupSource(field);
         });
 
-        declareValuesSourceFields(parser, null);
+        declareValuesSourceFields(parser);
 
         parser.declareField((histogram, interval) -> {
             if (interval instanceof Long) {

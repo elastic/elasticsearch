@@ -40,9 +40,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(GroupConfig.class);
 
     private final Map<String, Object> source;
-    private final Map<String, SingleGroupSource<?>> groups;
+    private final Map<String, SingleGroupSource> groups;
 
-    public GroupConfig(final Map<String, Object> source, final Map<String, SingleGroupSource<?>> groups) {
+    public GroupConfig(final Map<String, Object> source, final Map<String, SingleGroupSource> groups) {
         this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.GROUP_BY.getPreferredName());
         this.groups = groups;
     }
@@ -64,7 +64,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
         });
     }
 
-    public Map <String, SingleGroupSource<?>> getGroups() {
+    public Map <String, SingleGroupSource> getGroups() {
         return groups;
     }
 
@@ -109,7 +109,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     public static GroupConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         NamedXContentRegistry registry = parser.getXContentRegistry();
         Map<String, Object> source = parser.mapOrdered();
-        Map<String, SingleGroupSource<?>> groups = null;
+        Map<String, SingleGroupSource> groups = null;
 
         if (source.isEmpty()) {
             if (lenient) {
@@ -133,9 +133,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return new GroupConfig(source, groups);
     }
 
-    private static Map<String, SingleGroupSource<?>> parseGroupConfig(final XContentParser parser,
+    private static Map<String, SingleGroupSource> parseGroupConfig(final XContentParser parser,
             boolean lenient) throws IOException {
-        LinkedHashMap<String, SingleGroupSource<?>> groups = new LinkedHashMap<>();
+        LinkedHashMap<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
         XContentParser.Token token;
@@ -158,7 +158,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-            SingleGroupSource<?> groupSource;
+            SingleGroupSource groupSource;
             switch (groupType) {
             case TERMS:
                 groupSource = TermsGroupSource.fromXContent(parser, lenient);

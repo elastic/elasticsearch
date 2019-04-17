@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -24,7 +23,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /*
  * Base class for a single source for group_by
  */
-public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implements Writeable, ToXContentObject {
+public abstract class SingleGroupSource implements Writeable, ToXContentObject {
 
     public enum Type {
         TERMS(0),
@@ -64,8 +63,7 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
     // TODO: add script
     protected final String field;
 
-    static <VB extends SingleGroupSource<?>, T> void declareValuesSourceFields(AbstractObjectParser<VB, T> parser,
-            ValueType targetValueType) {
+    static <T> void declareValuesSourceFields(AbstractObjectParser<? extends SingleGroupSource, T> parser) {
         // either script or field
         parser.declareString(optionalConstructorArg(), FIELD);
     }
@@ -109,7 +107,7 @@ public abstract class SingleGroupSource<AB extends SingleGroupSource<AB>> implem
             return false;
         }
 
-        final SingleGroupSource<?> that = (SingleGroupSource<?>) other;
+        final SingleGroupSource that = (SingleGroupSource) other;
 
         return Objects.equals(this.field, that.field);
     }

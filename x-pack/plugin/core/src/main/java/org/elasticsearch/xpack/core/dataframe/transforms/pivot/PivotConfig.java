@@ -91,7 +91,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
         builder.startArray();
 
-        for (Entry<String, SingleGroupSource<?>> groupBy : groups.getGroups().entrySet()) {
+        for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
             builder.startObject();
             builder.startObject(groupBy.getKey());
             builder.field(groupBy.getValue().getType().value(), groupBy.getValue());

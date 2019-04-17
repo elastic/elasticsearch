@@ -1,30 +1,29 @@
 package org.elasticsearch.gradle.info;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.internal.jvm.Jvm;
-import org.gradle.process.ExecResult;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
-import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
-    private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
+    private static Integer _defaultParallel = null;
 
     @Override
     public void apply(Project project) {
@@ -38,117 +37,46 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
-        final Map<Integer, String> javaVersions = new HashMap<>();
+        final List<JavaHome> javaVersions = new ArrayList<>();
         for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
-                javaVersions.put(version, findJavaHome(Integer.toString(version)));
+                javaVersions.add(JavaHome.of(version, new File(findJavaHome(Integer.toString(version)))));
             }
         }
 
-        project.getTasks().register("generateGlobalBuildInfo", GlobalBuildInfoGeneratingTask.class, task -> {
+        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo", GenerateGlobalBuildInfoTask.class, task -> {
+            task.setJavaVersions(javaVersions);
             task.setMinimumCompilerVersion(minimumCompilerVersion);
             task.setMinimumRuntimeVersion(minimumRuntimeVersion);
             task.setCompilerJavaHome(compilerJavaHome);
             task.setRuntimeJavaHome(runtimeJavaHome);
-            task.setOutputFile(new File(project.getBuildDir(), "global-build-info"));
+            task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
         });
 
-        String javaVendor = System.getProperty("java.vendor");
-        String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendor + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name") + " "  + System.getProperty("java.vm.version") + "]";
+        PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
+            task.getBuildInfoFile().set(generateTask.getOutputFile());
+        });
 
-        String compilerJavaVersionDetails = gradleJavaVersionDetails;
-        JavaVersion compilerJavaVersionEnum = JavaVersion.current();
-        String runtimeJavaVersionDetails = gradleJavaVersionDetails;
-        JavaVersion runtimeJavaVersionEnum = JavaVersion.current();
+        project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
 
-        try {
-            if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
-                compilerJavaVersionDetails = findJavaVersionDetails(project, compilerJavaHome);
-                compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, compilerJavaHome));
-            }
-
-            if (Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
-                runtimeJavaVersionDetails = findJavaVersionDetails(project, runtimeJavaHome);
-                runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome));
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-        boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript));
-
-        // Build debugging info
-        LOGGER.lifecycle("=======================================");
-        LOGGER.lifecycle("Elasticsearch Build Hamster says Hello!");
-        LOGGER.lifecycle("  Gradle Version        : " + project.getGradle().getGradleVersion());
-        LOGGER.lifecycle("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")");
-        if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
-            LOGGER.lifecycle("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")");
-            LOGGER.lifecycle("  Compiler java.home    : " + compilerJavaHome);
-            LOGGER.lifecycle("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" +runtimeJavaVersionDetails + ")");
-            LOGGER.lifecycle("  Runtime java.home     : " + runtimeJavaHome);
-            LOGGER.lifecycle("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion) + " (" + gradleJavaVersionDetails + ")");
-            LOGGER.lifecycle("  Gradle java.home      : " + gradleJavaHome);
-        } else {
-            LOGGER.lifecycle("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion) + " (" + gradleJavaVersionDetails + ")");
-            LOGGER.lifecycle("  JAVA_HOME             : " + gradleJavaHome);
-        }
-        //LOGGER.lifecycle("  Random Testing Seed   : " + project.property("testSeed"));
-        LOGGER.lifecycle("=======================================");
-
-        // enforce Java version
-        if (compilerJavaVersionEnum.compareTo(minimumCompilerVersion) < 0) {
-            final String message =
-                "the compiler java.home must be set to a JDK installation directory for Java ${minimumCompilerVersion}" +
-                    " but is [${compilerJavaHome}] corresponding to [${compilerJavaVersionEnum}]";
-            throw new GradleException(message);
-        }
-
-        if (runtimeJavaVersionEnum.compareTo(minimumRuntimeVersion) < 0) {
-            final String message =
-                "the runtime java.home must be set to a JDK installation directory for Java ${minimumRuntimeVersion}" +
-                    " but is [${runtimeJavaHome}] corresponding to [${runtimeJavaVersionEnum}]";
-            throw new GradleException(message);
-        }
-
-        for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
-            final String javaHome = javaVersionEntry.getValue();
-            if (javaHome == null) {
-                continue;
-            }
-            JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, new File(javaHome)));
-            final JavaVersion expectedJavaVersionEnum;
-            final int version = javaVersionEntry.getKey();
-            if (version < 9) {
-                expectedJavaVersionEnum = JavaVersion.toVersion("1." + version);
-            } else {
-                expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version));
-            }
-            if (javaVersionEnum != expectedJavaVersionEnum) {
-                final String message =
-                    "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                        " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]";
-                throw new GradleException(message);
-            }
-        }
-
-        JavaVersion finalCompilerJavaVersionEnum = compilerJavaVersionEnum;
-        JavaVersion finalRuntimeJavaVersionEnum = runtimeJavaVersionEnum;
         project.allprojects(p -> {
+            // Make sure than any task execution generates and prints build info
+            p.getTasks().all(task -> {
+                if (task != generateTask && task != printTask) {
+                    task.dependsOn(printTask);
+                }
+            });
+
             ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
 
             ext.set("compilerJavaHome", compilerJavaHome);
             ext.set("runtimeJavaHome", runtimeJavaHome);
-            ext.set("compilerJavaVersion", finalCompilerJavaVersionEnum);
-            ext.set("runtimeJavaVersion", finalRuntimeJavaVersionEnum);
             ext.set("isRuntimeJavaHomeSet", compilerJavaHome.equals(runtimeJavaHome) == false);
             ext.set("javaVersions", javaVersions);
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
-            ext.set("inFipsJvm", inFipsJvm);
-            ext.set("gradleJavaVersion", JavaVersion.toVersion(gradleJavaVersion));
+            ext.set("inFipsJvm", true);
+            ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
         });
     }
 
@@ -161,7 +89,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
 
         // if JAVA_HOME is not set,so we use the JDK that Gradle was run with.
-        return Objects.requireNonNullElseGet(new File(compilerJavaHome), () -> Jvm.current().getJavaHome());
+        return compilerJavaHome == null ? Jvm.current().getJavaHome() : new File(compilerJavaHome);
     }
 
     private static File findRuntimeJavaHome(final File compilerJavaHome) {
@@ -171,7 +99,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             return new File(findJavaHome(runtimeJavaProperty));
         }
 
-        return Objects.requireNonNullElse(new File(System.getenv("RUNTIME_JAVA_HOME")), compilerJavaHome);
+        return System.getenv("RUNTIME_JAVA_HOME") == null ? compilerJavaHome : new File(System.getenv("RUNTIME_JAVA_HOME"));
     }
 
     private static String findJavaHome(String version) {
@@ -193,63 +121,67 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static String getResourceContents(String resourcePath) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))) {
-            StringBuffer buffer = new StringBuffer();
+            StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (buffer.length() != 0) {
-                    buffer.append('\n');
+                if (b.length() != 0) {
+                    b.append('\n');
                 }
-                buffer.append(line);
+                b.append(line);
             }
 
-            return buffer.toString();
+            return b.toString();
         } catch (IOException e) {
             throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
         }
     }
 
-    /** Finds printable java version of the given JAVA_HOME */
-    private static String findJavaVersionDetails(Project project, File javaHome) {
-        String versionInfoScript = "print(" +
-            "java.lang.System.getProperty(\"java.vendor\") + \" \" + java.lang.System.getProperty(\"java.version\") + " +
-            "\" [\" + java.lang.System.getProperty(\"java.vm.name\") + \" \" + java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
-        return runJavaAsScript(project, javaHome, versionInfoScript).trim();
-    }
+    private static int findDefaultParallel(Project project) {
+        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
+        // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
+        if (_defaultParallel == null) {
+            File cpuInfoFile = new File("/proc/cpuinfo");
+            if (cpuInfoFile.exists()) {
+                // Count physical cores on any Linux distro ( don't count hyper-threading )
+                Map<String, Integer> socketToCore = new HashMap<>();
+                String currentID = "";
 
-    /** Finds the parsable java specification version */
-    private static String findJavaSpecificationVersion(Project project, File javaHome) {
-        String versionScript = "print(java.lang.System.getProperty(\"java.specification.version\"));";
-        return runJavaAsScript(project, javaHome, versionScript);
-    }
+                try (BufferedReader reader = new BufferedReader(new FileReader(cpuInfoFile))) {
+                    for (String line = reader.readLine(); line != null; line = reader.readLine()) {
+                        if (line.contains(":")) {
+                            List<String> parts = Arrays.stream(line.split(":", 2)).map(String::trim).collect(Collectors.toList());
+                            String name = parts.get(0);
+                            String value = parts.get(1);
+                            // the ID of the CPU socket
+                            if (name.equals("physical id")) {
+                                currentID = value;
+                            }
+                            // Number  of cores not including hyper-threading
+                            if (name.equals("cpu cores")) {
+                                assert currentID.isEmpty() == false;
+                                socketToCore.put("currentID", Integer.valueOf(value));
+                                currentID = "";
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                _defaultParallel = socketToCore.values().stream().mapToInt(i -> i).sum();
+            } else if (OS.current() == OS.MAC) {
+                // Ask macOS to count physical CPUs for us
+                ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+                project.exec(spec -> {
+                    spec.setExecutable("sysctl");
+                    spec.args("-n", "hw.physicalcpu");
+                    spec.setStandardOutput(stdout);
+                });
 
-    /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavaAsScript(Project project, File javaHome, String script) {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            // gradle/groovy does not properly escape the double quote for windows
-            script = script.replace("\"", "\\\"");
-        }
-        File jrunscriptPath = new File(javaHome, "bin/jrunscript");
-        String finalScript = script;
-        ExecResult result = project.exec(spec -> {
-            spec.setExecutable(jrunscriptPath);
-            spec.args("-e", finalScript);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
-
-        try {
-            if (result.getExitValue() != 0) {
-                LOGGER.error("STDOUT:");
-                stdout.toString("UTF-8").lines().forEach(LOGGER::error);
-                LOGGER.error("STDERR:");
-                stderr.toString("UTF-8").lines().forEach(LOGGER::error);
-                result.rethrowFailure();
+                _defaultParallel = Integer.parseInt(stdout.toString().trim());
             }
-            return stdout.toString("UTF-8").trim();
-        } catch (UnsupportedEncodingException e) {
-            throw new UncheckedIOException(e);
+
+            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
         }
+
+        return _defaultParallel;
     }
 }

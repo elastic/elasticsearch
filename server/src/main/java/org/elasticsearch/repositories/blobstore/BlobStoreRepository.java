@@ -1091,7 +1091,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read commit point [{}]", name), e);
                 }
             }
-            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
+            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
         }
     }
 

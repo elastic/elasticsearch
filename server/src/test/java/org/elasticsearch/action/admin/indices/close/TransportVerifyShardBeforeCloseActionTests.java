@@ -100,7 +100,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         super.setUp();
 
         indexShard = mock(IndexShard.class);
-        when(indexShard.getActiveOperationsCount()).thenReturn(0);
+        when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
 
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
@@ -165,12 +165,12 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(flushRequest.getValue().force(), is(true));
     }
 
-    public void testOperationFailsWithOnGoingOps() {
-        when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(1, 10));
+    public void testOperationFailsWhenNotBlocked() {
+        when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(0, 10));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
-            equalTo("On-going operations in progress while checking index shard " + indexShard.shardId() + " before closing"));
+            equalTo("Index shard " + indexShard.shardId() + " is not blocking all operations during closing"));
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 

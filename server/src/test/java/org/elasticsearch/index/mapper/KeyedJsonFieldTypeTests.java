@@ -117,7 +117,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
-        assertEquals("[fuzzy] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        assertEquals("[fuzzy] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
     }
 
     public void testRangeQuery() {
@@ -151,7 +151,7 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 10, null, null));
-        assertEquals("[regexp] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        assertEquals("[regexp] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
@@ -160,6 +160,6 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("valu*", null, null));
-        assertEquals("[wildcard] queries are not currently supported on [embedded_json] fields.", e.getMessage());
+        assertEquals("[wildcard] queries are not currently supported on keyed [embedded_json] fields.", e.getMessage());
     }
 }

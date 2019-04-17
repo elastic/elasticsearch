@@ -315,23 +315,23 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
                                 boolean transpositions) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
+            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed " +
+                "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
                                  MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException("[regexp] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
+            throw new UnsupportedOperationException("[regexp] queries are not currently supported on keyed " +
+                "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query wildcardQuery(String value,
                                    MultiTermQuery.RewriteMethod method,
                                    QueryShardContext context) {
-            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
+            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
+                "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -515,28 +515,6 @@ public final class JsonFieldMapper extends FieldMapper {
             } else {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
-        }
-
-        @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
-        }
-
-        @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-            throw new UnsupportedOperationException("[regexp] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
-        }
-
-        @Override
-        public Query wildcardQuery(String value,
-                                   MultiTermQuery.RewriteMethod method,
-                                   QueryShardContext context) {
-            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
-                CONTENT_TYPE + "] fields.");
         }
 
         @Override

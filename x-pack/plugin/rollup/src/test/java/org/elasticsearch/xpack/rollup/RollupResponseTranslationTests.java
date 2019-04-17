@@ -110,14 +110,13 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testRollupFailure() {
         MultiSearchResponse.Item[] failure = new MultiSearchResponse.Item[]{
-                new MultiSearchResponse.Item(null, new IndexNotFoundException("live missing")),
                 new MultiSearchResponse.Item(null, new RuntimeException("rollup failure"))};
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
         Exception e = expectThrows(RuntimeException.class,
-                () -> RollupResponseTranslator.combineResponses(failure,
+                () -> RollupResponseTranslator.translateResponse(failure,
                         new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
         assertThat(e.getMessage(), equalTo("rollup failure"));
     }
@@ -133,7 +132,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
                         new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
-        assertThat(e.getMessage(), equalTo("No indices (live or rollup) found during rollup search"));
+        assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
+            "Rollup does not support partial search results, please try the request again."));
     }
 
     public void testMissingLiveIndex() throws Exception {
@@ -175,13 +175,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
-                new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertNotNull(responseAggs);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), equalTo(5.0));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
+                new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+        assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
+            "Rollup does not support partial search results, please try the request again."));
     }
 
     public void testRolledMissingAggs() throws Exception {
@@ -192,20 +189,19 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
-                new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
                 new MultiSearchResponse.Item(responseWithout, null)};
 
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
+        SearchResponse response = RollupResponseTranslator.translateResponse(msearch,
             new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
         assertThat(responseAggs.asList().size(), equalTo(0));
     }
 
-    public void testMissingRolledIndex() throws Exception {
+    public void testMissingRolledIndex() {
         SearchResponse response = mock(SearchResponse.class);
 
         MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[]{
@@ -215,9 +211,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
 
-        SearchResponse finalResponse = RollupResponseTranslator.combineResponses(msearch,
-                new InternalAggregation.ReduceContext(bigArrays, scriptService, true));
-        assertThat(finalResponse, equalTo(response));
+        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
+            new InternalAggregation.ReduceContext(bigArrays, scriptService, true)));
+        assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
+            "Rollup does not support partial search results, please try the request again."));
     }
 
     public void testVerifyNormal() throws Exception {
@@ -288,7 +285,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
-        assertThat(e.getMessage(), equalTo("Rollup index not found during rollup search"));
+        assertThat(e.getMessage(), equalTo("Index [foo] was not found, likely because it was deleted while the request was in-flight. " +
+            "Rollup does not support partial search results, please try the request again."));
     }
 
     public void testMissingFilter() {

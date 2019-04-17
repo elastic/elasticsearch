@@ -86,23 +86,22 @@ public class RollupResponseTranslator {
             if (item.isFailure()) {
                 Exception e = item.getFailure();
 
-                // We can tolerate missing indices, assuming there is at least one to process at the end
+                // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    logger.warn("Rollup index not found during rollup search.", e);
-                } else {
-                    throw e;
+                    throw new ResourceNotFoundException("Index [" + ((IndexNotFoundException) e).getIndex().getName()
+                        + "] was not found, likely because it was deleted while the request was in-flight. " +
+                        "Rollup does not support partial search results, please try the request again.");
                 }
-            } else {
-                // No error, add to responses
-                responses.add(item.getResponse());
+
+                // Otherwise just throw
+                throw e;
             }
+
+            // No error, add to responses
+            responses.add(item.getResponse());
         }
 
-        // If we have no responses here, all the responses were index-not-found, so we need to fail
-        if (responses.isEmpty()) {
-            throw new ResourceNotFoundException("Rollup index not found during rollup search", rolledMsearch[0].getFailure());
-        }
-
+        assert responses.size() > 0;
         return doCombineResponse(null, responses, reduceContext);
     }
 
@@ -214,20 +213,22 @@ public class RollupResponseTranslator {
             if (item.isFailure()) {
                 Exception e = item.getFailure();
 
-                // We can tolerate missing indices, assuming there is at least one to process at the end
+                // If an index was deleted after execution, give a hint to the user that this is a transient error
                 if (e instanceof IndexNotFoundException) {
-                    String targetIndex = first ? "\"Live\"" : "Rollup";
-                    logger.warn(targetIndex + " index not found during rollup search.", e);
-                } else {
-                    throw e;
+                    throw new ResourceNotFoundException("Index [" + ((IndexNotFoundException) e).getIndex() + "] was not found, " +
+                        "likely because it was deleted while the request was in-flight. Rollup does not support partial search results, " +
+                        "please try the request again.", e);
                 }
+
+                // Otherwise just throw
+                throw e;
+            }
+
+            // No error, add to responses
+            if (first) {
+                liveResponse = item.getResponse();
             } else {
-                // No error, add to responses
-                if (first) {
-                    liveResponse = item.getResponse();
-                } else {
-                    rolledResponses.add(item.getResponse());
-                }
+                rolledResponses.add(item.getResponse());
             }
             first = false;
         }

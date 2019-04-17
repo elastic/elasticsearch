@@ -1184,6 +1184,24 @@ public class StringTermsIT extends AbstractTermsTestCase {
         }
     }
 
+    public void testKeyedJsonFieldWithMinDocCount() {
+        TermsAggregationBuilder priorityAgg = terms("terms")
+            .field(JSON_FIELD_NAME + ".priority")
+            .collectMode(randomFrom(SubAggCollectionMode.values()))
+            .executionHint(randomExecutionHint())
+            .minDocCount(0);
+
+        SearchResponse priorityResponse = client().prepareSearch("idx")
+            .addAggregation(priorityAgg)
+            .get();
+        assertSearchResponse(priorityResponse);
+
+        Terms priorityTerms = priorityResponse.getAggregations().get("terms");
+        assertThat(priorityTerms, notNullValue());
+        assertThat(priorityTerms.getName(), equalTo("terms"));
+        assertThat(priorityTerms.getBuckets().size(), equalTo(1));
+    }
+
     public void testOtherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }

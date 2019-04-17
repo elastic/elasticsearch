@@ -37,7 +37,7 @@ import java.util.List;
  * and produces a pair of indexable fields for each leaf value.
  */
 public class JsonFieldParser {
-    private static final String SEPARATOR = "\0";
+    static final String SEPARATOR = "\0";
     private static final byte SEPARATOR_BYTE = '\0';
 
     private final String rootFieldName;

@@ -21,12 +21,12 @@ public class RestPutSnapshotLifecycleAction extends BaseRestHandler {
 
     public RestPutSnapshotLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ilm/snapshot/{name}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_slm/policy/{name}", this);
     }
 
     @Override
     public String getName() {
-        return "ilm_put_snapshot_lifecycle";
+        return "slm_put_lifecycle";
     }
 
     @Override

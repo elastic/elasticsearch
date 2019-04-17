@@ -44,7 +44,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap());
 
-        Request putLifecycle = new Request("PUT", "/_ilm/snapshot/test-policy");
+        Request putLifecycle = new Request("PUT", "/_slm/policy/test-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
@@ -86,7 +86,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             assertThat((List<String>)snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
 
             // Check that the last success date was written to the cluster state
-            Request getReq = new Request("GET", "/_ilm/snapshot/" + policyName);
+            Request getReq = new Request("GET", "/_slm/policy/" + policyName);
             Response policyMetadata = client().performRequest(getReq);
             Map<String, Object> policyResponseMap;
             try (InputStream is = policyMetadata.getEntity().getContent()) {
@@ -105,7 +105,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             assertThat(lastSnapshotName, startsWith("snap-"));
         });
 
-        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
 
         // It's possible there could have been a snapshot in progress when the
@@ -127,7 +127,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
         assertBusy(() -> {
             // Check that the failure is written to the cluster state
-            Request getReq = new Request("GET", "/_ilm/snapshot/" + policyName);
+            Request getReq = new Request("GET", "/_slm/policy/" + policyName);
             Response policyMetadata = client().performRequest(getReq);
             try (InputStream is = policyMetadata.getEntity().getContent()) {
                 Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
@@ -151,7 +151,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             }
         });
 
-        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
     }
 
@@ -171,11 +171,11 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
 
         ResponseException badResp = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("PUT", "/_ilm/snapshot/" + policyName + "-bad/_execute")));
+            () -> client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "-bad/_execute")));
         assertThat(EntityUtils.toString(badResp.getResponse().getEntity()),
             containsString("no such snapshot lifecycle policy [" + policyName + "-bad]"));
 
-        Response goodResp = client().performRequest(new Request("PUT", "/_ilm/snapshot/" + policyName + "/_execute"));
+        Response goodResp = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));
 
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(goodResp.getEntity()))) {
@@ -196,7 +196,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             });
         }
 
-        Request delReq = new Request("DELETE", "/_ilm/snapshot/" + policyName);
+        Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
         assertOK(client().performRequest(delReq));
 
         // It's possible there could have been a snapshot in progress when the
@@ -213,7 +213,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         snapConfig.put("ignore_unavailable", ignoreUnavailable);
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(policyName, snapshotNamePattern, schedule, repoId, snapConfig);
 
-        Request putLifecycle = new Request("PUT", "/_ilm/snapshot/" + policyName);
+        Request putLifecycle = new Request("PUT", "/_slm/policy/" + policyName);
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));

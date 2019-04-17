@@ -24,7 +24,7 @@ import java.util.Objects;
 
 public class PutSnapshotLifecycleAction extends Action<PutSnapshotLifecycleAction.Response> {
     public static final PutSnapshotLifecycleAction INSTANCE = new PutSnapshotLifecycleAction();
-    public static final String NAME = "cluster:admin/ilm/snapshot/put";
+    public static final String NAME = "cluster:admin/slm/put";
 
     protected PutSnapshotLifecycleAction() {
         super(NAME);

@@ -26,7 +26,7 @@ import java.util.Objects;
  */
 public class ExecuteSnapshotLifecycleAction extends Action<ExecuteSnapshotLifecycleAction.Response> {
     public static final ExecuteSnapshotLifecycleAction INSTANCE = new ExecuteSnapshotLifecycleAction();
-    public static final String NAME = "cluster:admin/ilm/snapshot/execute";
+    public static final String NAME = "cluster:admin/slm/execute";
 
     protected ExecuteSnapshotLifecycleAction() {
         super(NAME);

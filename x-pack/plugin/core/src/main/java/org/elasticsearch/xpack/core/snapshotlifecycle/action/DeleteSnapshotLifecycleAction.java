@@ -19,7 +19,7 @@ import java.util.Objects;
 
 public class DeleteSnapshotLifecycleAction extends Action<DeleteSnapshotLifecycleAction.Response> {
     public static final DeleteSnapshotLifecycleAction INSTANCE = new DeleteSnapshotLifecycleAction();
-    public static final String NAME = "cluster:admin/ilm/snapshot/delete";
+    public static final String NAME = "cluster:admin/slm/delete";
 
     protected DeleteSnapshotLifecycleAction() {
         super(NAME);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.PathUtils;
@@ -30,6 +31,7 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase.random
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39348")
 public class JdbcSecurityIT extends SqlSecurityTestCase {
     static Properties adminProperties() {
         // tag::admin_properties

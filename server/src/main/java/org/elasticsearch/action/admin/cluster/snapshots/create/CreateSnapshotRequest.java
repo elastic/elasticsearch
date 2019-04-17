@@ -490,7 +490,8 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, settings, includeGlobalState, waitForCompletion, userMetadata);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, settings, includeGlobalState,
+            waitForCompletion, userMetadata);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

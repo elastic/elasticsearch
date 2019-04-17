@@ -105,6 +105,8 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -115,7 +117,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -140,8 +146,10 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -160,6 +168,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -206,8 +216,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void stopServices() {
-        testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
+    public void verifyReposThenStopServices() throws IOException {
+        try {
+            assertNoStaleRepositoryData();
+        } finally {
+            testClusterNodes.nodes.values().forEach(TestClusterNode::stop);
+        }
     }
 
     public void testSuccessfulSnapshotAndRestore() {
@@ -500,6 +514,65 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final Repository repository = masterNode.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = repository.getRepositoryData().getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
+    }
+
+    /**
+     * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
+     * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
+     */
+    private void assertNoStaleRepositoryData() throws IOException {
+        final Path repoPath = tempDir.resolve("repo").toAbsolutePath();
+        final List<Path> repos;
+        try (Stream<Path> reposDir = Files.list(repoPath)) {
+            repos = reposDir.filter(s -> s.getFileName().toString().startsWith("extra") == false).collect(Collectors.toList());
+        }
+        for (Path repoRoot : repos) {
+            final Path latestIndexGenBlob = repoRoot.resolve("index.latest");
+            assertTrue("Could not find index.latest blob for repo at [" + repoRoot + ']', Files.exists(latestIndexGenBlob));
+            final long latestGen = ByteBuffer.wrap(Files.readAllBytes(latestIndexGenBlob)).getLong(0);
+            assertIndexGenerations(repoRoot, latestGen);
+            final RepositoryData repositoryData;
+            try (XContentParser parser =
+                     XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                         new BytesArray(Files.readAllBytes(repoRoot.resolve("index-" + latestGen))), XContentType.JSON)) {
+                repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
+            }
+            assertIndexUUIDs(repoRoot, repositoryData);
+            assertSnapshotUUIDs(repoRoot, repositoryData);
+        }
+    }
+
+    private static void assertIndexGenerations(Path repoRoot, long latestGen) throws IOException {
+        try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+            final long[] indexGenerations = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith("index-"))
+                .map(p -> p.getFileName().toString().replace("index-", ""))
+                .mapToLong(Long::parseLong).sorted().toArray();
+            assertEquals(latestGen, indexGenerations[indexGenerations.length - 1]);
+            assertTrue(indexGenerations.length <= 2);
+        }
+    }
+
+    private static void assertIndexUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
+        final List<String> expectedIndexUUIDs =
+            repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
+        try (Stream<Path> indexRoots = Files.list(repoRoot.resolve("indices"))) {
+            final List<String> foundIndexUUIDs = indexRoots.filter(s -> s.getFileName().toString().startsWith("extra") == false)
+                .map(p -> p.getFileName().toString()).collect(Collectors.toList());
+            assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        }
+    }
+
+    private static void assertSnapshotUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
+        final List<String> expectedSnapshotUUIDs =
+            repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
+        for (String prefix : new String[]{"snap-", "meta-"}) {
+            try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+                final Collection<String> foundSnapshotUUIDs = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith(prefix))
+                    .map(p -> p.getFileName().toString().replace(prefix, "").replace(".dat", ""))
+                    .collect(Collectors.toSet());
+                assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
+            }
+        }
     }
 
     private void clearDisruptionsAndAwaitSync() {

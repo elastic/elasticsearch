@@ -89,12 +89,12 @@ public final class TransformProgressGatherer {
         if (cursor == null) {
             return config.getSource().getQueryConfig().getQuery();
         }
-        Map<String, SingleGroupSource<?>> groupConfig = config.getPivotConfig().getGroupConfig().getGroups();
+        Map<String, SingleGroupSource> groupConfig = config.getPivotConfig().getGroupConfig().getGroups();
         List<Map.Entry<String, Object>> searchedGroupings = new ArrayList<>(cursor.size());
         BoolQueryBuilder shouldQueries = QueryBuilders.boolQuery();
         for (Map.Entry<String, Object> grouping : cursor.entrySet()) {
             BoolQueryBuilder filterQueries = QueryBuilders.boolQuery();
-            SingleGroupSource<?> groupSource = groupConfig.get(grouping.getKey());
+            SingleGroupSource groupSource = groupConfig.get(grouping.getKey());
             if (groupSource == null) {
                 logger.warn("null group source for key [{}]", grouping.getKey());
                 continue;

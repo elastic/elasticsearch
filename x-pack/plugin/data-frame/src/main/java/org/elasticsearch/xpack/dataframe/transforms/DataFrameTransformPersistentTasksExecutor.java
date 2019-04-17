@@ -47,6 +47,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformPersistentTasksExecutor.class);
 
+    // The amount of time we wait for the cluster state to respond when being marked as failed
+    private static final int MARK_AS_FAILED_TIMEOUT_SEC = 90;
     private final Client client;
     private final DataFrameTransformsConfigManager transformsConfigManager;
     private final DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService;
@@ -166,9 +168,9 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             failure -> logger.error("Failed to set task [" + task.getTransformId() +"] to failed", failure)
         ), latch));
         try {
-            latch.await(90, TimeUnit.SECONDS);
+            latch.await(MARK_AS_FAILED_TIMEOUT_SEC, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            logger.error("timeout waiting for task [" + task.getTransformId() + "] to be marked as failed in cluster state", e);
+            logger.error("Timeout waiting for task [" + task.getTransformId() + "] to be marked as failed in cluster state", e);
         }
     }
 

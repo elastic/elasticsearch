@@ -241,22 +241,9 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
-        Path key;
-        Path certificate;
-        try {
-            key = PathUtils.get(getClass().getResource("/testnode.pem").toURI());
-            certificate = PathUtils.get(getClass().getResource("/testnode.crt").toURI());
-        } catch (URISyntaxException e) {
-            throw new IllegalStateException("error trying to get keystore path", e);
-        }
         Settings.Builder builder = Settings.builder();
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(SecurityField.USER_SETTING.getKey(), "x_pack_rest_user:" +  SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        builder.put("xpack.security.transport.ssl.enabled", true);
-        builder.put("xpack.security.transport.ssl.key", key.toAbsolutePath().toString());
-        builder.put("xpack.security.transport.ssl.certificate", certificate.toAbsolutePath().toString());
-        builder.put("xpack.security.transport.ssl.key_passphrase", "testnode");
-        builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
     }
 

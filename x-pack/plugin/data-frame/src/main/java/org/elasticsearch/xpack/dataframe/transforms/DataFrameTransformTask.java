@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
@@ -264,7 +265,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     @Override
     public synchronized void triggered(Event event) {
         if (getIndexer() == null) {
-            logger.warn("task [{}] triggered with an unintialized indexer", getTransformId());
+            logger.warn("Data frame task [{}] triggered with an unintialized indexer", getTransformId());
             return;
         }
         //  for now no rerun, so only trigger if checkpoint == 0
@@ -469,15 +470,22 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                Map<String, String> fieldMappings,
                                DataFrameTransformProgress transformProgress,
                                DataFrameTransformTask parentTask) {
-            super(parentTask.threadPool.executor(ThreadPool.Names.GENERIC), auditor, initialState, initialPosition, initialStats);
-            this.transformId = transformId;
-            this.transformsConfigManager = transformsConfigManager;
-            this.transformsCheckpointService = transformsCheckpointService;
-            this.client = client;
+            super(ExceptionsHelper.requireNonNull(parentTask, "parentTask")
+                    .threadPool
+                    .executor(ThreadPool.Names.GENERIC),
+                ExceptionsHelper.requireNonNull(auditor, "auditor"),
+                ExceptionsHelper.requireNonNull(initialState, "initialState"),
+                initialPosition,
+                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats);
+            this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
+            this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
+            this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
+                "transformsCheckpointService");
+            this.client = ExceptionsHelper.requireNonNull(client, "client");
             this.auditor = auditor;
-            this.transformConfig = transformConfig;
+            this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
             this.transformTask = parentTask;
-            this.fieldMappings = fieldMappings;
+            this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
             this.progress = transformProgress;
             this.failureCount = new AtomicInteger(0);
         }
@@ -564,7 +572,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 getPosition(),
                 transformTask.currentCheckpoint.get(),
                 transformTask. stateReason.get());
-            logger.info("Updating persistent state of transform [" + transformConfig.getId() + "] to [" + state.toString() + "]");
+            logger.debug("Updating persistent state of transform [{}] to [{}]", transformConfig.getId(), state.toString());
 
             // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and
             // only every-so-often when doing the bulk indexing calls.  See AsyncTwoPhaseIndexer#onBulkResponse for current periodicity

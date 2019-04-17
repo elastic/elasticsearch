@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.client.Client;
@@ -76,10 +77,12 @@ public final class TransformProgressGatherer {
             },
             progressListener::onFailure
         );
-        ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
+        ClientHelper.executeWithHeadersAsync(config.getHeaders(),
             ClientHelper.DATA_FRAME_ORIGIN,
+            client,
+            MultiSearchAction.INSTANCE,
             request.request(),
-            multiSearchResponseActionListener, client::multiSearch);
+            multiSearchResponseActionListener);
     }
 
     private static QueryBuilder docsLeftQuery(DataFrameTransformConfig config, Map<String, Object> cursor) {
@@ -93,11 +96,11 @@ public final class TransformProgressGatherer {
             BoolQueryBuilder filterQueries = QueryBuilders.boolQuery();
             SingleGroupSource<?> groupSource = groupConfig.get(grouping.getKey());
             if (groupSource == null) {
-                logger.warn("null group source for key [" + grouping.getKey() + "]");
+                logger.warn("null group source for key [{}]", grouping.getKey());
                 continue;
             }
             if (grouping.getValue() == null) {
-                logger.warn("null cursor value for key [" + grouping.getKey() + "]");
+                logger.warn("null cursor value for key [{}]", grouping.getKey());
                 continue;
             }
             filterQueries.filter(groupSource.getNextBucketsQuery(grouping.getValue()));

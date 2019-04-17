@@ -19,13 +19,13 @@
 
 package org.elasticsearch.client.dataframe.transforms.hlrc;
 
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 
-import java.io.IOException;
+import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameTransformProgressTests extends AbstractHlrcXContentTestCase<
+public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
         DataFrameTransformProgress,
         org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress> {
 
@@ -38,30 +38,20 @@ public class DataFrameTransformProgressTests extends AbstractHlrcXContentTestCas
     }
 
     @Override
-    public org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress doHlrcParseInstance(XContentParser parser)
-            throws IOException {
-        return org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress.fromXContent(parser);
-    }
-
-    @Override
-    public DataFrameTransformProgress convertHlrcToInternal(
-            org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress instance) {
-        return fromHlrc(instance);
-    }
-
-    @Override
-    protected DataFrameTransformProgress createTestInstance() {
+    protected DataFrameTransformProgress createServerTestInstance() {
         return DataFrameTransformStateTests.randomDataFrameTransformProgress();
     }
 
     @Override
-    protected DataFrameTransformProgress doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformProgress.PARSER.apply(parser, null);
+    protected org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress doParseToClientInstance(XContentParser parser) {
+        return org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress.fromXContent(parser);
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    protected void assertInstances(DataFrameTransformProgress serverTestInstance,
+                                   org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress clientInstance) {
+        assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
+        assertThat(serverTestInstance.getRemainingDocs(), equalTo(clientInstance.getRemainingDocs()));
+        assertThat(serverTestInstance.getPercentComplete(), equalTo(clientInstance.getPercentComplete()));
     }
-
 }

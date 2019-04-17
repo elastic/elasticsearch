@@ -102,7 +102,7 @@ public class PluginPropertiesExtension {
         return this.extendedPlugins;
     }
 
-    public boolean hasNativeController() {
+    public boolean getHasNativeController() {
         return hasNativeController;
     }
 

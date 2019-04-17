@@ -52,6 +52,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
+    public static final Version METADATA_ADDED_VERSION = Version.V_7_1_0;
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
@@ -239,7 +240,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    // NOCOMMIT check uses of this constructor & plumb userMetadata
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
         this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0,
             Collections.emptyList(), null, null);
@@ -310,7 +310,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
-        userMetadata = in.readMap(); // TODO NOCOMMIT this should check the version we're talking to
+        if (in.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            userMetadata = in.readMap();
+        } else {
+            userMetadata = null;
+        }
     }
 
     /**
@@ -710,7 +714,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeMap(userMetadata);  // TODO NOCOMMIT this should check the version we're talking to
+        if (out.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            out.writeMap(userMetadata);
+        }
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

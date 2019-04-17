@@ -46,6 +46,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_ADDED_VERSION;
 
 /**
  * Create snapshot request
@@ -106,7 +107,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
-        userMetadata = in.readMap(); // NOCOMMIT version checking?
+        if (in.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            userMetadata = in.readMap();
+        }
     }
 
     @Override
@@ -120,7 +123,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
-        out.writeMap(userMetadata); // NOCOMMIT version checking?
+        if (out.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            out.writeMap(userMetadata);
+        }
     }
 
     @Override

@@ -94,10 +94,10 @@ settings belong in the `elasticsearch.yml` file.
 
     An S3 secret key. The `access_key` setting must also be specified.
 
-`session_token`::
+`session_token` ({ref}/secure-settings.html[Secure])::
 
     An S3 session token. The `access_key` and `secret_key` settings must also be
-    specified. (Secure)
+    specified.
 
 `endpoint`::
 

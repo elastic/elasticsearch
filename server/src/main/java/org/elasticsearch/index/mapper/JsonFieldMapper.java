@@ -424,8 +424,8 @@ public final class JsonFieldMapper extends FieldMapper {
 
         @Override
         public OrdinalMap getOrdinalMap() {
-            throw new UnsupportedOperationException("Keyed JSON field data does not allow access to the" +
-                " underlying ordinal map.");
+            throw new UnsupportedOperationException("The keyed JSON field data for field ["
+                + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
         }
 
         @Override

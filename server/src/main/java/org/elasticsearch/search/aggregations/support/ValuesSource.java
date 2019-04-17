@@ -114,7 +114,7 @@ public abstract class ValuesSource {
 
             /**
              * Whether this values source is able to provide a mapping between global and segment ordinals,
-             * by returning the underlying {@link OrdinalMap}. If this method returnns false, then calling
+             * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
             public boolean supportsGlobalOrdinalsMapping() {

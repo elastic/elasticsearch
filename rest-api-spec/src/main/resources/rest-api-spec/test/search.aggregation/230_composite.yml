@@ -72,13 +72,13 @@ setup:
 
   - do:
       index:
-        index: test_other
+        index: other
         id:    0
         body:  { "date": "2017-10-20T03:08:45" }
 
   - do:
       indices.refresh:
-        index: [test, test_other]
+        index: [test, other]
 
 ---
 "Simple Composite aggregation":
@@ -473,7 +473,7 @@ setup:
                 }
                 ]
 
-  - match: {hits.total: 6}
+  - match: {hits.total: 7}
   - length: { aggregations.test.buckets: 5 }
   - match: { aggregations.test.buckets.0.key.long: 0}
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
@@ -517,7 +517,7 @@ setup:
                 }
                 ]
 
-  - match: {hits.total: 6}
+  - match: {hits.total: 7}
   - length: { aggregations.test.buckets: 1 }
   - match: { aggregations.test.buckets.0.key.long: 1000 }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }

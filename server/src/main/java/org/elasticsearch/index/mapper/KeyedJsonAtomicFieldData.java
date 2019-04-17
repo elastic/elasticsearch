@@ -39,6 +39,9 @@ import java.util.Collection;
  *
  * This class wraps the field data that is built directly on the keyed JSON field,
  * and filters out values whose prefix doesn't match the requested key.
+ *
+ * In order to support all usage patterns, the delegate's ordinal values are shifted
+ * to range from 0 to the number of total values.
  */
 public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
@@ -175,6 +178,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
                                    SortedSetDocValues delegate,
                                    long minOrd,
                                    long maxOrd) {
+            assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;
             this.minOrd = minOrd;
@@ -184,7 +188,7 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
         @Override
         public long getValueCount() {
-            return delegate.getValueCount();
+            return maxOrd - minOrd + 1;
         }
 
         /**
@@ -194,11 +198,9 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
          */
         @Override
         public BytesRef lookupOrd(long ord) throws IOException {
-            if (ord < minOrd || ord > maxOrd) {
-                throw new IllegalArgumentException("The provided ordinal [" + ord + "] is outside the valid " +
-                    "range. For keyed JSON fields, only ordinals returned from nextOrd can be passed to lookupOrd.");
-            }
-            BytesRef keyedValue = delegate.lookupOrd(ord);
+            long delegateOrd = unmapOrd(ord);
+            BytesRef keyedValue = delegate.lookupOrd(delegateOrd);
+
             int prefixLength = key.length + 1;
             int valueLength = keyedValue.length - prefixLength;
             return new BytesRef(keyedValue.bytes, prefixLength, valueLength);
@@ -209,13 +211,13 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
             if (cachedNextOrd >= 0) {
                 long nextOrd = cachedNextOrd;
                 cachedNextOrd = -1;
-                return nextOrd;
+                return mapOrd(nextOrd);
             }
 
             long ord = delegate.nextOrd();
             if (ord != NO_MORE_ORDS && ord <= maxOrd) {
                 assert ord >= minOrd;
-                return ord;
+                return mapOrd(ord);
             } else {
                 return NO_MORE_ORDS;
             }
@@ -239,6 +241,24 @@ public class KeyedJsonAtomicFieldData implements AtomicOrdinalsFieldData {
 
             cachedNextOrd = -1;
             return false;
+        }
+
+        /**
+         * Maps an ordinal from the delegate doc values into the filtered ordinal space. The
+         * ordinal is shifted to lie in the range [0, (maxOrd - minOrd)].
+         */
+        private long mapOrd(long ord) {
+            assert minOrd <= ord && ord <= maxOrd;
+            return ord - minOrd;
+        }
+
+        /**
+         * Given a filtered ordinal in the range [0, (maxOrd - minOrd)], maps it into the
+         * delegate ordinal space.
+         */
+        private long unmapOrd(long ord) {
+            assert 0 <= ord && ord <= maxOrd - minOrd;
+            return ord + minOrd;
         }
     }
 }

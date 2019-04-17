@@ -579,7 +579,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         directory.close();
 
         final GroupConfig groupConfig = randomGroupConfig(random());
-        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo", randomBoolean());
+        List<IndexRequest> docs = IndexerUtils.processBuckets(composite, indexName, stats, groupConfig, "foo");
 
         assertThat(docs.size(), equalTo(2));
 

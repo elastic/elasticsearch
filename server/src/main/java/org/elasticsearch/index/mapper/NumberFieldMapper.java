@@ -1045,7 +1045,7 @@ public class NumberFieldMapper extends FieldMapper {
             try {
                 numericValue = fieldType().type.parse(parser, coerce.value());
             } catch (IllegalArgumentException | JsonParseException e) {
-                if (ignoreMalformed.value()) {
+                if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(fieldType.name());
                     return;
                 } else {

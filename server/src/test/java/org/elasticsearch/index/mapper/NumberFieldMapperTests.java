@@ -26,6 +26,8 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -249,6 +251,34 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 IndexableField[] fields = doc.rootDoc().getFields("field");
                 assertEquals(0, fields.length);
                 assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
+            }
+        }
+    }
+
+    /**
+     * Test that in case the malformed value is an xContent object we throw error regardless of `ignore_malformed`
+     */
+    public void testIgnoreMalformedWithObject() throws Exception {
+        for (String type : TYPES) {
+            Object malformedValue = new ToXContentObject() {
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    return builder.startObject().field("foo", "bar").endObject();
+                }
+            };
+            for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
+                String mapping = Strings.toString(
+                        jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field").field("type", type)
+                                .field("ignore_malformed", ignoreMalformed).endObject().endObject().endObject().endObject());
+                DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+                assertEquals(mapping, mapper.mappingSource().toString());
+
+                MapperParsingException e = expectThrows(MapperParsingException.class,
+                        () -> mapper.parse(new SourceToParse("test", "type", "1",
+                                BytesReference.bytes(jsonBuilder().startObject().field("field", malformedValue).endObject()),
+                                XContentType.JSON)));
+                assertThat(e.getCause().getMessage(), containsString("Current token"));
+                assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
             }
         }
     }

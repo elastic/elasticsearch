@@ -102,14 +102,14 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
         for (String sourceIndex : sourceIndices) {
             Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
-            Map<?, ?> properties = ((Map<?, ?>) mapping.get("properties"));
+            Set<?> properties = ((Map<?, ?>) mapping.get("properties")).keySet();
             if (properties == null) {
                 listener.onFailure(
                     new ElasticsearchException(
                         "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
                         policyName, sourceIndex, policy.getIndexPattern()));
             }
-            if (properties.containsKey(policy.getEnrichKey()) == false) {
+            if (properties.contains(policy.getEnrichKey()) == false) {
                 listener.onFailure(
                     new ElasticsearchException(
                         "Enrich policy execution for [{}] failed. Could not locate enrich key field [{}] on mapping for index [{}]",

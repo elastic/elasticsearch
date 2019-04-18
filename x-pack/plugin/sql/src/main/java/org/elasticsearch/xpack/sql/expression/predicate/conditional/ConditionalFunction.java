@@ -26,14 +26,20 @@ import static org.elasticsearch.xpack.sql.util.StringUtils.ordinal;
 public abstract class ConditionalFunction extends ScalarFunction {
 
     protected DataType dataType = DataType.NULL;
+    private boolean lazyDataTypeResolution;
 
     ConditionalFunction(Source source, List<Expression> fields) {
         super(source, fields);
-        setDataType();
     }
 
     @Override
     public DataType dataType() {
+        if (lazyDataTypeResolution == false) {
+            for (Expression exp : children()) {
+                dataType = DataTypeConversion.commonType(dataType, exp.dataType());
+            }
+            lazyDataTypeResolution = true;
+        }
         return dataType;
     }
 
@@ -69,11 +75,5 @@ public abstract class ConditionalFunction extends ScalarFunction {
     @Override
     public Nullability nullable() {
         return Nullability.UNKNOWN;
-    }
-
-    private void setDataType() {
-        for (Expression exp : children()) {
-            dataType = DataTypeConversion.commonType(dataType, exp.dataType());
-        }
     }
 }

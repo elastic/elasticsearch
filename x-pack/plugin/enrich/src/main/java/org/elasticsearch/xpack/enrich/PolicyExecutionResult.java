@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-public class EnrichPolicyResult {
+public class PolicyExecutionResult {
     private final boolean completed;
 
-    public EnrichPolicyResult(boolean completed) {
+    public PolicyExecutionResult(boolean completed) {
         this.completed = completed;
     }
 

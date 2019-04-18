@@ -99,9 +99,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         logger.info("Starting policy run");
 
-        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<EnrichPolicyResult>() {
+        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<PolicyExecutionResult>() {
             @Override
-            public void onResponse(EnrichPolicyResult enrichPolicyResult) {
+            public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
                 latch.countDown();
             }
@@ -205,9 +205,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         logger.info("Starting policy run");
 
-        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<EnrichPolicyResult>() {
+        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<PolicyExecutionResult>() {
             @Override
-            public void onResponse(EnrichPolicyResult enrichPolicyResult) {
+            public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
                 latch.countDown();
             }

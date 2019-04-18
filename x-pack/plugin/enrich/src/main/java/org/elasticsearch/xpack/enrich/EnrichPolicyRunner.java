@@ -59,13 +59,13 @@ public class EnrichPolicyRunner {
         this.nowSupplier = nowSupplier;
     }
 
-    public void runPolicy(final String policyId, final ActionListener<EnrichPolicyResult> listener) {
+    public void runPolicy(final String policyId, final ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
         runPolicy(policyId, enrichStore.getPolicy(policyId), listener);
     }
 
     public void runPolicy(final String policyName, final EnrichPolicy policy,
-                          final ActionListener<EnrichPolicyResult> listener) {
+                          final ActionListener<PolicyExecutionResult> listener) {
         // TODO: Index Pattern expansion and Alias support
         // Collect the source index information
         logger.info("Policy [{}]: Running enrich policy", policyName);
@@ -190,7 +190,7 @@ public class EnrichPolicyRunner {
     }
 
     private void prepareAndCreateEnrichIndex(final String policyName, final EnrichPolicy policy,
-                                             final ActionListener<EnrichPolicyResult> listener) {
+                                             final ActionListener<PolicyExecutionResult> listener) {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
         // TODO: Settings for localizing enrich indices to nodes that are ingest+data only
@@ -213,7 +213,7 @@ public class EnrichPolicyRunner {
     }
 
     private void transferDataToEnrichIndex(final String destinationIndexName, final String policyName, final EnrichPolicy policy,
-                                           final ActionListener<EnrichPolicyResult> listener) {
+                                           final ActionListener<PolicyExecutionResult> listener) {
         logger.debug("Policy [{}]: Transferring source data to new enrich index [{}]", policyName, destinationIndexName);
         // Filter down the source fields to just the ones required by the policy
         final Set<String> retainFields = new HashSet<>();
@@ -253,7 +253,7 @@ public class EnrichPolicyRunner {
     }
 
     private void refreshEnrichIndex(final String destinationIndexName, final String policyName,
-                                    final ActionListener<EnrichPolicyResult> listener) {
+                                    final ActionListener<PolicyExecutionResult> listener) {
         logger.debug("Policy [{}]: Refreshing newly created enrich index [{}]", policyName, destinationIndexName);
         client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
             @Override
@@ -269,7 +269,7 @@ public class EnrichPolicyRunner {
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName, final String policyName,
-                                         final ActionListener<EnrichPolicyResult> listener) {
+                                         final ActionListener<PolicyExecutionResult> listener) {
         String enrichIndexBase = getEnrichIndexBase(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
@@ -286,7 +286,7 @@ public class EnrichPolicyRunner {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Policy [{}]: Policy execution complete", policyName);
-                listener.onResponse(new EnrichPolicyResult(true));
+                listener.onResponse(new PolicyExecutionResult(true));
             }
 
             @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
@@ -204,7 +205,16 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     @Override
     public Iterator<MappedFieldType> iterator() {
-        return fullNameToFieldType.values().iterator();
+        Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
+
+        if (fullNameToJsonMapper.isEmpty()) {
+            return concreteFieldTypes;
+        } else {
+            Iterator<MappedFieldType> keyedJsonFieldTypes = fullNameToJsonMapper.values().stream()
+                .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
+                .iterator();
+            return Iterators.concat(concreteFieldTypes, keyedJsonFieldTypes);
+        }
     }
 
     // Visible for testing.

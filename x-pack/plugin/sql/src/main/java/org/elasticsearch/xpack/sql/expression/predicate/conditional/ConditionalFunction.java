@@ -29,6 +29,7 @@ public abstract class ConditionalFunction extends ScalarFunction {
 
     ConditionalFunction(Source source, List<Expression> fields) {
         super(source, fields);
+        setDataType();
     }
 
     @Override
@@ -61,7 +62,6 @@ public abstract class ConditionalFunction extends ScalarFunction {
                         child.dataType().typeName));
                 }
             }
-            dataType = DataTypeConversion.commonType(dataType, child.dataType());
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -69,5 +69,11 @@ public abstract class ConditionalFunction extends ScalarFunction {
     @Override
     public Nullability nullable() {
         return Nullability.UNKNOWN;
+    }
+
+    private void setDataType() {
+        for (Expression exp : children()) {
+            dataType = DataTypeConversion.commonType(dataType, exp.dataType());
+        }
     }
 }

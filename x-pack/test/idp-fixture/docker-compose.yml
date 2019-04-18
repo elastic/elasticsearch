@@ -20,7 +20,7 @@ services:
       - "88"
     healthcheck:
         test: ["CMD", "test", "-f", "/fixture/build/shared/keytabs/ldap.keytab"]
-        interval: 5s
+        interval: 10s
         timeout: 5s
         retries: 10
 

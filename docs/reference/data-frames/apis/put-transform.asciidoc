@@ -25,7 +25,7 @@ Instantiates a {dataframe-transform}.
 
 ==== Request Body
 
-`source`:: (object) The source configuration, consisting of `index` and optionaly
+`source`:: (object) The source configuration, consisting of `index` and optionally
 a `query`.
 
 `dest`:: (object) The destination configuration, consisting of `index`.

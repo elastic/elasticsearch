@@ -1,5 +1,13 @@
 version: '3.2'
 services:
+  autoheal:
+    restart: always
+    image: willfarrell/autoheal
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=openldap
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   kdc-kadmin:
     build: ./kdc-kadmin
     environment:

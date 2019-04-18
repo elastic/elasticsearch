@@ -15,6 +15,7 @@ subprojects {
     test {
       mainProject.sourceSets.test.output.classesDirs.each { dir ->
         output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
       runtimeClasspath += mainProject.sourceSets.test.output
     }

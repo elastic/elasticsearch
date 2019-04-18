@@ -129,13 +129,13 @@ some indices but not all:
                 "searchable": true,
                 "aggregatable": false,
                 "indices": ["index1", "index2"],
-                "non_aggregatable_indices": ["index1"] <2>
+                "non_aggregatable_indices": ["index1"]
             },
             "keyword": {
                 "searchable": false,
                 "aggregatable": true,
                 "indices": ["index3", "index4"],
-                "non_searchable_indices": ["index4"] <3>
+                "non_searchable_indices": ["index4"]
             },
             "unmapped": { <1>
                 "indices": ["index5"],

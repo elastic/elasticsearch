@@ -101,12 +101,12 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             progress -> {
                 indexerBuilder.setProgress(progress);
                 buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, params.getId(), startTaskListener);
+                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
             },
             error -> {
                 logger.error("Unable to gather transform progress[" + transformId + "]", error);
                 buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, transformId, startTaskListener);
+                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
             }
         );
 
@@ -176,19 +176,18 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
     private void scheduleAndStartTask(DataFrameTransformTask buildTask,
                                       SchedulerEngine.Job schedulerJob,
-                                      String id,
                                       ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         // Note that while the task is added to the scheduler here, the internal state will prevent
         // it from doing any work until the task is "started" via the StartTransform api
         schedulerEngine.register(buildTask);
         schedulerEngine.add(schedulerJob);
-        logger.info("Data frame transform [" + id + "] created.");
+        logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
         // If we are stopped, and it is an initial run, this means we have never been started,
         // attempt to start the task
         if (buildTask.getState().getTaskState().equals(DataFrameTransformTaskState.STOPPED) && buildTask.isInitialRun()) {
             buildTask.start(listener);
         } else {
-            logger.info("No need to start task. Its current state is: " + buildTask.getState().getIndexerState());
+            logger.debug("No need to start task. Its current state is: {}", buildTask.getState().getIndexerState());
             listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
         }
     }

@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -54,8 +55,6 @@ import static org.hamcrest.number.IsCloseTo.closeTo;
 public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
     protected void createReviewsIndex() throws Exception {
-        int[] distributionTable = {5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1};
-
         final int numDocs = 1000;
 
         // create mapping
@@ -93,14 +92,15 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         BulkRequestBuilder bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
-            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
-            int stars = distributionTable[(i * 33) % distributionTable.length];
-            long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
+            long user = i % 28;
+            int stars = (i + 20) % 5;
+            long business = (i + 100) % 50;
             int hour = 10 + (i % 13);
             int min = 10 + (i % 49);
             int sec = 10 + (i % 49);
 
             String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
+
             StringBuilder sourceBuilder = new StringBuilder();
             sourceBuilder.append("{\"user_id\":\"")
                 .append("user_")
@@ -119,6 +119,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
             if (i % 50 == 0) {
                 BulkResponse response = client().bulk(bulk.request()).get();
+                assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
                 bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
                 day += 1;
             }
@@ -220,8 +221,8 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         TransformProgressGatherer.getProgress(client(), config, null, progressFuture);
         progress = progressFuture.get();
 
-        assertThat(progress.getTotalDocs(), equalTo(37L));
-        assertThat(progress.getRemainingDocs(), equalTo(37L));
+        assertThat(progress.getTotalDocs(), equalTo(35L));
+        assertThat(progress.getRemainingDocs(), equalTo(35L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
         progressFuture = new PlainActionFuture<>();
@@ -229,9 +230,9 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         TransformProgressGatherer.getProgress(client(), config, Collections.singletonMap("every_50", 500), progressFuture);
         progress = progressFuture.get();
 
-        assertThat(progress.getTotalDocs(), equalTo(37L));
-        assertThat(progress.getRemainingDocs(), equalTo(17L));
-        assertThat(progress.getPercentComplete(), closeTo(54.054054054, 0.00000001));
+        assertThat(progress.getTotalDocs(), equalTo(35L));
+        assertThat(progress.getRemainingDocs(), equalTo(16L));
+        assertThat(progress.getPercentComplete(), closeTo(54.28571428, 0.00000001));
 
         client().admin().indices().prepareDelete(REVIEWS_INDEX_NAME).get();
     }

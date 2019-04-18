@@ -135,12 +135,12 @@ public class TransportStartDataFrameTransformAction extends
                         // If the task already exists but is not assigned to a node, something is weird
                         // return a failure that includes the current assignment explanation (if one exists)
                         if (existingTask.isAssigned() == false) {
-                            String assignmentExplanation = "";
+                            String assignmentExplanation = "unknown reason";
                             if (existingTask.getAssignment() != null) {
                                 assignmentExplanation = existingTask.getAssignment().getExplanation();
                             }
                             listener.onFailure(new ElasticsearchStatusException("Unable to start data frame transform [" +
-                                config.getId() + "] as it is not assigned to a node, explanation" + assignmentExplanation,
+                                config.getId() + "] as it is not assigned to a node, explanation: " + assignmentExplanation,
                                 RestStatus.CONFLICT));
                             return;
                         }

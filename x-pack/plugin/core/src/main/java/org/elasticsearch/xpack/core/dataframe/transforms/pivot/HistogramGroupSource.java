@@ -65,7 +65,7 @@ public class HistogramGroupSource extends SingleGroupSource {
     @Override
     public QueryBuilder getCurrentBucketQuery(Object key) {
         assert key instanceof Number;
-        return QueryBuilders.rangeQuery(field).lt(((Number)key).doubleValue() - interval).gte(key);
+        return QueryBuilders.rangeQuery(field).lt(((Number)key).doubleValue() + interval).gte(key);
     }
 
     public static HistogramGroupSource fromXContent(final XContentParser parser, boolean lenient) throws IOException {

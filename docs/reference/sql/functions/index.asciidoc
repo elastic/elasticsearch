@@ -127,6 +127,7 @@
 ** <<sql-functions-type-conversion-cast>>
 ** <<sql-functions-type-conversion-convert>>
 * <<sql-functions-conditional>>
+** <<sql-functions-conditional-case>>
 ** <<sql-functions-conditional-coalesce>>
 ** <<sql-functions-conditional-greatest>>
 ** <<sql-functions-conditional-ifnull>>

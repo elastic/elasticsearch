@@ -694,6 +694,18 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
+   * Enter a parse tree produced by the {@code case}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void enterCase(SqlBaseParser.CaseContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code case}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   */
+  void exitCase(SqlBaseParser.CaseContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
    * @param ctx the parse tree
    */
@@ -1067,6 +1079,16 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitString(SqlBaseParser.StringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#whenClause}.
+   * @param ctx the parse tree
+   */
+  void enterWhenClause(SqlBaseParser.WhenClauseContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#whenClause}.
+   * @param ctx the parse tree
+   */
+  void exitWhenClause(SqlBaseParser.WhenClauseContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#nonReserved}.
    * @param ctx the parse tree

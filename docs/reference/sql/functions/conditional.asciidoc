@@ -1,9 +1,88 @@
 [role="xpack"]
 [testenv="basic"]
 [[sql-functions-conditional]]
-=== Conditional Functions
+=== Conditional Functions And Expressions
 
 Functions that return one of their arguments by evaluating in an if-else manner.
+
+[[sql-functions-conditional-case]]
+==== `CASE`
+
+.Synopsis:
+[source, sql]
+----
+CASE WHEN condition THEN result
+    [WHEN ...]
+    [ELSE defaultResult]
+END
+----
+
+*Input*:
+
+Multiple but at least one WHEN *condition* THEN *result* clause and optional ELSE *defaultResult* clause.
+Every *condition* should be boolean expression.
+
+*Output*: one of the *result* expressions if the corresponding WHEN *condition* evaluates to `true`,
+the *defaultResult* if all WHEN *condition* clauses evaluate to `false`. If the optional ELSE *defaultResult*
+clause is missing and all WHEN *condition* clauses evaluate to `false` then `null` is returned.
+
+.Description
+
+The case expression is a generic conditional expression which simulates if/else statements of other programming languages
+If the condition’s result is true, the value of the result expression that follows the condition will be the returned
+the subsequent when clauses will be skipped and not processed.
+
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[case]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[caseReturnNull]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithElse]
+----
+
+
+As a variant, a case expression can be expressed with a syntax similar to *switch-case* of other programming languages:
+[source, sql]
+----
+CASE expression
+     WHEN value1 THEN result1
+    [WHEN value2 THEN result2]
+    [WHEN ...]
+    [ELSE defaultResult]
+END
+----
+
+In this case it's transformed internally to:
+[source, sql]
+----
+CASE WHEN expression = value1 THEN result1
+    [WHEN expression = value2 THEN result2]
+    [WHEN ...]
+    [ELSE defaultResult]
+END
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithOperand]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[caseWithOperandAndElse]
+----
+
+[NOTE]
+All result expressions must be of compatible data types.
 
 [[sql-functions-conditional-coalesce]]
 ==== `COALESCE`

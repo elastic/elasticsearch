@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
@@ -116,6 +118,7 @@ import java.time.Duration;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAmount;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -457,6 +460,25 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitSubqueryExpression(SubqueryExpressionContext ctx) {
         return new ScalarSubquery(source(ctx), plan(ctx.query()));
+    }
+
+    @Override
+    public Object visitCase(SqlBaseParser.CaseContext ctx) {
+        List<Expression> expressions = new ArrayList<>(ctx.whenClause().size());
+        for (SqlBaseParser.WhenClauseContext when : ctx.whenClause()) {
+            if (ctx.operand != null) {
+                expressions.add(new IfConditional(source(when),
+                    new Equals(source(when), expression(ctx.operand), expression(when.condition)), expression(when.result)));
+            } else {
+                expressions.add(new IfConditional(source(when), expression(when.condition), expression(when.result)));
+            }
+        }
+        if (ctx.elseClause != null) {
+            expressions.add(expression(ctx.elseClause));
+        } else {
+            expressions.add(Literal.NULL);
+        }
+        return new Case(source(ctx), expressions);
     }
 
     @Override

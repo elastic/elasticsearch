@@ -3010,8 +3010,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .resolve("index-0");
 
         logger.info("-->  truncating shard index file [{}]", shardIndexFile);
-
-        // Truncate the shard index file
         try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
@@ -3035,7 +3033,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nDocs);
 
         logger.info("-->  indexing [{}] more documents into [{}]", nDocs, indexName);
-        // Index another batch of documents
         for (int j = 0; j < nDocs; j++) {
             documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo2", "bar2");
         }

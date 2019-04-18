@@ -133,11 +133,11 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      * the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
-        if (minChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        if (minChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'min_children' field");
         }
-        if (maxChildren < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
+        if (maxChildren <= 0) {
+            throw new IllegalArgumentException("[" + NAME + "] requires positive 'max_children' field");
         }
         if (maxChildren < minChildren) {
             throw new IllegalArgumentException("[" + NAME + "] 'max_children' is less than 'min_children'");

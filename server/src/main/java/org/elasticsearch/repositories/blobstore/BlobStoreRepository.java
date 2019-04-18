@@ -65,7 +65,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -127,17 +126,18 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <pre>
  * {@code
  *   STORE_ROOT
- *   |- index-N           - list of all snapshot ids and the indices belonging to each snapshot, N is the generation of the file
+ *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
+ *   |                      each snapshot, N is the generation of the file
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010.dat - JSON serialized Snapshot for snapshot "20131010"
- *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011.dat - JSON serialized Snapshot for snapshot "20131011"
- *   |- meta-20131011.dat - JSON serialized MetaData for snapshot "20131011"
+ *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
+ *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
+ *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
+ *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices
  *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized IndexMetaData for index "foo"
+ *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
  *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
  *      |  |  |- __2                      |
@@ -145,9 +145,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
  *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
- *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |  |- list-123 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
+ *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
+ *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
+ *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1
@@ -476,7 +476,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
         for (IndexId indexId: indices) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(groupedListener) {
 
                 @Override
                 protected void doRun() {
@@ -516,9 +516,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<IndexId> indices,
@@ -718,7 +715,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+                repositoryData.snapshotsToXContent(builder);
                 builder.close();
             }
             snapshotsBytes = bStream.bytes();
@@ -752,10 +749,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert isReadOnly() == false; // can not write to a read only repository
         final BytesReference bytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.incompatibleSnapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.close();
+            try (StreamOutput stream = new OutputStreamStreamOutput(bStream);
+                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream)) {
+                repositoryData.incompatibleSnapshotsToXContent(builder);
             }
             bytes = bStream.bytes();
         }
@@ -1091,7 +1087,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read commit point [{}]", name), e);
                 }
             }
-            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
+            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
         }
     }
 

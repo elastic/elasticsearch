@@ -167,10 +167,16 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -378,7 +384,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41326")
     public void testConcurrentSnapshotCreateAndDelete() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -525,10 +530,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private void assertNoStaleRepositoryData() throws IOException {
         final Path repoPath = tempDir.resolve("repo").toAbsolutePath();
         final List<Path> repos;
-        try (Stream<Path> reposDir = Files.list(repoPath)) {
+        try (Stream<Path> reposDir = repoFilesByPrefix(repoPath)) {
             repos = reposDir.filter(s -> s.getFileName().toString().startsWith("extra") == false).collect(Collectors.toList());
         }
         for (Path repoRoot : repos) {
+            cleanupEmptyTrees(repoRoot);
             final Path latestIndexGenBlob = repoRoot.resolve("index.latest");
             assertTrue("Could not find index.latest blob for repo at [" + repoRoot + ']', Files.exists(latestIndexGenBlob));
             final long latestGen = ByteBuffer.wrap(Files.readAllBytes(latestIndexGenBlob)).getLong(0);
@@ -544,8 +550,37 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
     }
 
+    // Lucene's mock file system randomly generates empty `extra0` files that break the deletion of blob-store directories.
+    // We clean those up here before checking a blob-store for stale files.
+    private void cleanupEmptyTrees(Path repoPath) {
+        try {
+            Files.walkFileTree(repoPath, new SimpleFileVisitor<>() {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().startsWith("extra")) {
+                        Files.delete(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    try {
+                        Files.delete(dir);
+                    } catch (DirectoryNotEmptyException e) {
+                        // We're only interested in deleting empty trees here, just ignore directories with content
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static void assertIndexGenerations(Path repoRoot, long latestGen) throws IOException {
-        try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+        try (Stream<Path> repoRootBlobs = repoFilesByPrefix(repoRoot)) {
             final long[] indexGenerations = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith("index-"))
                 .map(p -> p.getFileName().toString().replace("index-", ""))
                 .mapToLong(Long::parseLong).sorted().toArray();
@@ -557,7 +592,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private static void assertIndexUUIDs(Path repoRoot, RepositoryData repositoryData) throws IOException {
         final List<String> expectedIndexUUIDs =
             repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
-        try (Stream<Path> indexRoots = Files.list(repoRoot.resolve("indices"))) {
+        try (Stream<Path> indexRoots = repoFilesByPrefix(repoRoot.resolve("indices"))) {
             final List<String> foundIndexUUIDs = indexRoots.filter(s -> s.getFileName().toString().startsWith("extra") == false)
                 .map(p -> p.getFileName().toString()).collect(Collectors.toList());
             assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
@@ -568,12 +603,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final List<String> expectedSnapshotUUIDs =
             repositoryData.getSnapshotIds().stream().map(SnapshotId::getUUID).collect(Collectors.toList());
         for (String prefix : new String[]{"snap-", "meta-"}) {
-            try (Stream<Path> repoRootBlobs = Files.list(repoRoot)) {
+            try (Stream<Path> repoRootBlobs = repoFilesByPrefix(repoRoot)) {
                 final Collection<String> foundSnapshotUUIDs = repoRootBlobs.filter(p -> p.getFileName().toString().startsWith(prefix))
                     .map(p -> p.getFileName().toString().replace(prefix, "").replace(".dat", ""))
                     .collect(Collectors.toSet());
                 assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
             }
+        }
+    }
+
+    /**
+     * List contents of a blob path and return an empty stream if the path doesn't exist.
+     * @param prefix Path to find children for
+     * @return stream of child paths
+     * @throws IOException on failure
+     */
+    private static Stream<Path> repoFilesByPrefix(Path prefix) throws IOException {
+        try {
+            return Files.list(prefix);
+        } catch (FileNotFoundException | NoSuchFileException e) {
+            return Stream.empty();
         }
     }
 

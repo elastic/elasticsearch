@@ -19,31 +19,11 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.StringBuilders;
+import java.util.Map;
 
-public class DeprecatedMessage extends ParameterizedMessage implements LoggerMessage {
-    private String xOpaqueId;
+public class DeprecatedMessage extends LoggerMessage {
 
     public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(messagePattern, args);
-        this.xOpaqueId = xOpaqueId;
-    }
-
-    @Override
-    public String getFormat() {
-        return "JSON_FORMATTED";
-    }
-
-    @Override
-    public String getFormattedMessage() {
-        String formattedMessage = super.getFormattedMessage();
-        StringBuilder escapedMessage = new StringBuilder(formattedMessage);
-        StringBuilders.escapeJson(escapedMessage, 0);
-
-        StringBuilder escapedXOpaqueId = new StringBuilder(xOpaqueId);
-        StringBuilders.escapeJson(escapedXOpaqueId, 0);
-
-        return "\"message\": \"" + escapedMessage + "\", \"x-opaque-id\": \"" + escapedXOpaqueId + "\"";
+        super(Map.of("x-opaque-id", xOpaqueId), messagePattern, args);
     }
 }

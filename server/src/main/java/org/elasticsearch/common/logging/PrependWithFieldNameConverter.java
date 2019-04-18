@@ -61,7 +61,7 @@ public final class PrependWithFieldNameConverter extends LogEventPatternConverte
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage().getFormat().equals("JSON_FORMATTED")) {
+        if (event.getMessage().getFormat().equals("JSON_FORMATTED")) {//TODO this vs instanceof
             toAppendTo.append(event.getMessage().getFormattedMessage());
         } else {
             toAppendTo.append("\"").append(fieldPrefix).append("\": \"");

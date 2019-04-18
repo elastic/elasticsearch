@@ -21,9 +21,8 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.util.StringBuilderFormattable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -33,13 +32,8 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static java.util.Arrays.asList;
 
 public final class SearchSlowLog implements SearchOperationListener {
     private long queryWarnThreshold;
@@ -128,6 +122,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         Loggers.setLevel(queryLogger, level.name());
         Loggers.setLevel(fetchLogger, level.name());
     }
+
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
@@ -154,24 +149,51 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
-    static final class SlowLogSearchContextPrinter implements Message, StringBuilderFormattable {
+    static final class SlowLogSearchContextPrinter extends LoggerMessage {
         private final SearchContext context;
         private final long tookInNanos;
 
         SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
+            super(prepareMap(context, tookInNanos), stringMessage(context, tookInNanos));
             this.context = context;
             this.tookInNanos = tookInNanos;
         }
 
+        private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
+            Map<String, Object> messageFields = new HashMap<>();
+            messageFields.put("message", context.indexShard().shardId());
+            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
+            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            if (context.queryResult().getTotalHits() != null) {
+                messageFields.put("total_hits", context.queryResult().getTotalHits());
+            } else {
+                messageFields.put("total_hits", "-1");
+            }
+            messageFields.put("types", context.getQueryShardContext().getTypes());
+            messageFields.put("stats", context.groupStats());
+            messageFields.put("search_type", context.searchType());
+            messageFields.put("total_shards", context.numberOfShards());
+            if (context.request().source() != null) {
+                messageFields.put("source", context.request().source().toString(FORMAT_PARAMS));
+            } else {
+                messageFields.put("source", "");
+            }
+            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            return messageFields;
+        }
+
         @Override
         public String toString() {
+            return stringMessage(context, tookInNanos);
+        }
 
+        private static String stringMessage(SearchContext context, long tookInNanos) {
             StringBuilder sb = new StringBuilder();
             sb.append(context.indexShard().shardId())
-                    .append(" ")
-                    .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
-                    .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
-                    .append("total_hits[");
+                .append(" ")
+                .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
+                .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
+                .append("total_hits[");
             if (context.queryResult().getTotalHits() != null) {
                 sb.append(context.queryResult().getTotalHits());
             } else {
@@ -205,77 +227,6 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("id[], ");
             }
             return sb.toString();
-        }
-
-        @Override
-        public String getFormattedMessage() {
-            StringJoiner sb = new StringJoiner(",");
-            sb.add(keyValue("message",context.indexShard().shardId()));
-            sb.add(keyValue("took",TimeValue.timeValueNanos(tookInNanos)));
-            sb.add(keyValue("took_millis",TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
-            if (context.queryResult().getTotalHits() != null) {
-                sb.add(keyValue("total_hits",context.queryResult().getTotalHits()));
-            } else {
-                sb.add(keyValue("total_hits","-1"));
-            }
-            sb.add(keyValue("types",context.getQueryShardContext().getTypes()));
-            sb.add(keyValue("stats",context.groupStats()));
-            sb.add(keyValue("search_type",context.searchType()));
-            sb.add(keyValue("total_shards",context.numberOfShards()));
-            if (context.request().source() != null) {
-                sb.add(keyValue("source",context.request().source().toString(FORMAT_PARAMS)));
-            } else {
-                sb.add(keyValue("source",""));
-            }
-            sb.add(keyValue("id",context.getTask().getHeader(Task.X_OPAQUE_ID)));
-            return sb.toString();
-        }
-
-        private String keyValue(String key, Object value) {
-            return wrapWithQuotes(key)+ ": " + wrapWithQuotes(value);
-        }
-
-        private String wrapWithQuotes(Object value) {
-            if(value == null)
-                return "\"\"";
-            return "\"" + value + "\"";
-        }
-
-        private String keyValue(String key, String[] value) {
-            return keyValue(key, asList(value));
-        }
-
-        private String keyValue(String key, Collection<String> value) {
-            String array;
-            if (value == null) {
-                array = "";
-            } else {
-                array = value.stream().map(s -> wrapWithQuotes(s)).collect(Collectors.joining(", "));
-            }
-            return "\"" + key + "\": [" + array + "]";
-        }
-
-
-        @Override
-        public String getFormat() {
-            return "JSON_FORMATTED";
-        }
-
-        @Override
-        public Object[] getParameters() {
-            return new Object[0];
-        }
-
-        @Override
-        public Throwable getThrowable() {
-            return null;
-        }
-
-        @Override
-        public void formatTo(StringBuilder buffer) {
-            //refactor to not use string joiner
-            String formattedMessage = getFormattedMessage();
-            buffer.append(formattedMessage);
         }
     }
 

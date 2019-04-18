@@ -30,7 +30,7 @@ import java.util.List;
  * Parsing log lines with this class confirms the json format of logs
  */
 public class JsonLogLine {
-    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(false);
+    public static final ObjectParser<JsonLogLine, Void> PARSER = createParser(true);
 
     private String type;
     private String timestamp;
@@ -42,6 +42,7 @@ public class JsonLogLine {
     private String nodeId;
     private String message;
     private List<String> stacktrace;
+    private String xOpaqueId;
 
     @Override
     public String toString() {
@@ -55,6 +56,7 @@ public class JsonLogLine {
         sb.append(", clusterUuid='").append(clusterUuid).append('\'');
         sb.append(", nodeId='").append(nodeId).append('\'');
         sb.append(", message='").append(message).append('\'');
+        sb.append(", x-opaque-id='").append(xOpaqueId).append('\'');
         sb.append(", stacktrace=").append(stacktrace);
         sb.append('}');
         return sb.toString();
@@ -94,6 +96,10 @@ public class JsonLogLine {
 
     public String message() {
         return message;
+    }
+
+    public String xOpaqueId() {
+        return xOpaqueId;
     }
 
     public List<String> stacktrace() {
@@ -136,6 +142,10 @@ public class JsonLogLine {
         this.message = message;
     }
 
+    public void setXOpaqueId(String xOpaqueId) {
+        this.xOpaqueId = xOpaqueId;
+    }
+
     public void setStacktrace(List<String> stacktrace) {
         this.stacktrace = stacktrace;
     }
@@ -151,6 +161,7 @@ public class JsonLogLine {
         parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
         parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
         parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
+        parser.declareString(JsonLogLine::setXOpaqueId, new ParseField("x-opaque-id"));
         parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("stacktrace"));
 
         return parser;

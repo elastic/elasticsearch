@@ -249,7 +249,7 @@ public class DeprecationLogger {
                                                      .map(t -> t.isClosed() ? "" : t.getHeader(Task.X_OPAQUE_ID))
                                                      .collect(Collectors.joining(" "));
 
-                    logger.warn(new DeprecatedMessage(message,opaqueIds, params));
+                    logger.warn(new DeprecatedMessage(message, opaqueIds, params));
                     return null;
                 }
             });

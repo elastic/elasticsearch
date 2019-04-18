@@ -36,9 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
-import java.util.Locale;
-import java.util.StringJoiner;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -166,7 +164,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    static final class SlowLogParsedDocumentPrinter implements LoggerMessage {
+    static final class SlowLogParsedDocumentPrinter extends LoggerMessage {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
@@ -174,11 +172,39 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         private final Index index;
 
         SlowLogParsedDocumentPrinter(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+            super(prepareMap(doc,tookInNanos,reformat,maxSourceCharsToLog), index.toString());
             this.doc = doc;
             this.index = index;
             this.tookInNanos = tookInNanos;
             this.reformat = reformat;
             this.maxSourceCharsToLog = maxSourceCharsToLog;
+        }
+
+        private static Map<String, Object> prepareMap(ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+            Map<String,Object> map = new HashMap<>();
+//            map.add(keyValue("message", index));
+            map.put("took", TimeValue.timeValueNanos(tookInNanos));
+            map.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            map.put("type", doc.type());
+            map.put("id", doc.id());
+            map.put("routing", doc.routing());
+
+            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+                return map;
+            }
+            try {
+                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+                map.put("source", Strings.cleanTruncate(source, maxSourceCharsToLog).trim());
+            } catch (IOException e) {
+                map.put("source", "_failed_to_convert_[" + e.getMessage()+"]");
+                /*
+                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
+                 * will be logged at the warn level.
+                 */
+                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", map.toString());
+                throw new UncheckedIOException(message, e);
+            }
+            return map;
         }
 
         @Override
@@ -213,78 +239,83 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             return sb.toString();
         }
 
-        private String keyValue(String key, Object value) {
-            return wrapWithQuotes(key) + ": " + wrapWithQuotes(value);
-        }
+//        private String keyValue(String key, Object value) {
+//            return wrapWithQuotes(key) + ": " + wrapWithQuotes(value);
+//        }
+//
+//        private String wrapWithQuotes(Object value) {
+//            if (value == null)
+//                return "\"\"";
+//            return "\"" + value + "\"";
+//        }
 
-        private String wrapWithQuotes(Object value) {
-            if (value == null)
-                return "\"\"";
-            return "\"" + value + "\"";
-        }
+//        private String keyValue(String key, String[] value) {
+//            return keyValue(key, asList(value));
+//        }
+//
+//        private String keyValue(String key, Collection<String> value) {
+//            String array;
+//            if (value == null) {
+//                array = "";
+//            } else {
+//                array = value.stream().map(s -> wrapWithQuotes(s)).collect(Collectors.joining(", "));
+//            }
+//            return "\"" + key + "\": [" + array + "]";
+//        }
 
-        private String keyValue(String key, String[] value) {
-            return keyValue(key, asList(value));
-        }
-
-        private String keyValue(String key, Collection<String> value) {
-            String array;
-            if (value == null) {
-                array = "";
-            } else {
-                array = value.stream().map(s -> wrapWithQuotes(s)).collect(Collectors.joining(", "));
-            }
-            return "\"" + key + "\": [" + array + "]";
-        }
-
-        @Override
-        public String getFormattedMessage() {
-            StringJoiner sj = new StringJoiner(",");
-            sj.add(keyValue("message", index));
-            sj.add(keyValue("took", TimeValue.timeValueNanos(tookInNanos)));
-            sj.add(keyValue("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
-            sj.add(keyValue("type", doc.type()));
-            sj.add(keyValue("id", doc.id()));
-            sj.add(keyValue("routing", doc.routing()));
-
-            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
-                return sj.toString();
-            }
-            try {
-                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
-                sj.add(keyValue("source", Strings.cleanTruncate(source, maxSourceCharsToLog).trim()));
-            } catch (IOException e) {
-                sj.add(keyValue("source", "_failed_to_convert_[" + e.getMessage()+"]"));
-                /*
-                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-                 * will be logged at the warn level.
-                 */
-                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sj.toString());
-                throw new UncheckedIOException(message, e);
-            }
-            return sj.toString();
-        }
-
-        @Override
-        public String getFormat() {
-            return "JSON_FORMATTED";
-        }
-
-        @Override
-        public Object[] getParameters() {
-            return new Object[0];
-        }
-
-        @Override
-        public Throwable getThrowable() {
-            return null;
-        }
-
-        @Override
-        public void formatTo(StringBuilder buffer) {
-            String formattedMessage = getFormattedMessage();
-            buffer.append(formattedMessage);
-        }
+//        @Override
+//        public String getFormattedMessage() {
+//            StringJoiner sj = new StringJoiner(",");
+//            sj.add(keyValue("message", index));
+//            sj.add(keyValue("took", TimeValue.timeValueNanos(tookInNanos)));
+//            sj.add(keyValue("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
+//            sj.add(keyValue("type", doc.type()));
+//            sj.add(keyValue("id", doc.id()));
+//            sj.add(keyValue("routing", doc.routing()));
+//
+//            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
+//                return sj.toString();
+//            }
+//            try {
+//                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
+//                sj.add(keyValue("source", Strings.cleanTruncate(source, maxSourceCharsToLog).trim()));
+//            } catch (IOException e) {
+//                sj.add(keyValue("source", "_failed_to_convert_[" + e.getMessage()+"]"));
+//                /*
+//                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
+//                 * will be logged at the warn level.
+//                 */
+//                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sj.toString());
+//                throw new UncheckedIOException(message, e);
+//            }
+//            return sj.toString();
+//        }
+//
+//        @Override
+//        public String getFormat() {
+//            return "JSON_FORMATTED";
+//        }
+//
+//        @Override
+//        public Object[] getParameters() {
+//            return new Object[0];
+//        }
+//
+//        @Override
+//        public Throwable getThrowable() {
+//            return null;
+//        }
+//
+//        @Override
+//        public void formatTo(StringBuilder buffer) {
+//            String formattedMessage = getFormattedMessage();
+//            buffer.append(formattedMessage);
+//        }
+//
+//        @Override
+//        public Object getValueFor(String key) {
+//            return null;
+//        }
     }
 
     boolean isReformat() {

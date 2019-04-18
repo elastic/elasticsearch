@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -71,37 +70,18 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCustomMessage() throws IOException {
+    public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new Message() {
+        testLogger.info(new DeprecatedMessage("deprecated message","someId"));
 
-            @Override
-            public String getFormattedMessage() {
-                return "\"message\": \"asdf\"";
-            }
-
-            @Override
-            public String getFormat() {
-                return "JSON_FORMATTED";
-            }
-
-            @Override
-            public Object[] getParameters() {
-                return new Object[0];
-            }
-
-            @Override
-            public Throwable getThrowable() {
-                return null;
-            }
-        });
-
-        final Path path = clusterLogsPath();
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") +"_deprecated"+ ".log");
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
-            List<JsonLogLine> jsonLogs = collectLines(stream);
+            List<JsonLogLine> jsonLogs = stream
+                .collect(Collectors.toList());
 
             assertThat(jsonLogs, Matchers.contains(
-                logLine("file", Level.INFO, "sample-name", "test", "asdf")
+                logLine("deprecated", Level.INFO, "sample-name", "test", "deprecated message", "someId")
             ));
         }
     }
@@ -119,11 +99,11 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
 
             assertThat(jsonLogs, Matchers.contains(
-                logLine("file", Level.ERROR, "sample-name", "test", "This is an error message"),
-                logLine("file", Level.WARN, "sample-name", "test", "This is a warning message"),
-                logLine("file", Level.INFO, "sample-name", "test", "This is an info message"),
-                logLine("file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
-                logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
+                logLine("file", Level.ERROR, "sample-name", "test", "This is an error message", null),
+                logLine("file", Level.WARN, "sample-name", "test", "This is a warning message", null),
+                logLine("file", Level.INFO, "sample-name", "test", "This is an info message", null),
+                logLine("file", Level.DEBUG, "sample-name", "test", "This is a debug message", null),
+                logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message", null)
             ));
         }
     }
@@ -140,8 +120,8 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
-                logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId"),
-                logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix")
+                logLine("file", Level.INFO, "sample-name", "shardIdLogger", "[indexName][123] This is an info message with a shardId", null),
+                logLine("file", Level.INFO, "sample-name", "prefixLogger", "PREFIX This is an info message with a prefix", null)
             ));
         }
     }
@@ -165,7 +145,7 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
-                logLine("file", Level.INFO, "sample-name", "test", json)
+                logLine("file", Level.INFO, "sample-name", "test", json, null)
             ));
         }
     }
@@ -179,7 +159,7 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message"),
+                    logLine("file", Level.ERROR, "sample-name", "test", "error message", null),
                     stacktraceWith("java.lang.Exception: exception message"),
                     stacktraceWith("Caused by: java.lang.RuntimeException: cause message")
                 )
@@ -209,7 +189,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, Matchers.contains(
                 Matchers.allOf(
                     //message field will have a single line with json escaped
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
+                    logLine("file", Level.ERROR, "sample-name", "test", "error message " + json, null),
 
                     //stacktrace field will have each json line will in a separate array element
                     stacktraceWith(("java.lang.Exception: " + json).split(LINE_SEPARATOR))
@@ -244,7 +224,7 @@ public class JsonLoggerTests extends ESTestCase {
         LogConfigurator.configure(environment);
     }
 
-    private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message) {
+    private Matcher<JsonLogLine> logLine(String type, Level level, String nodeName, String component, String message, String xOpaqueId) {
         return new FeatureMatcher<JsonLogLine, Boolean>(Matchers.is(true), "logLine", "logLine") {
 
             @Override
@@ -253,7 +233,8 @@ public class JsonLoggerTests extends ESTestCase {
                     Objects.equals(actual.level(), level.toString()) &&
                     Objects.equals(actual.nodeName(), nodeName) &&
                     Objects.equals(actual.component(), component) &&
-                    Objects.equals(actual.message(), message);
+                    Objects.equals(actual.message(), message) &&
+                    Objects.equals(actual.xOpaqueId(), xOpaqueId);
             }
         };
     }

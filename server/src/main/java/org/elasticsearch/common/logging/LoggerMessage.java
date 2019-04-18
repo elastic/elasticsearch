@@ -19,8 +19,20 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.message.Message;
-import org.apache.logging.log4j.util.StringBuilderFormattable;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
-public interface LoggerMessage extends Message, StringBuilderFormattable {
+import java.util.Map;
+
+public abstract class LoggerMessage extends ParameterizedMessage {
+    private Map<String, Object> fields;
+
+    public LoggerMessage(Map<String, Object> fields, String messagePattern, Object... args) {
+        super(messagePattern, args);
+        this.fields = fields;
+    }
+
+    Object getValueFor(String key) {
+        return fields.get(key);
+    }
+
 }

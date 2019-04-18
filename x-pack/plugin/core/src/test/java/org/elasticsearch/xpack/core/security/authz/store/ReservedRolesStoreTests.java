@@ -49,6 +49,13 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
@@ -173,6 +180,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("reporting_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("machine_learning_admin"), is(true));
+        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_user"), is(true));
+        assertThat(ReservedRolesStore.isReserved("data_frame_transforms_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("watcher_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_dashboard_only_user"), is(true));
@@ -443,6 +452,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(index), is(true));
 
         assertNoAccessAllowed(monitoringUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(false));
     }
 
     public void testRemoteMonitoringAgentRole() {
@@ -817,23 +838,30 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
-        assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
-        assertThat(logstashSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
-        assertThat(logstashSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
+        Role beatsSystemRole = Role.builder(roleDescriptor, null).build();
+        assertThat(beatsSystemRole.cluster().check(ClusterHealthAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStateAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(ClusterStatsAction.NAME, request), is(true));
+        assertThat(beatsSystemRole.cluster().check(PutIndexTemplateAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterRerouteAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(ClusterUpdateSettingsAction.NAME, request), is(false));
+        assertThat(beatsSystemRole.cluster().check(MonitoringBulkAction.NAME, request), is(true));
 
-        assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+        assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+
+        final String index = ".monitoring-beats-" + randomIntBetween(0, 5);;
+        logger.info("index name [{}]", index);
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(beatsSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
 
-        assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+        assertNoAccessAllowed(beatsSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
     public void testAPMSystemRole() {
@@ -948,6 +976,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
     }
 
     public void testMachineLearningUserRole() {
@@ -1017,6 +1057,67 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, AuditorField.NOTIFICATIONS_INDEX);
         assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+
+        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml"), "*"), is(true));
+
+        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml"), "*"), is(false));
+    }
+
+    public void testDataFrameTransformsAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(true));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, ".data-frame-internal-1"); // internal use only
+
+        assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
+    public void testDataFrameTransformsUserRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("data_frame_transforms_user");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role role = Role.builder(roleDescriptor, null).build();
+        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request), is(true));
+        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request), is(false));
+        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertNoAccessAllowed(role, "foo");
+        assertNoAccessAllowed(role, ".data-frame-internal-1");
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
     }

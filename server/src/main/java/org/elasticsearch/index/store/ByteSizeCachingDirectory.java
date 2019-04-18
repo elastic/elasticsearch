@@ -179,5 +179,4 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             }
         }
     }
-
 }

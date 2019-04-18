@@ -33,6 +33,3 @@ dependencyLicenses {
     it.group.startsWith('org.elasticsearch') == false
   } - project.configurations.compileOnly
 }
-
-compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes"

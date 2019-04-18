@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.util.List;
@@ -34,6 +35,7 @@ import static org.elasticsearch.xpack.dataframe.transforms.DataFrameIndexer.COMP
 public class TransportPreviewDataFrameTransformAction extends
     HandledTransportAction<PreviewDataFrameTransformAction.Request, PreviewDataFrameTransformAction.Response> {
 
+    private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
@@ -57,9 +59,11 @@ public class TransportPreviewDataFrameTransformAction extends
             return;
         }
 
-        Pivot pivot = new Pivot(request.getConfig().getSource(),
-            request.getConfig().getQueryConfig().getQuery(),
-            request.getConfig().getPivotConfig());
+        final DataFrameTransformConfig config = request.getConfig();
+
+        Pivot pivot = new Pivot(config.getSource().getIndex(),
+            config.getSource().getQueryConfig().getQuery(),
+            config.getPivotConfig());
 
         getPreview(pivot, ActionListener.wrap(
             previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),
@@ -68,18 +72,28 @@ public class TransportPreviewDataFrameTransformAction extends
     }
 
     private void getPreview(Pivot pivot, ActionListener<List<Map<String, Object>>> listener) {
-        ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
-            ClientHelper.DATA_FRAME_ORIGIN,
-            client,
-            SearchAction.INSTANCE,
-            pivot.buildSearchRequest(null),
-            ActionListener.wrap(
-                r -> {
-                    final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                    DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
-                    listener.onResponse(pivot.extractResults(agg, stats).collect(Collectors.toList()));
-                },
-                listener::onFailure
-            ));
+        pivot.deduceMappings(client, ActionListener.wrap(
+            deducedMappings -> {
+                ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
+                    ClientHelper.DATA_FRAME_ORIGIN,
+                    client,
+                    SearchAction.INSTANCE,
+                    pivot.buildSearchRequest(null, NUMBER_OF_PREVIEW_BUCKETS),
+                    ActionListener.wrap(
+                        r -> {
+                            final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+                            DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
+                            // remove all internal fields
+                            List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+                                    .peek(record -> {
+                                        record.keySet().removeIf(k -> k.startsWith("_"));
+                                    }).collect(Collectors.toList());
+                            listener.onResponse(results);
+                        },
+                        listener::onFailure
+                    ));
+            },
+            listener::onFailure
+        ));
     }
 }

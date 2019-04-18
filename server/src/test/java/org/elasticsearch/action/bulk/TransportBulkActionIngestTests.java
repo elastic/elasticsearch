@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
@@ -57,9 +59,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -67,6 +71,7 @@ import java.util.function.Consumer;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -91,6 +96,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     TransportService transportService;
     ClusterService clusterService;
     IngestService ingestService;
+    ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
@@ -125,7 +131,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
 
         TestTransportBulkAction() {
-            super(null, transportService, clusterService, ingestService,
+            super(threadPool, transportService, clusterService, ingestService,
                 null, null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -154,21 +160,17 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(SETTINGS, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
-                    TransportBulkActionIngestTests.this.clusterService,
-                    null, null, null, new ActionFilters(Collections.emptySet()), null,
-                    IndexRequest::new, IndexRequest::new, ThreadPool.Names.WRITE, bulkAction, null);
-        }
-
-        @Override
-        protected IndexResponse newResponseInstance() {
-            return new IndexResponse();
+            super(IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
+                    new ActionFilters(Collections.emptySet()), IndexRequest::new, bulkAction);
         }
     }
 
     @Before
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
+        threadPool = mock(ThreadPool.class);
+        final ExecutorService direct = EsExecutors.newDirectExecutorService();
+        when(threadPool.executor(anyString())).thenReturn(direct);
         MockitoAnnotations.initMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);
@@ -460,7 +462,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verifyZeroInteractions(transportService);
     }
 
-    public void testCreateIndexBeforeRunPipeline() throws Exception {
+    public void testDoExecuteCalledTwiceCorrectly() throws Exception {
         Exception exception = new Exception("fake exception");
         IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
         indexRequest.setPipeline("testpipeline");
@@ -478,18 +480,74 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // check failure works, and passes through to the listener
         assertFalse(action.isExecuted); // haven't executed yet
+        assertFalse(action.indexCreated); // no index yet
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
         completionHandler.getValue().accept(exception);
+        assertFalse(action.indexCreated); // still no index yet, the ingest node failed.
         assertTrue(failureCalled.get());
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
         completionHandler.getValue().accept(null);
         assertTrue(action.isExecuted);
+        assertTrue(action.indexCreated); // now the index is created since we skipped the ingest node path.
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyZeroInteractions(transportService);
+    }
+
+    public void testNotFindDefaultPipelineFromTemplateMatches(){
+        Exception exception = new Exception("fake exception");
+        IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
+        indexRequest.source(Collections.emptyMap());
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+            response -> responseCalled.set(true),
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+        assertEquals(IngestService.NOOP_PIPELINE_NAME, indexRequest.getPipeline());
+        verifyZeroInteractions(ingestService);
+
+    }
+
+    public void testFindDefaultPipelineFromTemplateMatch(){
+        Exception exception = new Exception("fake exception");
+        ClusterState state = clusterService.state();
+
+        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> templateMetaDataBuilder = ImmutableOpenMap.builder();
+        templateMetaDataBuilder.put("template1", IndexTemplateMetaData.builder("template1").patterns(Arrays.asList("missing_index"))
+            .order(1).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline1").build()).build());
+        templateMetaDataBuilder.put("template2", IndexTemplateMetaData.builder("template2").patterns(Arrays.asList("missing_*"))
+            .order(2).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build()).build());
+        templateMetaDataBuilder.put("template3", IndexTemplateMetaData.builder("template3").patterns(Arrays.asList("missing*"))
+            .order(3).build());
+        templateMetaDataBuilder.put("template4", IndexTemplateMetaData.builder("template4").patterns(Arrays.asList("nope"))
+            .order(4).settings(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline4").build()).build());
+
+        MetaData metaData = mock(MetaData.class);
+        when(state.metaData()).thenReturn(metaData);
+        when(state.getMetaData()).thenReturn(metaData);
+        when(metaData.templates()).thenReturn(templateMetaDataBuilder.build());
+        when(metaData.getTemplates()).thenReturn(templateMetaDataBuilder.build());
+        when(metaData.indices()).thenReturn(ImmutableOpenMap.of());
+
+        IndexRequest indexRequest = new IndexRequest("missing_index", "type", "id");
+        indexRequest.source(Collections.emptyMap());
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(
+            response -> responseCalled.set(true),
+            e -> {
+                assertThat(e, sameInstance(exception));
+                failureCalled.set(true);
+            }));
+
+        assertEquals("pipeline2", indexRequest.getPipeline());
+        verify(ingestService).executeBulkRequest(bulkDocsItr.capture(), failureHandler.capture(), completionHandler.capture(), any());
     }
 
     private void validateDefaultPipeline(IndexRequest indexRequest) {

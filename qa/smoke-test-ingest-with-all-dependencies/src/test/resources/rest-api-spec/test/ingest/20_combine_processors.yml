@@ -1,10 +1,5 @@
 ---
 "Test with date processor":
-  - skip:
-      version: " - 6.9.99"
-      reason: pre-7.0.0 requires the 8 prefix for Java time formats, so would treat the format in this test as a Joda time format
-      features: "warnings"
-
   - do:
       ingest.put_pipeline:
         id: "_id"

@@ -96,14 +96,6 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void ensureClusterStateVersion(long clusterStateVersion) {
-        transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE,
-            new RecoveryWaitForClusterStateRequest(recoveryId, shardId, clusterStateVersion),
-            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
-    }
-
-    @Override
     public void handoffPrimaryContext(final ReplicationTracker.PrimaryContext primaryContext) {
         transportService.submitRequest(
                 targetNode,
@@ -147,9 +139,9 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.CLEAN_FILES,
-                new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetaData, totalTranslogOps),
+                new RecoveryCleanFilesRequest(recoveryId, shardId, sourceMetaData, totalTranslogOps, globalCheckpoint),
                 TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }

@@ -13,13 +13,16 @@ subprojects {
   // Use resources from the parent project in subprojects
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
+  }
+
+  processTestResources {
+    from mainProject.file('src/test/resources')
   }
 
   dependencies {
@@ -42,9 +45,9 @@ subprojects {
 
   integTestRunner {
     def today = new Date().format('yyyy-MM-dd')
-    systemProperty 'tests.audit.logfile',
+    nonInputProperties.systemProperty 'tests.audit.logfile',
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit.json"
-    systemProperty 'tests.audit.yesterday.logfile',
+    nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
         "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_audit-${today}.json"
   }
 

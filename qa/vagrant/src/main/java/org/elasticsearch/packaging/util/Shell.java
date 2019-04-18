@@ -27,11 +27,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyMap;
 
 /**
  * Wrapper to run shell commands and collect their outputs in a less verbose way
@@ -39,27 +38,19 @@ import static java.util.Collections.emptyMap;
 public class Shell {
 
     final Map<String, String> env;
-    final Path workingDirectory;
+    Path workingDirectory;
 
     public Shell() {
-        this(emptyMap(), null);
-    }
-
-    public Shell(Map<String, String> env) {
-        this(env, null);
-    }
-
-    public Shell(Path workingDirectory) {
-        this(emptyMap(), workingDirectory);
-    }
-
-    public Shell(Map<String, String> env, Path workingDirectory) {
-        this.env = new HashMap<>(env);
-        this.workingDirectory = workingDirectory;
+        this.env = new HashMap<>();
+        this.workingDirectory = null;
     }
 
     public Map<String, String> getEnv() {
         return env;
+    }
+
+    public void setWorkingDirectory(Path workingDirectory) {
+        this.workingDirectory = workingDirectory;
     }
 
     /**
@@ -77,6 +68,10 @@ public class Shell {
         return runScriptIgnoreExitCode(getScriptCommand(script));
     }
 
+    public Result run( String command, Object... args) {
+        String formattedCommand = String.format(Locale.ROOT, command, args);
+        return run(formattedCommand);
+    }
     private String[] getScriptCommand(String script) {
         if (Platforms.WINDOWS) {
             return powershellCommand(script);
@@ -104,6 +99,7 @@ public class Shell {
     private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
+
 
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);

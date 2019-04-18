@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,10 +71,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         format = in.readNamedWriteable(DocValueFormat.class);
         percentiles = in.readDoubleArray();
         percents = in.readDoubleArray();
-
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            keyed = in.readBoolean();
-        }
+        keyed = in.readBoolean();
 
         computeLookup();
     }
@@ -85,10 +81,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
         out.writeNamedWriteable(format);
         out.writeDoubleArray(percentiles);
         out.writeDoubleArray(percents);
-
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(keyed);
-        }
+        out.writeBoolean(keyed);
     }
 
     @Override

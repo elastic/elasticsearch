@@ -13,21 +13,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
-import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
-import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
-import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -49,10 +40,15 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
+
+    public static final String INDEX_ACTION_TYPES_DEPRECATION_MESSAGE =
+        "[types removal] Specifying types in a watcher index action is deprecated.";
+
+    public static final int UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION = 6;
+    public static final int SECURITY_EXPECTED_INDEX_FORMAT_VERSION = 6;
 
     @Override
     protected Settings restClientSettings() {
@@ -94,11 +90,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
-            final boolean needsUpgrade;
             final String concreteSecurityIndex;
             if (settingsResponseMap.isEmpty()) {
-                needsUpgrade = true;
-                concreteSecurityIndex = ".security";
+                fail("The security index does not have the expected setting [index.format]");
             } else {
                 concreteSecurityIndex = settingsResponseMap.keySet().iterator().next();
                 Map<String, Object> indexSettingsMap =
@@ -106,27 +100,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 Map<String, Object> settingsMap = (Map<String, Object>) indexSettingsMap.get("settings");
                 logger.info("settings map {}", settingsMap);
                 if (settingsMap.containsKey("index")) {
+                    @SuppressWarnings("unchecked")
                     int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
-                    needsUpgrade = format == SecurityIndexManager.INTERNAL_INDEX_FORMAT ? false : true;
-                } else {
-                    needsUpgrade = true;
+                    assertEquals("The security index needs to be upgraded", SECURITY_EXPECTED_INDEX_FORMAT_VERSION, format);
                 }
-            }
-
-            if (needsUpgrade) {
-                logger.info("upgrading security index {}", concreteSecurityIndex);
-                // without upgrade, an error should be thrown
-                try {
-                    createUser(false);
-                    fail("should not be able to add a user when upgrade hasn't taken place");
-                } catch (ResponseException e) {
-                    assertThat(e.getMessage(), containsString("Security index is not on the current version - " +
-                            "the native realm will not be operational until the upgrade API is run on the security index"));
-                }
-                // run upgrade API
-                Response upgradeResponse = client().performRequest(
-                        new Request("POST", "_migration/upgrade/" + concreteSecurityIndex));
-                logger.info("upgrade response:\n{}", toStr(upgradeResponse));
             }
 
             // create additional user and role
@@ -138,14 +115,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertRoleInfo(isRunningAgainstOldCluster());
     }
 
+    @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40178")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {
             logger.info("Adding a watch on old cluster {}", getOldClusterVersion());
             Request createBwcWatch = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_watch");
             Request createBwcThrottlePeriod = new Request("PUT", getWatcherEndpoint() + "/watch/bwc_throttle_period");
             if (getOldClusterVersion().onOrAfter(Version.V_7_0_0)) {
-                createBwcWatch.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
-                createBwcThrottlePeriod.setOptions(expectWarnings(IndexAction.TYPES_DEPRECATION_MESSAGE));
+                createBwcWatch.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
+                createBwcThrottlePeriod.setOptions(expectWarnings(INDEX_ACTION_TYPES_DEPRECATION_MESSAGE));
             }
             createBwcWatch.setJsonEntity(loadWatch("simple-watch.json"));
             client().performRequest(createBwcWatch);
@@ -168,34 +147,23 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             logger.info("testing against {}", getOldClusterVersion());
             waitForYellow(".watches,bwc_watch_index,.watcher-history*");
 
-            logger.info("checking if the upgrade procedure on the new cluster is required");
-            Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/_migration/assistance")));
-            logger.info(response);
+            logger.info("checking that the Watches index is the correct version");
 
-            @SuppressWarnings("unchecked") Map<String, Object> indices = (Map<String, Object>) response.get("indices");
-            if (indices.containsKey(".watches")) {
-                logger.info("upgrade procedure is required for watcher");
-                assertThat(indices.entrySet().size(), greaterThanOrEqualTo(1));
-                assertThat(indices.get(".watches"), notNullValue());
-                @SuppressWarnings("unchecked") Map<String, Object> index = (Map<String, Object>) indices.get(".watches");
-                assertThat(index.get("action_required"), equalTo("upgrade"));
-
-                logger.info("starting upgrade procedure on the new cluster");
-
-                Request migrationAssistantRequest = new Request("POST", "_migration/upgrade/.watches");
-                migrationAssistantRequest.addParameter("error_trace", "true");
-                Map<String, Object> upgradeResponse = entityAsMap(client().performRequest(migrationAssistantRequest));
-                assertThat(upgradeResponse.get("timed_out"), equalTo(Boolean.FALSE));
-                // we posted 3 watches, but monitoring can post a few more
-                assertThat((int) upgradeResponse.get("total"), greaterThanOrEqualTo(3));
-
-                logger.info("checking that upgrade procedure on the new cluster is no longer required");
-                Map<String, Object> responseAfter = entityAsMap(client().performRequest(
-                    new Request("GET", "/_migration/assistance")));
-                @SuppressWarnings("unchecked") Map<String, Object> indicesAfter = (Map<String, Object>) responseAfter.get("indices");
-                assertNull(indicesAfter.get(".watches"));
+            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
+            Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
+            logger.info("settings response map {}", settingsResponseMap);
+            final String concreteWatchesIndex;
+            if (settingsResponseMap.isEmpty()) {
+                fail("The security index does not have the expected setting [index.format]");
             } else {
-                logger.info("upgrade procedure is not required for watcher");
+                concreteWatchesIndex = settingsResponseMap.keySet().iterator().next();
+                Map<String, Object> indexSettingsMap = (Map<String, Object>) settingsResponseMap.get(concreteWatchesIndex);
+                Map<String, Object> settingsMap = (Map<String, Object>) indexSettingsMap.get("settings");
+                logger.info("settings map {}", settingsMap);
+                if (settingsMap.containsKey("index")) {
+                    int format = Integer.parseInt(String.valueOf(((Map<String, Object>)settingsMap.get("index")).get("format")));
+                    assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, format);
+                }
             }
 
             // Wait for watcher to actually start....
@@ -317,7 +285,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request getRequest = new Request("GET", "_watcher/watch/bwc_watch");
         getRequest.setOptions(
             expectWarnings(
-                IndexAction.TYPES_DEPRECATION_MESSAGE
+                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
             )
         );
 
@@ -338,7 +306,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         getRequest = new Request("GET", "_watcher/watch/bwc_throttle_period");
         getRequest.setOptions(
             expectWarnings(
-                IndexAction.TYPES_DEPRECATION_MESSAGE
+                INDEX_ACTION_TYPES_DEPRECATION_MESSAGE
             )
         );
 
@@ -380,10 +348,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     private void assertBasicWatchInteractions() throws Exception {
 
-        String watch = new WatchSourceBuilder()
-                .condition(InternalAlwaysCondition.INSTANCE)
-                .trigger(ScheduleTrigger.builder(new IntervalSchedule(IntervalSchedule.Interval.seconds(1))))
-                .addAction("awesome", LoggingAction.builder(new TextTemplate("test"))).buildAsBytes(XContentType.JSON).utf8ToString();
+        String watch = "{\"trigger\":{\"schedule\":{\"interval\":\"1s\"}},\"input\":{\"none\":{}}," +
+            "\"condition\":{\"always\":{}}," +
+            "\"actions\":{\"awesome\":{\"logging\":{\"level\":\"info\",\"text\":\"test\"}}}}";
         Request createWatchRequest = new Request("PUT", "_watcher/watch/new_watch");
         createWatchRequest.setJsonEntity(watch);
         Map<String, Object> createWatch = entityAsMap(client().performRequest(createWatchRequest));

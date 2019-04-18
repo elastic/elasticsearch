@@ -49,7 +49,9 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
+        // Using the generic instead of the snapshot threadpool here as the snapshot threadpool might be blocked on long running tasks
+        // which would block the request from getting an error response because of the ongoing task
+        return ThreadPool.Names.GENERIC;
     }
 
     @Override
@@ -59,13 +61,12 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected ClusterBlockException checkBlock(CreateSnapshotRequest request, ClusterState state) {
-        // We are reading the cluster metadata and indices - so we need to check both blocks
+        // We only check metadata block, as we want to snapshot closed indices (which have a read block)
         ClusterBlockException clusterBlockException = state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
         if (clusterBlockException != null) {
             return clusterBlockException;
         }
-        return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return null;
     }
 
     @Override

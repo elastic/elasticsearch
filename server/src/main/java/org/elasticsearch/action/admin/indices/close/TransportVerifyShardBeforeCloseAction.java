@@ -46,7 +46,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
@@ -86,22 +85,24 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     }
 
     @Override
-    protected PrimaryResult<ShardRequest, ReplicationResponse> shardOperationOnPrimary(final ShardRequest shardRequest,
-                                                                                       final IndexShard primary) throws Exception {
-        executeShardOperation(shardRequest, primary);
-        return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
+            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+        ActionListener.completeWith(listener, () -> {
+            executeShardOperation(shardRequest, primary);
+            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+        });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) throws Exception {
+    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
         executeShardOperation(shardRequest, replica);
         return new ReplicaResult();
     }
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
-        if (indexShard.getActiveOperationsCount() != 0) {
-            throw new IllegalStateException("On-going operations in progress while checking index shard " + shardId + " before closing");
+        if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
+            throw new IllegalStateException("Index shard " + shardId + " is not blocking all operations during closing");
         }
 
         final ClusterBlocks clusterBlocks = clusterService.state().blocks();
@@ -109,13 +110,13 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
         indexShard.verifyShardBeforeIndexClosing();
-        indexShard.flush(new FlushRequest().force(true));
+        indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
         logger.trace("{} shard is ready for closing", shardId);
     }
 
     @Override
-    protected ReplicationOperation.Replicas<ShardRequest> newReplicasProxy(final long primaryTerm) {
-        return new VerifyShardBeforeCloseActionReplicasProxy(primaryTerm);
+    protected ReplicationOperation.Replicas<ShardRequest> newReplicasProxy() {
+        return new VerifyShardBeforeCloseActionReplicasProxy();
     }
 
     /**
@@ -124,24 +125,20 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
      * or reopened in an unverified state with potential non flushed translog operations.
      */
     class VerifyShardBeforeCloseActionReplicasProxy extends ReplicasProxy {
-
-        VerifyShardBeforeCloseActionReplicasProxy(final long primaryTerm) {
-            super(primaryTerm);
-        }
-
         @Override
-        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final Runnable onSuccess,
-                                                 final Consumer<Exception> onPrimaryDemoted, final Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null,
-                createShardActionListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final long primaryTerm,
+                                                 final ActionListener<Void> listener) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }
 
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
-        private ClusterBlock clusterBlock;
+        private final ClusterBlock clusterBlock;
 
-        ShardRequest(){
+        ShardRequest(StreamInput in) throws IOException {
+            super(in);
+            clusterBlock = new ClusterBlock(in);
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
@@ -156,9 +153,8 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            clusterBlock = new ClusterBlock(in);
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

@@ -2,15 +2,15 @@
 
 "node_info test profile is empty":
   - skip:
-        features: stash_in_path
+        features: [stash_in_path, arbitrary_key]
 
   - do:
-      cluster.state: {}
-
-  - set: {master_node: master}
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       nodes.info:
         metric: [ transport ]
 
-  - is_true: nodes.$master.transport.profiles
+  - is_true: nodes.$node_id.transport.profiles

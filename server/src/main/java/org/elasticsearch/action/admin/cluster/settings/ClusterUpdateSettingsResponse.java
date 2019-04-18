@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -68,15 +67,9 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.readFrom(in);
-            transientSettings = Settings.readSettingsFromStream(in);
-            persistentSettings = Settings.readSettingsFromStream(in);
-        } else {
-            transientSettings = Settings.readSettingsFromStream(in);
-            persistentSettings = Settings.readSettingsFromStream(in);
-            acknowledged = in.readBoolean();
-        }
+        super.readFrom(in);
+        transientSettings = Settings.readSettingsFromStream(in);
+        persistentSettings = Settings.readSettingsFromStream(in);
     }
 
     public Settings getTransientSettings() {
@@ -89,15 +82,9 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            super.writeTo(out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
-        } else {
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
-            out.writeBoolean(acknowledged);
-        }
+        super.writeTo(out);
+        Settings.writeSettingsToStream(transientSettings, out);
+        Settings.writeSettingsToStream(persistentSettings, out);
     }
 
     @Override

@@ -65,11 +65,7 @@ assemble.dependsOn apiJavadocJar
  **********************************************/
 
 sourceSets {
-  doc {
-    java {
-      srcDirs = ['src/doc/java']
-    }
-  }
+  doc
 }
 
 dependencies {

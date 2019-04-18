@@ -115,13 +115,6 @@ public class EnrichPolicyRunner implements Runnable {
                         "Enrich policy execution for [{}] failed. Could not locate enrich key field [{}] on mapping for index [{}]",
                         policyName, policy.getEnrichKey(), sourceIndex));
             }
-            for (String enrichField : policy.getEnrichValues()) {
-                if (properties.containsKey(enrichField) == false) {
-                    listener.onFailure(new ElasticsearchException(
-                        "Enrich policy execution for [{}] failed. Could not locate enrich value field [{}] on mapping for index [{}]",
-                        policyName, enrichField, sourceIndex));
-                }
-            }
         }
     }
 

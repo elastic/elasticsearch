@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -175,8 +176,12 @@ public final class ReservedFieldNames {
 
             Result.RESULT_TYPE.getPreferredName(),
             Result.TIMESTAMP.getPreferredName(),
-            Result.IS_INTERIM.getPreferredName()
-    };
+            Result.IS_INTERIM.getPreferredName(),
+
+            GetResult._ID,
+            GetResult._INDEX,
+            GetResult._TYPE
+   };
 
     /**
      * This array should be updated to contain all the field names that appear
@@ -273,7 +278,10 @@ public final class ReservedFieldNames {
             OutlierDetection.NUMBER_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
 
-            ElasticsearchMappings.CONFIG_TYPE
+            ElasticsearchMappings.CONFIG_TYPE,
+
+            GetResult._ID,
+            GetResult._INDEX,
     };
 
     /**

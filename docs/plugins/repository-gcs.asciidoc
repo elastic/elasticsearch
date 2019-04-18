@@ -245,7 +245,8 @@ include::repository-shared-settings.asciidoc[]
 
 `application_name`::
 
-    deprecated[7.0.0, This setting is now defined in the <<repository-gcs-client, client settings>>]
+    deprecated:[6.3.0, "This setting is now defined in the <<repository-gcs-client, client settings>>."]
+    Name used by the client when it uses the Google Cloud Storage service.
 
 [[repository-gcs-bucket-permission]]
 ===== Recommended Bucket Permission

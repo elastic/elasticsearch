@@ -22,6 +22,7 @@ coming[8.0.0]
 * <<breaking_80_network_changes>>
 * <<breaking_80_transport_changes>>
 * <<breaking_80_http_changes>>
+* <<breaking_80_reindex_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -55,3 +56,4 @@ include::migrate_8_0/java.asciidoc[]
 include::migrate_8_0/network.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
+include::migrate_8_0/reindex.asciidoc[]

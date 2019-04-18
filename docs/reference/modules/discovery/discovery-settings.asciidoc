@@ -17,6 +17,23 @@ Discovery and cluster formation are affected by the following settings:
     discovery process. By default, it is the
     <<settings-based-hosts-provider,settings-based seed hosts provider>>.
 
+`cluster.initial_master_nodes`::
+
+    Sets a list of the <<node.name,node names>> or transport addresses of the
+    initial set of master-eligible nodes in a brand-new cluster. By default
+    this list is empty, meaning that this node expects to join a cluster that
+    has already been bootstrapped. See <<initial_master_nodes>>.
+
+[float]
+==== Expert settings
+
+Discovery and cluster formation are also affected by the following
+_expert-level_ settings, although it is not recommended to change any of these
+from their default values.
+
+[WARNING] If you adjust these settings then your cluster may not form correctly
+or may become unstable or intolerant of certain failures.
+
 `discovery.cluster_formation_warning_timeout`::
 
     Sets how long a node will try to form a cluster before logging a warning
@@ -41,6 +58,7 @@ Discovery and cluster formation are affected by the following settings:
     handshake. Defaults to `1s`.
 
 `discovery.request_peers_timeout`::
+
     Sets how long a node will wait after asking its peers again before
     considering the request to have failed. Defaults to `3s`.
 
@@ -67,72 +85,77 @@ Discovery and cluster formation are affected by the following settings:
 
     Sets the amount to increase the upper bound on the wait before an election
     on each election failure. Note that this is _linear_ backoff. This defaults
-    to `100ms`
+    to `100ms`. Changing this setting from the default may cause your cluster
+    to fail to elect a master node.
 
 `cluster.election.duration`::
 
-    Sets how long each election is allowed to take before a node considers it to
-    have failed and schedules a retry. This defaults to `500ms`.
+    Sets how long each election is allowed to take before a node considers it
+    to have failed and schedules a retry. This defaults to `500ms`.  Changing
+    this setting from the default may cause your cluster to fail to elect a
+    master node.
 
 `cluster.election.initial_timeout`::
 
     Sets the upper bound on how long a node will wait initially, or after the
     elected master fails, before attempting its first election. This defaults
-    to `100ms`.
-
+    to `100ms`. Changing this setting from the default may cause your cluster
+    to fail to elect a master node.
 
 `cluster.election.max_timeout`::
 
     Sets the maximum upper bound on how long a node will wait before attempting
     an first election, so that an network partition that lasts for a long time
-    does not result in excessively sparse elections. This defaults to `10s`
+    does not result in excessively sparse elections. This defaults to `10s`.
+    Changing this setting from the default may cause your cluster to fail to
+    elect a master node.
 
 [[fault-detection-settings]]`cluster.fault_detection.follower_check.interval`::
 
     Sets how long the elected master waits between follower checks to each
-    other node in the cluster. Defaults to `1s`.
+    other node in the cluster. Defaults to `1s`. Changing this setting from the
+    default may cause your cluster to become unstable.
 
 `cluster.fault_detection.follower_check.timeout`::
 
     Sets how long the elected master waits for a response to a follower check
-    before considering it to have failed. Defaults to `10s`.
+    before considering it to have failed. Defaults to `10s`. Changing this
+    setting from the default may cause your cluster to become unstable.
 
 `cluster.fault_detection.follower_check.retry_count`::
 
     Sets how many consecutive follower check failures must occur to each node
     before the elected master considers that node to be faulty and removes it
-    from the cluster. Defaults to `3`.
+    from the cluster. Defaults to `3`. Changing this setting from the default
+    may cause your cluster to become unstable.
 
 `cluster.fault_detection.leader_check.interval`::
 
     Sets how long each node waits between checks of the elected master.
-    Defaults to `1s`.
+    Defaults to `1s`. Changing this setting from the default may cause your
+    cluster to become unstable.
 
 `cluster.fault_detection.leader_check.timeout`::
 
     Sets how long each node waits for a response to a leader check from the
     elected master before considering it to have failed. Defaults to `10s`.
+    Changing this setting from the default may cause your cluster to become
+    unstable.
 
 `cluster.fault_detection.leader_check.retry_count`::
 
     Sets how many consecutive leader check failures must occur before a node
     considers the elected master to be faulty and attempts to find or elect a
-    new master. Defaults to `3`.
+    new master. Defaults to `3`. Changing this setting from the default may
+    cause your cluster to become unstable.
 
 `cluster.follower_lag.timeout`::
 
     Sets how long the master node waits to receive acknowledgements for cluster
-    state updates from lagging nodes. The default value is `90s`. If a node does
-    not successfully apply the cluster state update within this period of time,
-    it is considered to have failed and is removed from the cluster. See
+    state updates from lagging nodes. The default value is `90s`. If a node
+    does not successfully apply the cluster state update within this period of
+    time, it is considered to have failed and is removed from the cluster. See
     <<cluster-state-publishing>>.
-
-`cluster.initial_master_nodes`::
-
-    Sets a list of the <<node.name,node names>> or transport addresses of the
-    initial set of master-eligible nodes in a brand-new cluster. By default
-    this list is empty, meaning that this node expects to join a cluster that
-    has already been bootstrapped. See <<initial_master_nodes>>.
 
 `cluster.join.timeout`::
 
@@ -149,8 +172,7 @@ Discovery and cluster formation are affected by the following settings:
 `cluster.publish.timeout`::
 
     Sets how long the master node waits for each cluster state update to be
-    completely published to all nodes. The default value is `30s`. If this
-    period of time elapses, the cluster state change is rejected. See
+    completely published to all nodes. The default value is `30s`. See
     <<cluster-state-publishing>>.
 
 [[no-master-block]]`cluster.no_master_block`::

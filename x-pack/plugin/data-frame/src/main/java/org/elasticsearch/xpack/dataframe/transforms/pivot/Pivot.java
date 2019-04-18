@@ -35,6 +35,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Pivot {
+    public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
+
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
     private final PivotConfig config;
@@ -68,10 +70,28 @@ public class Pivot {
         SchemaUtil.deduceMappings(client, config, source, listener);
     }
 
-    public SearchRequest buildSearchRequest(Map<String, Object> position) {
+    /**
+     * Get the initial page size for this pivot.
+     *
+     * The page size is the main parameter for adjusting memory consumption. Memory consumption mainly depends on
+     * the page size, the type of aggregations and the data. As the page size is the number of buckets we return
+     * per page the page size is a multiplier for the costs of aggregating bucket.
+     *
+     * Initially this returns a default, in future it might inspect the configuration and base the initial size
+     * on the aggregations used.
+     *
+     * @return the page size
+     */
+    public int getInitialPageSize() {
+        return DEFAULT_INITIAL_PAGE_SIZE;
+    }
+
+    public SearchRequest buildSearchRequest(Map<String, Object> position, int pageSize) {
         if (position != null) {
             cachedCompositeAggregation.aggregateAfter(position);
         }
+
+        cachedCompositeAggregation.size(pageSize);
 
         return cachedSearchRequest;
     }
@@ -127,7 +147,6 @@ public class Pivot {
             XContentParser parser = builder.generator().contentType().xContent().createParser(NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
-            compositeAggregation.size(1000);
             config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         } catch (IOException e) {
             throw new RuntimeException(DataFrameMessages.DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);

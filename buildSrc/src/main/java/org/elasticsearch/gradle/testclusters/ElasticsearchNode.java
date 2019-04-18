@@ -337,6 +337,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                             module.getName()
                                 .replace(".zip", "")
                                 .replace("-" + version, "")
+                                .replace("-SNAPSHOT", "")
                         )
                         .toFile()
                 );

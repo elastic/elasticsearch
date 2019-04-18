@@ -31,6 +31,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -72,7 +73,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 warningCount.incrementAndGet();
                 return new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 0L);
             },
-            deterministicTaskQueue.getThreadPool(), () -> logLastFailedJoinAttemptWarningCount.incrementAndGet());
+            deterministicTaskQueue.getThreadPool(), logLastFailedJoinAttemptWarningCount::incrementAndGet);
 
         deterministicTaskQueue.runAllTasks();
         assertThat("should not schedule anything yet", warningCount.get(), is(0L));
@@ -348,6 +349,24 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 "at least 2 nodes with ids from [n2, n3, n4], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
+
+        final DiscoveryNode otherMasterNode = new DiscoveryNode("other-master", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode otherNonMasterNode = new DiscoveryNode("other-non-master", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(Arrays.stream(DiscoveryNode.Role.values())
+                .filter(r -> r != DiscoveryNode.Role.MASTER).collect(Collectors.toList()))),
+            Version.CURRENT);
+
+        String[] configNodeIds = new String[]{"n1", "n2"};
+        final ClusterState stateWithOtherNodes = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).add(otherMasterNode).add(otherNonMasterNode))
+            .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
+                .lastAcceptedConfiguration(config(configNodeIds))
+                .lastCommittedConfiguration(config(configNodeIds)).build())).build();
+        assertThat(new ClusterFormationState(Settings.EMPTY, stateWithOtherNodes, emptyList(), emptyList(), 0L).getDescription(),
+            is("master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + localNode + ", " + otherMasterNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
     }
 }

@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: "The rank_features field was introduced in 7.0.0"
-
   - do:
       indices.create:
           index: test

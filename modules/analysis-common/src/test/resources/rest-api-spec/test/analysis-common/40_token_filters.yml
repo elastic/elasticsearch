@@ -1137,10 +1137,6 @@
 
 ---
 "delimited_payload_filter_error":
-    - skip:
-        version: " - 6.99.99"
-        reason:  using delimited_payload_filter throws error from 7.0 on
-
     - do:
         catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
         indices.create:

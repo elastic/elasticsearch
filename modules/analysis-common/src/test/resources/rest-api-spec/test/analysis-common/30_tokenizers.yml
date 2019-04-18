@@ -141,9 +141,6 @@
 
 ---
 "ngram_exception":
-    - skip:
-        version: " - 6.99.99"
-        reason: only starting from version 7.x this throws an error
     - do:
         catch: /The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to[:] \[1\] but was \[2\]\. This limit can be set by changing the \[index.max_ngram_diff\] index level setting\./
         indices.analyze:

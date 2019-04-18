@@ -41,7 +41,7 @@ public class DataFrameTransformStateTests extends AbstractHlrcXContentTestCase<D
     public static DataFrameTransformState fromHlrc(org.elasticsearch.client.dataframe.transforms.DataFrameTransformState instance) {
         return new DataFrameTransformState(DataFrameTransformTaskState.fromString(instance.getTaskState().value()),
                 IndexerState.fromString(instance.getIndexerState().value()), instance.getPosition(), instance.getCheckpoint(),
-                instance.getReason());
+                instance.getReason(), DataFrameTransformProgressTests.fromHlrc(instance.getProgress()));
     }
 
     @Override
@@ -109,7 +109,8 @@ public class DataFrameTransformStateTests extends AbstractHlrcXContentTestCase<D
             randomFrom(IndexerState.values()),
             randomPosition(),
             randomLongBetween(0,10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomDataFrameTransformProgress());
     }
 
     private static Map<String, Object> randomPosition() {

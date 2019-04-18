@@ -91,7 +91,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
             assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
-            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("progress", transformStats);
+            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
             assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
             assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
             assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
@@ -170,7 +170,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
             assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
-            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("progress", transformStats);
+            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
             assertThat("total_docs is not 37", progress.get("total_docs"), equalTo(37));
             assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
             assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));

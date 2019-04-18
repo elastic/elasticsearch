@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests.randomDataFrameTransformProgress;
 
 public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStateAndStats> {
 
@@ -26,9 +25,6 @@ public class DataFrameTransformStateAndStatsTests extends AbstractSerializingDat
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats(id),
                 DataFrameTransformCheckpointingInfoTests.randomDataFrameTransformCheckpointingInfo());
-        if (randomBoolean()) {
-            stats.setProgress(randomDataFrameTransformProgress());
-        }
         return stats;
     }
 

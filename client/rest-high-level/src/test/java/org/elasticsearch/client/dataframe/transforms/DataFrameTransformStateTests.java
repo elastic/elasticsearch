@@ -46,7 +46,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
             randomFrom(IndexerState.values()),
             randomPositionMap(),
             randomLongBetween(0,10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance());
     }
 
     public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
@@ -59,6 +60,10 @@ public class DataFrameTransformStateTests extends ESTestCase {
         builder.field("checkpoint", state.getCheckpoint());
         if (state.getReason() != null) {
             builder.field("reason", state.getReason());
+        }
+        if (state.getProgress() != null) {
+            builder.field("progress");
+            DataFrameTransformProgressTests.toXContent(state.getProgress(), builder);
         }
         builder.endObject();
     }

@@ -105,7 +105,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 checkpointStats -> {
                     DataFrameTransformStateAndStats stateAndStats =
                         new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(), task.getStats(), checkpointStats);
-                    stateAndStats.setProgress(task.getProgress());
                     listener.onResponse(new Response(
                         Collections.singletonList(stateAndStats),
                         Collections.emptyList(),
@@ -116,7 +115,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
                             task.getState(),
                             task.getStats(),
                             DataFrameTransformCheckpointingInfo.EMPTY);
-                    stateAndStats.setProgress(task.getProgress());
                     listener.onResponse(new Response(
                         Collections.singletonList(stateAndStats),
                         Collections.emptyList(),

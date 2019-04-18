@@ -43,7 +43,6 @@ public class DataFrameTransformStateAndStatsTests extends AbstractHlrcXContentTe
                 DataFrameTransformStateTests.fromHlrc(instance.getTransformState()),
                 DataFrameIndexerTransformStatsTests.fromHlrc(instance.getTransformStats()),
                 DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
-        stats.setProgress(DataFrameTransformProgressTests.fromHlrc(instance.getProgress()));
         return stats;
     }
 

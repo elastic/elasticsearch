@@ -50,6 +50,9 @@ teardown:
   - match: { transforms.0.state.indexer_state: "started" }
   - match: { transforms.0.state.task_state: "started" }
   - match: { transforms.0.state.checkpoint: 0 }
+  - match: { transforms.0.state.progress.total_docs: 0 }
+  - match: { transforms.0.state.progress.docs_remaining: 0 }
+  - match: { transforms.0.state.progress.percent_complete: 100.0 }
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }
@@ -60,9 +63,6 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
-  - match: { transforms.0.progress.total_docs: 0 }
-  - match: { transforms.0.progress.docs_remaining: 0 }
-  - match: { transforms.0.progress.percent_complete: 100.0 }
 
 ---
 "Test get transform stats on missing transform":
@@ -201,6 +201,7 @@ teardown:
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.checkpoint: 0 }
+  - is_false: transforms.0.state.progress
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }
@@ -211,4 +212,3 @@ teardown:
   - match: { transforms.0.stats.search_time_in_ms: 0 }
   - match: { transforms.0.stats.search_total: 0 }
   - match: { transforms.0.stats.search_failures: 0 }
-  - is_false: transforms.0.progress

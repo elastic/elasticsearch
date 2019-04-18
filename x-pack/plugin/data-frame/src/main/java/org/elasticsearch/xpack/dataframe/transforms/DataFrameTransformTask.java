@@ -135,14 +135,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 initialIndexerState,
                 initialPosition,
                 currentCheckpoint.get(),
-                stateReason.get());
+                stateReason.get(),
+                null);
         } else {
            return new DataFrameTransformState(
                taskState.get(),
                indexer.get().getState(),
                indexer.get().getPosition(),
                currentCheckpoint.get(),
-               stateReason.get());
+               stateReason.get(),
+               getIndexer().getProgress());
         }
     }
 
@@ -200,7 +202,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             IndexerState.STOPPED,
             getIndexer().getPosition(),
             currentCheckpoint.get(),
-            null);
+            null,
+            getIndexer().getProgress());
 
         logger.info("Updating state for data frame transform [{}] to [{}]", transform.getId(), state.toString());
         persistStateToClusterState(state, ActionListener.wrap(
@@ -244,7 +247,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 IndexerState.STOPPED,
                 getIndexer().getPosition(),
                 currentCheckpoint.get(),
-                stateReason.get());
+                stateReason.get(),
+                getIndexer().getProgress());
             persistStateToClusterState(state, ActionListener.wrap(
                 task -> {
                     auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
@@ -430,10 +434,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return this;
         }
 
-        Map<String, Object> getInitialPosition() {
-            return this.initialPosition;
-        }
-
         ClientDataFrameIndexerBuilder setProgress(DataFrameTransformProgress progress) {
             this.progress = progress;
             return this;
@@ -441,7 +441,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
-        private static final int CREATE_CHECKPOINT_TIMEOUT_IN_SECONDS = 30;
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
@@ -498,7 +497,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // valid. Especially if the `onStart` is being called for a later checkpoint and we still have the
             // progress from the previous checkpoint.
             if (initialRun()) {
-                TransformProgressGatherer.getProgress(this.client, getConfig(), getPosition(), ActionListener.wrap(
+                TransformProgressGatherer.getInitialProgress(this.client, getConfig(), ActionListener.wrap(
                     newProgress -> {
                         progress = newProgress;
                         super.onStart(now, listener);
@@ -569,7 +568,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 indexerState,
                 getPosition(),
                 transformTask.currentCheckpoint.get(),
-                transformTask. stateReason.get());
+                transformTask.stateReason.get(),
+                getProgress());
             logger.debug("Updating persistent state of transform [{}] to [{}]", transformConfig.getId(), state.toString());
 
             // Persisting stats when we call `doSaveState` should be ok as we only call it on a state transition and

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -94,10 +93,6 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     }
 
     public abstract Type getType();
-
-    public abstract QueryBuilder getNextBucketsQuery(Object key);
-
-    public abstract QueryBuilder getCurrentBucketQuery(Object key);
 
     public String getField() {
         return field;

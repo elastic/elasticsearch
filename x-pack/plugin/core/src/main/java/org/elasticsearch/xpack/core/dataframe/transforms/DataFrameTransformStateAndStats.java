@@ -23,7 +23,6 @@ import java.util.Objects;
 public class DataFrameTransformStateAndStats implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_state_and_stats";
-    private static final ParseField PROGRESS = new ParseField("progress");
     public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
 
@@ -31,7 +30,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
     private final DataFrameTransformState transformState;
     private final DataFrameIndexerTransformStats transformStats;
     private final DataFrameTransformCheckpointingInfo checkpointingInfo;
-    private DataFrameTransformProgress progress;
 
     public static final ConstructingObjectParser<DataFrameTransformStateAndStats, Void> PARSER = new ConstructingObjectParser<>(
             NAME, true,
@@ -47,7 +45,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
                 DataFrameField.STATS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
                                 (p, c) -> DataFrameTransformCheckpointingInfo.fromXContent(p), CHECKPOINTING_INFO_FIELD);
-        PARSER.declareObject(DataFrameTransformStateAndStats::setProgress, DataFrameTransformProgress.PARSER::apply, PROGRESS);
     }
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id) {
@@ -56,7 +53,7 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
     public static DataFrameTransformStateAndStats initialStateAndStats(String id, DataFrameIndexerTransformStats indexerTransformStats) {
         return new DataFrameTransformStateAndStats(id,
-            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null),
+            new DataFrameTransformState(DataFrameTransformTaskState.STOPPED, IndexerState.STOPPED, null, 0L, null, null),
             indexerTransformStats,
             DataFrameTransformCheckpointingInfo.EMPTY);
     }
@@ -74,7 +71,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         this.transformState = new DataFrameTransformState(in);
         this.transformStats = new DataFrameIndexerTransformStats(in);
         this.checkpointingInfo = new DataFrameTransformCheckpointingInfo(in);
-        this.progress = in.readOptionalWriteable(DataFrameTransformProgress::new);
     }
 
     @Override
@@ -84,9 +80,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         builder.field(STATE_FIELD.getPreferredName(), transformState, params);
         builder.field(DataFrameField.STATS_FIELD.getPreferredName(), transformStats, params);
         builder.field(CHECKPOINTING_INFO_FIELD.getPreferredName(), checkpointingInfo, params);
-        if (progress != null) {
-            builder.field(PROGRESS.getPreferredName(), progress);
-        }
         builder.endObject();
         return builder;
     }
@@ -97,20 +90,11 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
         transformState.writeTo(out);
         transformStats.writeTo(out);
         checkpointingInfo.writeTo(out);
-        out.writeOptionalWriteable(progress);
-    }
-
-    public DataFrameTransformProgress getProgress() {
-        return progress;
-    }
-
-    public void setProgress(DataFrameTransformProgress progress) {
-        this.progress = progress;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, transformState, transformStats, checkpointingInfo, progress);
+        return Objects.hash(id, transformState, transformStats, checkpointingInfo);
     }
 
     @Override
@@ -127,7 +111,6 @@ public class DataFrameTransformStateAndStats implements Writeable, ToXContentObj
 
         return Objects.equals(this.id, that.id) && Objects.equals(this.transformState, that.transformState)
                 && Objects.equals(this.transformStats, that.transformStats)
-                && Objects.equals(this.progress, that.progress)
                 && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
     }
 

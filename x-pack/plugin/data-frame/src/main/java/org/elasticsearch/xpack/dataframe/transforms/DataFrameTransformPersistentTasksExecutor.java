@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer.getProgress;
+import static org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer.getInitialProgress;
 
 public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksExecutor<DataFrameTransform> {
 
@@ -114,14 +114,22 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         ActionListener<DataFrameIndexerTransformStats> transformStatsActionListener = ActionListener.wrap(
             stats -> {
                 indexerBuilder.setInitialStats(stats);
-                getProgress(client, indexerBuilder.getTransformConfig(), indexerBuilder.getInitialPosition(), progressActionListener);
+                if (transformState == null) {
+                    getInitialProgress(client, indexerBuilder.getTransformConfig(), progressActionListener);
+                }  else {
+                    progressActionListener.onResponse(transformState.getProgress());
+                }
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
                     logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
                 }
                 indexerBuilder.setInitialStats(new DataFrameIndexerTransformStats(transformId));
-                getProgress(client, indexerBuilder.getTransformConfig(), indexerBuilder.getInitialPosition(), progressActionListener);
+                if (transformState == null) {
+                    getInitialProgress(client, indexerBuilder.getTransformConfig(), progressActionListener);
+                } else {
+                    progressActionListener.onResponse(transformState.getProgress());
+                }
             }
         );
 

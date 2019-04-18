@@ -474,7 +474,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             DataFrameIndexerTransformStats transformStats =
                 stateAndStats.getTransformStats();              // <4>
             DataFrameTransformProgress progress =
-                stateAndStats.getProgress(); // <5>
+                stateAndStats.getTransformState().getProgress(); // <5>
             // end::get-data-frame-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);

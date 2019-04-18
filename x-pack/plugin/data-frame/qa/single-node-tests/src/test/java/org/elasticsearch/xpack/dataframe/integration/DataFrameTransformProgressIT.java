@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.Netty4Plugin;
@@ -31,25 +30,20 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.dataframe.integration.DataFrameRestTestCase.REVIEWS_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.number.IsCloseTo.closeTo;
 
 public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
@@ -131,16 +125,11 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
         DestConfig destConfig = new DestConfig("unnecessary");
-        Map<String, Object> groupConfigHistogramMap = new HashMap<>();
-        groupConfigHistogramMap.put("interval", 50);
-        groupConfigHistogramMap.put("field", "count");
-        GroupConfig histgramGroupConfig = new GroupConfig(Collections.singletonMap("every_50",
-            Collections.singletonMap("histogram", groupConfigHistogramMap)),
+        GroupConfig histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", 50.0)));
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.singletonMap("avg_rating",
-            Collections.singletonMap("avg", Collections.singletonMap("field", "stars"))), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig);
         DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
@@ -149,60 +138,13 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             pivotConfig);
 
         PlainActionFuture<DataFrameTransformProgress> progressFuture = new PlainActionFuture<>();
-        TransformProgressGatherer.getProgress(client(), config, null, progressFuture);
+        TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
 
         DataFrameTransformProgress progress = progressFuture.get();
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getRemainingDocs(), equalTo(1000L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
-
-        progressFuture = new PlainActionFuture<>();
-
-        TransformProgressGatherer.getProgress(client(), config, Collections.singletonMap("every_50", 150), progressFuture);
-        progress = progressFuture.get();
-
-        assertThat(progress.getTotalDocs(), equalTo(1000L));
-        assertThat(progress.getRemainingDocs(), equalTo(800L));
-        assertThat(progress.getPercentComplete(), closeTo(20.0, 0.0000001));
-
-        progressFuture = new PlainActionFuture<>();
-
-        TransformProgressGatherer.getProgress(client(), config, Collections.singletonMap("every_50", 1000), progressFuture);
-        progress = progressFuture.get();
-
-        assertThat(progress.getTotalDocs(), equalTo(1000L));
-        assertThat(progress.getRemainingDocs(), equalTo(0L));
-        assertThat(progress.getPercentComplete(), equalTo(100.0));
-
-        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource("timestamp");
-        dateHistogramGroupSource.setDateHistogramInterval(DateHistogramInterval.DAY);
-        dateHistogramGroupSource.setFormat("yyyy-MM-DD");
-        // Map definition does not matter
-        GroupConfig complicatedGroupConfig = new GroupConfig(Collections.emptyMap(),
-            new HashMap<>(){{
-                put("daily", dateHistogramGroupSource);
-                put("user", new TermsGroupSource("user_id"));
-            }});
-        pivotConfig = new PivotConfig(complicatedGroupConfig, aggregationConfig);
-        config = new DataFrameTransformConfig("get_progress_transform",
-            sourceConfig,
-            destConfig,
-            null,
-            pivotConfig);
-
-        Map<String, Object> cursor = new HashMap<>() {{
-            put("daily", "2017-01-11");
-            put("user_id", "user_26");
-        }};
-        progressFuture = new PlainActionFuture<>();
-
-        TransformProgressGatherer.getProgress(client(), config, cursor, progressFuture);
-        progress = progressFuture.get();
-
-        assertThat(progress.getTotalDocs(), equalTo(1000L));
-        assertThat(progress.getRemainingDocs(), equalTo(949L));
-        assertThat(progress.getPercentComplete(), closeTo(5.1, 0.0000001));
 
 
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
@@ -217,21 +159,12 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
         progressFuture = new PlainActionFuture<>();
 
-        TransformProgressGatherer.getProgress(client(), config, null, progressFuture);
+        TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
         progress = progressFuture.get();
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getRemainingDocs(), equalTo(35L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
-
-        progressFuture = new PlainActionFuture<>();
-
-        TransformProgressGatherer.getProgress(client(), config, Collections.singletonMap("every_50", 500), progressFuture);
-        progress = progressFuture.get();
-
-        assertThat(progress.getTotalDocs(), equalTo(35L));
-        assertThat(progress.getRemainingDocs(), equalTo(16L));
-        assertThat(progress.getPercentComplete(), closeTo(54.28571428, 0.00000001));
 
         client().admin().indices().prepareDelete(REVIEWS_INDEX_NAME).get();
     }

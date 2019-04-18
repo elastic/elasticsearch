@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
 
     @Override
     protected EnrichPolicy doParseInstance(XContentParser parser) throws IOException {
-        return EnrichPolicy.PARSER.parse(parser, null);
+        return EnrichPolicy.fromXContent(parser);
     }
 
     @Override

@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -10,6 +10,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
 
@@ -32,5 +36,20 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     @Override
     protected Writeable.Reader<OutlierDetection> instanceReader() {
         return OutlierDetection::new;
+    }
+
+    public void testGetParams_GivenDefaults() {
+        OutlierDetection outlierDetection = new OutlierDetection();
+        assertThat(outlierDetection.getParams().isEmpty(), is(true));
+    }
+
+    public void testGetParams_GivenExplicitValues() {
+        OutlierDetection outlierDetection = new OutlierDetection(42, OutlierDetection.Method.LDOF);
+
+        Map<String, Object> params = outlierDetection.getParams();
+
+        assertThat(params.size(), equalTo(2));
+        assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
+        assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
     }
 }

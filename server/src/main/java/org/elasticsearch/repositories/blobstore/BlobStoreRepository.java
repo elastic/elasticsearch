@@ -145,9 +145,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
  *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
- *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |  |- index-123 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
+ *      |  |  |- snap-20131010.dat - JSON serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
+ *      |  |  |- snap-20131011.dat - JSON serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
+ *      |  |  |- index-123 - JSON serialized {@link BlobStoreIndexShardSnapshots} for the shard
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1

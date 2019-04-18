@@ -98,6 +98,11 @@ for the aggregation:
 ==== Values source
 
 The `sources` parameter controls the sources that should be used to build the composite buckets.
+The order that the `sources` are defined is important because it also controls the order
+the keys are returned.
+
+The name given to each sources must be unique.
+
 There are three different types of values source:
 
 ===== Terms

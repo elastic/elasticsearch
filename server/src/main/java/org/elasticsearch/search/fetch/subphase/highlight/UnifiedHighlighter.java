@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -109,7 +110,9 @@ public class UnifiedHighlighter implements Highlighter {
                 final String fieldName = highlighterContext.fieldName;
                 highlighter.setFieldMatcher((name) -> fieldName.equals(name));
             } else {
-                highlighter.setFieldMatcher((name) -> true);
+                // ignore terms that targets the _id field since they use a different encoding
+                // that is not compatible with utf8
+                highlighter.setFieldMatcher(name -> IdFieldMapper.NAME.equals(name) == false);
             }
 
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,

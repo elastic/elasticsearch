@@ -121,6 +121,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     dependsOn(project.bundlePlugin)
     runner {
       if (integTestTaskName.contains("Secure")) {
+        dependsOn secureHdfsFixture
         systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
         systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
         jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
@@ -209,12 +210,6 @@ if (fixtureSupported) {
 }
 
 check.dependsOn(integTestSecure, integTestSecureHa)
-
-// Fixture dependencies
-integTestSecure.dependsOn secureHdfsFixture
-integTestSecureHa.dependsOn secureHaHdfsFixture
-
-
 
 // Run just the secure hdfs rest test suite.
 integTestSecure.runner {

@@ -75,7 +75,7 @@ public class JsonLoggerTests extends ESTestCase {
         testLogger.info(new DeprecatedMessage("deprecated message","someId"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
-            System.getProperty("es.logs.cluster_name") +"_deprecated"+ ".log");
+            System.getProperty("es.logs.cluster_name") +"_deprecated.json");
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = stream
                 .collect(Collectors.toList());
@@ -85,6 +85,23 @@ public class JsonLoggerTests extends ESTestCase {
             ));
         }
     }
+//     @SuppressWarnings("unchecked")
+//    public void testSearchSlowLogMessage() throws IOException {
+//        final Logger testLogger = LogManager.getLogger("test");
+//        testLogger.info(new DeprecatedMessage("deprecated message","someId"));
+//
+//        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+//            System.getProperty("es.logs.cluster_name") +"_index_search_slowlog.json");
+//        try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
+//            List<JsonLogLine> jsonLogs = stream
+//                .collect(Collectors.toList());
+//
+//            assertThat(jsonLogs, Matchers.contains(
+//                logLine("deprecated", Level.INFO, "sample-name", "test", "deprecated message", "someId")
+//            ));
+//        }
+//    }
+
     @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");

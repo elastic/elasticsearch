@@ -24,6 +24,6 @@ import java.util.Map;
 public class DeprecatedMessage extends LoggerMessage {
 
     public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
-        super(Map.of("x-opaque-id", xOpaqueId), messagePattern, args);
+        super(Map.of("x-opaque-id", inQuotes(xOpaqueId)), messagePattern, args);
     }
 }

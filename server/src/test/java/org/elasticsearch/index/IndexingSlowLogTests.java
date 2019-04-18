@@ -37,14 +37,33 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 
 public class IndexingSlowLogTests extends ESTestCase {
+
+    public void testSlowLogMessageHasJsonFields() throws IOException {
+        BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
+            .startObject().field("foo", "bar").endObject());
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+            "test", "routingValue", null, source, XContentType.JSON, null);
+        Index index = new Index("foo", "123");
+        // Turning off document logging doesn't log source[]
+        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
+
+        assertThat(p.getValueFor("message"),equalTo("\"[foo/123]\""));
+        assertThat(p.getValueFor("took"),equalTo("\"10nanos\""));
+        assertThat(p.getValueFor("took_millis"),equalTo("\"0\""));
+        assertThat(p.getValueFor("doc_type"),equalTo("\"test\""));
+        assertThat(p.getValueFor("id"),equalTo("\"id\""));
+        assertThat(p.getValueFor("routing"),equalTo("\"routingValue\""));
+        assertThat((String)p.getValueFor("source"), isEmptyOrNullString());
+
+        // Turning on document logging logs the whole thing
+        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
+        assertThat((String)p.getValueFor("source"), containsString("\"{\\\"foo\\\":\\\"bar\\\"}\""));
+    }
+
     public void testSlowLogParsedDocumentPrinterSourceToLog() throws IOException {
         BytesReference source = BytesReference.bytes(JsonXContent.contentBuilder()
             .startObject().field("foo", "bar").endObject());
@@ -54,31 +73,31 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
-        assertThat(p.getFormattedMessage(), not(containsString("source[")));
+        assertThat(p.toString(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"foo\":\"bar\"}\""));
+        assertThat(p.toString(), containsString("source[{\"foo\":\"bar\"}]"));
 
         // And you can truncate the source
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"f\""));
+        assertThat(p.toString(), containsString("source[{\"f]"));
 
         // And you can truncate the source
         p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
-        assertThat(p.getFormattedMessage(), containsString("\"source\": \"{\"f\""));
-        assertThat(p.getFormattedMessage(), startsWith("\"message\": \"[foo/123]\",\"took\": \""));
+        assertThat(p.toString(), containsString("source[{\"f]"));
+        assertThat(p.toString(), startsWith("[foo/123] took"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");
-        pd = new ParsedDocument(new NumericDocValuesField("version", 1),
+        ParsedDocument doc = new ParsedDocument(new NumericDocValuesField("version", 1),
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
             "test", null, null, source, XContentType.JSON, null);
-        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
 
-        final UncheckedIOException e = expectThrows(UncheckedIOException.class, p::getFormattedMessage);
+        final UncheckedIOException e = expectThrows(UncheckedIOException.class,
+            ()->new SlowLogParsedDocumentPrinter(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
-            + " was expecting ('true', 'false' or 'null')\n"
+            + " was expecting ('true', 'false' or 'null')\\n"
             + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(JsonParseException.class));
@@ -126,22 +145,6 @@ public class IndexingSlowLogTests extends ESTestCase {
                 hasToString(containsString("Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.")));
         }
         assertTrue(log.isReformat());
-    }
-
-    public void testReformatIsFalseAndSourceIsTrim() {
-        String json = "\n\n{ \"fieldName\": 123 }  \n ";
-        BytesReference source = new BytesArray(json);
-        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
-            "test", null, null, source, XContentType.JSON, null);
-        Index index = new Index("foo", "123");
-        // Turning off reformatting so the document is in logs as provided
-        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, false, 1000);
-        String logLine = p.getFormattedMessage();
-
-        //expect the new lines and white characters to be trimmed
-        assertThat(logLine, containsString("\"source\": \"{ \"fieldName\": 123 }\""));
-        assertThat(logLine.split("\n").length, equalTo(1));
     }
 
     public void testLevelSetting() {

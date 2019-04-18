@@ -32,8 +32,12 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
     private long queryWarnThreshold;
@@ -161,24 +165,25 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("message", context.indexShard().shardId());
-            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
-            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            messageFields.put("message", inQuotes(context.indexShard().shardId()));
+            messageFields.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));
+            messageFields.put("took_millis", inQuotes(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
             if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("total_hits", context.queryResult().getTotalHits());
+                messageFields.put("total_hits", inQuotes(context.queryResult().getTotalHits()));
             } else {
-                messageFields.put("total_hits", "-1");
+                messageFields.put("total_hits", inQuotes("-1"));
             }
-            messageFields.put("types", context.getQueryShardContext().getTypes());
-            messageFields.put("stats", context.groupStats());
-            messageFields.put("search_type", context.searchType());
-            messageFields.put("total_shards", context.numberOfShards());
+            String[] types = context.getQueryShardContext().getTypes();
+            messageFields.put("types", asJsonArray(types != null ? Arrays.stream(types) : Stream.empty()));
+            messageFields.put("stats", asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()));
+            messageFields.put("search_type", inQuotes(context.searchType()));
+            messageFields.put("total_shards", inQuotes(context.numberOfShards()));
             if (context.request().source() != null) {
                 messageFields.put("source", context.request().source().toString(FORMAT_PARAMS));
             } else {
-                messageFields.put("source", "");
+                messageFields.put("source", "{}");
             }
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("id", inQuotes(context.getTask().getHeader(Task.X_OPAQUE_ID)));
             return messageFields;
         }
 

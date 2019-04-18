@@ -22,6 +22,8 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class LoggerMessage extends ParameterizedMessage {
     private Map<String, Object> fields;
@@ -31,8 +33,23 @@ public abstract class LoggerMessage extends ParameterizedMessage {
         this.fields = fields;
     }
 
-    Object getValueFor(String key) {
+    public Object getValueFor(String key) {
         return fields.get(key);
     }
 
+    public static String inQuotes(String s) {
+        return "\"" + s + "\"";
+    }
+
+    public static String inQuotes(Object s) {
+        if(s == null)
+            return inQuotes("");
+        return inQuotes(s.toString());
+    }
+
+    public static String asJsonArray(Stream<String> stream) {
+        return "[" + stream
+            .map(LoggerMessage::inQuotes)
+            .collect(Collectors.joining(", ")) + "]";
+    }
 }

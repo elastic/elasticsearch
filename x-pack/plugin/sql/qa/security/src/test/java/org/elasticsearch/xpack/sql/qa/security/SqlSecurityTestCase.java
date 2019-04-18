@@ -189,8 +189,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                 throw new RuntimeException(e);
             }
             
-            // the log file can roll over without being catched by assertLogs() method: in those tests where exceptions are being handled
-            // and no audit logs being read (and, thus, assertLogs() is not called)
+            // The log file can roll over without being catched by assertLogs() method: in those tests where exceptions are being handled
+            // and no audit logs being read (and, thus, assertLogs() is not called) - for example testNoMonitorMain() method: there are no
+            // calls to auditLogs(), and the method could run while the audit file is rolled over.
+            // If this happens, next call to auditLogs() will make the tests read from the rolled over file using the main audit file
+            // offset, which will most likely not going to work since the offset will happen somewhere in the middle of a json line.
             if (auditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                 // once the audit file rolled over, it will stay like this
                 auditFileRolledOver = true;

@@ -1664,6 +1664,15 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         assertThat(e.getMessage(), equalTo("Composite [sources] cannot be null or empty"));
     }
 
+    public void testNullSourceNonNullCollection() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            builders.add(null);
+            new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite source cannot be null"));
+    }
+
     private <T extends Comparable<T>, V extends Comparable<T>> void testRandomTerms(String field,
                                                                                     Supplier<T> randomSupplier,
                                                                                     Function<Object, V> transformKey) throws IOException {

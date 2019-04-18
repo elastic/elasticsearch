@@ -84,7 +84,6 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     protected CompositeAggregationBuilder(CompositeAggregationBuilder clone,
                                           AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
-        validateSources(clone.sources);
         this.sources = new ArrayList<>(clone.sources);
         this.after = clone.after;
         this.size = clone.size;
@@ -181,9 +180,12 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         Set<String> names = new HashSet<>();
         Set<String> duplicates = new HashSet<>();
         sources.forEach(source -> {
+            if (source == null) {
+                throw new IllegalArgumentException("Composite source cannot be null");
+            }
             boolean unique = names.add(source.name());
             if (unique == false) {
-               duplicates.add(source.name());
+                duplicates.add(source.name());
             }
         });
 

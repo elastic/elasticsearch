@@ -66,7 +66,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
-    public static final int DEFAULT_MIN_CHILDREN = 0;
+    public static final int DEFAULT_MIN_CHILDREN = 1;
 
     /**
      * The default value for ignore_unmapped.

@@ -65,7 +65,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -476,7 +475,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
         for (IndexId indexId: indices) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<Void>(groupedListener) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(groupedListener) {
 
                 @Override
                 protected void doRun() {
@@ -516,9 +515,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<IndexId> indices,
@@ -718,7 +714,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+                repositoryData.snapshotsToXContent(builder);
                 builder.close();
             }
             snapshotsBytes = bStream.bytes();
@@ -752,10 +748,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert isReadOnly() == false; // can not write to a read only repository
         final BytesReference bytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.incompatibleSnapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.close();
+            try (StreamOutput stream = new OutputStreamStreamOutput(bStream);
+                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream)) {
+                repositoryData.incompatibleSnapshotsToXContent(builder);
             }
             bytes = bStream.bytes();
         }

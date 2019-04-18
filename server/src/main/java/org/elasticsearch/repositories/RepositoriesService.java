@@ -119,7 +119,7 @@ public class RepositoriesService implements ClusterStateApplier {
         }
 
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
+            new AckedClusterStateUpdateTask<>(request, registrationListener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
@@ -186,7 +186,7 @@ public class RepositoriesService implements ClusterStateApplier {
      */
     public void unregisterRepository(final DeleteRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("delete_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);

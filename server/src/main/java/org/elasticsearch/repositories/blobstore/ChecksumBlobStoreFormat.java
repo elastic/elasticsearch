@@ -163,7 +163,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
-                    public void close() throws IOException {
+                    public void close() {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }

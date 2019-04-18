@@ -49,7 +49,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.rollup.RollupField.formatFieldName;
@@ -61,7 +60,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     static final String AGGREGATION_NAME = RollupField.NAME;
 
     private final RollupJob job;
-    protected final AtomicBoolean upgradedDocumentID;
     private final CompositeAggregationBuilder compositeBuilder;
     private long maxBoundary;
 
@@ -71,11 +69,9 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
-     * @param upgradedDocumentID whether job has updated IDs (for BWC)
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
-            AtomicBoolean upgradedDocumentID) {
-        this(executor, job, initialState, initialPosition, upgradedDocumentID, new RollupIndexerJobStats());
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition) {
+        this(executor, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
@@ -84,22 +80,13 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
-     * @param upgradedDocumentID whether job has updated IDs (for BWC)
      * @param jobStats jobstats instance for collecting stats
      */
-    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState, Map<String, Object> initialPosition,
-            AtomicBoolean upgradedDocumentID, RollupIndexerJobStats jobStats) {
+    RollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+                  Map<String, Object> initialPosition, RollupIndexerJobStats jobStats) {
         super(executor, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
-        this.upgradedDocumentID = upgradedDocumentID;
-    }
-
-    /**
-     * Returns if this job has upgraded it's ID scheme yet or not
-     */
-    public boolean isUpgradedDocumentID() {
-        return upgradedDocumentID.get();
     }
 
     @Override
@@ -127,8 +114,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
     @Override
     protected SearchRequest buildSearchRequest() {
-            // Indexer is single-threaded, and only place that the ID scheme can get upgraded is doSaveState(), so
-            // we can pass down the boolean value rather than the atomic here
         final Map<String, Object> position = getPosition();
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
                 .size(0)
@@ -145,7 +130,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
 
         return new IterationResult<>(
                 IndexerUtils.processBuckets(response, job.getConfig().getRollupIndex(), getStats(),
-                        job.getConfig().getGroupConfig(), job.getConfig().getId(), upgradedDocumentID.get()),
+                        job.getConfig().getGroupConfig(), job.getConfig().getId()),
                 response.afterKey(), response.getBuckets().isEmpty());
     }
 

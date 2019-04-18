@@ -523,8 +523,8 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future2.get().close();
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
 
-        try (Releasable releasable = blockAndWait()) {
-            assertThat(permits.getActiveOperationsCount(), equalTo(0));
+        try (Releasable ignored = blockAndWait()) {
+            assertThat(permits.getActiveOperationsCount(), equalTo(IndexShard.OPERATIONS_BLOCKED));
         }
 
         PlainActionFuture<Releasable> future3 = new PlainActionFuture<>();

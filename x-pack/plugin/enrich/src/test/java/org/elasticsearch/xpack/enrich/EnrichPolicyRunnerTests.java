@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
@@ -42,8 +41,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testRunner() throws Exception {
-        logger.info("Starting Test");
-
         final String sourceIndex = "source-index";
         IndexResponse indexRequest = client().index(new IndexRequest()
             .index(sourceIndex)
@@ -78,15 +75,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         logger.info("Created Doc");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        EnrichStore enrichStore = new EnrichStore(clusterService);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
 
         final long createTime = randomNonNegativeLong();
-
-        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(clusterService, client(), enrichStore, resolver,
-            () -> createTime);
-
-        logger.info("Runner created");
 
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -97,9 +88,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, sourceIndex, "field1", enrichFields, "");
         String policyName = "test1";
 
-        logger.info("Starting policy run");
-
-        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<PolicyExecutionResult>() {
+        ActionListener<PolicyExecutionResult> listener = new ActionListener<PolicyExecutionResult>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
@@ -112,7 +101,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 exception.set(e);
                 latch.countDown();
             }
-        });
+        };
+
+        EnrichPolicyRunner enrichPolicyRunner =
+            new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime);
+
+        logger.info("Starting policy run");
+
+        enrichPolicyRunner.run();
 
         latch.await();
         if (exception.get() != null) {
@@ -130,18 +126,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     .query(QueryBuilders.matchAllQuery()))).get();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        Map<String, Object> enrichDocMap = enrichSearchResponse.getHits().getAt(0).getSourceAsMap();
-        assertNotNull(enrichDocMap);
-        assertThat(enrichDocMap.get("field1"), is(equalTo("value1")));
-        assertThat(enrichDocMap.get("field2"), is(equalTo(2)));
-        assertThat(enrichDocMap.get("field3"), is(nullValue()));
-        assertThat(enrichDocMap.get("field4"), is(nullValue()));
-        assertThat(enrichDocMap.get("field5"), is(equalTo("value5")));
+        // TODO: Add value checking once enrich doc_values are added
     }
 
     public void testRunnerMultiSource() throws Exception {
-        logger.info("Starting Test");
-
         String baseSourceName = "source-index-";
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
@@ -182,15 +170,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         logger.info("Created Docs");
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        EnrichStore enrichStore = new EnrichStore(clusterService);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
 
         final long createTime = randomNonNegativeLong();
-
-        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(clusterService, client(), enrichStore, resolver,
-            () -> createTime);
-
-        logger.info("Runner created");
 
         final AtomicReference<Exception> exception = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -203,9 +185,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, sourceIndexPattern, "field1", enrichFields, "");
         String policyName = "test1";
 
-        logger.info("Starting policy run");
-
-        enrichPolicyRunner.runPolicy(policyName, policy, new ActionListener<PolicyExecutionResult>() {
+        ActionListener<PolicyExecutionResult> listener = new ActionListener<PolicyExecutionResult>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
@@ -218,7 +198,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                 exception.set(e);
                 latch.countDown();
             }
-        });
+        };
+
+        EnrichPolicyRunner enrichPolicyRunner =
+            new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime);
+
+        logger.info("Starting policy run");
+
+        enrichPolicyRunner.run();
 
         latch.await();
         if (exception.get() != null) {
@@ -235,18 +222,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     .source(
                         SearchSourceBuilder.searchSource()
                             .query(QueryBuilders.matchAllQuery())
-                            .sort("idx")
                     )
             ).actionGet();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
-        Map<String, Object> enrichDocMap = enrichSearchResponse.getHits().getAt(0).getSourceAsMap();
-        assertNotNull(enrichDocMap);
-        assertThat(enrichDocMap.get("idx"), is(equalTo(0)));
-        assertThat(enrichDocMap.get("field1"), is(equalTo("value1")));
-        assertThat(enrichDocMap.get("field2"), is(equalTo(2)));
-        assertThat(enrichDocMap.get("field3"), is(nullValue()));
-        assertThat(enrichDocMap.get("field4"), is(nullValue()));
-        assertThat(enrichDocMap.get("field5"), is(equalTo("value5")));
+        // TODO: Add value checking once enrich doc_values are added
     }
 }

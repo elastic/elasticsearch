@@ -45,9 +45,9 @@ public class EnrichPlugin extends Plugin implements IngestPlugin {
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry) {
         EnrichStore enrichStore = new EnrichStore(clusterService);
-        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(clusterService, client, enrichStore,
+        EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(enrichStore, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
-        return Arrays.asList(enrichStore, enrichPolicyRunner);
+        return Arrays.asList(enrichStore, enrichPolicyExecutor);
     }
 
     @Override

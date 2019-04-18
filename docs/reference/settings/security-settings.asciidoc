@@ -293,6 +293,12 @@ When using `dns_failover` or `dns_round_robin` as the load balancing type,
 this setting controls the amount of time to cache DNS lookups. Defaults
 to `1h`.
 
+`bind.mode`::
+LDAP bind operation mode supports `simple` and `sasl_gssapi`.
+`simple` bind which uses configured username (in a dn form) and credentials.
+`sasl_gssapi` which uses Kerberos user principal and credentials (either password or keytab).
+Defaults to `simple` LDAP bind.
+
 `bind_dn`::
 The DN of the user that is used to bind to the LDAP and perform searches.
 Only applicable in user search mode.
@@ -300,16 +306,26 @@ If not specified, an anonymous bind is attempted.
 Defaults to Empty. Due to its potential security impact, `bind_dn` is not 
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
+`sasl_gssapi.bind.principal`::
+The user principal name that is used to bind to the LDAP. Only applicable when
+the `bind.mode` is `sasl_gssapi`. Due to its potential security impact,
+`sasl_gssapi.bind.principal` is not exposed via the <<cluster-nodes-info,nodes info API>>.
+
 `bind_password`::
 deprecated[6.3] Use `secure_bind_password` instead. The password for the user 
 that is used to bind to the LDAP directory.
 Defaults to Empty. Due to its potential security impact, `bind_password` is not 
 exposed via the <<cluster-nodes-info,nodes info API>>.
 
-
 `secure_bind_password` (<<secure-settings,Secure>>)::
 The password for the user that is used to bind to the LDAP directory.
 Defaults to Empty.
+
+`sasl_gssapi.bind.keytab.path`::
+Specifies the path to the Kerberos keytab file that contains the credentials for
+the user principal name used for LDAP bind. This must be a location within the
+{es} configuration directory and the file must have read permissions. Only applicable
+when the `bind.mode` is `sasl_gssapi`.
 
 `user_dn_templates`::
 The DN template that replaces the user name with the string `{0}`.

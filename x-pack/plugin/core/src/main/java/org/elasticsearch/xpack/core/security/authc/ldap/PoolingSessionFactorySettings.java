@@ -48,7 +48,7 @@ public final class PoolingSessionFactorySettings {
             }, Property.NodeScope));
 
     public static final Function<String, Setting.AffixSetting<String>> SASL_GSSAPI_PRINCIPAL = RealmSettings
-            .affixSetting("sasl_gssapi.bind.principal", key -> Setting.simpleString(key, Property.NodeScope));
+            .affixSetting("sasl_gssapi.bind.principal", key -> Setting.simpleString(key, Property.NodeScope, Property.Filtered));
     public static final Function<String, Setting.AffixSetting<String>> SASL_GSSAPI_KEYTAB_PATH = RealmSettings
             .affixSetting("sasl_gssapi.bind.keytab.path", key -> Setting.simpleString(key, Property.NodeScope, Property.Filtered));
     public static final Function<String, Setting.AffixSetting<Boolean>> SASL_GSSAPI_DEBUG = RealmSettings

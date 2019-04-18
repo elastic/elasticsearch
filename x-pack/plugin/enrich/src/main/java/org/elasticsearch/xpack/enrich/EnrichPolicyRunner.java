@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +35,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -134,66 +139,37 @@ public class EnrichPolicyRunner {
         return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
-    private Map<String, Object> resolveEnrichMapping(final EnrichPolicy policy) {
-        // TODO: Modify enrichKeyFieldMapping based on policy type.
-        // Create dynamic mapping templates - one for the enrich key and one for the enrich values
-        Map<String, Object> enrichKeyFieldMapping = MapBuilder.<String, Object>newMapBuilder()
-            .put("type", "{dynamic_type}")
-            .put("indexed", true)
-            .put("doc_values", false)
-            .map();
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
+        // Currently the only supported policy type is EnrichPolicy.EXACT_MATCH_TYPE, which is a keyword type
+        String keyType;
+        if (EnrichPolicy.EXACT_MATCH_TYPE.equals(policy.getType())) {
+            keyType = "keyword";
+        } else {
+            throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
+        }
 
-        Map<String, Object> enrichKeyTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
-            .put("match", policy.getEnrichKey())
-            .put("mapping", enrichKeyFieldMapping)
-            .map();
+        // Disable _source on enrich index. Explicitly mark key mapping type.
+        try {
+            XContentBuilder builder = JsonXContent.contentBuilder();
+            builder.startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject("_source")
+                        .field("enabled", false)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject(policy.getEnrichKey())
+                            .field("type", keyType)
+                            .field("indexed", true)
+                            .field("doc_values", false)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
 
-        Map<String, Object> enrichKeyTemplate = MapBuilder.<String, Object>newMapBuilder()
-            .put("enrich_key_template", enrichKeyTemplateDefinition)
-            .map();
-
-        Map<String, Object> enrichTextValueFieldMapping = MapBuilder.<String, Object>newMapBuilder()
-            .put("type", "keyword")
-            .put("ignore_above", 256)
-            .put("indexed", false)
-            .put("doc_values", true)
-            .map();
-
-        Map<String, Object> enrichTextValueTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
-            .put("match_mapping_type", "string")
-            .put("match", "*")
-            .put("unmatch", policy.getEnrichKey())
-            .put("mapping", enrichTextValueFieldMapping)
-            .map();
-
-        Map<String, Object> enrichTextValueTemplate = MapBuilder.<String, Object>newMapBuilder()
-            .put("enrich_text_value_template", enrichTextValueTemplateDefinition)
-            .map();
-
-        Map<String, Object> enrichValueFieldMapping = MapBuilder.<String, Object>newMapBuilder()
-            .put("type", "{dynamic_type}")
-            .put("indexed", false)
-            .put("doc_values", true)
-            .map();
-
-        Map<String, Object> enrichValueTemplateDefinition = MapBuilder.<String, Object>newMapBuilder()
-            .put("match", "*")
-            .put("unmatch", policy.getEnrichKey())
-            .put("mapping", enrichValueFieldMapping)
-            .map();
-
-        Map<String, Object> enrichValueTemplate = MapBuilder.<String, Object>newMapBuilder()
-            .put("enrich_value_template", enrichValueTemplateDefinition)
-            .map();
-
-        List<Map<String, Object>> templates = new ArrayList<>();
-        templates.add(enrichKeyTemplate);
-        templates.add(enrichTextValueTemplate);
-        templates.add(enrichValueTemplate);
-
-        return MapBuilder.<String, Object>newMapBuilder()
-            .put("dynamic_templates", templates)
-            .map();
+            return builder;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException("Could not render enrich mapping", ioe);
+        }
     }
 
     private void prepareAndCreateEnrichIndex(final String policyName, final EnrichPolicy policy,
@@ -202,9 +178,8 @@ public class EnrichPolicyRunner {
         String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
         // TODO: Settings for localizing enrich indices to nodes that are ingest+data only
         Settings enrichIndexSettings = Settings.EMPTY;
-        Map<String, Object> enrichMapping = resolveEnrichMapping(policy);
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
-        createEnrichIndexRequest.mapping("_doc", enrichMapping);
+        createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override

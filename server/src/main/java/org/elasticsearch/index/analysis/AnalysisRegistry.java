@@ -579,7 +579,7 @@ public final class AnalysisRegistry implements Closeable {
                 analysisProviders);
     }
 
-    private Set<String> filtersThatNeedReloading(List<NamedAnalyzer> analyzers) {
+    static Set<String> filtersThatNeedReloading(List<NamedAnalyzer> analyzers) {
         Set<String> filters = new HashSet<>();
         for (NamedAnalyzer namedAnalyzer : analyzers) {
             // only rebuild custom analyzers that are in SEARCH_TIME mode
@@ -598,7 +598,7 @@ public final class AnalysisRegistry implements Closeable {
      * Check if the input analyzer needs to be rebuilt. If not, return analyzer unaltered, otherwise rebuild it. We currently only consider
      * instances of {@link CustomAnalyzer} with {@link AnalysisMode#SEARCH_TIME} to be eligible for rebuilding.
      */
-    private NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexSettings indexSettings,
+    static NamedAnalyzer rebuildIfNecessary(NamedAnalyzer oldAnalyzer, IndexSettings indexSettings,
             Map<String, CharFilterFactory> charFilterFactories, Map<String, TokenizerFactory> tokenizerFactories,
             Map<String, TokenFilterFactory> tokenFilterFactories) throws IOException {
         // only rebuild custom analyzers that are in SEARCH_TIME mode

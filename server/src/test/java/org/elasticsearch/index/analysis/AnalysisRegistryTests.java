@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -43,8 +44,12 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -264,4 +269,121 @@ public class AnalysisRegistryTests extends ESTestCase {
         registry.close();
         verify(mock).close();
     }
+
+    /**
+     * test helper method that filters list of input analyzers to get the names of the token filters they contain
+     * that can be reloaded at search time
+     */
+    public void testFiltersThatNeedReloading() {
+        TokenFilterFactory[] tokenFilters = new TokenFilterFactory[] {
+                createTokenFilter("first", AnalysisMode.ALL),
+                createTokenFilter("second", AnalysisMode.SEARCH_TIME),
+                createTokenFilter("third", AnalysisMode.ALL)
+        };
+        List<NamedAnalyzer> analyzers = Arrays.asList(
+                new NamedAnalyzer("myAnalyzer", AnalyzerScope.INDEX, new CustomAnalyzer("tokenizer", null, null, tokenFilters )),
+                new NamedAnalyzer("myAnalyzer", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        Set<String> filtersThatNeedReloading = AnalysisRegistry.filtersThatNeedReloading(analyzers);
+        assertEquals(1, filtersThatNeedReloading.size());
+        assertTrue(filtersThatNeedReloading.contains("second"));
+    }
+
+    private TokenFilterFactory createTokenFilter(String name, AnalysisMode mode) {
+        return new TokenFilterFactory() {
+
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return null;
+            }
+
+            @Override
+            public AnalysisMode getAnalysisMode() {
+                return mode;
+            }
+        };
+    }
+
+    /**
+     * test helper function that rebuilds an input {@link NamedAnalyzer} if it is reloadable
+     * @throws IOException
+     */
+    public void testRebuildIfNecessary() throws IOException {
+        NamedAnalyzer noReloading = new NamedAnalyzer("noReloading", AnalyzerScope.INDEX, new StandardAnalyzer());
+        assertSame(noReloading, AnalysisRegistry.rebuildIfNecessary(noReloading, null, null, null, null));
+
+        TokenFilterFactory[] tokenFilters = new TokenFilterFactory[] {
+                createTokenFilter("first", AnalysisMode.INDEX_TIME),
+                createTokenFilter("second", AnalysisMode.ALL),
+                createTokenFilter("third", AnalysisMode.ALL)
+        };
+        NamedAnalyzer noReloadingEither = new NamedAnalyzer("noReloadingEither", AnalyzerScope.INDEX,
+                new CustomAnalyzer("tokenizer", null, null, tokenFilters));
+        assertSame(noReloadingEither, AnalysisRegistry.rebuildIfNecessary(noReloadingEither, null, null, null, null));
+
+
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+                .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
+
+        final AtomicInteger factoryCounter = new AtomicInteger(0);
+        TestAnalysis testAnalysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisPlugin() {
+
+            @Override
+           public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                return Collections.singletonMap("myReloadableFilter", new AnalysisProvider<TokenFilterFactory>() {
+
+                    @Override
+                    public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
+                            throws IOException {
+                        factoryCounter.getAndIncrement();
+                        return new MyReloadableFilter();
+                    }
+                });
+            }
+        });
+
+        tokenFilters[0] = testAnalysis.tokenFilter.get("myReloadableFilter");
+        NamedAnalyzer reloadableAnalyzer = new NamedAnalyzer("reloadableAnalyzer", AnalyzerScope.INDEX,
+                new CustomAnalyzer("tokenizer", null, null, tokenFilters));
+        IndexSettings indexSetings = new IndexSettings(IndexMetaData.builder("testIndex").settings(indexSettings).build(), indexSettings);
+
+        NamedAnalyzer rebuilt = AnalysisRegistry.rebuildIfNecessary(reloadableAnalyzer, indexSetings, testAnalysis.charFilter,
+                testAnalysis.tokenizer, testAnalysis.tokenFilter);
+        assertEquals(reloadableAnalyzer.name(), rebuilt.name());
+        assertNotSame(reloadableAnalyzer, rebuilt);
+        assertEquals(2, factoryCounter.get()); // once on intialization, once again for reloading
+        TokenFilterFactory reloadedFactory = ((CustomAnalyzer) rebuilt.analyzer()).tokenFilters()[0];
+        assertThat(reloadedFactory, instanceOf(MyReloadableFilter.class));
+        assertEquals(2, MyReloadableFilter.constructorCounter);
+    }
+
+    static class MyReloadableFilter implements TokenFilterFactory {
+
+        static int constructorCounter = 0;
+
+        MyReloadableFilter() {
+            constructorCounter++;
+        }
+
+        @Override
+        public String name() {
+            return "myReloadableFilter";
+        }
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+            return null;
+        }
+        @Override
+        public AnalysisMode getAnalysisMode() {
+            return AnalysisMode.SEARCH_TIME;
+        }
+    };
 }

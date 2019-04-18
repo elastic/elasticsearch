@@ -22,12 +22,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_DN;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.BIND_MODE;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SASL_GSSAPI_DEBUG;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SASL_GSSAPI_KEYTAB_PATH;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SASL_GSSAPI_PRINCIPAL;
-import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SASL_GSSAPI_USE_KEYTAB;
 import static org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings.SECURE_BIND_PASSWORD;
 
 /**
@@ -61,12 +61,11 @@ public final class BindRequestBuilder {
 
     private BindRequest buildGSSAPIBindRequest(final byte[] bindPassword) throws LDAPException {
         final BindRequest bindRequest;
-        final boolean isUseKeyTab = realmConfig.getSetting(SASL_GSSAPI_USE_KEYTAB);
-        Path keytabPath = validateGSSAPISettings(bindPassword, isUseKeyTab);
+        Path keytabPath = validateGSSAPISettings(bindPassword);
 
         final String principal = realmConfig.getSetting(SASL_GSSAPI_PRINCIPAL);
         final GSSAPIBindRequestProperties gssapiBindRequestProperties = new GSSAPIBindRequestProperties(principal, bindPassword);
-        if (isUseKeyTab) {
+        if (keytabPath != null) {
             gssapiBindRequestProperties.setUseKeyTab(true);
             gssapiBindRequestProperties.setKeyTabPath(keytabPath.toString());
         }
@@ -79,40 +78,50 @@ public final class BindRequestBuilder {
         return bindRequest;
     }
 
-    private Path validateGSSAPISettings(final byte[] bindPassword, final boolean isUseKeyTab) {
-        Path keytabPath = null;
-        if (isUseKeyTab) {
-            if (Strings.hasText(realmConfig.getSetting(SASL_GSSAPI_KEYTAB_PATH)) == false) {
-                throw new IllegalArgumentException("setting [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_USE_KEYTAB)
-                        + "] is enabled but keytab path [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_KEYTAB_PATH)
-                        + "] has not been configured");
-            } else {
-                keytabPath = realmConfig.env().configFile().resolve(realmConfig.getSetting(SASL_GSSAPI_KEYTAB_PATH));
-
-                if (Files.exists(keytabPath) == false) {
-                    throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] does not exist");
-                }
-                if (Files.isDirectory(keytabPath)) {
-                    throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] is a directory");
-                }
-                if (Files.isReadable(keytabPath) == false) {
-                    throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] must have read permission");
-                }
-            }
-        }
-
-        if (keytabPath != null && bindPassword != null) {
+    private Path validateGSSAPISettings(final byte[] bindPassword) {
+        final String principal = realmConfig.getSetting(SASL_GSSAPI_PRINCIPAL);
+        if (Strings.hasText(principal) == false) {
             throw new IllegalArgumentException(
-                    "You cannot specify both [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_USE_KEYTAB) + "] and (["
-                            + RealmSettings.getFullSettingKey(realmConfig, LEGACY_BIND_PASSWORD) + "] or ["
-                            + RealmSettings.getFullSettingKey(realmConfig, SECURE_BIND_PASSWORD) + "])");
+                    "Principal setting [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_PRINCIPAL) + "] must be configured");
         }
-        if (isUseKeyTab == false && bindPassword == null) {
+
+        final String bindDn = extractBindDn.apply(realmConfig);
+        if (Strings.hasText(bindDn)) {
+            throw new IllegalArgumentException(
+                    "You cannot specify ["
+                            + RealmSettings.getFullSettingKey(realmConfig, BIND_DN) + "] in 'sasl_gssapi' mode");
+        }
+
+        final String keyTabFile = realmConfig.getSetting(SASL_GSSAPI_KEYTAB_PATH);
+        if (Strings.hasText(keyTabFile) == false && bindPassword == null) {
             throw new IllegalArgumentException(
                     "Either keytab [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_KEYTAB_PATH) + "] or principal password "
                             + RealmSettings.getFullSettingKey(realmConfig, SECURE_BIND_PASSWORD) + " must be configured");
         }
-        return keytabPath;
+
+        if (Strings.hasText(keyTabFile)) {
+            if (bindPassword != null) {
+                throw new IllegalArgumentException(
+                        "You cannot specify both [" + RealmSettings.getFullSettingKey(realmConfig, SASL_GSSAPI_KEYTAB_PATH) + "] and (["
+                                + RealmSettings.getFullSettingKey(realmConfig, LEGACY_BIND_PASSWORD) + "] or ["
+                                + RealmSettings.getFullSettingKey(realmConfig, SECURE_BIND_PASSWORD) + "])");
+            } else {
+                final Path keytabPath = realmConfig.env().configFile().resolve(keyTabFile);
+                if (keytabPath != null) {
+                    if (Files.exists(keytabPath) == false) {
+                        throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] does not exist");
+                    }
+                    if (Files.isDirectory(keytabPath)) {
+                        throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] is a directory");
+                    }
+                    if (Files.isReadable(keytabPath) == false) {
+                        throw new IllegalArgumentException("configured key tab file [" + keytabPath + "] must have read permission");
+                    }
+                }
+                return keytabPath;
+            }
+        }
+        return null;
     }
 
     private BindRequest buildSimpleBindRequest(final String bindDn, final byte[] bindPassword) {

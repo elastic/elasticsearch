@@ -237,13 +237,11 @@ public class OpenLdapKerberosGSSAPIBindTests extends ESTestCase {
 
     private void bindCredentialsSettings(boolean useKeyTab, RealmIdentifier realmId, Settings.Builder realmSettings) {
         if (useKeyTab) {
-            realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_USE_KEYTAB), useKeyTab);
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_PRINCIPAL),
                     GSSAPI_BIND_KEYTAB_PRINCIPAL);
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_KEYTAB_PATH),
                     getDataPath(GSSAPI_BIND_KEYTAB_PATH));
         } else {
-            realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_USE_KEYTAB), useKeyTab);
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.SASL_GSSAPI_PRINCIPAL),
                     GSSAPI_BIND_USER_PRINCIPAL);
             final MockSecureSettings secureSettings = new MockSecureSettings();

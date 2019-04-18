@@ -2964,15 +2964,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     /**
      * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.
      */
-    public void testSnapshotWithCorruptedShardIndexMetadata() throws Exception {
+    public void testSnapshotWithCorruptedShardIndexFile() throws Exception {
         final Client client = client();
         final Path repo = randomRepoPath();
         final String indexName = "test-idx";
+        final int nDocs = randomIntBetween(1, 10);
 
+        logger.info("-->  creating index [{}] with [{}] documents in it", indexName, nDocs);
         assertAcked(prepareCreate(indexName).setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
 
-        final int nDocs = randomIntBetween(1, 10);
         final IndexRequestBuilder[] documents = new IndexRequestBuilder[nDocs];
         for (int j = 0; j < nDocs; j++) {
             documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo", "bar");
@@ -2980,12 +2981,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         indexRandom(true, documents);
         flushAndRefresh();
 
+        logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
             .setType("fs")
             .setSettings(Settings.builder()
                 .put("location", repo)));
 
-        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+        final String snapshot1 = "test-snap-1";
+        logger.info("-->  creating snapshot [{}]", snapshot1);
+        final SnapshotInfo snapshotInfo = client().admin().cluster().prepareCreateSnapshot("test-repo", snapshot1)
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
@@ -3000,25 +3004,29 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Map<String, IndexId> indexIds = repositoryData.getIndices();
         assertThat(indexIds.size(), equalTo(1));
 
-        // Choose a random index from the snapshot
         final IndexId corruptedIndex = indexIds.get(indexName);
         final Path shardIndexFile = repo.resolve("indices")
             .resolve(corruptedIndex.getId()).resolve("0")
             .resolve("index-0");
+
+        logger.info("-->  truncating shard index file [{}]", shardIndexFile);
 
         // Truncate the shard index file
         try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
 
+        logger.info("-->  verifying snapshot state for [{}]", snapshot1);
         List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap"));
+        assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo(snapshot1));
 
+        logger.info("-->  deleting index [{}]", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
+        logger.info("-->  restoring snapshot [{}]", snapshot1);
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot1)
             .setRestoreGlobalState(randomBoolean())
             .setWaitForCompletion(true)
             .get();
@@ -3026,18 +3034,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nDocs);
 
+        logger.info("-->  indexing [{}] more documents into [{}]", nDocs, indexName);
         // Index another batch of documents
         for (int j = 0; j < nDocs; j++) {
             documents[j] = client.prepareIndex(indexName, "_doc").setSource("foo2", "bar2");
         }
         indexRandom(true, documents);
 
-        // Truncate the shard index file again
-        try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {
-            outChan.truncate(randomInt(10));
-        }
-
-        final SnapshotInfo snapshotInfo2 = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
+        final String snapshot2 = "test-snap-2";
+        logger.info("-->  creating snapshot [{}]", snapshot2);
+        final SnapshotInfo snapshotInfo2 = client().admin().cluster().prepareCreateSnapshot("test-repo", snapshot2)
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
@@ -3046,9 +3052,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo2.indices(), hasSize(1));
 
+        logger.info("-->  deleting index [{}]", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2")
+        logger.info("-->  restoring snapshot [{}]", snapshot2);
+        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot2)
             .setRestoreGlobalState(randomBoolean())
             .setWaitForCompletion(true)
             .get();

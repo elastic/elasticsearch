@@ -61,7 +61,12 @@ public class EnrichPolicyRunner {
 
     public void runPolicy(final String policyId, final ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
-        runPolicy(policyId, enrichStore.getPolicy(policyId), listener);
+        EnrichPolicy policy = enrichStore.getPolicy(policyId);
+        if (policy == null) {
+            listener.onFailure(new ElasticsearchException("Policy execution failed. Could not locate policy with id [{}]", policyId));
+        } else {
+            runPolicy(policyId, policy, listener);
+        }
     }
 
     public void runPolicy(final String policyName, final EnrichPolicy policy,

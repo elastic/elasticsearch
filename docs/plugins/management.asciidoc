@@ -14,7 +14,7 @@ The core management plugins are:
 
 link:/products/marvel[Marvel]::
 
-deprecated[2.3.0,The standalone Marvel plugin will be replaced by the X-Pack in 5.0.0]
+deprecated:[2.3.0,The standalone Marvel plugin will be replaced by the X-Pack in 5.0.0.]
 Marvel is a management and monitoring product for Elasticsearch. Marvel
 aggregates cluster wide statistics and events and offers a single interface to
 view and analyze them. Marvel is free for development use but requires a

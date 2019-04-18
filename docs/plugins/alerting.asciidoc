@@ -10,7 +10,7 @@ The core alerting plugins are:
 
 link:/products/watcher[Watcher]::
 
-deprecated[2.3.0,The standalone Watcher plugin will be replaced by the X-Pack in 5.0.0]
+deprecated:[2.3.0, The standalone Watcher plugin will be replaced by the X-Pack in 5.0.0.]
 Watcher is the alerting and notification product for Elasticsearch that lets
 you take action based on changes in your data. It is designed around the
 principle that if you can query something in Elasticsearch, you can alert on

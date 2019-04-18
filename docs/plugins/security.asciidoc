@@ -10,7 +10,7 @@ The core security plugins are:
 
 link:/products/shield[Shield]::
 
-deprecated[2.3.0,The standalone Shield plugin will be replaced by the X-Pack in 5.0.0]
+deprecated:[2.3.0,The standalone Shield plugin will be replaced by the X-Pack in 5.0.0.]
 Shield is the Elastic product that makes it easy for anyone to add
 enterprise-grade security to their ELK stack. Designed to address the growing security
 needs of thousands of enterprises using ELK today, Shield provides peace of

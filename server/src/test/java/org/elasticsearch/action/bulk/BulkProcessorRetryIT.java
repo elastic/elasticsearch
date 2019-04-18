@@ -64,7 +64,6 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41324")
     public void testBulkRejectionLoadWithBackoff() throws Throwable {
         boolean rejectedExecutionExpected = false;
         executeBulkRejectionLoad(BackoffPolicy.exponentialBackoff(), rejectedExecutionExpected);

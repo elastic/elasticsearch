@@ -22,7 +22,11 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Node;
-import org.apache.logging.log4j.core.config.plugins.*;
+import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
+import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
+import org.apache.logging.log4j.core.config.plugins.PluginElement;
+import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -65,7 +69,7 @@ public class ESJsonLayout extends AbstractStringLayout {
     protected ESJsonLayout(String typeName, Charset charset, KeyValuePair[] additionalFields, String[] esmessagefields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-            .withPattern(pattern(typeName, additionalFields,esmessagefields))
+            .withPattern(pattern(typeName, additionalFields, esmessagefields))
             .withAlwaysWriteExceptions(false)
             .build();
     }
@@ -74,27 +78,27 @@ public class ESJsonLayout extends AbstractStringLayout {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
-        Map<String,Object> map = new LinkedHashMap<>();
-        map.put("type",inQuotes(type));
-        map.put("timestamp",inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ}"));
-        map.put("level",inQuotes("%p"));
-        map.put("component",inQuotes("%c{1.}"));
-        map.put("cluster.name",inQuotes("${sys:es.logs.cluster_name}"));
-        map.put("node.name",inQuotes("%node_name"));
-        map.put("message",inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("type", inQuotes(type));
+        map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ}"));
+        map.put("level", inQuotes("%p"));
+        map.put("component", inQuotes("%c{1.}"));
+        map.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
+        map.put("node.name", inQuotes("%node_name"));
+        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-        for(String key : esmessagefields){
-            map.put(key,"%ESMessageField{"+key+"}");
+        for (String key : esmessagefields) {
+            map.put(key, "%ESMessageField{" + key + "}");
         }
         for (KeyValuePair keyValuePair : additionalFields) {
-            map.put(keyValuePair.getKey(),asJson(keyValuePair.getValue()));
+            map.put(keyValuePair.getKey(), asJson(keyValuePair.getValue()));
         }
 
 
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String prefix = "";
-        for(Map.Entry<String,Object> entry: map.entrySet()){
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
             sb.append(prefix);
             sb.append(jsonKey(entry.getKey()));
             sb.append(entry.getValue().toString());
@@ -130,7 +134,7 @@ public class ESJsonLayout extends AbstractStringLayout {
                                             Charset charset,
                                             KeyValuePair[] additionalFields,
                                             String[] esmessagefields) {
-        return new ESJsonLayout(type, charset, additionalFields,esmessagefields);
+        return new ESJsonLayout(type, charset, additionalFields, esmessagefields);
     }
 
     public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
@@ -149,7 +153,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         private KeyValuePair[] additionalFields;
 
 
-
         public Builder() {
             super();
             setCharset(StandardCharsets.UTF_8);
@@ -157,7 +160,7 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         @Override
         public ESJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(esmessagefields) ?  new String[]{} : esmessagefields.split(",");
+            String[] split = Strings.isNullOrEmpty(esmessagefields) ? new String[]{} : esmessagefields.split(",");
             return ESJsonLayout.createLayout(type, charset, additionalFields, split);
         }
 

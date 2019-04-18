@@ -172,7 +172,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         private final Index index;
 
         SlowLogParsedDocumentPrinter(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-            super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog), createToString(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
+            super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),
+                createToString(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
             this.doc = doc;
             this.index = index;
             this.tookInNanos = tookInNanos;
@@ -180,7 +181,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             this.maxSourceCharsToLog = maxSourceCharsToLog;
         }
 
-        private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+        private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
+                                                      int maxSourceCharsToLog) {
             Map<String,Object> map = new HashMap<>();
             map.put("message", inQuotes(index));
             map.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));

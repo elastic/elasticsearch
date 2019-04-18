@@ -37,7 +37,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class IndexingSlowLogTests extends ESTestCase {
 

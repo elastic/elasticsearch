@@ -117,7 +117,8 @@ public class IngestService implements ClusterStateApplier {
                     }
                     int numShards = indexService.getMetaData().getNumberOfShards();
                     if (numShards != 1) {
-                        throw new IllegalStateException("index [" + index + "] must have 1 shard, but has " + numShards + " shards");
+                        throw new IllegalStateException("index [" + index.getName() + "] must have 1 shard, but has " + numShards +
+                            " shards");
                     }
 
                     IndexShard indexShard = indexService.getShard(0);

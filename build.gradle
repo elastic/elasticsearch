@@ -584,6 +584,29 @@ allprojects {
         configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
       }
   }
+
+  // helper task to print direct dependencies of a single task
+  project.tasks.addRule("Pattern: <taskName>Dependencies") { String taskName ->
+    if (taskName.endsWith("Dependencies") == false) {
+      return
+    }
+    if (project.tasks.findByName(taskName) != null) {
+      return
+    }
+    String realTaskName = taskName.substring(0, taskName.length() - "Dependencies".length())
+    Task realTask = project.tasks.findByName(realTaskName)
+    if (realTask == null) {
+      return
+    }
+    project.tasks.create(taskName, DefaultTask.class) {
+      doLast {
+        println("${realTaskName} dependencies:")
+        for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
+          println("  - ${dep.path}")
+        }
+      }
+    }
+  }
 }
 
 allprojects {

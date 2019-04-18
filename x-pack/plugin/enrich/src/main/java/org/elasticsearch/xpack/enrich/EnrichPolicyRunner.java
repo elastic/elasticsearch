@@ -43,6 +43,8 @@ public class EnrichPolicyRunner {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
+    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+
     private ClusterService clusterService;
     private Client client;
     private EnrichStore enrichStore;
@@ -129,7 +131,7 @@ public class EnrichPolicyRunner {
     }
 
     private String getEnrichIndexBase(final String policyName) {
-        return ".enrich-" + policyName;
+        return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
     private Map<String, Object> resolveEnrichMapping(final EnrichPolicy policy) {

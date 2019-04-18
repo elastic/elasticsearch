@@ -507,33 +507,40 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final String explicitRestrictedIndex = randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES);
-        final IllegalArgumentException illegalException = expectThrows(IllegalArgumentException.class,
-                () -> hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
-                .indices(new String[] {".secret-non-restricted", explicitRestrictedIndex})
-                .privileges("index", "monitor")
-                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY));
-        assertThat(illegalException.getMessage(), containsString("contains the restricted index [" + explicitRestrictedIndex
-                + "] explicitly, without toggling the \"allow_restricted_indices\" flag"));
-
+        String explicitRestrictedIndex = randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES);
         HasPrivilegesResponse response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(new String[] {".secret-non-restricted", explicitRestrictedIndex})
                 .privileges("index", "monitor")
-                .allowRestrictedIndices(true)
+                .allowRestrictedIndices(false) // explicit false for test
                 .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
         assertThat(response.isCompleteMatch(), is(false));
         assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
         assertThat(response.getIndexPrivileges(), containsInAnyOrder(
-                ResourcePrivileges.builder(".secret-non-restricted")
+                ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                         .put("index", true).put("monitor", false).map()).build(),
-                ResourcePrivileges.builder(explicitRestrictedIndex)
+                ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
                     .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                        .put("index", restrictedIndexPermission).put("monitor", restrictedMonitorPermission).map()).build()
-        ));
+                        .put("index", restrictedIndexPermission).put("monitor", restrictedMonitorPermission).map()).build()));
+
+        explicitRestrictedIndex = randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES);
+        response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
+                .indices(new String[] {".secret-non-restricted", explicitRestrictedIndex})
+                .privileges("index", "monitor")
+                .allowRestrictedIndices(true) // explicit true for test
+                .build(), authentication, authzInfo, Collections.emptyList(), Strings.EMPTY_ARRAY);
+        assertThat(response.isCompleteMatch(), is(false));
+        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(2));
+        assertThat(response.getIndexPrivileges(), containsInAnyOrder(
+                ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", true).put("monitor", false).map()).build(),
+                ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
+                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
+                        .put("index", restrictedIndexPermission).put("monitor", restrictedMonitorPermission).map()).build()));
     }
 
-    public void testCheckRestrictedIndexPermissions() throws Exception {
+    public void testCheckRestrictedIndexWildcardPermissions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);

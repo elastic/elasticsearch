@@ -173,10 +173,12 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
+            // TODO this filter agg is now redundant given we filter on job ID
+            // in the query and the translator doesn't add any clauses anymore
             List<QueryBuilder> filterConditions = new ArrayList<>(5);
 
             // Translate the agg tree, and collect any potential filtering clauses
-            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, filterConditions, registry);
+            List<AggregationBuilder> translatedAgg = RollupRequestTranslator.translateAggregation(agg, registry);
 
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             filterConditions.forEach(boolQuery::must);

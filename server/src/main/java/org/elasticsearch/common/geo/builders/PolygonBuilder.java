@@ -406,7 +406,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
      * @param edges a list of edges to which all edges of the component will be added (could be <code>null</code>)
      * @return number of edges that belong to this component
      */
-    private static int component(final Edge edge, final int id, final ArrayList<Edge> edges) {
+    private static int component(final Edge edge, final int id, final ArrayList<Edge> edges, double[] partitionPoint) {
         // find a coordinate that is not part of the dateline
         Edge any = edge;
         while(any.coordinate.x == +DATELINE || any.coordinate.x == -DATELINE) {
@@ -438,6 +438,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
             if (edges != null) {
                 // found a closed loop - we have two connected components so we need to slice into two distinct components
                 if (visitedEdge.containsKey(current.coordinate)) {
+                    partitionPoint[0] = current.coordinate.x;
+                    partitionPoint[1] = current.coordinate.y;
+                    partitionPoint[2] = current.coordinate.z;
                     if (connectedComponents > 0 && current.next != edge) {
                         throw new InvalidShapeException("Shape contains more than one shared point");
                     }
@@ -479,9 +482,19 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
      * @param coordinates Array of coordinates to write the result to
      * @return the coordinates parameter
      */
-    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates) {
+    private static Coordinate[] coordinates(Edge component, Coordinate[] coordinates, double[] partitionPoint) {
         for (int i = 0; i < coordinates.length; i++) {
             coordinates[i] = (component = component.next).coordinate;
+        }
+        // First and last coordinates must be equal
+        if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
+            if (partitionPoint[2] == Double.NaN) {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "]");
+            } else {
+                throw new InvalidShapeException("Self-intersection at or near point ["
+                    + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
+            }
         }
         return coordinates;
     }
@@ -512,8 +525,9 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         final Coordinate[][] points = new Coordinate[numHoles][];
 
         for (int i = 0; i < numHoles; i++) {
-            int length = component(holes[i], -(i+1), null); // mark as visited by inverting the sign
-            points[i] = coordinates(holes[i], new Coordinate[length+1]);
+            double[]  partitionPoint = new double[3];
+            int length = component(holes[i], -(i+1), null, partitionPoint); // mark as visited by inverting the sign
+            points[i] = coordinates(holes[i], new Coordinate[length+1], partitionPoint);
         }
 
         return points;
@@ -524,9 +538,10 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
-                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges);
+                double[]  partitionPoint = new double[3];
+                int length = component(edges[i], -(components.size()+numHoles+1), mainEdges, partitionPoint);
                 List<Coordinate[]> component = new ArrayList<>();
-                component.add(coordinates(edges[i], new Coordinate[length+1]));
+                component.add(coordinates(edges[i], new Coordinate[length+1], partitionPoint));
                 components.add(component);
             }
         }

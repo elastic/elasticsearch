@@ -111,10 +111,7 @@ public class IngestService implements ClusterStateApplier {
                     }
                     Index index = resolvedIndices[0];
 
-                    IndexService indexService = indicesService.indexService(index);
-                    if (indexService == null) {
-                        throw new ResourceNotFoundException("index [" + index + "] not locally allocated");
-                    }
+                    IndexService indexService = indicesService.indexServiceSafe(index);
                     int numShards = indexService.getMetaData().getNumberOfShards();
                     if (numShards != 1) {
                         throw new IllegalStateException("index [" + index.getName() + "] must have 1 shard, but has " + numShards +

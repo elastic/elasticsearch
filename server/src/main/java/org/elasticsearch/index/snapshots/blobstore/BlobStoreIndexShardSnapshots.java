@@ -208,7 +208,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         builder.endArray();
         // Then we list all snapshots with list of all blobs that are used by the snapshot
         builder.startObject(Fields.SNAPSHOTS);
-        assert shardSnapshots.stream().map(SnapshotFiles::snapshot).distinct().count() == shardSnapshots.size();
         for (SnapshotFiles snapshot : shardSnapshots) {
             builder.startObject(snapshot.snapshot());
             builder.startArray(Fields.FILES);

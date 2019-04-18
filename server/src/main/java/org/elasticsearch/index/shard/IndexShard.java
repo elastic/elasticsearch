@@ -1215,6 +1215,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
+        markSearcherAccessed();
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
@@ -2983,9 +2984,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void awaitShardSearchActive(Consumer<Boolean> listener) {
-        if (isSearchIdle()) {
-            markSearcherAccessed(); // move the shard into non-search idle
-        }
+        markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
             addRefreshListener(location, (b) -> {

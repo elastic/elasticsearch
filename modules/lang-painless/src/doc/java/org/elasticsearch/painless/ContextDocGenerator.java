@@ -29,6 +29,7 @@ import org.elasticsearch.painless.action.PainlessContextFieldInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -38,38 +39,28 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public final class ContextDocGenerator {
 
-    public static void main(String[] args) throws Exception {
-        URLConnection getContextList = new URL(
-                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextList.getInputStream());
-        parser.nextToken();
-        parser.nextToken();
-        @SuppressWarnings("unchecked")
-        List<String> contexts = (List<String>)(Object)parser.list();
-        parser.close();
-        ((HttpURLConnection)getContextList).disconnect();
+    private static final String SHARED_HEADER = "painless-api-reference-shared";
+    private static final String SHARED_NAME = "Shared";
 
-        List<PainlessContextInfo> painlessContextInfoList = new ArrayList<>();
-        for (String context : contexts) {
-            URLConnection getContextInfo = new URL(
-                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + context).openConnection();
-            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
-            painlessContextInfoList.add(PainlessContextInfo.fromXContent(parser));
-            ((HttpURLConnection)getContextInfo).disconnect();
-        }
+    public static void main(String[] args) throws IOException {
+        List<PainlessContextInfo> contextInfos = getContextInfos();
+        Set<PainlessContextClassInfo> sharedClassInfos = createShared(contextInfos);
 
-        Path apiRootPath = PathUtils.get("../../docs/painless/painless-api-reference");
-        IOUtils.rm(apiRootPath);
-        Files.createDirectories(apiRootPath);
-        Path apiIndexPath = apiRootPath.resolve("index.asciidoc");
+        Path rootDir = resetRootDir();
+        printRootIndexPage(rootDir, contextInfos);
+
+        /*Path rootIndexPath = rootDir.resolve("index.asciidoc");
         List<String> contextApiHeaders = new ArrayList<>();
 
         try (PrintStream indexStream = new PrintStream(
@@ -235,22 +226,82 @@ public final class ContextDocGenerator {
                 indexStream.println();
                 indexStream.println("include::" + contextApiHeader + "/index.asciidoc[]");
             }
+        }*/
+    }
+
+    private static List<PainlessContextInfo> getContextInfos() throws IOException  {
+        URLConnection getContextNames = new URL(
+                "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context").openConnection();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(null, null, getContextNames.getInputStream());
+        parser.nextToken();
+        parser.nextToken();
+        @SuppressWarnings("unchecked")
+        List<String> contextNames = (List<String>)(Object)parser.list();
+        parser.close();
+        ((HttpURLConnection)getContextNames).disconnect();
+
+        List<PainlessContextInfo> contextInfos = new ArrayList<>();
+
+        for (String contextName : contextNames) {
+            URLConnection getContextInfo = new URL(
+                    "http://" + System.getProperty("cluster.uri") + "/_scripts/painless/_context?context=" + contextName).openConnection();
+            parser = JsonXContent.jsonXContent.createParser(null, null, getContextInfo.getInputStream());
+            contextInfos.add(PainlessContextInfo.fromXContent(parser));
+            ((HttpURLConnection)getContextInfo).disconnect();
+        }
+
+        contextInfos.sort(Comparator.comparing(PainlessContextInfo::getName));
+
+        return contextInfos;
+    }
+
+    private static Set<PainlessContextClassInfo> createShared(List<PainlessContextInfo> contextInfos) {
+        Map<PainlessContextClassInfo, Integer> classInfoCounts = new HashMap<>();
+
+        for (PainlessContextInfo contextInfo : contextInfos) {
+            for (PainlessContextClassInfo classInfo : contextInfo.getClasses()) {
+                classInfoCounts.compute(classInfo, (k, v) -> v == null ? 1 : v + 1);
+            }
+        }
+
+        return classInfoCounts.entrySet().stream().filter(
+                e -> e.getValue() == contextInfos.size()
+        ).map(Map.Entry::getKey).collect(Collectors.toSet());
+    }
+
+    private static Path resetRootDir() throws IOException {
+        Path rootDir = PathUtils.get("../../docs/painless/painless-api-reference");
+        IOUtils.rm(rootDir);
+        Files.createDirectories(rootDir);
+
+        return rootDir;
+    }
+
+    private static void printRootIndexPage(Path rootDir, List<PainlessContextInfo> contextInfos) throws IOException {
+        Path rootIndexPath = rootDir.resolve("index.asciidoc");
+
+        try (PrintStream rootIndexStream = new PrintStream(
+                Files.newOutputStream(rootIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+            rootIndexStream.println("[cols=\"<3,^3,^3\"]");
+            rootIndexStream.println("|====");
+
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                String contextName = getContextName(contextInfo);
+                String contextHeader = getContextHeader(contextInfo);
+
+                rootIndexStream.print("|" + contextName + " ");
+                rootIndexStream.print("| <<" + SHARED_NAME + " API, " + SHARED_HEADER + ">> ");
+                rootIndexStream.println("| << Specialized API, " + contextHeader + ">> ");
+            }
+
+            rootIndexStream.println("|====");
+            rootIndexStream.println();
         }
     }
 
-    private static void printField(
-            PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
-            boolean isStatic, PainlessContextFieldInfo painlessContextFieldInfo) {
-
-        stream.print("* " + (isStatic ? "static " : ""));
-        stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextFieldInfo.type) + " ");
-
-        if (painlessContextFieldInfo.declaring.startsWith("java.")) {
-            stream.println(getFieldJavaDocLink(painlessContextFieldInfo) + "[" + painlessContextFieldInfo.name + "]");
-        } else {
-            stream.println(painlessContextFieldInfo.name);
-        }
-    }
+    private printPackagePage
 
     private static void printConstructor(
             PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
@@ -309,6 +360,20 @@ public final class ContextDocGenerator {
         stream.println(")");
     }
 
+    private static void printField(
+            PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
+            boolean isStatic, PainlessContextFieldInfo painlessContextFieldInfo) {
+
+        stream.print("* " + (isStatic ? "static " : ""));
+        stream.print(getType(javaClassNamesToPainlessClassNames, painlessContextFieldInfo.type) + " ");
+
+        if (painlessContextFieldInfo.declaring.startsWith("java.")) {
+            stream.println(getFieldJavaDocLink(painlessContextFieldInfo) + "[" + painlessContextFieldInfo.name + "]");
+        } else {
+            stream.println(painlessContextFieldInfo.name);
+        }
+    }
+
     private static String getType(Map<String, String> javaClassNamesToPainlessClassNames, String javaType) {
         int arrayDimensions = 0;
 
@@ -356,14 +421,10 @@ public final class ContextDocGenerator {
     }
 
     private static String getFieldJavaDocLink(PainlessContextFieldInfo painlessContextFieldInfo) {
-        StringBuilder javaDocLink = new StringBuilder();
-
-        javaDocLink.append("{java11-javadoc}/java.base/");
-        javaDocLink.append(painlessContextFieldInfo.declaring.replace('.', '/'));
-        javaDocLink.append(".html#");
-        javaDocLink.append(painlessContextFieldInfo.name);
-
-        return javaDocLink.toString();
+        return "{java11-javadoc}/java.base/" +
+                painlessContextFieldInfo.declaring.replace('.', '/') +
+                ".html#" +
+                painlessContextFieldInfo.name;
     }
 
     private static String getConstructorJavaDocLink(PainlessContextConstructorInfo painlessContextConstructorInfo) {
@@ -456,6 +517,23 @@ public final class ContextDocGenerator {
         }
 
         return javaType;
+    }
+
+    private static String getContextHeader(PainlessContextInfo contextInfo) {
+        return "painless-api-reference-" + contextInfo.getName().replace(" ", "-").replace("_", "-");
+    }
+
+    private static String getContextName(PainlessContextInfo contextInfo) {
+        String[] split = contextInfo.getName().split("[_-]");
+        StringBuilder contextNameBuilder = new StringBuilder();
+
+        for (String part : split) {
+            contextNameBuilder.append(Character.toUpperCase(part.charAt(0)));
+            contextNameBuilder.append(part.substring(1));
+            contextNameBuilder.append(' ');
+        }
+
+        return contextNameBuilder.substring(0, contextNameBuilder.length() - 1);
     }
 
     private ContextDocGenerator() {

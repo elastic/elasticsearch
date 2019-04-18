@@ -74,11 +74,11 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
                 (p, c) -> PainlessContextInstanceBindingInfo.fromXContent(p), INSTANCE_BINDINGS);
     }
 
-    public final String name;
-    public final List<PainlessContextClassInfo> classes;
-    public final List<PainlessContextMethodInfo> importedMethods;
-    public final List<PainlessContextClassBindingInfo> classBindings;
-    public final List<PainlessContextInstanceBindingInfo> instanceBindings;
+    private final String name;
+    private final List<PainlessContextClassInfo> classes;
+    private final List<PainlessContextMethodInfo> importedMethods;
+    private final List<PainlessContextClassBindingInfo> classBindings;
+    private final List<PainlessContextInstanceBindingInfo> instanceBindings;
 
     public PainlessContextInfo(ScriptContext<?> scriptContext, PainlessLookup painlessLookup) {
         this(
@@ -194,5 +194,25 @@ public class PainlessContextInfo implements Writeable, ToXContentObject {
                 ", classBindings=" + classBindings +
                 ", instanceBindings=" + instanceBindings +
                 '}';
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public List<PainlessContextClassInfo> getClasses() {
+        return classes;
+    }
+
+    public List<PainlessContextMethodInfo> getImportedMethods() {
+        return importedMethods;
+    }
+
+    public List<PainlessContextClassBindingInfo> getClassBindings() {
+        return classBindings;
+    }
+
+    public List<PainlessContextInstanceBindingInfo> getInstanceBindings() {
+        return instanceBindings;
     }
 }

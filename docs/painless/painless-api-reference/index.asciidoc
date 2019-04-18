@@ -1,81 +1,31 @@
-* <<painless-api-reference-aggregation-selector, Aggregation Selector>>
-* <<painless-api-reference-aggs, Aggs>>
-* <<painless-api-reference-aggs-combine, Aggs Combine>>
-* <<painless-api-reference-aggs-init, Aggs Init>>
-* <<painless-api-reference-aggs-map, Aggs Map>>
-* <<painless-api-reference-aggs-reduce, Aggs Reduce>>
-* <<painless-api-reference-analysis, Analysis>>
-* <<painless-api-reference-bucket-aggregation, Bucket Aggregation>>
-* <<painless-api-reference-field, Field>>
-* <<painless-api-reference-filter, Filter>>
-* <<painless-api-reference-ingest, Ingest>>
-* <<painless-api-reference-interval, Interval>>
-* <<painless-api-reference-moving-function, Moving Function>>
-* <<painless-api-reference-number-sort, Number Sort>>
-* <<painless-api-reference-painless-test, Painless Test>>
-* <<painless-api-reference-processor-conditional, Processor Conditional>>
-* <<painless-api-reference-score, Score>>
-* <<painless-api-reference-script-heuristic, Script Heuristic>>
-* <<painless-api-reference-similarity, Similarity>>
-* <<painless-api-reference-similarity-weight, Similarity Weight>>
-* <<painless-api-reference-string-sort, String Sort>>
-* <<painless-api-reference-template, Template>>
-* <<painless-api-reference-terms-set, Terms Set>>
-* <<painless-api-reference-update, Update>>
-* <<painless-api-reference-watcher-condition, Watcher Condition>>
-* <<painless-api-reference-watcher-transform, Watcher Transform>>
-* <<painless-api-reference-xpack-template, Xpack Template>>
+[cols="<3,^3,^3"]
+|====
+|Aggregation Selector | Shared API | Specialize API 
+|Aggs | Shared API | Specialize API 
+|Aggs Combine | Shared API | Specialize API 
+|Aggs Init | Shared API | Specialize API 
+|Aggs Map | Shared API | Specialize API 
+|Aggs Reduce | Shared API | Specialize API 
+|Analysis | Shared API | Specialize API 
+|Bucket Aggregation | Shared API | Specialize API 
+|Field | Shared API | Specialize API 
+|Filter | Shared API | Specialize API 
+|Ingest | Shared API | Specialize API 
+|Interval | Shared API | Specialize API 
+|Moving Function | Shared API | Specialize API 
+|Number Sort | Shared API | Specialize API 
+|Painless Test | Shared API | Specialize API 
+|Processor Conditional | Shared API | Specialize API 
+|Score | Shared API | Specialize API 
+|Script Heuristic | Shared API | Specialize API 
+|Similarity | Shared API | Specialize API 
+|Similarity Weight | Shared API | Specialize API 
+|String Sort | Shared API | Specialize API 
+|Template | Shared API | Specialize API 
+|Terms Set | Shared API | Specialize API 
+|Update | Shared API | Specialize API 
+|Watcher Condition | Shared API | Specialize API 
+|Watcher Transform | Shared API | Specialize API 
+|Xpack Template | Shared API | Specialize API 
+|====
 
-include::painless-api-reference-aggregation-selector/index.asciidoc[]
-
-include::painless-api-reference-aggs/index.asciidoc[]
-
-include::painless-api-reference-aggs-combine/index.asciidoc[]
-
-include::painless-api-reference-aggs-init/index.asciidoc[]
-
-include::painless-api-reference-aggs-map/index.asciidoc[]
-
-include::painless-api-reference-aggs-reduce/index.asciidoc[]
-
-include::painless-api-reference-analysis/index.asciidoc[]
-
-include::painless-api-reference-bucket-aggregation/index.asciidoc[]
-
-include::painless-api-reference-field/index.asciidoc[]
-
-include::painless-api-reference-filter/index.asciidoc[]
-
-include::painless-api-reference-ingest/index.asciidoc[]
-
-include::painless-api-reference-interval/index.asciidoc[]
-
-include::painless-api-reference-moving-function/index.asciidoc[]
-
-include::painless-api-reference-number-sort/index.asciidoc[]
-
-include::painless-api-reference-painless-test/index.asciidoc[]
-
-include::painless-api-reference-processor-conditional/index.asciidoc[]
-
-include::painless-api-reference-score/index.asciidoc[]
-
-include::painless-api-reference-script-heuristic/index.asciidoc[]
-
-include::painless-api-reference-similarity/index.asciidoc[]
-
-include::painless-api-reference-similarity-weight/index.asciidoc[]
-
-include::painless-api-reference-string-sort/index.asciidoc[]
-
-include::painless-api-reference-template/index.asciidoc[]
-
-include::painless-api-reference-terms-set/index.asciidoc[]
-
-include::painless-api-reference-update/index.asciidoc[]
-
-include::painless-api-reference-watcher-condition/index.asciidoc[]
-
-include::painless-api-reference-watcher-transform/index.asciidoc[]
-
-include::painless-api-reference-xpack-template/index.asciidoc[]

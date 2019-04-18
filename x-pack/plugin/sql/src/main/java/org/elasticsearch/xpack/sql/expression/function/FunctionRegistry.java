@@ -599,6 +599,4 @@ public class FunctionRegistry {
     private interface CastFunctionBuilder<T> {
         T build(Source source, Expression expression, DataType dataType);
     }
-
-
 }

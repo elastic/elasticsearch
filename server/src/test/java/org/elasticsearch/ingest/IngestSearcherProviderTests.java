@@ -81,7 +81,7 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
             ClusterService clusterService = parameters.ingestService.getClusterService();
             IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
             return Collections.singletonMap(TestProcessor.NAME, new TestProcessor.Factory(
-                parameters.searcherProvider,
+                parameters.localShardSearcher,
                 indexExpression -> {
                     ClusterState state = clusterService.state();
                     Index[] resolvedIndices = resolver.concreteIndices(state, IndicesOptions.STRICT_EXPAND_OPEN, indexExpression);
@@ -98,19 +98,19 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
         static final String NAME = "test_processor";
 
-        private final Function<Index, Engine.Searcher> searchProvider;
+        private final Function<Index, Engine.Searcher> localShardSearcher;
         private final Function<String, Index> resolveIndexFunction;
 
-        TestProcessor(String tag, Function<Index, Engine.Searcher> searchProvider, Function<String, Index> resolveIndexFunction) {
+        TestProcessor(String tag, Function<Index, Engine.Searcher> localShardSearcher, Function<String, Index> resolveIndexFunction) {
             super(tag);
-            this.searchProvider = searchProvider;
+            this.localShardSearcher = localShardSearcher;
             this.resolveIndexFunction = resolveIndexFunction;
         }
 
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
             Index index = resolveIndexFunction.apply("reference-index");
-            try (Engine.Searcher engineSearcher = searchProvider.apply(index)) {
+            try (Engine.Searcher engineSearcher = localShardSearcher.apply(index)) {
                 Document document = engineSearcher.searcher().doc(0);
                 ingestDocument.setFieldValue("id", Uid.decodeId(document.getBinaryValue("_id").bytes));
             }
@@ -124,18 +124,18 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
         static class Factory implements Processor.Factory {
 
-            private final Function<Index, Engine.Searcher> searchProvider;
+            private final Function<Index, Engine.Searcher> localShardSearcher;
             private final Function<String, Index> resolveIndexFunction;
 
-            Factory(Function<Index, Engine.Searcher> searchProvider, Function<String, Index> resolveIndexFunction) {
-                this.searchProvider = searchProvider;
+            Factory(Function<Index, Engine.Searcher> localShardSearcher, Function<String, Index> resolveIndexFunction) {
+                this.localShardSearcher = localShardSearcher;
                 this.resolveIndexFunction = resolveIndexFunction;
             }
 
             @Override
             public Processor create(Map<String, Processor.Factory> processorFactories,
                                     String tag, Map<String, Object> config) throws Exception {
-                return new TestProcessor(tag, searchProvider, resolveIndexFunction);
+                return new TestProcessor(tag, localShardSearcher, resolveIndexFunction);
             }
         }
 

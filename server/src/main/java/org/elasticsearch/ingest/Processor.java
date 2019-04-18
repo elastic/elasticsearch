@@ -118,11 +118,11 @@ public interface Processor {
          *
          * The locally allocated index must be have a single primary shard.
          */
-        public final Function<Index, Engine.Searcher> searcherProvider;
+        public final Function<Index, Engine.Searcher> localShardSearcher;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Function<Index, Engine.Searcher> searcherProvider) {
+                          IngestService ingestService, Function<Index, Engine.Searcher> localShardSearcher) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -130,7 +130,7 @@ public interface Processor {
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
             this.ingestService = ingestService;
-            this.searcherProvider = searcherProvider;
+            this.localShardSearcher = localShardSearcher;
         }
 
     }

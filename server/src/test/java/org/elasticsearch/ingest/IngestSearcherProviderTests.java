@@ -23,13 +23,8 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -51,7 +46,7 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
         return Collections.singleton(TestPlugin.class);
     }
 
-    public void testSearchProvider() throws Exception {
+    public void testLocalShardSearcher() throws Exception {
         client().index(new IndexRequest("reference-index").id("1").source("{}", XContentType.JSON)).actionGet();
         client().admin().indices().refresh(new RefreshRequest("reference-index")).actionGet();
 
@@ -78,19 +73,7 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            ClusterService clusterService = parameters.ingestService.getClusterService();
-            IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
-            return Collections.singletonMap(TestProcessor.NAME, new TestProcessor.Factory(
-                parameters.localShardSearcher,
-                indexExpression -> {
-                    ClusterState state = clusterService.state();
-                    Index[] resolvedIndices = resolver.concreteIndices(state, IndicesOptions.STRICT_EXPAND_OPEN, indexExpression);
-                    if (resolvedIndices.length != 1) {
-                        throw new IllegalStateException("expression [" + indexExpression + "] can only point to a single concrete index");
-                    }
-                    return resolvedIndices[0];
-                }
-            ));
+            return Collections.singletonMap(TestProcessor.NAME, new TestProcessor.Factory(parameters.localShardSearcher));
         }
     }
 
@@ -98,19 +81,17 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
         static final String NAME = "test_processor";
 
-        private final Function<Index, Engine.Searcher> localShardSearcher;
-        private final Function<String, Index> resolveIndexFunction;
+        private final Function<String, Engine.Searcher> localShardSearcher;
 
-        TestProcessor(String tag, Function<Index, Engine.Searcher> localShardSearcher, Function<String, Index> resolveIndexFunction) {
+        TestProcessor(String tag, Function<String, Engine.Searcher> localShardSearcher) {
             super(tag);
             this.localShardSearcher = localShardSearcher;
-            this.resolveIndexFunction = resolveIndexFunction;
         }
 
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-            Index index = resolveIndexFunction.apply("reference-index");
-            try (Engine.Searcher engineSearcher = localShardSearcher.apply(index)) {
+            String indexExpression = "reference-index";
+            try (Engine.Searcher engineSearcher = localShardSearcher.apply(indexExpression)) {
                 Document document = engineSearcher.searcher().doc(0);
                 ingestDocument.setFieldValue("id", Uid.decodeId(document.getBinaryValue("_id").bytes));
             }
@@ -124,18 +105,16 @@ public class IngestSearcherProviderTests extends ESSingleNodeTestCase {
 
         static class Factory implements Processor.Factory {
 
-            private final Function<Index, Engine.Searcher> localShardSearcher;
-            private final Function<String, Index> resolveIndexFunction;
+            private final Function<String, Engine.Searcher> localShardSearcher;
 
-            Factory(Function<Index, Engine.Searcher> localShardSearcher, Function<String, Index> resolveIndexFunction) {
+            Factory(Function<String, Engine.Searcher> localShardSearcher) {
                 this.localShardSearcher = localShardSearcher;
-                this.resolveIndexFunction = resolveIndexFunction;
             }
 
             @Override
             public Processor create(Map<String, Processor.Factory> processorFactories,
                                     String tag, Map<String, Object> config) throws Exception {
-                return new TestProcessor(tag, localShardSearcher, resolveIndexFunction);
+                return new TestProcessor(tag, localShardSearcher);
             }
         }
 

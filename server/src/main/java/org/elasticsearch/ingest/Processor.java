@@ -21,7 +21,6 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.script.ScriptService;
@@ -118,11 +117,11 @@ public interface Processor {
          *
          * The locally allocated index must be have a single primary shard.
          */
-        public final Function<Index, Engine.Searcher> localShardSearcher;
+        public final Function<String, Engine.Searcher> localShardSearcher;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-                          IngestService ingestService, Function<Index, Engine.Searcher> localShardSearcher) {
+                          IngestService ingestService, Function<String, Engine.Searcher> localShardSearcher) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;

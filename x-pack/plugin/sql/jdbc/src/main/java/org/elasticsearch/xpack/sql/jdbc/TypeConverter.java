@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -220,7 +221,7 @@ final class TypeConverter {
             case DATE:
                 return asDateTimeField(v, JdbcDateUtils::asDate, Date::new);
             case TIME:
-                return asDateTimeField(v, JdbcDateUtils::asTime, Time::new);
+                return timeAsTime(v.toString());
             case DATETIME:
                 return asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:

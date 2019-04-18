@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
@@ -73,6 +74,8 @@ final class AggregationResultUtils {
                     } else {
                         document.put(aggName, aggResultSingleValue.getValueAsString());
                     }
+                } else if (aggResult instanceof ScriptedMetric) {
+                    document.put(aggName, ((ScriptedMetric) aggResult).aggregation());
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible

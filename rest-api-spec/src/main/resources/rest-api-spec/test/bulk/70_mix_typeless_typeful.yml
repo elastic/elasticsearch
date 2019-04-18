@@ -1,10 +1,6 @@
 ---
 "bulk without types on an index that has types":
 
- - skip:
-      version: " - 6.99.99"
-      reason: Typeless APIs were introduced in 7.0.0
-
  - do:
       indices.create: # not using include_type_name: false on purpose
           include_type_name: true

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -268,6 +269,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
+        final Build mockBuild = mock(Build.class);
+        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
+        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
+
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
 
@@ -521,7 +527,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       + "},"
                       + "\"discovery_types\":{"
                         + "\"_disco\":1"
-                      + "}"
+                      + "},"
+                      + "\"packaging_types\":["
+                        + "{"
+                          + "\"flavor\":\"default\","
+                          + "\"type\":\"docker\","
+                          + "\"count\":1"
+                        + "}"
+                      + "]"
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"

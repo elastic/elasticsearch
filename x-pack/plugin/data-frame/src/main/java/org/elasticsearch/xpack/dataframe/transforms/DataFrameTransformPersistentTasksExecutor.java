@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -60,18 +62,33 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
         SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(
                 DataFrameTransformTask.SCHEDULE_NAME + "_" + params.getId(), next());
-
         DataFrameTransformState transformState = (DataFrameTransformState) state;
         if (transformState != null && transformState.getTaskState() == DataFrameTransformTaskState.FAILED) {
             logger.warn("Tried to start failed transform [" + params.getId() + "] failure reason: " + transformState.getReason());
             return;
         }
+        transformsConfigManager.getTransformStats(params.getId(), ActionListener.wrap(
+            stats -> {
+                // Initialize with the previously recorded stats
+                buildTask.initializePreviousStats(stats);
+                scheduleTask(buildTask, schedulerJob, params.getId());
+            },
+            error -> {
+                if (error instanceof ResourceNotFoundException == false) {
+                    logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
+                }
+                scheduleTask(buildTask, schedulerJob, params.getId());
+            }
+        ));
+    }
+
+    private void scheduleTask(DataFrameTransformTask buildTask, SchedulerEngine.Job schedulerJob, String id) {
         // Note that while the task is added to the scheduler here, the internal state will prevent
         // it from doing any work until the task is "started" via the StartTransform api
         schedulerEngine.register(buildTask);
         schedulerEngine.add(schedulerJob);
 
-        logger.info("Data frame transform [" + params.getId() + "] created.");
+        logger.info("Data frame transform [" + id + "] created.");
     }
 
     static SchedulerEngine.Schedule next() {

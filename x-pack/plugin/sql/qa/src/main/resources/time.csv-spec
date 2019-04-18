@@ -1,7 +1,8 @@
 //
 // TIME
 //
-
+// All tests are run with UTC timezone
+// TODO: https://github.com/elastic/elasticsearch/issues/40779
 
 timeExtractTimeParts
 SELECT
@@ -59,7 +60,6 @@ null      |100445
 0         |904605
 ;
 
-
 timeAsHavingFilter
 SELECT MINUTE_OF_HOUR(MAX(birth_date)::TIME + INTERVAL 10 MINUTES) as minute, gender FROM test_emp GROUP BY gender HAVING CAST(MAX(birth_date) AS TIME) = CAST('00:00:00.000' AS TIME) ORDER BY gender;
 
@@ -80,4 +80,25 @@ SELECT HOUR(CAST('10:11:12.345' AS TIME) + INTERVAL '20' HOURS) AS h, SECOND(INT
 
 h:i       | m:i
 6         | 52
+;
+
+orderByCurrentTime
+SELECT first_name FROM test_emp ORDER BY CURRENT_TIME(), first_name LIMIT 5;
+
+  first_name
+---------------
+Alejandro
+Amabile
+Anneke
+Anoosh
+Arumugam
+;
+
+// Awaits Fix https://github.com/elastic/elasticsearch/issues/40639
+groupByCurrentTime-Ignore
+SELECT MAX(salary) FROM test_emp GROUP BY CURRENT_TIME;
+
+  MAX(salary)
+---------------
+74999
 ;

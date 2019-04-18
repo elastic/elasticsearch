@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -96,8 +97,9 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
     /**
-     * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
+     * Deletes the blob with the given name, if the blob exists. If the blob does not exist,
      * this method throws a NoSuchFileException.
      *
      * @param   blobName
@@ -106,6 +108,33 @@ public interface BlobContainer {
      * @throws  IOException if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
+
+    /**
+     * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
+     * when one or multiple of the given blobs don't exist and simply ignore this case.
+     *
+     * @param   blobNames  The names of the blob to delete.
+     * @throws  IOException if a subset of blob exists but could not be deleted.
+     */
+    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        IOException ioe = null;
+        for (String blobName : blobNames) {
+            try {
+                deleteBlob(blobName);
+            } catch (NoSuchFileException e) {
+                // ignored
+            } catch (IOException e) {
+                if (ioe == null) {
+                    ioe = e;
+                } else {
+                    ioe.addSuppressed(e);
+                }
+            }
+        }
+        if (ioe != null) {
+            throw ioe;
+        }
+    }
 
     /**
      * Deletes a blob with giving name, ignoring if the blob does not exist.

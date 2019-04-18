@@ -29,12 +29,16 @@ public class DataFrameMessages {
 
     public static final String DATA_FRAME_CONFIG_INVALID = "Data frame transform configuration is invalid [{0}]";
     public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
+    public static final String DATA_FRAME_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
+    public static final String DATA_FRAME_UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_LOAD_TRANSFORM_CONFIGURATION =
             "Failed to load data frame transform configuration for transform [{0}]";
     public static final String FAILED_TO_PARSE_TRANSFORM_CONFIGURATION =
             "Failed to parse transform configuration for data frame transform [{0}]";
+    public static final String FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION =
+        "Failed to parse transform statistics for data frame transform [{0}]";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM =
             "Data frame transform configuration must specify exactly 1 function";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY =
@@ -52,6 +56,11 @@ public class DataFrameMessages {
             "Failed to parse group_by for data frame pivot transform";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION =
             "Failed to parse aggregation for data frame pivot transform";
+    public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE =
+            "Search returned with out of memory error, reducing number of buckets per search from [{0}] to [{1}]";
+    public static final String LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE =
+            "Search returned with out of memory error after repeated page size reductions to [{0}], unable to continue pivot, "
+            + "please simplify job or increase heap size on data nodes.";
 
     public static final String FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS =
             "Failed to parse transform checkpoints for [{0}]";

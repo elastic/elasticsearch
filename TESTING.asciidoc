@@ -340,13 +340,13 @@ be downloaded again unless they have been updated to a new version.
 +
 . Run the tests with `./gradlew packagingTest`. This will cause Gradle to build
 the tar, zip, and deb packages and all the plugins. It will then run the tests
-on ubuntu-1404 and centos-7. We chose those two distributions as the default
+on ubuntu-1604 and centos-7. We chose those two distributions as the default
 because they cover deb and rpm packaging and SyvVinit and systemd.
 
 You can choose which boxes to test by setting the `-Pvagrant.boxes` project property. All of
 the valid options for this property are:
 
-* `sample` - The default, only chooses ubuntu-1404 and centos-7
+* `sample` - The default, only chooses ubuntu-1604 and centos-7
 * List of box names, comma separated (e.g. `oel-7,fedora-28`) - Chooses exactly the boxes listed.
 * `linux-all` - All linux boxes.
 * `windows-all` - All Windows boxes. If there are any Windows boxes which do not
@@ -364,11 +364,10 @@ will remain running and you'll have to stop them manually with `./gradlew stop` 
 
 All the regular vagrant commands should just work so you can get a shell in a
 VM running trusty by running
-`vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404`.
+`vagrant up ubuntu-1604 --provider virtualbox && vagrant ssh ubuntu-1604`.
 
 These are the linux flavors supported, all of which we provide images for
 
-* ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
 * ubuntu-1804 aka bionic beaver
 * debian-8 aka jessie
@@ -422,13 +421,13 @@ It's important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
 
 ----------------------------------------------------
-vagrant ssh ubuntu-1404 -c 'sudo rm -rf /bin'; echo oops
+vagrant ssh ubuntu-1604 -c 'sudo rm -rf /bin'; echo oops
 ----------------------------------------------------
 
 All you've got to do to get another one is
 
 ----------------------------------------------
-vagrant destroy -f ubuntu-1404 && vagrant up ubuntu-1404 --provider virtualbox
+vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
 ----------------------------------------------
 
 The whole process takes a minute and a half on a modern laptop, two and a half

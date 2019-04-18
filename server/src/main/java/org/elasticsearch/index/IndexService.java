@@ -830,7 +830,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> sync.accept(shard),
+                                    () -> {
+                                        if (shard.isRelocatedPrimary() == false) {
+                                            sync.accept(shard);
+                                        }
+                                    },
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
                                                 && e instanceof IndexShardClosedException == false) {

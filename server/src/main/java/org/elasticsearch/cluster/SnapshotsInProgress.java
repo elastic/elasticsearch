@@ -43,7 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_ADDED_VERSION;
+import static org.elasticsearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Meta data about snapshots that are currently executing
@@ -447,7 +447,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             Map<String, Object> userMetadata = null;
-            if (in.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 userMetadata = in.readMap();
             }
             entries[i] = new Entry(snapshot,
@@ -485,7 +485,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             out.writeLong(entry.repositoryStateId);
             out.writeOptionalString(entry.failure);
-            if (out.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+            if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 out.writeMap(entry.userMetadata);
             }
         }

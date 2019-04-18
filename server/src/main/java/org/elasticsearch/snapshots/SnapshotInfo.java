@@ -52,7 +52,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    public static final Version METADATA_ADDED_VERSION = Version.V_7_1_0;
+    public static final Version METADATA_FIELD_INTRODUCED = Version.V_8_0_0; // TODO Set this to the earliest version this is backported to
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
@@ -310,7 +310,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         }
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+        if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             userMetadata = in.readMap();
         } else {
             userMetadata = null;
@@ -726,7 +726,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        if (out.getVersion().onOrAfter(METADATA_ADDED_VERSION)) {
+        if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             out.writeMap(userMetadata);
         }
     }

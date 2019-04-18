@@ -35,4 +35,4 @@ if (System.getProperty('tests.distribution') == null) {
   integTestCluster.distribution = 'oss'
 }
 
-unitTest.enabled = false
+test.enabled = false

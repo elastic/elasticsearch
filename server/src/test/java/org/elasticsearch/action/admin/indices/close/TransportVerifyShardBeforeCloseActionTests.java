@@ -100,7 +100,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         super.setUp();
 
         indexShard = mock(IndexShard.class);
-        when(indexShard.getActiveOperationsCount()).thenReturn(0);
+        when(indexShard.getActiveOperationsCount()).thenReturn(IndexShard.OPERATIONS_BLOCKED);
 
         final ShardId shardId = new ShardId("index", "_na_", randomIntBetween(0, 3));
         when(indexShard.shardId()).thenReturn(shardId);
@@ -139,7 +139,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
-        final PlainActionFuture res = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
                 assertNotNull(r);
@@ -165,12 +165,12 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         assertThat(flushRequest.getValue().force(), is(true));
     }
 
-    public void testOperationFailsWithOnGoingOps() {
-        when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(1, 10));
+    public void testOperationFailsWhenNotBlocked() {
+        when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(0, 10));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
-            equalTo("On-going operations in progress while checking index shard " + indexShard.shardId() + " before closing"));
+            equalTo("Index shard " + indexShard.shardId() + " is not blocking all operations during closing"));
         verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
@@ -228,10 +228,10 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
         TransportVerifyShardBeforeCloseAction.ShardRequest request =
             new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, taskId);
-        ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy(primaryTerm);
+        ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
-            TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation =
-            new ReplicationOperation<>(request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, "test");
+            TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(
+                request, createPrimary(primaryRouting, replicationGroup), listener, proxy, logger, "test", primaryTerm);
         operation.execute();
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -268,53 +268,50 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         TransportVerifyShardBeforeCloseAction.ShardRequest,
         PrimaryResult>
             createPrimary(final ShardRouting primary, final ReplicationGroup replicationGroup) {
-                return new ReplicationOperation.Primary<
-                    TransportVerifyShardBeforeCloseAction.ShardRequest,
-                    TransportVerifyShardBeforeCloseAction.ShardRequest,
-                    PrimaryResult>() {
-                        @Override
-                        public ShardRouting routingEntry() {
-                            return primary;
-                        }
+                return new ReplicationOperation.Primary<>() {
+                    @Override
+                    public ShardRouting routingEntry() {
+                        return primary;
+                    }
 
-                        @Override
-                        public ReplicationGroup getReplicationGroup() {
-                            return replicationGroup;
-                        }
+                    @Override
+                    public ReplicationGroup getReplicationGroup() {
+                        return replicationGroup;
+                    }
 
-                        @Override
-                        public void perform(
-                                TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
-                            listener.onResponse(new PrimaryResult(request));
-                        }
+                    @Override
+                    public void perform(
+                        TransportVerifyShardBeforeCloseAction.ShardRequest request, ActionListener<PrimaryResult> listener) {
+                        listener.onResponse(new PrimaryResult(request));
+                    }
 
-                        @Override
-                        public void failShard(String message, Exception exception) {
+                    @Override
+                    public void failShard(String message, Exception exception) {
 
-                        }
+                    }
 
-                        @Override
-                        public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
-                        }
+                    @Override
+                    public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
+                    }
 
-                        @Override
-                        public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
-                        }
+                    @Override
+                    public void updateGlobalCheckpointForShard(String allocationId, long globalCheckpoint) {
+                    }
 
-                        @Override
-                        public long localCheckpoint() {
-                            return 0;
-                        }
+                    @Override
+                    public long localCheckpoint() {
+                        return 0;
+                    }
 
-                        @Override
-                        public long globalCheckpoint() {
-                            return 0;
-                        }
+                    @Override
+                    public long globalCheckpoint() {
+                        return 0;
+                    }
 
-                        @Override
-                        public long maxSeqNoOfUpdatesOrDeletes() {
-                            return 0;
-                        }
+                    @Override
+                    public long maxSeqNoOfUpdatesOrDeletes() {
+                        return 0;
+                    }
                 };
     }
 

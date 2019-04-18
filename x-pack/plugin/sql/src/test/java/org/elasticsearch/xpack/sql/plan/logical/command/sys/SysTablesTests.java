@@ -54,7 +54,30 @@ public class SysTablesTests extends ESTestCase {
     //
     // catalog enumeration
     //
-    public void testSysTablesCatalogEnumeration() throws Exception {
+    public void testSysTablesCatalogEnumerationWithEmptyType() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE '' TYPE ''", r -> {
+            assertEquals(1, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            // everything else should be null
+            for (int i = 1; i < 10; i++) {
+                assertNull(r.column(i));
+            }
+        }, index);
+    }
+
+    public void testSysTablesCatalogAllTypes() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE '' TYPE '%'", r -> {
+            assertEquals(1, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+            // everything else should be null
+            for (int i = 1; i < 10; i++) {
+                assertNull(r.column(i));
+            }
+        }, new IndexInfo[0]);
+    }
+
+    // when types are null, consider them equivalent to '' for compatibility reasons
+    public void testSysTablesCatalogNoTypes() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '%' LIKE ''", r -> {
             assertEquals(1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
@@ -65,20 +88,14 @@ public class SysTablesTests extends ESTestCase {
         }, index);
     }
 
+
     //
     // table types enumeration
     //
+
+    // missing type means pattern
     public void testSysTablesTypesEnumerationWoString() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' ", r -> {
-            assertEquals(2, r.size());
-            assertEquals("BASE TABLE", r.column(3));
-            assertTrue(r.advanceRow());
-            assertEquals("VIEW", r.column(3));
-        }, new IndexInfo[0]);
-    }
-
-    public void testSysTablesEnumerateTypes() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", r -> {
             assertEquals(2, r.size());
             assertEquals("BASE TABLE", r.column(3));
             assertTrue(r.advanceRow());
@@ -104,6 +121,13 @@ public class SysTablesTests extends ESTestCase {
 
                 r.advanceRow();
             }
+        }, new IndexInfo[0]);
+    }
+
+    // when a type is specified, apply filtering
+    public void testSysTablesTypesEnumerationAllCatalogsAndSpecifiedView() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE '' TYPE 'VIEW'", r -> {
+            assertEquals(0, r.size());
         }, new IndexInfo[0]);
     }
 
@@ -259,6 +283,12 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES CATALOG LIKE '%' LIKE 'test' TYPE 'VIEW'", r -> {
             assertEquals(1, r.size());
             assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
+    public void testSysTablesWithEmptyCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '' LIKE 'test' TYPE 'VIEW'", r -> {
+            assertEquals(0, r.size());
         }, alias);
     }
 

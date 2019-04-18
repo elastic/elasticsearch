@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -91,6 +92,37 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().index(indexRequest).actionGet());
         assertThat(e.getRootCause(), instanceOf(IllegalStateException.class));
         assertThat(e.getRootCause().getMessage(), equalTo("index [reference-index] must have 1 shard, but has 2 shards"));
+    }
+
+    public void testFailWithFilteredAlias() throws Exception {
+        createIndex("reference-index1", client().admin().indices().prepareCreate("reference-index1")
+            .addAlias(new Alias("reference-index").filter(QueryBuilders.matchAllQuery())));
+
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("my-pipeline", createPipelineSource(), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        IndexRequest indexRequest = new IndexRequest("my-index").id("1").source("{}", XContentType.JSON).setPipeline("my-pipeline");
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> client().index(indexRequest).actionGet());
+        assertThat(e.getRootCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getRootCause().getMessage(), equalTo("expression [reference-index] points an alias with a filter"));
+    }
+
+    public void testWithAlias() throws Exception {
+        createIndex("reference-index1", client().admin().indices().prepareCreate("reference-index1")
+            .addAlias(new Alias("reference-index")));
+
+        client().index(new IndexRequest("reference-index1").id("1").source("{}", XContentType.JSON)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("reference-index1")).actionGet();
+
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("my-pipeline", createPipelineSource(), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        client().index(new IndexRequest("my-index").id("1").source("{}", XContentType.JSON).setPipeline("my-pipeline")).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("my-index")).actionGet();
+
+        Map<String, Object> result = client().get(new GetRequest("my-index", "1")).actionGet().getSourceAsMap();
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get("id"), equalTo("1"));
     }
 
     private static BytesReference createPipelineSource() throws IOException {

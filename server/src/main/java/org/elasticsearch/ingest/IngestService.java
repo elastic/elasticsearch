@@ -111,6 +111,14 @@ public class IngestService implements ClusterStateApplier {
                     }
                     Index index = resolvedIndices[0];
 
+                    // check if indexExpression matches with an alias that has a filter
+                    // There is no guarantee that alias filters are applied, so fail if this is the case.
+                    Set<String> indicesAndAliases = resolver.resolveExpressions(state, indexExpression);
+                    String[] aliasesWithFilter = resolver.filteringAliases(state, index.getName(), indicesAndAliases);
+                    if (aliasesWithFilter != null && aliasesWithFilter.length > 0) {
+                        throw new IllegalStateException("expression [" + indexExpression + "] points an alias with a filter");
+                    }
+
                     IndexService indexService = indicesService.indexServiceSafe(index);
                     int numShards = indexService.getMetaData().getNumberOfShards();
                     if (numShards != 1) {

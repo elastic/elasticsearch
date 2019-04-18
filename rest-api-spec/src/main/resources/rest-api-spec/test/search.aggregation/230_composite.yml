@@ -19,6 +19,22 @@ setup:
                         type: long
 
   - do:
+        indices.create:
+          index: other
+          body:
+            mappings:
+              properties:
+                date:
+                  type: date
+                long:
+                  type: long
+                nested:
+                  type: nested
+                  properties:
+                    nested_long:
+                      type: long
+
+  - do:
       index:
         index: test
         id:    1
@@ -55,8 +71,14 @@ setup:
         body:  { "date": "2017-10-21T07:00:00" }
 
   - do:
+      index:
+        index: other
+        id:    0
+        body:  { "date": "2017-10-20T03:08:45" }
+
+  - do:
       indices.refresh:
-        index: [test]
+        index: [test, other]
 
 ---
 "Simple Composite aggregation":
@@ -380,3 +402,84 @@ setup:
   - match: { aggregations.1.2.buckets.0.doc_count:  2 }
   - match: { aggregations.1.2.buckets.1.key.nested: 1000 }
   - match: { aggregations.1.2.buckets.1.doc_count:  1 }
+
+---
+"Composite aggregation with unmapped field":
+  - skip:
+      version: " - 7.99.99"
+      reason:  starting in 8.0 the composite aggregation handles unmapped fields as keywords
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 5 }
+  - match: { aggregations.test.buckets.0.key.long: 0}
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.long: 10 }
+  - match: { aggregations.test.buckets.1.key.kw: "foo"}
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.long: 20 }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.long: 100}
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
+  - match: { aggregations.test.buckets.3.doc_count: 1 }
+  - match: { aggregations.test.buckets.4.key.long: 1000 }
+  - match: { aggregations.test.buckets.4.key.kw: "bar" }
+  - match: { aggregations.test.buckets.4.doc_count: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: [test, other]
+        body:
+          aggregations:
+            test:
+              composite:
+                after: { "long": 100, "kw": "bar" }
+                sources: [
+                {
+                  "long": {
+                    "terms": {
+                      "field": "long"
+                    }
+                  }
+                },
+                {
+                  "kw": {
+                    "terms": {
+                      "field": "keyword"
+                    }
+                  }
+                }
+                ]
+
+  - match: {hits.total: 7}
+  - length: { aggregations.test.buckets: 1 }
+  - match: { aggregations.test.buckets.0.key.long: 1000 }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 1 }

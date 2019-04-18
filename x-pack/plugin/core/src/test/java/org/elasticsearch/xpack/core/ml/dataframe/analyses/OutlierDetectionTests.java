@@ -49,7 +49,7 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         Map<String, Object> params = outlierDetection.getParams();
 
         assertThat(params.size(), equalTo(2));
-        assertThat(params.get(OutlierDetection.K.getPreferredName()), equalTo(42));
+        assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
         assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
     }
 }

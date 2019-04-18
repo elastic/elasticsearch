@@ -270,7 +270,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsSource.INDEX.getPreferredName(),
             DataFrameAnalyticsSource.QUERY.getPreferredName(),
             OutlierDetection.NAME.getPreferredName(),
-            OutlierDetection.K.getPreferredName(),
+            OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE

@@ -421,7 +421,7 @@ public class ElasticsearchMappings {
             .startObject(PROPERTIES)
                 .startObject(OutlierDetection.NAME.getPreferredName())
                     .startObject(PROPERTIES)
-                        .startObject(OutlierDetection.K.getPreferredName())
+                        .startObject(OutlierDetection.N_NEIGHBORS.getPreferredName())
                             .field(TYPE, INTEGER)
                         .endObject()
                         .startObject(OutlierDetection.METHOD.getPreferredName())

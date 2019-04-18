@@ -25,7 +25,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     public static final ParseField NAME = new ParseField("outlier_detection");
 
-    public static final ParseField K = new ParseField("k");
+    public static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
     public static final ParseField METHOD = new ParseField("method");
 
     private static final ConstructingObjectParser<OutlierDetection, Void> LENIENT_PARSER = createParser(true);
@@ -34,7 +34,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     private static ConstructingObjectParser<OutlierDetection, Void> createParser(boolean lenient) {
         ConstructingObjectParser<OutlierDetection, Void> parser = new ConstructingObjectParser<>(NAME.getPreferredName(), lenient,
             a -> new OutlierDetection((Integer) a[0], (Method) a[1]));
-        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), K);
+        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), N_NEIGHBORS);
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return Method.fromString(p.text());
@@ -48,20 +48,20 @@ public class OutlierDetection implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    private final Integer k;
+    private final Integer nNeighbors;
     private final Method method;
 
     /**
      * Constructs the outlier detection configuration
-     * @param k The number of neighbors. Leave unspecified for dynamic detection.
+     * @param nNeighbors The number of neighbors. Leave unspecified for dynamic detection.
      * @param method The method. Leave unspecified for a dynamic mixture of methods.
      */
-    public OutlierDetection(@Nullable Integer k, @Nullable Method method) {
-        if (k != null && k <= 0) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", K.getPreferredName());
+    public OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method) {
+        if (nNeighbors != null && nNeighbors <= 0) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", N_NEIGHBORS.getPreferredName());
         }
 
-        this.k = k;
+        this.nNeighbors = nNeighbors;
         this.method = method;
     }
 
@@ -73,7 +73,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     public OutlierDetection(StreamInput in) throws IOException {
-        k = in.readOptionalVInt();
+        nNeighbors = in.readOptionalVInt();
         method = in.readBoolean() ? in.readEnum(Method.class) : null;
     }
 
@@ -84,7 +84,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalVInt(k);
+        out.writeOptionalVInt(nNeighbors);
 
         if (method != null) {
             out.writeBoolean(true);
@@ -97,8 +97,8 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (k != null) {
-            builder.field(K.getPreferredName(), k);
+        if (nNeighbors != null) {
+            builder.field(N_NEIGHBORS.getPreferredName(), nNeighbors);
         }
         if (method != null) {
             builder.field(METHOD.getPreferredName(), method);
@@ -112,20 +112,19 @@ public class OutlierDetection implements DataFrameAnalysis {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OutlierDetection that = (OutlierDetection) o;
-        return Objects.equals(k, that.k) && Objects.equals(method, that.method);
+        return Objects.equals(nNeighbors, that.nNeighbors) && Objects.equals(method, that.method);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(k, method);
+        return Objects.hash(nNeighbors, method);
     }
 
     @Override
     public Map<String, Object> getParams() {
         Map<String, Object> params = new HashMap<>();
-        if (k != null) {
-            // TODO change this to the constant NEIGHBORS when c++ is updated to match
-            params.put(K.getPreferredName(), k);
+        if (nNeighbors != null) {
+            params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
         }
         if (method != null) {
             params.put(METHOD.getPreferredName(), method);

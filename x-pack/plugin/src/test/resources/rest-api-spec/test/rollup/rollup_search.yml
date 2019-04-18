@@ -881,6 +881,308 @@ setup:
                  interval: "1h"
                  time_zone: "UTC"
 
+---
+"Obsolete Timezone":
+  - skip:
+        version: " - 7.0.99"
+        reason: "IANA TZ deprecations in 7.1"
+        features: "warnings"
+  - do:
+      indices.create:
+        index: tz
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              partition:
+                type: keyword
+              price:
+                type: integer
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      warnings:
+        - "Creating Rollup job [tz] with timezone [Canada/Mountain], but [Canada/Mountain] has been deprecated by the IANA.  Use [America/Edmonton] instead."
+      rollup.put_job:
+        id: tz
+        body:  >
+          {
+            "index_pattern": "tz",
+            "rollup_index": "tz_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "timestamp",
+                "interval": "5m",
+                "time_zone": "Canada/Mountain"
+              },
+              "terms": {
+                "fields": ["partition"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max"]
+              }
+            ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221000000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 1
+            partition.terms.value: "a"
+            partition.terms._count: 1
+            price.max.value: 1
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221300000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 2
+            partition.terms.value: "b"
+            partition.terms._count: 2
+            price.max.value: 2
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221600000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "America/Edmonton"
+            timestamp.date_histogram._count: 10
+            partition.terms.value: "a"
+            partition.terms._count: 10
+            price.max.value: 3
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "5m"
+                time_zone: "America/Edmonton"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "5m"
+                time_zone: "Canada/Mountain"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+---
+"Obsolete BWC Timezone":
+  - skip:
+        version: " - 7.0.99"
+        reason: "IANA TZ deprecations in 7.1"
+  - do:
+      indices.create:
+        index: tz_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              partition.terms.value:
+                type: keyword
+              partition.terms._count:
+                type: long
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              price.max.value:
+                type: double
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "tz_rollup"
+                  index_pattern: "tz"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      field: "timestamp"
+                      interval: "5m"
+                      time_zone: "Canada/Mountain"
+                    terms:
+                      fields:
+                        - "partition"
+                  id: tz
+                  metrics:
+                    - field: "price"
+                      metrics:
+                        - max
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221000000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 1
+            partition.terms.value: "a"
+            partition.terms._count: 1
+            price.max.value: 1
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221300000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 2
+            partition.terms.value: "b"
+            partition.terms._count: 2
+            price.max.value: 2
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+          - index:
+              _index: "tz_rollup"
+              _type: "_doc"
+          - timestamp.date_histogram.timestamp: 1531221600000
+            timestamp.date_histogram.interval: "5m"
+            timestamp.date_histogram.time_zone: "Canada/Mountain"
+            timestamp.date_histogram._count: 10
+            partition.terms.value: "a"
+            partition.terms._count: 10
+            price.max.value: 3
+            "_rollup.id": "tz"
+            "_rollup.version": 2
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "5m"
+                time_zone: "America/Edmonton"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
+
+  - do:
+      rollup.rollup_search:
+        index: "tz_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "5m"
+                time_zone: "Canada/Mountain"
+              aggs:
+                the_max:
+                  max:
+                    field: "price"
+
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2018-07-10T05:10:00.000-06:00" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.0.the_max.value: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2018-07-10T05:15:00.000-06:00" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.1.the_max.value: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2018-07-10T05:20:00.000-06:00" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.2.the_max.value: 3 }
+
 
 ---
 "Search with typed_keys":
@@ -914,3 +1216,5 @@ setup:
   - match: { aggregations.date_histogram#histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
   - match: { aggregations.date_histogram#histo.buckets.3.doc_count: 20 }
   - match: { aggregations.date_histogram#histo.buckets.3.max#the_max.value: 4 }
+
+

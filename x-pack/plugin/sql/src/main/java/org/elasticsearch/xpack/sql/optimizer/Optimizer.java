@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.CleanAliases;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStatsEnclosed;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
@@ -93,6 +95,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -128,6 +131,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceFoldableAttributes(),
                 new FoldNull(),
                 new ConstantFolding(),
+                new LocalRelationCountFolding(),
                 new SimplifyConditional(),
                 new SimplifyCase(),
                 // boolean
@@ -1195,6 +1199,77 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             return e.foldable() ? Literal.of(e) : e;
         }
+    }
+    
+    static class LocalRelationCountFolding extends OptimizerRule<LogicalPlan> {
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan p) {
+            if (Verifier.isLocalRelation(p)) {
+                // collect aggregate aliases, if any
+                List<Alias> aliases = new ArrayList<>();
+                if (p instanceof Filter) {
+                    Filter f = (Filter) p;
+                    if (f.child() instanceof Aggregate) {
+                        ((Aggregate) f.child()).aggregates().forEach(a -> {
+                            if (a instanceof Alias && ((Alias) a).child() instanceof Count) {
+                                aliases.add((Alias) a);
+                            }
+                        });
+                    }
+                }
+                
+                // replace all aliases or COUNTs in the aggregates with 1
+                LogicalPlan changed = p.transformDown(agg -> {
+                    List<NamedExpression> values = new ArrayList<>();
+                    for (NamedExpression a : agg.aggregates()) {
+                        if (a instanceof Count) {
+                            values.add(Literal.of(a.source(), 1L));
+                        } else if (a instanceof Alias && ((Alias) a).child() instanceof Count) {
+                            values.add(Literal.of(a.name(), Literal.of(Source.EMPTY, 1L)));
+                        } else {
+                            values.add(a);
+                        }
+                    }
+
+                    if (values.equals(agg.aggregates()) == false) {
+                        return new Aggregate(agg.source(), agg.child(), agg.groupings(), values);
+                    }
+                    return agg;
+                }, Aggregate.class);
+                
+                // locate and replace any COUNT aliases and COUNTs in HAVINGs with 1
+                changed = changed.transformDown(filter -> {
+                    Expression cond = filter.condition();
+                    // replace the COUNT(*) alias with 1
+                    Expression newCondition = cond.transformDown(u -> {
+                        if (u instanceof Count) {
+                            return Literal.of(u.source(), 1L);
+                        } else {
+                            for (Alias alias : aliases) {
+                                if (Objects.equals(alias.name(), u.name())) {
+                                    return Literal.of(u.name(), Literal.of(Source.EMPTY, 1L));
+                                }
+                            }
+                        }
+                        
+                        return u;
+                     }, NamedExpression.class);
+
+                    if (newCondition != cond) {
+                        return new Filter(filter.source(), filter.child(), newCondition);
+                    }
+                    return filter;
+                }, Filter.class);
+                
+                if (changed != p) {
+                    return changed;
+                }
+            }
+
+            return p;
+        }
+        
     }
 
     static class SimplifyConditional extends OptimizerExpressionRule {

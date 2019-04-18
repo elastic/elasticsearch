@@ -246,6 +246,32 @@ SELECT gender, COUNT(last_name) ln, COUNT(distinct last_name) dln, COUNT(first_n
 aggCountWithHavingAndWhere
 SELECT COUNT(last_name) c, COUNT(DISTINCT last_name) distinct_names, gender FROM test_emp WHERE salary > 65000 GROUP BY gender HAVING distinct_names > 10 ORDER BY gender;
 
+// Local COUNT(*)
+selectLiteralWithHavingNotMatching
+SELECT 123 HAVING COUNT(*) > 1;
+selectLiteralWithHavingMatching
+SELECT 123 HAVING COUNT(*) >= 1;
+selectLiteralAndCountWithHavingNotMatching
+SELECT 123, COUNT(*) HAVING COUNT(*) > 1;
+selectLiteralAndCountWithHavingMatching
+SELECT 123, COUNT(*) HAVING COUNT(*) >= 1;
+selectLiteralAndCount
+SELECT 123, COUNT(*);
+selectLiteralAndCountAlias
+SELECT 123, COUNT(*) c;
+selectLiteralAndCountAliasWithHavingNotMatching
+SELECT 123, COUNT(*) c HAVING COUNT(*) > 1;
+selectLiteralAndCountAliasWithHavingMatching
+SELECT 123, COUNT(*) c HAVING COUNT(*) >= 1;
+selectLiteralAndCountAliasWithHavingAliasNotMatching
+SELECT 123, COUNT(*) c HAVING c > 1;
+selectLiteralAndCountAliasWithHavingAliasMatching
+SELECT 123, COUNT(*) c HAVING c >= 1;
+selectLiteralAndCountAliasWithHavingAliasNotMatchingArithmetics
+SELECT 123, COUNT(*) c HAVING c + 1 > 2;
+selectLiteralAndCountAliasWithHavingAliasMatchingArithmetics
+SELECT 123, COUNT(*) c HAVING c + 1 = 2;
+
 // MIN
 aggMinImplicit
 // tag::min

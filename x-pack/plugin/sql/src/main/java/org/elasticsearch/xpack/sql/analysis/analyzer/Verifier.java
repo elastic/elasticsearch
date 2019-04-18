@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.Holder;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -654,10 +656,15 @@ public final class Verifier {
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures) {
         if (p instanceof Filter) {
+            // it's a locally executed query?
+            boolean isLocalQuery = isLocalRelation(p);
+            
             Filter filter = (Filter) p;
             if ((filter.child() instanceof Aggregate) == false) {
                 filter.condition().forEachDown(e -> {
-                    if (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute) {
+                    if ((isLocalQuery == false && (Functions.isAggregate(e) || e instanceof AggregateFunctionAttribute))
+                        // special check for something like SELECT 123 WHERE COUNT(*) >= 1
+                        || (isLocalQuery && e instanceof Count && (filter.child() instanceof Project) == false)) {
                         localFailures.add(
                                 fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead", Expressions.name(e)));
                     }
@@ -718,5 +725,15 @@ public final class Verifier {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
         }
+    }
+    
+    public static boolean isLocalRelation(LogicalPlan p) {
+        Holder<Boolean> isLocalQuery = new Holder<>(Boolean.FALSE);
+        p.forEachDown(l -> {
+            isLocalQuery.set(Boolean.TRUE);
+            return;
+        }, LocalRelation.class);
+        
+        return isLocalQuery.get() == Boolean.TRUE;
     }
 }

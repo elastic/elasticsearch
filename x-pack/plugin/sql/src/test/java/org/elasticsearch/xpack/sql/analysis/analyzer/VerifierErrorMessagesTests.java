@@ -633,6 +633,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
     }
 
+    public void testCountInWhere() {
+        assertEquals("1:33: Cannot use WHERE filtering on aggregate function [COUNT(*)], use HAVING instead",
+                error("SELECT COUNT(*) FROM test WHERE COUNT(*) > 10"));
+    }
+
+    public void testCountAliasInWhere() {
+        assertEquals("1:8: Cannot use WHERE filtering on aggregate function [COUNT(*)], use HAVING instead",
+                error("SELECT COUNT(*) c FROM test WHERE c > 10"));
+    }
+    
+    public void testCountInWhereInLocalQuery() {
+        assertEquals("1:18: Cannot use WHERE filtering on aggregate function [COUNT(*)], use HAVING instead",
+                error("SELECT 123 WHERE COUNT(*) > 10"));
+    }
+
     public void testHistogramInFilter() {
         assertEquals("1:63: Cannot filter on grouping function [HISTOGRAM(date, INTERVAL 1 MONTH)], use its argument instead",
                 error("SELECT HISTOGRAM(date, INTERVAL 1 MONTH) AS h FROM test WHERE "

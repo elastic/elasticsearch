@@ -95,6 +95,8 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -1481,5 +1483,50 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(groupings.get(1) instanceof Alias);
         assertEquals(firstAlias, groupings.get(0));
         assertEquals(secondAlias, groupings.get(1));
+    }
+    
+    // COUNT folding in local queries
+    
+    public void testCountFoldingInAggregateAndFilter() {
+        // SELECT count(*) HAVING count(*) > 1
+        
+        // count(*)
+        Count c = new Count(new Source(Location.EMPTY, "count(*)"), Literal.of("*", Literal.of(Source.EMPTY, 1)), false);
+        // SELECT count(*)
+        Aggregate a = new Aggregate(EMPTY, new LocalRelation(EMPTY, new SingletonExecutable()), emptyList(), Arrays.asList(c));
+        // HAVING count(*) > 1
+        LogicalPlan p = new Filter(EMPTY, a, new GreaterThan(EMPTY, c, L(1)));
+        LogicalPlan result = new Optimizer.LocalRelationCountFolding().apply(p);
+        
+        assertTrue(result instanceof Filter);
+        assertEquals(1, result.children().size());
+        
+        Filter f = (Filter) result;
+        assertTrue(f.child() instanceof Aggregate);
+        Aggregate agg = (Aggregate) f.child();
+        
+        assertTrue(agg.groupings().isEmpty());
+        assertTrue(agg.child() instanceof LocalRelation);
+        assertEquals(1, agg.aggregates().size());
+        
+        assertTrue(agg.aggregates().get(0) instanceof Literal);
+        Literal one = (Literal) agg.aggregates().get(0);
+        assertEquals("count(*)", one.name());
+        assertEquals(1L, one.value());
+        assertTrue(one.value() instanceof Long);
+        
+        assertTrue(f.condition() instanceof GreaterThan);
+        GreaterThan g = (GreaterThan) f.condition();
+        assertTrue(g.left() instanceof Literal);
+        assertTrue(g.right() instanceof Literal);
+        
+        Literal left = (Literal) g.left();
+        Literal right = (Literal) g.right();
+        assertEquals("count(*)", left.name());
+        assertEquals(1L, left.value());
+        assertTrue(left.value() instanceof Long);
+        assertEquals("", right.name());
+        assertEquals(1, right.value());
+        assertTrue(right.value() instanceof Integer);
     }
 }

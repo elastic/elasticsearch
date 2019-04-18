@@ -1,7 +1,7 @@
 [[mapper-attachments]]
 === Mapper Attachments Plugin
 
-deprecated[5.0.0,The `mapper-attachments` plugin has been replaced by the <<ingest-attachment, `ingest-attachment`>> plugin]
+deprecated[5.0.0, "The `mapper-attachments` plugin has been replaced by the <<ingest-attachment, `ingest-attachment`>> plugin."]
 
 The mapper attachments plugin lets Elasticsearch index file attachments in common formats (such as PPT, XLS, PDF)
 using the Apache text extraction library http://lucene.apache.org/tika/[Tika].

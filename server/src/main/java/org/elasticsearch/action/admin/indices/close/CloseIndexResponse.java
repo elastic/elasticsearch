@@ -196,7 +196,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         private final int id;
         private final ShardResult.Failure[] failures;
 
-        public ShardResult(final int id, final Failure... failures) {
+        public ShardResult(final int id, final Failure[] failures) {
             this.id = id;
             this.failures = failures;
         }

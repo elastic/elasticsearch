@@ -347,15 +347,17 @@ public class MetaDataIndexStateService {
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
                     public void innerOnResponse(final ReplicationResponse replicationResponse) {
-                        results.setOnce(shardId, new ShardResult(shardId, Arrays.stream(replicationResponse.getShardInfo().getFailures())
+                        ShardResult.Failure[] failures = Arrays.stream(replicationResponse.getShardInfo().getFailures())
                             .map(f -> new ShardResult.Failure(f.index(), f.shardId(), f.getCause(), f.nodeId()))
-                            .toArray(ShardResult.Failure[]::new)));
+                            .toArray(ShardResult.Failure[]::new);
+                        results.setOnce(shardId, new ShardResult(shardId, failures));
                         processIfFinished();
                     }
 
                     @Override
                     public void innerOnFailure(final Exception e) {
-                        results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure(index.getName(), shardId, e)));
+                        ShardResult.Failure failure = new ShardResult.Failure(index.getName(), shardId, e);
+                        results.setOnce(shardId, new ShardResult(shardId, new ShardResult.Failure[]{failure}));
                         processIfFinished();
                     }
 

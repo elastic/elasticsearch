@@ -60,10 +60,6 @@ setup:
 
 ---
 "Simple Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -89,11 +85,6 @@ setup:
 
 ---
 "Nested Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -139,11 +130,6 @@ setup:
 
 ---
 "Aggregate After":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -181,11 +167,6 @@ setup:
 
 ---
 "Aggregate After Missing":
-  - skip:
-      version: " - 6.1.99"
-      reason:  bug fixed in 6.2.0
-
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -212,10 +193,6 @@ setup:
 
 ---
 "Invalid Composite aggregation":
-  - skip:
-      version: " - 6.0.99"
-      reason:  this uses a new API that has been added in 6.1
-
   - do:
       catch:      /\[composite\] aggregation cannot be used with a parent aggregation/
       search:
@@ -241,10 +218,6 @@ setup:
 
 ---
 "Composite aggregation with format":
-  - skip:
-      version: " - 6.2.99"
-      reason:  this uses a new option (format) added in 6.3.0
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -302,10 +275,6 @@ setup:
 
 ---
 "Composite aggregation with after_key in the response":
-  - skip:
-      version: " - 6.2.99"
-      reason:  starting in 6.3.0 after_key is returned in the response
-
   - do:
         search:
           rest_total_hits_as_int: true
@@ -331,10 +300,6 @@ setup:
 
 ---
 "Composite aggregation and array size":
-  - skip:
-      version: " - 6.99.99"
-      reason:  starting in 7.0 the composite aggregation throws an execption if the provided size is greater than search.max_buckets.
-
   - do:
         catch: /.*Trying to create too many buckets.*/
         search:
@@ -357,10 +322,6 @@ setup:
 
 ---
 "Composite aggregation with nested parent":
-  - skip:
-      version: " - 6.99.99"
-      reason:  the ability to set a nested parent aggregation was added in 7.0.
-
   - do:
         search:
           rest_total_hits_as_int: true

@@ -107,7 +107,6 @@
 ---
 "Normalization with deprecated unicodeSetFilter":
     - skip:
-        version: " - 6.99.99"
         reason:  unicodeSetFilter deprecated in 7.0.0, replaced by unicode_set_filter
         features: "warnings"
 

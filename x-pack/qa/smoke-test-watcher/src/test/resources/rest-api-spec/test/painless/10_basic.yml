@@ -123,10 +123,6 @@
 
 ---
 "Test execute watch api with rest_total_hits_as_int":
-  - skip:
-      version: " - 6.99.99"
-      reason: "rest_total_hits_as_int support was added in 7.0"
-
   - do:
       cluster.health:
         wait_for_status: green

@@ -64,9 +64,6 @@ Vagrant.configure(2) do |config|
       SHELL
     end
   end
-  # Wheezy's backports don't contain Openjdk 8 and the backflips
-  # required to get the sun jdk on there just aren't worth it. We have
-  # jessie and stretch for testing debian and it works fine.
   'debian-8'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
@@ -406,11 +403,16 @@ def windows_common(config, name)
     $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
   SHELL
 
+  config.vm.provision 'windows-jdk-11', type: 'shell', inline: <<-SHELL
+    New-Item -ItemType Directory -Force -Path "C:/java"
+    Invoke-WebRequest "https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
+    Expand-Archive -Path "C:/java/jdk-11.zip" -DestinationPath "C:/java/"
+  SHELL
+
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
-    $javaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Machine")
-    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", $javaHome, "Machine")
+    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", "C:\java\jdk-11.0.2", "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
     [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL

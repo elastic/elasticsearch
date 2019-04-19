@@ -598,6 +598,21 @@ allprojects {
   } 
 }
 
+subprojects {
+    // Common config when running with a FIPS-140 runtime JVM
+    if (project.ext.has("inFipsJvm") && project.ext.inFipsJvm) {
+        tasks.withType(Test) {
+          systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+          systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+        }
+        project.pluginManager.withPlugin("elasticsearch.testclusters") {
+          project.testClusters.all {
+            systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+            systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+          }
+        }
+    }
+}
 
 
 

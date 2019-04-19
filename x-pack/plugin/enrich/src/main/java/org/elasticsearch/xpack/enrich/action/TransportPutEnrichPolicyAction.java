@@ -35,6 +35,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
             PutEnrichPolicyAction.Request::new, indexNameExpressionResolver);
         this.enrichStore = enrichStore;
     }
+
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;

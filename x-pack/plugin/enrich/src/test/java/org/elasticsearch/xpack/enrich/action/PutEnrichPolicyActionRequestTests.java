@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 
 public class PutEnrichPolicyActionRequestTests extends AbstractWireSerializingTestCase<PutEnrichPolicyAction.Request> {
+
     @Override
     protected PutEnrichPolicyAction.Request createTestInstance() {
         final EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);

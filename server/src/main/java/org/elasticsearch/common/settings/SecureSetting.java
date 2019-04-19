@@ -19,12 +19,22 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.EnumSet;
 import java.util.Set;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**
@@ -103,6 +113,25 @@ public abstract class SecureSetting<T> extends Setting<T> {
     /** Returns the value from a fallback setting. Returns null if no fallback exists. */
     abstract T getFallback(Settings settings);
 
+    abstract char[] computeSecretValueSHA256(SecureSettings secureSettings) throws GeneralSecurityException;
+
+    char[] toBase64EncodedHash(MessageDigest digest) {
+        byte[] unencodedDigest = null;
+        byte[] base64EncodedDigest = null;
+        try {
+            unencodedDigest = digest.digest();
+            base64EncodedDigest = Base64.getEncoder().encode(unencodedDigest);
+            return CharArrays.utf8BytesToChars(base64EncodedDigest);
+        } finally {
+            if (unencodedDigest != null) {
+                Arrays.fill(unencodedDigest, (byte) 0);
+            }
+            if (base64EncodedDigest != null) {
+                Arrays.fill(base64EncodedDigest, (byte) 0);
+            }
+        }
+    }
+
     // TODO: override toXContent
 
     /**
@@ -160,6 +189,15 @@ public abstract class SecureSetting<T> extends Setting<T> {
             }
             return new SecureString(new char[0]); // this means "setting does not exist"
         }
+
+        @Override
+        char[] computeSecretValueSHA256(SecureSettings secureSettings) throws GeneralSecurityException {
+            final MessageDigest digest = MessageDigests.sha256();
+            try (SecureString secureString = getSecret(secureSettings)) {
+                digest.update(StandardCharsets.UTF_8.encode(CharBuffer.wrap(secureString.getChars())));
+            }
+            return toBase64EncodedHash(digest);
+        }
     }
 
     private static class InsecureStringSetting extends Setting<SecureString> {
@@ -199,6 +237,20 @@ public abstract class SecureSetting<T> extends Setting<T> {
                 return fallback.get(settings);
             }
             return null;
+        }
+
+        @Override
+        char[] computeSecretValueSHA256(SecureSettings secureSettings) throws GeneralSecurityException {
+            final MessageDigest digest = MessageDigests.sha256();
+            try (InputStream is = getSecret(secureSettings)) {
+                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    Streams.copy(is, out);
+                    digest.update(out.toByteArray());
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Exception while reading the [" + getKey() + "] secure setting.", e);
+            }
+            return toBase64EncodedHash(digest);
         }
     }
 }

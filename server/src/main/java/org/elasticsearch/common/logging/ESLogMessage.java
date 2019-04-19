@@ -25,15 +25,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public abstract class LoggerMessage extends ParameterizedMessage {
-    private Map<String, Object> fields;
+public abstract class ESLogMessage extends ParameterizedMessage {
+    private Map<String, String> fields;
 
-    public LoggerMessage(Map<String, Object> fields, String messagePattern, Object... args) {
+    public ESLogMessage(Map<String, String> fields, String messagePattern, Object... args) {
         super(messagePattern, args);
         this.fields = fields;
     }
 
-    public Object getValueFor(String key) {
+    public String getValueFor(String key) {
         return fields.get(key);
     }
 
@@ -49,7 +49,7 @@ public abstract class LoggerMessage extends ParameterizedMessage {
 
     public static String asJsonArray(Stream<String> stream) {
         return "[" + stream
-            .map(LoggerMessage::inQuotes)
+            .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
     }
 }

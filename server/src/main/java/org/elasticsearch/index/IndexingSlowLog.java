@@ -24,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessage;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -164,7 +164,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         }
     }
 
-    static final class SlowLogParsedDocumentPrinter extends LoggerMessage {
+    static final class SlowLogParsedDocumentPrinter extends ESLogMessage {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
@@ -181,9 +181,9 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             this.maxSourceCharsToLog = maxSourceCharsToLog;
         }
 
-        private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
+        private static Map<String, String> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
                                                       int maxSourceCharsToLog) {
-            Map<String,Object> map = new HashMap<>();
+            Map<String,String> map = new HashMap<>();
             map.put("message", inQuotes(index));
             map.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));
             map.put("took_millis", inQuotes(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));

@@ -22,7 +22,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessage;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -153,7 +153,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
-    static final class SlowLogSearchContextPrinter extends LoggerMessage {
+    static final class SlowLogSearchContextPrinter extends ESLogMessage {
         private final SearchContext context;
         private final long tookInNanos;
 
@@ -163,8 +163,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             this.tookInNanos = tookInNanos;
         }
 
-        private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
-            Map<String, Object> messageFields = new HashMap<>();
+        private static Map<String, String> prepareMap(SearchContext context, long tookInNanos) {
+            Map<String, String> messageFields = new HashMap<>();
             messageFields.put("message", inQuotes(context.indexShard().shardId()));
             messageFields.put("took", inQuotes(TimeValue.timeValueNanos(tookInNanos)));
             messageFields.put("took_millis", inQuotes(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));

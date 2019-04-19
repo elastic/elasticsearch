@@ -21,7 +21,7 @@ package org.elasticsearch.common.logging;
 
 import java.util.Map;
 
-public class DeprecatedMessage extends LoggerMessage {
+public class DeprecatedMessage extends ESLogMessage {
 
     public DeprecatedMessage(String messagePattern, String xOpaqueId, Object... args) {
         super(Map.of("x-opaque-id", inQuotes(xOpaqueId)), messagePattern, args);

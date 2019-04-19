@@ -60,6 +60,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
@@ -191,9 +192,13 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
-                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+            IntFunction<InboundChannelBuffer.Page> pageSupplier = (length) -> {
+                if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
+                    return new InboundChannelBuffer.Page(ByteBuffer.allocate(length), () -> {});
+                } else {
+                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
+                    return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
+                }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),

@@ -24,16 +24,15 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 
 public class SSLDriverTests extends ESTestCase {
 
-    private final int pageSize = 1 << 14;
-    private final Supplier<InboundChannelBuffer.Page> pageSupplier =
-            () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> {});
-    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
-    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
-    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
+    private final IntFunction<InboundChannelBuffer.Page> pageAllocator =
+            (n) -> new InboundChannelBuffer.Page(ByteBuffer.allocate(n), () -> {});
+    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageAllocator, 1 << 14);
+    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageAllocator, 1 << 14);
+    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageAllocator, 1 << 14);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();

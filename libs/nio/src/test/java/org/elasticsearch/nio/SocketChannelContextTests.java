@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -285,9 +286,8 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
             Runnable closer = mock(Runnable.class);
-            final int pageSize = 1 << 14;
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), closer);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier, pageSize);
+            IntFunction<InboundChannelBuffer.Page> pageAllocator = (n) -> new InboundChannelBuffer.Page(ByteBuffer.allocate(n), closer);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator, 1 << 14);
             buffer.ensureCapacity(1);
             TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, buffer);
             context.closeFromSelector();

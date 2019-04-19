@@ -24,22 +24,23 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
 public class InboundChannelBufferTests extends ESTestCase {
 
     private int pageSize;
-    private Supplier<InboundChannelBuffer.Page> defaultPageSupplier;
+    private IntFunction<InboundChannelBuffer.Page> defaultPageAllocator;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         pageSize = randomIntBetween(16000, 17000);
-        defaultPageSupplier = () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> {});
+        defaultPageAllocator = (n) -> new InboundChannelBuffer.Page(ByteBuffer.allocate(n), () -> {});
     }
 
     public void testNewBufferNoPages() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
 
         assertEquals(0, channelBuffer.getCapacity());
         assertEquals(0, channelBuffer.getRemaining());
@@ -47,7 +48,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testExpandCapacity() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         assertEquals(0, channelBuffer.getCapacity());
         assertEquals(0, channelBuffer.getRemaining());
 
@@ -63,7 +64,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testExpandCapacityMultiplePages() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(pageSize);
 
         assertEquals(pageSize, channelBuffer.getCapacity());
@@ -76,7 +77,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testExpandCapacityRespectsOffset() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(pageSize);
 
         assertEquals(pageSize, channelBuffer.getCapacity());
@@ -96,7 +97,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testIncrementIndex() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(pageSize);
 
         assertEquals(0, channelBuffer.getIndex());
@@ -109,7 +110,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testIncrementIndexWithOffset() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(pageSize);
 
         assertEquals(0, channelBuffer.getIndex());
@@ -130,12 +131,12 @@ public class InboundChannelBufferTests extends ESTestCase {
 
     public void testReleaseClosesPages() {
         ConcurrentLinkedQueue<AtomicBoolean> queue = new ConcurrentLinkedQueue<>();
-        Supplier<InboundChannelBuffer.Page> supplier = () -> {
+        IntFunction<InboundChannelBuffer.Page> allocator = (n) -> {
             AtomicBoolean atomicBoolean = new AtomicBoolean();
             queue.add(atomicBoolean);
-            return new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> atomicBoolean.set(true));
+            return new InboundChannelBuffer.Page(ByteBuffer.allocate(n), () -> atomicBoolean.set(true));
         };
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(supplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(allocator, pageSize);
         channelBuffer.ensureCapacity(pageSize * 4);
 
         assertEquals(pageSize * 4, channelBuffer.getCapacity());
@@ -157,12 +158,12 @@ public class InboundChannelBufferTests extends ESTestCase {
 
     public void testClose() {
         ConcurrentLinkedQueue<AtomicBoolean> queue = new ConcurrentLinkedQueue<>();
-        Supplier<InboundChannelBuffer.Page> supplier = () -> {
+        IntFunction<InboundChannelBuffer.Page> allocator = (n) -> {
             AtomicBoolean atomicBoolean = new AtomicBoolean();
             queue.add(atomicBoolean);
-            return new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> atomicBoolean.set(true));
+            return new InboundChannelBuffer.Page(ByteBuffer.allocate(n), () -> atomicBoolean.set(true));
         };
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(supplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(allocator, pageSize);
         channelBuffer.ensureCapacity(pageSize * 4);
 
         assertEquals(4, queue.size());
@@ -182,12 +183,12 @@ public class InboundChannelBufferTests extends ESTestCase {
 
     public void testCloseRetainedPages() {
         ConcurrentLinkedQueue<AtomicBoolean> queue = new ConcurrentLinkedQueue<>();
-        Supplier<InboundChannelBuffer.Page> supplier = () -> {
+        IntFunction<InboundChannelBuffer.Page> allocator = (n) -> {
             AtomicBoolean atomicBoolean = new AtomicBoolean();
             queue.add(atomicBoolean);
-            return new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> atomicBoolean.set(true));
+            return new InboundChannelBuffer.Page(ByteBuffer.allocate(n), () -> atomicBoolean.set(true));
         };
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(supplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(allocator, pageSize);
         channelBuffer.ensureCapacity(pageSize * 4);
 
         assertEquals(4, queue.size());
@@ -224,7 +225,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testAccessByteBuffers() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
 
         int pages = randomInt(50) + 5;
         channelBuffer.ensureCapacity(pages * pageSize);
@@ -265,7 +266,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testAlignAlreadyAligned() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
         ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
         byteBuffers[1].put((byte) 1);
@@ -284,7 +285,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testAlignFitsInSingleOldBuffer() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(2 * pageSize);
         ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
         byteBuffers[0].put(byteBuffers[0].limit() - 2, (byte) 1);
@@ -303,7 +304,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testAlignSingleNewBuffer() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
         ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
         byteBuffers[1].put((byte) 1);
@@ -323,7 +324,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     }
 
     public void testAlignMultipleNewBuffers() {
-        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageSupplier, pageSize);
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
         ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
         byteBuffers[1].put(1, (byte) 1);

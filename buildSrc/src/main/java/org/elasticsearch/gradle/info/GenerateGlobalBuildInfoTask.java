@@ -6,7 +6,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
@@ -29,7 +28,6 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -41,17 +39,22 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     private File runtimeJavaHome;
     private List<JavaHome> javaVersions;
     private final RegularFileProperty outputFile;
+    private final RegularFileProperty compilerVersionFile;
+    private final RegularFileProperty runtimeVersionFile;
 
     @Inject
     public GenerateGlobalBuildInfoTask(ObjectFactory objectFactory) {
         this.outputFile = objectFactory.fileProperty();
+        this.compilerVersionFile = objectFactory.fileProperty();
+        this.runtimeVersionFile = objectFactory.fileProperty();
     }
 
     @TaskAction
     public void generate() {
         String javaVendor = System.getProperty("java.vendor");
         String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendor + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name") + " " + System.getProperty("java.vm.version") + "]";
+        String gradleJavaVersionDetails = javaVendor + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
+            + " " + System.getProperty("java.vm.version") + "]";
 
         String compilerJavaVersionDetails = gradleJavaVersionDetails;
         JavaVersion compilerJavaVersionEnum = JavaVersion.current();
@@ -75,16 +78,20 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile.getAsFile().get()))) {
             writer.write("  Gradle Version        : " + getProject().getGradle().getGradleVersion() + "\n");
-            writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version") + " (" + System.getProperty("os.arch") + ")\n");
-            if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
+            writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
+                + " (" + System.getProperty("os.arch") + ")\n");
+            if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false
+                || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
                 writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
-                writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion) + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
+                    + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  Gradle java.home      : " + gradleJavaHome);
             } else {
-                writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion) + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
+                    + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome);
             }
         } catch (IOException e) {
@@ -94,7 +101,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         // enforce Java version
         if (compilerJavaVersionEnum.compareTo(minimumCompilerVersion) < 0) {
             String message = "The compiler java.home must be set to a JDK installation directory for Java " + minimumCompilerVersion +
-                    " but is [" + compilerJavaHome + "] corresponding to [" + compilerJavaVersionEnum +"]";
+                " but is [" + compilerJavaHome + "] corresponding to [" + compilerJavaVersionEnum + "]";
             throw new GradleException(message);
         }
 
@@ -119,19 +126,22 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
             }
             if (javaVersionEnum != expectedJavaVersionEnum) {
                 String message = "The environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java " +
-                        expectedJavaVersionEnum + " but is [" + javaHome + "] corresponding to [" + javaVersionEnum + "]";
+                    expectedJavaVersionEnum + " but is [" + javaHome + "] corresponding to [" + javaVersionEnum + "]";
                 throw new GradleException(message);
             }
         }
 
-        JavaVersion finalCompilerJavaVersionEnum = compilerJavaVersionEnum;
-        JavaVersion finalRuntimeJavaVersionEnum = runtimeJavaVersionEnum;
+        try (Writer writer = new FileWriter(compilerVersionFile.getAsFile().get())) {
+            writer.write(compilerJavaVersionEnum.name());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
-        getProject().getRootProject().allprojects(p -> {
-            ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
-            ext.set("compilerJavaVersion", finalCompilerJavaVersionEnum);
-            ext.set("runtimeJavaVersion", finalRuntimeJavaVersionEnum);
-        });
+        try (Writer writer = new FileWriter(runtimeVersionFile.getAsFile().get())) {
+            writer.write(runtimeJavaVersionEnum.name());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -233,5 +243,15 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getOutputFile() {
         return outputFile;
+    }
+
+    @OutputFile
+    public RegularFileProperty getCompilerVersionFile() {
+        return compilerVersionFile;
+    }
+
+    @OutputFile
+    public RegularFileProperty getRuntimeVersionFile() {
+        return runtimeVersionFile;
     }
 }

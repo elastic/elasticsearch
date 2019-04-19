@@ -44,17 +44,22 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
 
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo", GenerateGlobalBuildInfoTask.class, task -> {
-            task.setJavaVersions(javaVersions);
-            task.setMinimumCompilerVersion(minimumCompilerVersion);
-            task.setMinimumRuntimeVersion(minimumRuntimeVersion);
-            task.setCompilerJavaHome(compilerJavaHome);
-            task.setRuntimeJavaHome(runtimeJavaHome);
-            task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
-        });
+        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
+            GenerateGlobalBuildInfoTask.class, task -> {
+                task.setJavaVersions(javaVersions);
+                task.setMinimumCompilerVersion(minimumCompilerVersion);
+                task.setMinimumRuntimeVersion(minimumRuntimeVersion);
+                task.setCompilerJavaHome(compilerJavaHome);
+                task.setRuntimeJavaHome(runtimeJavaHome);
+                task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
+                task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
+                task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
+            });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
+            task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
+            task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
         });
 
         project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
@@ -120,7 +125,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static String getResourceContents(String resourcePath) {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))) {
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath))
+        )) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (b.length() != 0) {

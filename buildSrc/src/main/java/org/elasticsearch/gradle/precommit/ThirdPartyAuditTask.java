@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.precommit;
 
 import org.apache.commons.io.output.NullOutputStream;
-import org.apache.tools.ant.taskdefs.Java;
 import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -28,7 +27,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;

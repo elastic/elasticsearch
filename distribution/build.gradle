@@ -308,7 +308,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    modulesFiles = { oss ->
+    modulesFiles = { oss, platform ->
       copySpec {
         eachFile {
           if (it.relativePath.segments[-2] == 'bin') {
@@ -318,10 +318,22 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.mode = 0644
           }
         }
+        Task buildModules
         if (oss) {
-          from project(':distribution').buildOssModules
+          buildModules = project(':distribution').buildOssModules
         } else {
-          from project(':distribution').buildDefaultModules
+          buildModules = project(':distribution').buildDefaultModules
+        }
+        List excludePlatforms = ['linux', 'windows', 'darwin']
+        if (platform != null) {
+           excludePlatforms.remove(excludePlatforms.indexOf(platform))
+        } else {
+           excludePlatforms = []
+        }
+        from(buildModules) {
+          for (String excludePlatform : excludePlatforms) {
+            exclude "**/platform/${excludePlatform}-x86_64/**"
+          }
         }
       }
     }

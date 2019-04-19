@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -63,6 +64,7 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
         executeBulkRejectionLoad(BackoffPolicy.noBackoff(), rejectedExecutionExpected);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41324")
     public void testBulkRejectionLoadWithBackoff() throws Throwable {
         boolean rejectedExecutionExpected = false;
         executeBulkRejectionLoad(BackoffPolicy.exponentialBackoff(), rejectedExecutionExpected);
@@ -133,9 +135,14 @@ public class BulkProcessorRetryIT extends ESIntegTestCase {
                     }
                 }
             } else {
-                Throwable t = (Throwable) response;
-                // we're not expecting any other errors
-                throw new AssertionError("Unexpected failure", t);
+                if (response instanceof RemoteTransportException
+                    && ((RemoteTransportException) response).status() == RestStatus.TOO_MANY_REQUESTS && rejectedExecutionExpected) {
+                    // ignored, we exceeded the write queue size with dispatching the initial bulk request
+                } else {
+                    Throwable t = (Throwable) response;
+                    // we're not expecting any other errors
+                    throw new AssertionError("Unexpected failure", t);
+                }
             }
         }
 

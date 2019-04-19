@@ -130,9 +130,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  *   |- index-N           - list of all snapshot ids and the indices belonging to each snapshot, N is the generation of the file
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010 - JSON serialized Snapshot for snapshot "20131010"
+ *   |- snap-20131010.dat - JSON serialized Snapshot for snapshot "20131010"
  *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011 - JSON serialized Snapshot for snapshot "20131011"
+ *   |- snap-20131011.dat - JSON serialized Snapshot for snapshot "20131011"
  *   |- meta-20131011.dat - JSON serialized MetaData for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices

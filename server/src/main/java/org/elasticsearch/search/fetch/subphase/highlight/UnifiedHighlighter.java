@@ -124,8 +124,6 @@ public class UnifiedHighlighter implements Highlighter {
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
 
-        snippets = filterSnippets(snippets, field.fieldOptions().numberOfFragments());
-
         if (field.fieldOptions().scoreOrdered()) {
             //let's sort the snippets by score if needed
             CollectionUtil.introSort(snippets, (o1, o2) -> Double.compare(o2.getScore(), o1.getScore()));
@@ -183,41 +181,6 @@ public class UnifiedHighlighter implements Highlighter {
             default:
                 throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
-    }
-
-    protected static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
-
-        //We need to filter the snippets as due to no_match_size we could have
-        //either highlighted snippets or non highlighted ones and we don't want to mix those up
-        List<Snippet> filteredSnippets = new ArrayList<>(snippets.size());
-        for (Snippet snippet : snippets) {
-            if (snippet.isHighlighted()) {
-                filteredSnippets.add(snippet);
-            }
-        }
-
-        //if there's at least one highlighted snippet, we return all the highlighted ones
-        //otherwise we return the first non highlighted one if available
-        if (filteredSnippets.size() == 0) {
-            if (snippets.size() > 0) {
-                Snippet snippet = snippets.get(0);
-                //if we tried highlighting the whole content using whole break iterator (as number_of_fragments was 0)
-                //we need to return the first sentence of the content rather than the whole content
-                if (numberOfFragments == 0) {
-                    BreakIterator bi = BreakIterator.getSentenceInstance(Locale.ROOT);
-                    String text = snippet.getText();
-                    bi.setText(text);
-                    int next = bi.next();
-                    if (next != BreakIterator.DONE) {
-                        String newText = text.substring(0, next).trim();
-                        snippet = new Snippet(newText, snippet.getScore(), snippet.isHighlighted());
-                    }
-                }
-                filteredSnippets.add(snippet);
-            }
-        }
-
-        return filteredSnippets;
     }
 
     protected static String convertFieldValue(MappedFieldType type, Object value) {

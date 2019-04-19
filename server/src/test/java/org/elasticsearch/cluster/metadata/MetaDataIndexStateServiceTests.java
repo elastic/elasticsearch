@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableList;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
@@ -455,7 +454,8 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
 
         final Snapshot snapshot = new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final RestoreInProgress.Entry entry =
-            new RestoreInProgress.Entry("_uuid", snapshot, RestoreInProgress.State.INIT, ImmutableList.of(index), shardsBuilder.build());
+            new RestoreInProgress.Entry("_uuid", snapshot, RestoreInProgress.State.INIT,
+                Collections.singletonList(index), shardsBuilder.build());
         return ClusterState.builder(newState)
             .putCustom(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(entry).build())
             .build();

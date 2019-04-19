@@ -116,6 +116,9 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
             @Override
             public boolean blobExists(String blobName) {
+                if (cachedMisses.contains(blobName)) {
+                    return false;
+                }
                 ensureReadAfterWrite(blobName);
                 final boolean result = super.blobExists(blobName);
                 if (result == false) {
@@ -126,15 +129,15 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
             @Override
             public InputStream readBlob(String name) throws IOException {
+                if (cachedMisses.contains(name)) {
+                    throw new NoSuchFileException(name);
+                }
                 ensureReadAfterWrite(name);
                 return super.readBlob(name);
             }
 
             private void ensureReadAfterWrite(String blobName) {
-                // TODO: Make this even less consistent by keeping track of blobs that existed before instead of simply ensuring
-                //       read after first write again if the blob doesn't exist
-                if (cachedMisses.contains(blobName) == false && pendingWrites.containsKey(blobName)
-                        && super.blobExists(blobName) == false) {
+                if (cachedMisses.contains(blobName) == false && pendingWrites.containsKey(blobName)) {
                     pendingWrites.remove(blobName).run();
                 }
             }
@@ -157,6 +160,10 @@ public class MockEventuallyConsistentRepository extends FsRepository {
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                     throws IOException {
+                // TODO: Add an assertion that no blob except index.latest is ever written to twice with different data here
+                //       Currently this is not possible because master failovers in SnapshotResiliencyTests.testSnapshotWithNodeDisconnects
+                //       will lead to snap-{uuid}.dat being written two repeatedly with different content during snapshot finalization
+                //       which should be fixed.
                 final ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 Streams.copy(inputStream, baos);
                 pendingWrites.put(blobName, () -> {

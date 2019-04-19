@@ -31,6 +31,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -50,6 +51,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +63,12 @@ import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 class GoogleCloudStorageBlobStore implements BlobStore {
     
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
+
+    /**
+     * Maximum batch size for aggregating multiple API requests into a single {@link com.google.cloud.storage.StorageBatch}.
+     * @see <a href="https://github.com/googleapis/google-cloud-java/pull/952#issuecomment-213466772">here</a>
+     */
+    private static final int MAX_BATCH_SIZE = 100;
 
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
@@ -105,7 +113,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param bucketName name of the bucket
      * @return true iff the bucket exists
      */
-    boolean doesBucketExist(String bucketName) {
+    private boolean doesBucketExist(String bucketName) {
         try {
             final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> client().get(bucketName));
             return bucket != null;
@@ -295,7 +303,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param prefix prefix of the blobs to delete
      */
-    void deleteBlobsByPrefix(String prefix) throws IOException {
+    private void deleteBlobsByPrefix(String prefix) throws IOException {
         deleteBlobs(listBlobsByPrefix("", prefix).keySet());
     }
 
@@ -314,13 +322,33 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
-        assert blobIdsToDelete.size() == deletedStatuses.size();
+        final List<Boolean> deletedStatuses = new ArrayList<>();
+        final int deleteCount = blobIdsToDelete.size();
+        SocketAccess.doPrivilegedIOException(() -> {
+            final int batches = deleteCount / MAX_BATCH_SIZE + (deleteCount % MAX_BATCH_SIZE == 0 ? 0 : 1);
+            for (int i = 0; i < batches - 1; ++i) {
+                deletedStatuses.addAll(client().delete(blobIdsToDelete.subList(i * MAX_BATCH_SIZE, (i + 1) * MAX_BATCH_SIZE)));
+            }
+            deletedStatuses.addAll(client().delete(blobIdsToDelete.subList(batches - 1, deleteCount)));
+            return null;
+        });
+        assert deleteCount == deletedStatuses.size();
         boolean failed = false;
         for (int i = 0; i < blobIdsToDelete.size(); i++) {
             if (deletedStatuses.get(i) == false) {
-                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucketName);
-                failed = true;
+                final BlobId blobId = blobIdsToDelete.get(i);
+                try {
+                    Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
+                    if (blob != null) {
+                        logger.error("Failed to delete blob [{}] in bucket [{}]", blobId.getName(), bucketName);
+                        failed = true;
+                    }
+                } catch (Exception e) {
+                    logger.error(
+                        new ParameterizedMessage(
+                            "Failed to delete and then stat blob [{}] in bucket [{}]", blobId.getName(), bucketName), e);
+                    failed = true;
+                }
             }
         }
         if (failed) {

@@ -290,7 +290,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         RollupIndexerJobStats stats = new RollupIndexerJobStats();
         RollupIndexerJobStats spyStats = spy(stats);
-        RollupJobConfig config = mock(RollupJobConfig.class);
+        RollupJobConfig config = ConfigTestHelpers.randomRollupJobConfig(random());
 
         // We call stats before a final state check, so this allows us to flip the state
         // and make sure the appropriate error is thrown

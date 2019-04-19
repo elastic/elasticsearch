@@ -3,8 +3,6 @@
 "Deprecated camel case and _ parameters should fail in Term Vectors query":
 
    - skip:
-       version: " - 6.99.99"
-       reason:  camel case and _ parameters (e.g. versionType, _version_type) should fail from 7.0
        features: "warnings"
 
    - do:

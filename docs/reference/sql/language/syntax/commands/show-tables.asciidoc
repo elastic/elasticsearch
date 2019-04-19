@@ -22,7 +22,7 @@ List the tables available to the current user and their type.
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTables]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTables]
 ----
 
 Match multiple indices by using {es} <<multi-index,multi index syntax>>
@@ -30,7 +30,7 @@ notation:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesEsMultiIndex]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesEsMultiIndex]
 ----
 
 One can also use the `LIKE` clause to restrict the list of names to the given pattern.
@@ -38,24 +38,24 @@ One can also use the `LIKE` clause to restrict the list of names to the given pa
 The pattern can be an exact match:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeExact]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeExact]
 ----
 
 Multiple chars:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeWildcard]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeWildcard]
 ----
 
 A single char:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeOneChar]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeOneChar]
 ----
 
 
 Or a mixture of single and multiple chars:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeMixed]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesLikeMixed]
 ----

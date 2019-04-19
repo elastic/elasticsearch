@@ -54,14 +54,14 @@ public class Packages {
     public static final Path SYSVINIT_SCRIPT = Paths.get("/etc/init.d/elasticsearch");
     public static final Path SYSTEMD_SERVICE = Paths.get("/usr/lib/systemd/system/elasticsearch.service");
 
-    public static void assertInstalled(Distribution distribution) {
+    public static void assertInstalled(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
         assertThat(status.exitCode, is(0));
 
         Platforms.onDPKG(() -> assertFalse(Pattern.compile("(?m)^Status:.+deinstall ok").matcher(status.stdout).find()));
     }
 
-    public static void assertRemoved(Distribution distribution) {
+    public static void assertRemoved(Distribution distribution) throws Exception {
         final Result status = packageStatus(distribution);
 
         Platforms.onRPM(() -> assertThat(status.exitCode, is(1)));
@@ -133,7 +133,7 @@ public class Packages {
         }
     }
 
-    public static void remove(Distribution distribution) {
+    public static void remove(Distribution distribution) throws Exception {
         final Shell sh = new Shell();
 
         Platforms.onRPM(() -> {
@@ -270,8 +270,7 @@ public class Packages {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));
     }
 
-    public static void startElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void startElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
@@ -281,6 +280,10 @@ public class Packages {
             sh.run("service elasticsearch start");
         }
 
+        assertElasticsearchStarted(sh);
+    }
+
+    public static void assertElasticsearchStarted(Shell sh) throws IOException {
         waitForElasticsearch();
 
         if (isSystemd()) {
@@ -291,12 +294,21 @@ public class Packages {
         }
     }
 
-    public static void stopElasticsearch() throws IOException {
-        final Shell sh = new Shell();
+    public static void stopElasticsearch(Shell sh) throws IOException {
         if (isSystemd()) {
             sh.run("systemctl stop elasticsearch.service");
         } else {
             sh.run("service elasticsearch stop");
         }
+    }
+
+    public static void restartElasticsearch(Shell sh) throws IOException {
+        if (isSystemd()) {
+            sh.run("systemctl restart elasticsearch.service");
+        } else {
+            sh.run("service elasticsearch restart");
+        }
+
+        waitForElasticsearch();
     }
 }

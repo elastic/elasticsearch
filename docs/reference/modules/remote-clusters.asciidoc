@@ -227,7 +227,7 @@ PUT _cluster/settings
   clusters are kept alive. If set to `-1`, application-level ping messages to
   this remote cluster are not sent. If unset, application-level ping messages
   are sent according to the global `transport.ping_schedule` setting, which
-  defaults to ``-1` meaning that pings are not sent.
+  defaults to `-1` meaning that pings are not sent.
 
 `cluster.remote.${cluster_alias}.transport.compress`::
 
@@ -236,6 +236,14 @@ PUT _cluster/settings
   sent to the remote cluster. If the inbound request is compressed,
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
+
+`cluster.remote.${cluster_alias}.proxy`::
+
+  Sets a proxy address for the specified remote cluster. By default this is not
+  set, meaning that Elasticsearch will connect directly to the nodes in the
+  remote cluster using their <<advanced-network-settings,publish addresses>>.
+  If this setting is set to an IP address or hostname then Elasticsearch will
+  connect to the nodes in the remote cluster using this address instead.
 
 [float]
 [[retrieve-remote-clusters-info]]

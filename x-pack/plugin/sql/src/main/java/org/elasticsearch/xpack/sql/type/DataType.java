@@ -36,19 +36,20 @@ public enum DataType {
     DOUBLE(        "double",         JDBCType.DOUBLE,    Double.BYTES,      15,                25, false, true,  true),
     // 24 bits defaultPrecision - 24*log10(2) =~ 7 (7.22)
     FLOAT(         "float",          JDBCType.REAL,      Float.BYTES,       7,                 15, false, true,  true),
-    HALF_FLOAT(    "half_float",     JDBCType.FLOAT,     Double.BYTES,      16,                25, false, true,  true),
+    HALF_FLOAT(    "half_float",     JDBCType.FLOAT,     Float.BYTES,       3,                 25, false, true,  true),
     // precision is based on long
-    SCALED_FLOAT(  "scaled_float",   JDBCType.FLOAT,     Double.BYTES,      19,                25, false, true,  true),
-    KEYWORD(       "keyword",        JDBCType.VARCHAR,   Integer.MAX_VALUE, 256,               0,  false, false, true),
-    TEXT(          "text",           JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, 0,  false, false, false),
+    SCALED_FLOAT(  "scaled_float",   JDBCType.DOUBLE,    Long.BYTES,        15,                25, false, true,  true),
+    KEYWORD(       "keyword",        JDBCType.VARCHAR,   Integer.MAX_VALUE, 32766,             32766, false, false, true),
+    TEXT(          "text",           JDBCType.VARCHAR,   Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
     OBJECT(        "object",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
     NESTED(        "nested",         JDBCType.STRUCT,    -1,                0,                 0,  false, false, false),
-    BINARY(        "binary",         JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, 0,  false, false, false),
-    DATE(                            JDBCType.DATE,      Long.BYTES,        24,                24, false, false, true),
+    BINARY(        "binary",         JDBCType.VARBINARY, -1,                Integer.MAX_VALUE, Integer.MAX_VALUE,  false, false, false),
     // since ODBC and JDBC interpret precision for Date as display size
-    // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
+    // the precision is 23 (number of chars in ISO8601 with millis) + 6 chars for the timezone (e.g.: +05:00)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        24,                24, false, false, true),
+    DATE(                            JDBCType.DATE,      Long.BYTES,        3,                 29, false, false, true),
+    TIME(                            JDBCType.TIME,      Long.BYTES,        3,                 18, false, false, true),
+    DATETIME(      "date",           JDBCType.TIMESTAMP, Long.BYTES,        3,                 29, false, false, true),
     //
     // specialized types
     //
@@ -104,7 +105,7 @@ public enum DataType {
 
         // Date
         ODBC_TO_ES.put("SQL_DATE", DATE);
-        ODBC_TO_ES.put("SQL_TIME", DATETIME);
+        ODBC_TO_ES.put("SQL_TIME", TIME);
         ODBC_TO_ES.put("SQL_TIMESTAMP", DATETIME);
 
         // Intervals
@@ -253,6 +254,14 @@ public enum DataType {
     public boolean isDateBased() {
         return this == DATE || this == DATETIME;
     }
+
+    public boolean isTimeBased() {
+        return this == TIME;
+    }
+
+    public boolean isDateOrTimeBased() {
+        return isDateBased() || isTimeBased();
+    }
     
     public static DataType fromOdbcType(String odbcType) {
         return ODBC_TO_ES.get(odbcType);
@@ -278,6 +287,6 @@ public enum DataType {
     }
 
     public String format() {
-        return isDateBased() ? DateUtils.DATE_PARSE_FORMAT : null;
+        return isDateOrTimeBased() ? DateUtils.DATE_PARSE_FORMAT : null;
     }
 }

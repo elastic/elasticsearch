@@ -385,14 +385,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
         step.setLatch(latch);
+        CountDownLatch asyncLatch = new CountDownLatch(1);
+        nextStep.setLatch(asyncLatch);
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
         // Wait for the cluster state action step
         awaitLatch(latch, 5, TimeUnit.SECONDS);
-
-        CountDownLatch asyncLatch = new CountDownLatch(1);
-        nextStep.setLatch(asyncLatch);
-
         // Wait for the async action step
         awaitLatch(asyncLatch, 5, TimeUnit.SECONDS);
         ClusterState after = clusterService.state();

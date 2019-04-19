@@ -7,12 +7,19 @@
 package org.elasticsearch.xpack.core.dataframe.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTestCase<DataFrameIndexerTransformStats> {
+
+    protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
+
     @Override
     protected DataFrameIndexerTransformStats createTestInstance() {
         return randomStats();
@@ -29,21 +36,32 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
     }
 
     public static DataFrameIndexerTransformStats randomStats() {
-        return new DataFrameIndexerTransformStats(randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-                randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-                randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L));
+        return randomStats(randomAlphaOfLength(10));
+    }
+
+    public static DataFrameIndexerTransformStats randomStats(String transformId) {
+        return new DataFrameIndexerTransformStats(transformId, randomLongBetween(10L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L));
+    }
+
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return TO_XCONTENT_PARAMS;
     }
 
     public void testMerge() throws IOException {
-        DataFrameIndexerTransformStats emptyStats = new DataFrameIndexerTransformStats();
-        DataFrameIndexerTransformStats randomStats = randomStats();
+        String transformId = randomAlphaOfLength(10);
+        DataFrameIndexerTransformStats emptyStats = new DataFrameIndexerTransformStats(transformId);
+        DataFrameIndexerTransformStats randomStats = randomStats(transformId);
 
         assertEquals(randomStats, emptyStats.merge(randomStats));
         assertEquals(randomStats, randomStats.merge(emptyStats));
 
         DataFrameIndexerTransformStats randomStatsClone = copyInstance(randomStats);
 
-        DataFrameIndexerTransformStats trippleRandomStats = new DataFrameIndexerTransformStats(3 * randomStats.getNumPages(),
+        DataFrameIndexerTransformStats trippleRandomStats = new DataFrameIndexerTransformStats(transformId, 3 * randomStats.getNumPages(),
                 3 * randomStats.getNumDocuments(), 3 * randomStats.getOutputDocuments(), 3 * randomStats.getNumInvocations(),
                 3 * randomStats.getIndexTime(), 3 * randomStats.getSearchTime(), 3 * randomStats.getIndexTotal(),
                 3 * randomStats.getSearchTotal(), 3 * randomStats.getIndexFailures(), 3 * randomStats.getSearchFailures());

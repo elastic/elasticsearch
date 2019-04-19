@@ -8,9 +8,6 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
 

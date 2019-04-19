@@ -294,7 +294,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
     }
 
     public void testNonIndexedFields() throws IOException {
-        IntervalsSourceProvider provider = createRandomSource();
+        IntervalsSourceProvider provider = new IntervalsSourceProvider.Match("test", 0, true, null, null, null);
         IntervalQueryBuilder b = new IntervalQueryBuilder("no_such_field", provider);
         assertThat(b.toQuery(createShardContext()), equalTo(new MatchNoDocsQuery()));
 

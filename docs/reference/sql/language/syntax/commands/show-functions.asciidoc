@@ -17,7 +17,7 @@ List all the SQL functions and their type. The `LIKE` clause can be used to rest
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showFunctions]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showFunctions]
 ----
 
 The list of functions returned can be customized based on the pattern.
@@ -25,23 +25,23 @@ The list of functions returned can be customized based on the pattern.
 It can be an exact match:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeExact]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showFunctionsLikeExact]
 ----
 
 A wildcard for exactly one character:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeChar]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showFunctionsLikeChar]
 ----
 
 A wildcard matching zero or more characters:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showFunctionsLikeWildcard]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showFunctionsLikeWildcard]
 ----
 
 Or of course, a variation of the above:
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[showFunctionsWithPattern]
+include-tagged::{sql-specs}/docs/docs.csv-spec[showFunctionsWithPattern]
 ----

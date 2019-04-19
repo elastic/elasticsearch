@@ -181,6 +181,45 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertResult(sourcePrivileges, future);
     }
 
+    public void testGetPrivilegesByWildcardApplicationName() throws Exception {
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp-*", "yourapp"), null, future);
+        assertThat(requests, iterableWithSize(1));
+        assertThat(requests.get(0), instanceOf(SearchRequest.class));
+        SearchRequest request = (SearchRequest) requests.get(0);
+        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+
+        final String query = Strings.toString(request.source().query());
+        assertThat(query, containsString("{\"bool\":{\"filter\":[{\"terms\":{\"application\":[\"yourapp\"]"));
+        assertThat(query, containsString("{\"prefix\":{\"application\":{\"value\":\"myapp-\""));
+        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+
+        final SearchHit[] hits = new SearchHit[0];
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+        "_scrollId1", 1, 1, 0, 1, null, null));
+    }
+
+    public void testGetPrivilegesByStarApplicationName() throws Exception {
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("*", "anything"), null, future);
+        assertThat(requests, iterableWithSize(1));
+        assertThat(requests.get(0), instanceOf(SearchRequest.class));
+        SearchRequest request = (SearchRequest) requests.get(0);
+        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+
+        final String query = Strings.toString(request.source().query());
+        assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
+        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+
+        final SearchHit[] hits = new SearchHit[0];
+        listener.get().onResponse(new SearchResponse(new SearchResponseSections(
+            new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
+            null, null, false, false, null, 1),
+        "_scrollId1", 1, 1, 0, 1, null, null));
+    }
+
     public void testGetAllPrivileges() throws Exception {
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("app1", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),

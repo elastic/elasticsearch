@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
@@ -51,7 +52,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -99,12 +99,14 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
+    private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
-    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
+    public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
+        this.scriptService = scriptService;
     }
 
     private String getNameFromId(String id) {
@@ -120,7 +122,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
      * Loads all mappings from the index.
      * <em>package private</em> for unit testing
      */
-    void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
+    protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
         if (securityIndex.isIndexUpToDate() == false) {
             listener.onFailure(new IllegalStateException(
                 "Security index is not on the current version - the native realm will not be operational until " +
@@ -149,7 +151,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    private ExpressionRoleMapping buildMapping(String id, BytesReference source) {
+    protected ExpressionRoleMapping buildMapping(String id, BytesReference source) {
         try (InputStream stream = source.streamInput();
              XContentParser parser = XContentType.JSON.xContent()
                      .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
@@ -349,17 +351,16 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         getRoleMappings(null, ActionListener.wrap(
                 mappings -> {
                     final ExpressionModel model = user.asModel();
-                    Stream<ExpressionRoleMapping> stream = mappings.stream()
-                            .filter(ExpressionRoleMapping::isEnabled)
-                            .filter(m -> m.getExpression().match(model));
-                    if (logger.isTraceEnabled()) {
-                        stream = stream.map(m -> {
-                            logger.trace("User [{}] matches role-mapping [{}] with roles [{}]", user.getUsername(), m.getName(),
-                                    m.getRoles());
-                            return m;
-                        });
-                    }
-                    final Set<String> roles = stream.flatMap(m -> m.getRoles().stream()).collect(Collectors.toSet());
+                    final Set<String> roles = mappings.stream()
+                        .filter(ExpressionRoleMapping::isEnabled)
+                        .filter(m -> m.getExpression().match(model))
+                        .flatMap(m -> {
+                            final Set<String> roleNames = m.getRoleNames(scriptService, model);
+                            logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]",
+                                m.getName(), model, roleNames);
+                            return roleNames.stream();
+                        })
+                        .collect(Collectors.toSet());
                     logger.debug("Mapping user [{}] to roles [{}]", user, roles);
                     listener.onResponse(roles);
                 }, listener::onFailure

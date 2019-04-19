@@ -21,7 +21,6 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.client.core.AcknowledgedTasksResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

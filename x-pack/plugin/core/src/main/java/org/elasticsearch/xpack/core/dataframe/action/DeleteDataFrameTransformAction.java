@@ -6,17 +6,14 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
@@ -42,14 +39,11 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         return new Response();
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
+    public static class Request extends BaseTasksRequest<Request> {
         private String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        private Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,12 +72,6 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(id);
         }
@@ -99,14 +87,6 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id);
-        }
-    }
-
-    public static class RequestBuilder
-            extends ActionRequestBuilder<DeleteDataFrameTransformAction.Request, DeleteDataFrameTransformAction.Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameTransformAction action) {
-            super(client, action, new DeleteDataFrameTransformAction.Request());
         }
     }
 

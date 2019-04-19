@@ -33,12 +33,17 @@ import java.util.Objects;
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest> {
 
-    private long trimAboveSeqNo;
-    private Translog.Operation[] operations;
-    private long maxSeenAutoIdTimestampOnPrimary;
+    private final long trimAboveSeqNo;
+    private final Translog.Operation[] operations;
+    private final long maxSeenAutoIdTimestampOnPrimary;
 
-    ResyncReplicationRequest() {
-        super();
+    ResyncReplicationRequest(StreamInput in) throws IOException {
+        //  TODO: https://github.com/elastic/elasticsearch/issues/38556
+        //assert Version.CURRENT.major <= 7;
+        super(in);
+        trimAboveSeqNo = in.readZLong();
+        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
+        operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
     public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo, final long maxSeenAutoIdTimestampOnPrimary,
@@ -62,13 +67,8 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     }
 
     @Override
-    public void readFrom(final StreamInput in) throws IOException {
-        //  TODO: https://github.com/elastic/elasticsearch/issues/38556
-        //assert Version.CURRENT.major <= 7;
-        super.readFrom(in);
-        trimAboveSeqNo = in.readZLong();
-        maxSeenAutoIdTimestampOnPrimary = in.readZLong();
-        operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+    public void readFrom(final StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

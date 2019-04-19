@@ -104,15 +104,18 @@ public final class ApplicationPermission {
         for (String checkResource : checkForResources) {
             for (String checkPrivilegeName : checkForPrivilegeNames) {
                 final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
-                final ApplicationPrivilege checkPrivilege = ApplicationPrivilege.get(applicationName, nameSet, storedPrivileges);
-                assert checkPrivilege.getApplication().equals(applicationName) : "Privilege " + checkPrivilege + " should have application "
-                        + applicationName;
-                assert checkPrivilege.name().equals(nameSet) : "Privilege " + checkPrivilege + " should have name " + nameSet;
+                final Set<ApplicationPrivilege> checkPrivileges = ApplicationPrivilege.get(applicationName, nameSet, storedPrivileges);
+                logger.trace("Resolved privileges [{}] for [{},{}]", checkPrivileges, applicationName, nameSet);
+                for (ApplicationPrivilege checkPrivilege : checkPrivileges) {
+                    assert Automatons.predicate(applicationName).test(checkPrivilege.getApplication()) : "Privilege " + checkPrivilege +
+                        " should have application " + applicationName;
+                    assert checkPrivilege.name().equals(nameSet) : "Privilege " + checkPrivilege + " should have name " + nameSet;
 
-                if (grants(checkPrivilege, checkResource)) {
-                    resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
-                } else {
-                    resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                    if (grants(checkPrivilege, checkResource)) {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
+                    } else {
+                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                    }
                 }
             }
         }

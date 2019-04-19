@@ -19,37 +19,15 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
-import static org.mockito.Mockito.mock;
 
 /** Unit tests for {@link TcpTransport} */
 public class TcpTransportTests extends ESTestCase {
@@ -155,141 +133,6 @@ public class TcpTransportTests extends ESTestCase {
         assertEquals(100, addresses[0].getPort());
         assertEquals(101, addresses[1].getPort());
         assertEquals(102, addresses[2].getPort());
-    }
-
-    @SuppressForbidden(reason = "Allow accessing localhost")
-    public void testCompressRequestAndResponse() throws IOException {
-        final boolean compressed = randomBoolean();
-        Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
-        ThreadPool threadPool = new TestThreadPool(TcpTransportTests.class.getName());
-        AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
-        try {
-            TcpTransport transport = new TcpTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-                PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService(), null, null) {
-
-                @Override
-                protected FakeServerChannel bind(String name, InetSocketAddress address) throws IOException {
-                    return null;
-                }
-
-                @Override
-                protected FakeTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
-                    return new FakeTcpChannel(false);
-                }
-
-                @Override
-                protected void stopInternal() {
-                }
-
-                @Override
-                public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-                    if (compressed)  {
-                        assertTrue(profile.getCompressionEnabled());
-                    }
-                    int numConnections = profile.getNumConnections();
-                    ArrayList<TcpChannel> fakeChannels = new ArrayList<>(numConnections);
-                    for (int i = 0; i < numConnections; ++i) {
-                        fakeChannels.add(new FakeTcpChannel(false, messageCaptor));
-                    }
-                    listener.onResponse(new NodeChannels(node, fakeChannels, profile, Version.CURRENT));
-                    return () -> CloseableChannel.closeChannels(fakeChannels, false);
-                }
-            };
-
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-            ConnectionProfile.Builder profileBuilder = new ConnectionProfile.Builder(TestProfiles.LIGHT_PROFILE);
-            if (compressed) {
-                profileBuilder.setCompressionEnabled(true);
-            } else {
-                profileBuilder.setCompressionEnabled(false);
-            }
-            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
-            transport.openConnection(node, profileBuilder.build(), future);
-            Transport.Connection connection = future.actionGet();
-            connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
-            transport.registerRequestHandler(new RequestHandlerRegistry<>("foobar", Req::new, mock(TaskManager.class),
-                (request1, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE), ThreadPool.Names.SAME,
-                true, true));
-
-            BytesReference reference = messageCaptor.get();
-            assertNotNull(reference);
-
-            AtomicReference<BytesReference> responseCaptor = new AtomicReference<>();
-            InetSocketAddress address = new InetSocketAddress(InetAddress.getLocalHost(), 0);
-            FakeTcpChannel responseChannel = new FakeTcpChannel(true, address, address, "profile", responseCaptor);
-            transport.messageReceived(reference.slice(6, reference.length() - 6), responseChannel);
-
-
-            StreamInput streamIn = responseCaptor.get().streamInput();
-            streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
-            @SuppressWarnings("unused")
-            int len = streamIn.readInt();
-            long requestId = streamIn.readLong();
-            assertEquals(42, requestId);
-            byte status = streamIn.readByte();
-            Version version = Version.fromId(streamIn.readInt());
-            assertEquals(Version.CURRENT, version);
-            assertEquals(compressed, TransportStatus.isCompress(status));
-            assertFalse(TransportStatus.isRequest(status));
-            if (compressed) {
-                final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
-                    .streamInput(streamIn);
-                }
-            threadPool.getThreadContext().readHeaders(streamIn);
-            TransportResponse.Empty.INSTANCE.readFrom(streamIn);
-
-        } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
-    }
-
-    private static final class FakeServerChannel implements TcpServerChannel {
-
-        @Override
-        public void close() {
-        }
-
-        @Override
-        public String getProfile() {
-            return null;
-        }
-
-        @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-        }
-
-        @Override
-        public boolean isOpen() {
-            return false;
-        }
-
-        @Override
-        public InetSocketAddress getLocalAddress() {
-            return null;
-        }
-    }
-
-    private static final class Req extends TransportRequest {
-        public String value;
-
-        private Req(String value) {
-            this.value = value;
-        }
-
-        private Req(StreamInput in) throws IOException {
-            value = in.readString();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            value = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
-        }
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {

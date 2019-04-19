@@ -62,6 +62,11 @@ public abstract class ScoreScript {
 
     private DoubleSupplier scoreSupplier = () -> 0.0;
 
+    private final int docBase;
+    private int docId;
+    private int shardId = -1;
+    private String indexName = null;
+
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
         if (lookup == null) {
@@ -69,11 +74,13 @@ public abstract class ScoreScript {
             assert leafContext == null;
             this.params = null;
             this.leafLookup = null;
+            this.docBase = 0;
         } else {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
             this.params = new DeprecationMap(params, DEPRECATIONS, "score-script");
+            this.docBase = leafContext.docBase;
         }
     }
 
@@ -91,6 +98,7 @@ public abstract class ScoreScript {
 
     /** Set the current document to run the script on next. */
     public void setDocument(int docid) {
+        this.docId = docid;
         leafLookup.setDocument(docid);
     }
 
@@ -104,9 +112,73 @@ public abstract class ScoreScript {
         };
     }
 
+    /**
+     * Accessed as _score in the painless script
+     * @return the score of the inner query
+     */
     public double get_score() {
         return scoreSupplier.getAsDouble();
     }
+
+
+    /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script
+     * It is only used within predefined painless functions.
+     * @return the internal document ID
+     */
+    public int _getDocId() {
+        return docId;
+    }
+
+    /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script
+     * It is only used within predefined painless functions.
+     * @return the internal document ID with the base
+     */
+    public int _getDocBaseId() {
+        return docBase + docId;
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     *  It is only used within predefined painless functions.
+     * @return shard id or throws an exception if shard is not set up for this script instance
+     */
+    public int _getShardId() {
+        if (shardId > -1) {
+            return shardId;
+        } else {
+            throw new IllegalArgumentException("shard id can not be looked up!");
+        }
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     *  It is only used within predefined painless functions.
+     * @return index name or throws an exception if the index name is not set up for this script instance
+     */
+    public String _getIndex() {
+        if (indexName != null) {
+            return indexName;
+        } else {
+            throw new IllegalArgumentException("index name can not be looked up!");
+        }
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     */
+    public void _setShard(int shardId) {
+        this.shardId = shardId;
+    }
+
+    /**
+     *  Starting a name with underscore, so that the user cannot access this function directly through a script
+     */
+    public void _setIndexName(String indexName) {
+        this.indexName = indexName;
+    }
+
 
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {

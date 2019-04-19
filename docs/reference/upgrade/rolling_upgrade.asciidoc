@@ -36,7 +36,7 @@ include::synced-flush.asciidoc[]
 
 --
 
-. *Stop any machine learning jobs that are running.*
+. *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
 include::close-ml.asciidoc[]
@@ -108,7 +108,7 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
 [source,sh]
 --------------------------------------------------
-GET _cat/health
+GET _cat/health?v
 --------------------------------------------------
 // CONSOLE
 

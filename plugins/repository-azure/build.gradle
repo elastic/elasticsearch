@@ -65,7 +65,9 @@ check {
   dependsOn 'qa:microsoft-azure-storage:check'
 }
 
-integTestCluster {
-  keystoreSetting 'azure.client.integration_test.account', 'azure_account'
-  keystoreSetting 'azure.client.integration_test.key', 'azure_key'
+testClusters {
+    integTest {
+        keystore 'azure.client.integration_test.account', 'azure_account'
+        keystore 'azure.client.integration_test.key', 'azure_key'
+    }
 }

@@ -591,7 +591,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
+            return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions, null, null);
         }
     }
 

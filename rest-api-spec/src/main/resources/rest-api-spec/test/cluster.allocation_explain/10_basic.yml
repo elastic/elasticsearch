@@ -13,10 +13,6 @@
   - match: { acknowledged: true }
 
   - do:
-      cluster.state:
-        metric: [ master_node ]
-
-  - do:
       cluster.allocation_explain:
         body: { "index": "test", "shard": 0, "primary": true }
 
@@ -36,10 +32,6 @@
       indices.create:
         index: test
         body: { "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 9 } }
-
-  - do:
-      cluster.state:
-        metric: [ master_node ]
 
   - do:
       cluster.allocation_explain:

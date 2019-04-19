@@ -46,33 +46,54 @@ public class Netty4TcpChannel implements TcpChannel {
         this.isServer = isServer;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
-        this.channel.closeFuture().addListener(f -> {
-            if (f.isSuccess()) {
-                closeContext.complete(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    closeContext.completeExceptionally(new Exception(cause));
-                } else {
-                    closeContext.completeExceptionally((Exception) cause);
-                }
-            }
-        });
+        addListener(this.channel.closeFuture(), closeContext);
+        addListener(connectFuture, connectContext);
+    }
 
-        connectFuture.addListener(f -> {
+    /**
+     * Adds a listener that completes the given {@link CompletableContext} to the given {@link ChannelFuture}.
+     * @param channelFuture Channel future
+     * @param context Context to complete
+     */
+    public static void addListener(ChannelFuture channelFuture, CompletableContext<Void> context) {
+        channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                connectContext.complete(null);
+                context.complete(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    connectContext.completeExceptionally(new Exception(cause));
+                    context.completeExceptionally(new Exception(cause));
                 } else {
-                    connectContext.completeExceptionally((Exception) cause);
+                    context.completeExceptionally((Exception) cause);
                 }
             }
         });
+    }
+
+    /**
+     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
+     * on its completion.
+     * @param listener lister to invoke
+     * @param channel channel
+     * @return write promise
+     */
+    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
+        ChannelPromise writePromise = channel.newPromise();
+        writePromise.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(null);
+            } else {
+                final Throwable cause = f.cause();
+                ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                if (cause instanceof Error) {
+                    listener.onFailure(new Exception(cause));
+                } else {
+                    listener.onFailure((Exception) cause);
+                }
+            }
+        });
+        return writePromise;
     }
 
     @Override
@@ -122,21 +143,7 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
+        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
 
         if (channel.eventLoop().isShutdown()) {
             listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));

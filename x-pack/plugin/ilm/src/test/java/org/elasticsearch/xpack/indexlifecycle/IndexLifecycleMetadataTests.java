@@ -16,18 +16,18 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata.IndexLifecycleMetadataDiff;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
@@ -137,7 +137,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     }
 
     public void testMinimumSupportedVersion() {
-        assertEquals(Version.V_7_0_0, createTestInstance().getMinimalSupportedVersion());
+        assertEquals(Version.V_6_6_0, createTestInstance().getMinimalSupportedVersion());
     }
 
     public void testcontext() {

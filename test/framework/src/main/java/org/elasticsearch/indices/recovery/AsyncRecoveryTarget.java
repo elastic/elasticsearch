@@ -75,8 +75,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-        target.cleanFiles(totalTranslogOps, sourceMetaData);
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
     }
 
     @Override

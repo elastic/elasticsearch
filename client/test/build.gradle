@@ -53,4 +53,4 @@ dependenciesInfo.enabled = false
 
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
-unitTest.enabled = false
+test.enabled = false

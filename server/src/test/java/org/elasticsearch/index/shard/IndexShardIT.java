@@ -82,6 +82,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -738,8 +741,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         t.join();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39565")
-    public void testPendingRefreshWithIntervalChange() throws InterruptedException {
+    public void testPendingRefreshWithIntervalChange() throws Exception {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.ZERO);
         IndexService indexService = createIndex("test", builder.build());
@@ -767,7 +769,14 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
-
+        // ensure no scheduled refresh to compete with the scheduleRefresh we are going to verify.
+        assertBusy(() -> {
+            for (ThreadPoolStats.Stats stat : indexService.getThreadPool().stats()) {
+                if (stat.getName().equals(ThreadPool.Names.REFRESH) && (stat.getQueue() > 0 || stat.getActive() > 0)) {
+                    throw new AssertionError(); // cause assert busy to retry
+                }
+            }
+        });
         client().prepareIndex("test", "test", "2").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertTrue(shard.scheduledRefresh());
         assertTrue(shard.isSearchIdle());
@@ -870,7 +879,18 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         shard.refresh("test");
         assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
-        shard.resetEngineToGlobalCheckpoint();
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+        shard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
+            try {
+                shard.resetEngineToGlobalCheckpoint();
+            } finally {
+                r.close();
+                engineResetLatch.countDown();
+            }
+        }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
+        engineResetLatch.await();
+
         final long moreDocs = between(10, 20);
         for (int i = 0; i < moreDocs; i++) {
             client().prepareIndex("test", "_doc", Long.toString(i + numDocs)).setSource("{}", XContentType.JSON).get();

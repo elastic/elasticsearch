@@ -141,8 +141,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername(username))
                 .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
                 .build();
-        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true, Collections.singletonList(
-                rolename), rules, null, refreshPolicy);
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true,
+            Collections.singletonList(rolename), Collections.emptyList(), rules, null, refreshPolicy);
 
         final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
 

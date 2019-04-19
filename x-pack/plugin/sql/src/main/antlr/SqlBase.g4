@@ -210,11 +210,11 @@ valueExpression
     | left=valueExpression operator=(ASTERISK | SLASH | PERCENT) right=valueExpression  #arithmeticBinary
     | left=valueExpression operator=(PLUS | MINUS) right=valueExpression                #arithmeticBinary
     | left=valueExpression comparisonOperator right=valueExpression                     #comparison
-    | valueExpression CAST_OP dataType                                                  #castOperatorExpression
     ;
 
 primaryExpression
     : castExpression                                                                 #cast
+    | primaryExpression CAST_OP dataType                                             #castOperatorExpression
     | extractExpression                                                              #extract
     | builtinDateTimeFunction                                                        #currentDateTimeFunction
     | constant                                                                       #constantDefault
@@ -226,8 +226,9 @@ primaryExpression
     ;
 
 builtinDateTimeFunction
-    : name=CURRENT_DATE ('(' ')')?
-    | name=CURRENT_TIMESTAMP ('(' precision=INTEGER_VALUE? ')')?
+    : name=CURRENT_TIMESTAMP
+    | name=CURRENT_DATE
+    | name=CURRENT_TIME
     ;
 
 castExpression
@@ -339,7 +340,7 @@ string
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
-    | CATALOGS | COLUMNS
+    | CATALOGS | COLUMNS | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP
     | DAY | DEBUG  
     | EXECUTABLE | EXPLAIN 
     | FIRST | FORMAT | FULL | FUNCTIONS
@@ -373,6 +374,7 @@ CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
 CONVERT: 'CONVERT';
 CURRENT_DATE : 'CURRENT_DATE';
+CURRENT_TIME : 'CURRENT_TIME';
 CURRENT_TIMESTAMP : 'CURRENT_TIMESTAMP';
 DAY: 'DAY';
 DAYS: 'DAYS';

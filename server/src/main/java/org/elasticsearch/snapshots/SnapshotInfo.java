@@ -245,7 +245,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             Collections.emptyList(), null, null);
     }
 
-    // TODO double check this but I **think** this is fine just providing a null userMetadata
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, Version version) {
         this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0,
             Collections.emptyList(), null, null);

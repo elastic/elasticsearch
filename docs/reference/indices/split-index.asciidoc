@@ -23,7 +23,7 @@ shards in the original index.  The default is designed to allow you to split
 by factors of 2 up to a maximum of 1024 shards.  However, the original number
 of primary shards must taken into account.  For instance, an index created
 with 5 primary shards could be split into 10, 20, 40, 80, 160, 320, or a
-maximum of 740 shards (with a single split action or multiple split actions).
+maximum of 640 shards (with a single split action or multiple split actions).
 
 If the original index contains one primary shard (or a multi-shard index has
 been <<indices-shrink-index,shrunk>> down to a single primary shard), then the

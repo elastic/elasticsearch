@@ -221,7 +221,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final int successfulShards;
 
     @Nullable
-    private Boolean includeGlobalState;
+    private final Boolean includeGlobalState;
 
     @Nullable
     private final Version version;

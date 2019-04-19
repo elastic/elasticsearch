@@ -413,7 +413,7 @@ The following parameters are accepted by `icu_collation_keyword` fields:
     Accepts a string value which is substituted for any explicit `null`
     values.  Defaults to `null`, which means the field is treated as missing.
 
-<<ignore-above,`ignore_above`>>::
+{ref}/ignore-above.html[`ignore_above`]::
 
     Strings longer than the `ignore_above` setting will be ignored.
     Checking is performed on the original string before the collation.

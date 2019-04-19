@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
+    private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
     private static Integer _defaultParallel = null;
 
     @Override
@@ -30,6 +31,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+
+        GlobalInfoExtension extension = project.getExtensions().create(GLOBAL_INFO_EXTENSION_NAME, GlobalInfoExtension.class);
 
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
@@ -54,12 +57,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
                 task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
                 task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
+                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
             });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
             task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
             task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
+            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
+            task.setGlobalInfoListeners(extension.listeners);
         });
 
         project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
@@ -80,7 +86,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("javaVersions", javaVersions);
             ext.set("minimumCompilerVersion", minimumCompilerVersion);
             ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
-            ext.set("inFipsJvm", true);
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
         });
     }

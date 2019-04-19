@@ -756,12 +756,6 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(Test) { Test test ->
                 File testOutputDir = new File(test.reports.junitXml.getDestination(), "output")
 
-                test.doFirst {
-                    project.mkdir(testOutputDir)
-                    project.mkdir(heapdumpDir)
-                    project.mkdir(test.workingDir)
-                }
-
                 ErrorReportingTestListener listener = new ErrorReportingTestListener(test.testLogging, testOutputDir)
                 test.extensions.add(ErrorReportingTestListener, 'errorReportingTestListener', listener)
                 test.addTestOutputListener(listener)
@@ -778,6 +772,19 @@ class BuildPlugin implements Plugin<Project> {
                  * build cache key or up to date checking.
                  */
                 SystemPropertyCommandLineArgumentProvider nonInputProperties = new SystemPropertyCommandLineArgumentProvider()
+
+                test.doFirst {
+                    project.mkdir(testOutputDir)
+                    project.mkdir(heapdumpDir)
+                    project.mkdir(test.workingDir)
+
+                    if (project.property('inFipsJvm')) {
+                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()} FIPS")
+                    } else {
+                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
+                    }
+                }
+
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.getByType(ExtraPropertiesExtension).set('nonInputProperties', nonInputProperties)
 
@@ -817,11 +824,6 @@ class BuildPlugin implements Plugin<Project> {
 
                 nonInputProperties.systemProperty('compiler.java', "${-> (ext.get('compilerJavaVersion') as JavaVersion).getMajorVersion()}")
 
-                if (project.property('inFipsJvm')) {
-                    nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()} FIPS")
-                } else {
-                    nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
-                }
                 // TODO: remove setting logging level via system property
                 test.systemProperty 'tests.logger.level', 'WARN'
                 System.getProperties().each { key, value ->

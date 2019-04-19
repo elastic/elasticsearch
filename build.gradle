@@ -620,20 +620,23 @@ allprojects {
   } 
 }
 
-subprojects {
+// wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+globalInfo.ready {
+  subprojects {
     // Common config when running with a FIPS-140 runtime JVM
     if (project.ext.has("inFipsJvm") && project.ext.inFipsJvm) {
-        tasks.withType(Test) {
+      tasks.withType(Test) {
+        systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+        systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+      }
+      project.pluginManager.withPlugin("elasticsearch.testclusters") {
+        project.testClusters.all {
           systemProperty 'javax.net.ssl.trustStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
         }
-        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-          project.testClusters.all {
-            systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-            systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-          }
-        }
+      }
     }
+  }
 }
 
 

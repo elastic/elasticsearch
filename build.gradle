@@ -264,7 +264,7 @@ allprojects {
   }
 
   project.afterEvaluate {
-    configurations.all {
+    configurations.matching { it.canBeResolved }.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
         projectSubstitutions.each { k,v ->
           subs.substitute(subs.module(k)).with(subs.project(v))

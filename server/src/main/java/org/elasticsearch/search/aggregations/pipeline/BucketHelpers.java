@@ -156,6 +156,7 @@ public class BucketHelpers {
             InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
+
             if (propertyValue == null) {
                 throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
@@ -166,9 +167,7 @@ public class BucketHelpers {
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
                 } else {
-                    throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                            + " must reference either a number value or a single value numeric metric aggregation, got: "
-                            + propertyValue.getClass().getCanonicalName());
+                    throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }
                 // doc count never has missing values so gap policy doesn't apply here
                 boolean isDocCountProperty = aggPathAsList.size() == 1 && "_count".equals(aggPathAsList.get(0));
@@ -186,6 +185,31 @@ public class BucketHelpers {
             }
         } catch (InvalidAggregationPathException e) {
             return null;
+        }
+    }
+
+    /**
+     * Inspects where we are in the agg tree and tries to format a helpful error
+     */
+    private static AggregationExecutionException formatResolutionError(MultiBucketsAggregation agg,
+                                                                       List<String> aggPathAsList, Object propertyValue) {
+        String currentAggName;
+        Object currentAgg;
+        if (aggPathAsList.isEmpty()) {
+            currentAggName = agg.getName();
+            currentAgg = agg;
+        } else {
+            currentAggName = aggPathAsList.get(0);
+            currentAgg = propertyValue;
+        }
+        if (currentAgg instanceof InternalNumericMetricsAggregation.MultiValue) {
+            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation, but [" + currentAggName
+                + "] contains multiple values. Please specify which to use.");
+        } else {
+            return new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference either a number value or a single value numeric metric aggregation, got: ["
+                + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
         }
     }
 }

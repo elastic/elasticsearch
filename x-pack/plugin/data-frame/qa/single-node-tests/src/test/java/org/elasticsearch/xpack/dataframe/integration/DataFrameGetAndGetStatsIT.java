@@ -105,7 +105,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40963")
     @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
@@ -131,7 +130,6 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         for (Map<String, Object> transformStats : transformsStats) {
             Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
             assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
-            assertThat(((Integer)stat.get("search_time_in_ms")), greaterThan(0));
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));
             assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
         }

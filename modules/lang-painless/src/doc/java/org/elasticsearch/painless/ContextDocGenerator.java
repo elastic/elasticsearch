@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,18 @@ public final class ContextDocGenerator {
 
         Path rootDir = resetRootDir();
         printRootIndexPage(rootDir, contextInfos);
+
+        Path sharedDir = createSharedDir(rootDir);
+        List<PainlessContextClassInfo> classInfos = sortClassInfos(new ArrayList<>(sharedClassInfos));
+        Map<String, String> javaNamesToDisplayNames = getDisplayNames(classInfos);
+        printSharedIndexPage(sharedDir, javaNamesToDisplayNames, classInfos);
+
+        for (PainlessContextInfo contextInfo : contextInfos) {
+            Path contextDir = createContextDir(rootDir, contextInfo);
+            classInfos = sortClassInfos(new ArrayList<>(contextInfo.getClasses()));
+            javaNamesToDisplayNames = getDisplayNames(classInfos);
+            printContextIndexPage(contextDir, javaNamesToDisplayNames, sharedClassInfos, contextInfo, classInfos);
+        }
 
         /*Path rootIndexPath = rootDir.resolve("index.asciidoc");
         List<String> contextApiHeaders = new ArrayList<>();
@@ -93,34 +106,7 @@ public final class ContextDocGenerator {
                     contextApiIndexStream.println("[[" + contextApiHeader  + "]]");
                     contextApiIndexStream.println("=== " + contextName + " API");
 
-                    List<PainlessContextClassInfo> painlessContextClassInfos = new ArrayList<>(painlessContextInfo.classes);
-                    painlessContextClassInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
-                            "short".equals(v.name) || "char".equals(v.name) || "int".equals(v.name) || "long".equals(v.name) ||
-                            "float".equals(v.name) || "double".equals(v.name) || "org.elasticsearch.painless.lookup.def".equals(v.name));
 
-                    painlessContextClassInfos.sort((c1, c2) -> {
-                        String n1 = c1.name;
-                        String n2 = c2.name;
-                        boolean i1 = c1.imported;
-                        boolean i2 = c2.imported;
-
-                        String p1 = n1.substring(0, n1.lastIndexOf('.'));
-                        String p2 = n2.substring(0, n2.lastIndexOf('.'));
-
-                        int compare = p1.compareTo(p2);
-
-                        if (compare == 0) {
-                            if (i1 && i2) {
-                                compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
-                            } else if (i1 == false && i2 == false) {
-                                compare = n1.compareTo(n2);
-                            } else {
-                                compare = Boolean.compare(i1, i2) * -1;
-                            }
-                        }
-
-                        return compare;
-                    });
 
                     Map<String, String> javaClassNamesToPainlessClassNames = new HashMap<>();
                     SortedMap<String, List<PainlessContextClassInfo>> packagesToPainlessContextClassInfos = new TreeMap<>();
@@ -298,10 +284,106 @@ public final class ContextDocGenerator {
 
             rootIndexStream.println("|====");
             rootIndexStream.println();
+
+            rootIndexStream.println("include::" + SHARED_HEADER + "/index.asciidoc[]");
+
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                rootIndexStream.println("include::" + getContextHeader(contextInfo) + "/index.asciidoc[]");
+            }
         }
     }
 
-    private printPackagePage
+    private static Path createSharedDir(Path rootDir) throws IOException {
+        Path sharedDir = rootDir.resolve(SHARED_HEADER);
+        Files.createDirectories(sharedDir);
+
+        return sharedDir;
+    }
+
+    private static Path createContextDir(Path rootDir, PainlessContextInfo info) throws IOException {
+        Path contextDir = rootDir.resolve(getContextHeader(info));
+        Files.createDirectories(contextDir);
+
+        return contextDir;
+    }
+
+    private static void printSharedIndexPage(
+            Path sharedDir, Map<String, String> javaNamesToDisplayNames, List<PainlessContextClassInfo> classInfos) throws IOException {
+
+        Path sharedIndexPath = sharedDir.resolve("index.asciidoc");
+
+        try (PrintStream sharedIndexStream = new PrintStream(
+                Files.newOutputStream(sharedIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+            sharedIndexStream.println("[[" + SHARED_HEADER + "]]");
+            sharedIndexStream.println("=== " + SHARED_NAME + " API");
+            sharedIndexStream.println();
+            sharedIndexStream.println("The following API is available in all contexts.");
+
+            printIndex(sharedIndexStream, SHARED_HEADER, javaNamesToDisplayNames, Collections.emptySet(), classInfos);
+        }
+    }
+
+    private static void printContextIndexPage(Path contextDir, Map<String, String> javaNamesToDisplayNames,
+            Set<PainlessContextClassInfo> excludes, PainlessContextInfo contextInfo, List<PainlessContextClassInfo> classInfos)
+            throws IOException {
+
+        Path contextIndexPath = contextDir.resolve("index.asciidoc");
+
+        try (PrintStream contextIndexStream = new PrintStream(
+                Files.newOutputStream(contextIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+            contextIndexStream.println("[[" + getContextHeader(contextInfo) + "]]");
+            contextIndexStream.println("=== " + getContextName(contextInfo) + " API");
+            contextIndexStream.println();
+            contextIndexStream.println("The following specialized API is available in the " + getContextName(contextInfo) + " context.");
+            contextIndexStream.println("See the <<" + SHARED_HEADER + ", " + SHARED_NAME + " API>> for API available in all contexts.");
+
+            printIndex(contextIndexStream, getContextHeader(contextInfo), javaNamesToDisplayNames, excludes, classInfos);
+        }
+    }
+
+    private static void printIndex(PrintStream indexStream, String contextHeader, Map<String, String> javaNamesToDisplayNames,
+            Set<PainlessContextClassInfo> excludes, List<PainlessContextClassInfo> classInfos) throws IOException {
+
+        String currentPackageName = null;
+
+        for (PainlessContextClassInfo classInfo : classInfos) {
+            if (excludes.contains(classInfo)) {
+                continue;
+            }
+
+            String classPackageName = classInfo.name.substring(0, classInfo.name.lastIndexOf('.'));
+
+            if (classPackageName.equals(currentPackageName) == false) {
+                currentPackageName = classPackageName;
+
+                indexStream.println();
+                indexStream.println("==== " + currentPackageName);
+                indexStream.println("<<" + getPackageHeader(contextHeader, currentPackageName) + ", Expand " + currentPackageName + ">>");
+                indexStream.println();
+            }
+
+            String className = getType(javaNamesToDisplayNames, classInfo.name);
+            indexStream.println("* <<" + getClassHeader(contextHeader, className) + ", " + className + ">>");
+        }
+
+        indexStream.println();
+    }
+
+    private static void printSharedClassesPage() {
+
+    }
+
+    private static void printContextClassesPage() {
+
+    }
+
+    private static void printClasses() {
+
+    }
 
     private static void printConstructor(
             PrintStream stream, Map<String, String> javaClassNamesToPainlessClassNames,
@@ -523,6 +605,14 @@ public final class ContextDocGenerator {
         return "painless-api-reference-" + contextInfo.getName().replace(" ", "-").replace("_", "-");
     }
 
+    private static String getPackageHeader(String contextHeader, String packageName) {
+        return contextHeader + "-" + packageName.replace('.', '-');
+    }
+
+    private static String getClassHeader(String contextHeader, String className) {
+        return contextHeader + "-" + className;
+    }
+
     private static String getContextName(PainlessContextInfo contextInfo) {
         String[] split = contextInfo.getName().split("[_-]");
         StringBuilder contextNameBuilder = new StringBuilder();
@@ -534,6 +624,56 @@ public final class ContextDocGenerator {
         }
 
         return contextNameBuilder.substring(0, contextNameBuilder.length() - 1);
+    }
+
+    private static List<PainlessContextClassInfo> sortClassInfos(List<PainlessContextClassInfo> classInfos) {
+        classInfos = new ArrayList<>(classInfos);
+        classInfos.removeIf(v -> "void".equals(v.name) || "boolean".equals(v.name) || "byte".equals(v.name) ||
+                "short".equals(v.name) || "char".equals(v.name) || "int".equals(v.name) || "long".equals(v.name) ||
+                "float".equals(v.name) || "double".equals(v.name) || "org.elasticsearch.painless.lookup.def".equals(v.name));
+
+        classInfos.sort((c1, c2) -> {
+            String n1 = c1.name;
+            String n2 = c2.name;
+            boolean i1 = c1.imported;
+            boolean i2 = c2.imported;
+
+            String p1 = n1.substring(0, n1.lastIndexOf('.'));
+            String p2 = n2.substring(0, n2.lastIndexOf('.'));
+
+            int compare = p1.compareTo(p2);
+
+            if (compare == 0) {
+                if (i1 && i2) {
+                    compare = n1.substring(n1.lastIndexOf('.') + 1).compareTo(n2.substring(n2.lastIndexOf('.') + 1));
+                } else if (i1 == false && i2 == false) {
+                    compare = n1.compareTo(n2);
+                } else {
+                    compare = Boolean.compare(i1, i2) * -1;
+                }
+            }
+
+            return compare;
+        });
+
+        return classInfos;
+    }
+
+    private static Map<String, String> getDisplayNames(List<PainlessContextClassInfo> classInfos) {
+        Map<String, String> javaNamesToDisplayNames = new HashMap<>();
+
+        for (PainlessContextClassInfo classInfo : classInfos) {
+            String className = classInfo.name;
+
+            if (classInfo.imported) {
+                javaNamesToDisplayNames.put(className,
+                        className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
+            } else {
+                javaNamesToDisplayNames.put(className, className.replace('$', '.'));
+            }
+        }
+
+        return javaNamesToDisplayNames;
     }
 
     private ContextDocGenerator() {

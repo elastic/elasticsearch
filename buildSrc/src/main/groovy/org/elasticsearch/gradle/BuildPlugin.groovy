@@ -993,12 +993,6 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
-                // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
-                if (project.inFipsJvm) {
-                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                }
-
                 testLogging {
                     showExceptions = true
                     showCauses = true

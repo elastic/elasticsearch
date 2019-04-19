@@ -123,12 +123,12 @@ final class QueryAnalyzer {
      * @param indexVersion  The create version of the index containing the percolator queries.
      */
     static Result analyze(Query query, Version indexVersion) {
-        Class<? extends Query> queryClass = query.getClass();
+        Class<?> queryClass = query.getClass();
         if (queryClass.isAnonymousClass()) {
             // sometimes queries have anonymous classes in that case we need the direct super class (e.g., blended term query)
-            // noinspection unchecked
-            queryClass = (Class<? extends Query>) queryClass.getSuperclass();
+            queryClass = queryClass.getSuperclass();
         }
+        assert Query.class.isAssignableFrom(queryClass) : query.getClass();
         BiFunction<Query, Version, Result> queryProcessor = QUERY_PROCESSORS.get(queryClass);
         if (queryProcessor != null) {
             return queryProcessor.apply(query, indexVersion);

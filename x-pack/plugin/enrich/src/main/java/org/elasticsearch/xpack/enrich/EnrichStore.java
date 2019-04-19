@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 /**
  * A components that provides access and stores an enrich policy.
  */
-public final class EnrichStore {
+public class EnrichStore {
 
     private final ClusterService clusterService;
 

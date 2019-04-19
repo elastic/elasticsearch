@@ -132,7 +132,7 @@ more primary shards to scale the number of <<glossary-document,documents>>
 that your index can handle.
 +
 You cannot change the number of primary shards in an index, once the index is
-index is created. However, an index can be split into a new index using the
+created. However, an index can be split into a new index using the
 <<indices-split-index, split API>>.
 +
 See also <<glossary-routing,routing>>

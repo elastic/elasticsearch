@@ -240,7 +240,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     public synchronized void triggered(Event event) {
         //  for now no rerun, so only trigger if checkpoint == 0
         if (currentCheckpoint.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
-            logger.debug("Data frame indexer [" + event.getJobName() + "] schedule has triggered, state: [" + indexer.getState() + "]");
+            logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), indexer.getState());
             indexer.maybeTriggerAsyncJob(System.currentTimeMillis());
         }
     }
@@ -336,7 +336,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         public synchronized boolean maybeTriggerAsyncJob(long now) {
             if (taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("Schedule was triggered for transform [" + getJobId() + "] but task is failed.  Ignoring trigger.");
+                logger.debug("Schedule was triggered for transform [{}] but task is failed. Ignoring trigger.", getJobId());
                 return false;
             }
 

@@ -1050,6 +1050,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         List<String> moreLikeFields = new ArrayList<>();
         if (useDefaultField) {
             moreLikeFields = context.defaultFields();
+            if (moreLikeFields.size() == 1
+                    && moreLikeFields.get(0).equals("*")
+                    && (likeTexts.length > 0 || unlikeTexts.length > 0)) {
+                throw new IllegalArgumentException("[more_like_this] query cannot infer the field to analyze the free text, " +
+                    "you should update the [index.query.default_field] index setting to a field that exists in the mapping or " +
+                    "set the [fields] option in the query.");
+            }
         } else {
             for (String field : fields) {
                 MappedFieldType fieldType = context.fieldMapper(field);

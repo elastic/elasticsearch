@@ -248,4 +248,11 @@ public class VersionUtils {
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);
     }
+
+    /**
+     * Returns a random version index compatible with the current version.
+     */
+    public static Version randomIndexCompatibleVersion(Random random) {
+        return randomVersionBetween(random, Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT);
+    }
 }

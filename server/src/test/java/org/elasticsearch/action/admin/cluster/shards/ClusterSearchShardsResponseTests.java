@@ -77,7 +77,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(searchModule.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         try(BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
             clusterSearchShardsResponse.writeTo(out);

@@ -403,16 +403,16 @@ def windows_common(config, name)
     $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
   SHELL
 
-  config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
-    New-Item -ItemType Directory -Force -Path C:\java
-    Invoke-WebRequest https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip -OutFile C:\java\jdk-11.zip
-    Expand-Archive -Path C:\java\jdk-11.zip -DestinationPath C:\java\
+  config.vm.provision 'windows-jdk-11', type: 'shell', inline: <<-SHELL
+    New-Item -ItemType Directory -Force -Path "C:/java"
+    Invoke-WebRequest "https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
+    Expand-Archive -Path "C:/java/jdk-11.zip" -DestinationPath "C:/java/"
   SHELL
 
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
-    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", "C:\java\jdk-11.0.2\", "Machine")
+    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", "C:\java\jdk-11.0.2", "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
     [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL

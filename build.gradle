@@ -598,18 +598,16 @@ allprojects {
     if (realTask == null) {
       return
     }
-    project.tasks.create(taskName, DefaultTask.class) {
+    project.tasks.create(taskName) {
       doLast {
-        println("${realTaskName} dependencies:")
+        println("${realTask.path} dependencies:")
         for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
           println("  - ${dep.path}")
         }
       }
     }
   }
-}
 
-allprojects {
   task checkPart1
   task checkPart2 
   tasks.matching { it.name == "check" }.all { check ->

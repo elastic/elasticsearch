@@ -132,8 +132,6 @@ dependencies {
       exclude group: 'org.elasticsearch', module: 'elasticsearch'
     }
   }
-  testCompile 'com.google.jimfs:jimfs:1.1'
-  testCompile 'com.google.guava:guava:18.0'
 }
 
 if (isEclipse) {

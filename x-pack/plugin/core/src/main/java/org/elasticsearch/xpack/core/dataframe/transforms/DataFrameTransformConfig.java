@@ -215,7 +215,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     }
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId,
-            boolean lenient) throws IOException {
+            boolean lenient) {
 
         return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
     }

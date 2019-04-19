@@ -169,7 +169,7 @@ public interface UserRoleMapper {
         private final DN dn;
 
         public DistinguishedNamePredicate(String string) {
-            //assert string != null : "DN string should not be null. Use the dedicated NULL_PREDICATE for every user null field.";
+            assert string != null : "DN string should not be null. Use the dedicated NULL_PREDICATE for every user null field.";
             this.string = string;
             this.dn = parseDn(string);
         }

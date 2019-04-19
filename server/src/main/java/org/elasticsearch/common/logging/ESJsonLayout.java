@@ -60,7 +60,7 @@ import java.util.Map;
  *  </ul>
  *
  *  It is possible to add more or override them with <code>esmessagefield</code>
- *  <code>appender.index_search_slowlog_rolling.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
+ *  <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
  *  Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
  *  <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
  *  the message passed to a logger will be overriden with a value from %ESMessageField{message}

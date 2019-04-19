@@ -130,13 +130,6 @@ class BuildPlugin implements Plugin<Project> {
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
 
-            final Map<Integer, String> javaVersions = [:]
-            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
-                    javaVersions.put(version, findJavaHome(version.toString()));
-                }
-            }
-
             String javaVendor = System.getProperty('java.vendor')
             String gradleJavaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
@@ -197,38 +190,48 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException(message)
             }
 
-            ExecutorService exec = Executors.newFixedThreadPool(javaVersions.size())
-            Set<Future<Void>> results = new HashSet<>()
-
-            javaVersions.entrySet().stream()
-                    .filter { it.getValue() != null }
-                    .forEach { javaVersionEntry ->
-                        results.add(exec.submit {
-                            final String javaHome = javaVersionEntry.getValue()
-                            final int version = javaVersionEntry.getKey()
-                            if (project.file(javaHome).exists() == false) {
-                                throw new GradleException("Invalid JAVA${version}_HOME=${javaHome} location does not exist")
-                            }
-
-                            JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                            final JavaVersion expectedJavaVersionEnum = version < 9 ?
-                                    JavaVersion.toVersion("1." + version) :
-                                    JavaVersion.toVersion(Integer.toString(version))
-
-                            if (javaVersionEnum != expectedJavaVersionEnum) {
-                                final String message =
-                                        "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                                                " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
-                                throw new GradleException(message)
-                            }
-                        })
+            final Map<Integer, String> javaVersions = [:]
+            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
+                    javaVersions.put(version, findJavaHome(version.toString()));
+                }
             }
 
-            project.gradle.taskGraph.whenReady {
-                try {
-                    results.forEach { it.get() }
-                } finally {
-                    exec.shutdown();
+            if (javaVersions.isEmpty() == false) {
+
+                ExecutorService exec = Executors.newFixedThreadPool(javaVersions.size())
+                Set<Future<Void>> results = new HashSet<>()
+
+                javaVersions.entrySet().stream()
+                        .filter { it.getValue() != null }
+                        .forEach { javaVersionEntry ->
+                    results.add(exec.submit {
+                        final String javaHome = javaVersionEntry.getValue()
+                        final int version = javaVersionEntry.getKey()
+                        if (project.file(javaHome).exists() == false) {
+                            throw new GradleException("Invalid JAVA${version}_HOME=${javaHome} location does not exist")
+                        }
+
+                        JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                        final JavaVersion expectedJavaVersionEnum = version < 9 ?
+                                JavaVersion.toVersion("1." + version) :
+                                JavaVersion.toVersion(Integer.toString(version))
+
+                        if (javaVersionEnum != expectedJavaVersionEnum) {
+                            final String message =
+                                    "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
+                                            " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
+                            throw new GradleException(message)
+                        }
+                    })
+                }
+
+                project.gradle.taskGraph.whenReady {
+                    try {
+                        results.forEach { it.get() }
+                    } finally {
+                        exec.shutdown();
+                    }
                 }
             }
 

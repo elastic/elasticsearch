@@ -31,10 +31,12 @@ import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -160,13 +162,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         } else {
             likeItems = randomLikeItems;
         }
-        if (randomBoolean()) { // for the default field
-            queryBuilder = new MoreLikeThisQueryBuilder(likeTexts, likeItems);
+        if (randomBoolean() && likeItems != null && likeItems.length > 0) { // for the default field
+            queryBuilder = new MoreLikeThisQueryBuilder(null, likeItems);
         } else {
             queryBuilder = new MoreLikeThisQueryBuilder(randomFields, likeTexts, likeItems);
         }
 
-        if (randomBoolean()) {
+        if (randomBoolean() && queryBuilder.fields() != null) {
             queryBuilder.unlike(generateRandomStringArray(5, 5, false, false));
         }
         if (randomBoolean()) {
@@ -305,6 +307,39 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
+    public void testDefaultField() throws IOException {
+        QueryShardContext context = createShardContext();
+
+        {
+            MoreLikeThisQueryBuilder builder =
+                new MoreLikeThisQueryBuilder(new String[]{"hello world"}, null);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> builder.toQuery(context));
+            assertThat(e.getMessage(), containsString("[more_like_this] query cannot infer"));
+        }
+
+        {
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field", STRING_FIELD_NAME).build()
+                )
+            );
+            try {
+                MoreLikeThisQueryBuilder builder = new MoreLikeThisQueryBuilder(new String[]{"hello world"}, null);
+                builder.toQuery(context);
+            } finally {
+                // Reset the default value
+                context.getIndexSettings().updateIndexMetaData(
+                    newIndexMeta("index",
+                        context.getIndexSettings().getSettings(),
+                        Settings.builder().putList("index.query.default_field", "*").build()
+                    )
+                );
+            }
+        }
+    }
+
     public void testMoreLikeThisBuilder() throws Exception {
         Query parsedQuery =
             parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null)
@@ -389,5 +424,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             assertWarnings(MoreLikeThisQueryBuilder.TYPES_DEPRECATION_MESSAGE);
         }
         return query;
+    }
+
+    private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
+        Settings build = Settings.builder().put(oldIndexSettings)
+            .put(indexSettings)
+            .build();
+        return IndexMetaData.builder(name).settings(build).build();
     }
 }

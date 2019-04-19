@@ -57,6 +57,7 @@ import org.gradle.api.plugins.BasePlugin
 import org.gradle.api.plugins.BasePluginConvention
 import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
@@ -560,6 +561,10 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         ext.set('compactProfile', 'full')
+
+        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+        project.extensions.getByType(JavaPluginExtension).targetCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+
         project.afterEvaluate {
             File compilerJavaHome = ext.get('compilerJavaHome') as File
 

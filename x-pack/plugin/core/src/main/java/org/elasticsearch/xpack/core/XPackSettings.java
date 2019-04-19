@@ -40,7 +40,7 @@ public class XPackSettings {
 
 
     /**
-     * Setting for controlling whether or not enrichis enabled.
+     * Setting for controlling whether or not enrich is enabled.
      */
     public static final Setting<Boolean> ENRICH_ENABLED_SETTING = Setting.boolSetting("xpack.enrich.enabled", true, Property.NodeScope);
 

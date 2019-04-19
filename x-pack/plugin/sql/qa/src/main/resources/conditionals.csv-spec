@@ -146,7 +146,7 @@ END as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
 ;
 
 caseGroupByAndHaving
-schema::count:l|gender:s|languages:s
+schema::count:l|gender:s|languages:byte
 SELECT count(*) AS count, gender, languages FROM test_emp
 GROUP BY 2, 3 HAVING CASE WHEN count(*) > 10 THEN 'many' ELSE 'a few' END = 'many'
 ORDER BY 2, 3;

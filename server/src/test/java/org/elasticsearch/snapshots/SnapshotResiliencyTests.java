@@ -395,7 +395,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41326")
     public void testConcurrentSnapshotCreateAndDelete() {
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
@@ -563,7 +562,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     // Lucene's mock file system randomly generates empty `extra0` files that break the deletion of blob-store directories.
-    // We clean those up here before checking a blob-store for stale files in this test.
+    // We clean those up here before checking a blob-store for stale files.
     private void cleanupEmptyTrees(Path repoPath) {
         try {
             Files.walkFileTree(repoPath, new SimpleFileVisitor<>() {

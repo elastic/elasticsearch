@@ -32,6 +32,11 @@
           "options" : ["open","closed","none","all"],
           "default" : "open",
           "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "include_unmapped": {
+          "type": "boolean",
+          "default": false,
+          "description": "Indicates whether unmapped fields should be included in the response."
         }
       }
     },

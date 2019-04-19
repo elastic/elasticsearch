@@ -395,9 +395,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                store.ensureIndexHasHistoryUUID();
-            }
             assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
                 || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_1_0) :
                 "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";

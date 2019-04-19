@@ -28,11 +28,12 @@ import java.util.function.Supplier;
 
 public class SSLDriverTests extends ESTestCase {
 
+    private final int pageSize = 1 << 14;
     private final Supplier<InboundChannelBuffer.Page> pageSupplier =
-            () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), () -> {});
-    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier);
+            () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(pageSize), () -> {});
+    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
+    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
+    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier, pageSize);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();

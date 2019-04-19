@@ -261,7 +261,7 @@ public class EventHandlerTests extends ESTestCase {
 
         DoNotRegisterSocketContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
                                    ReadWriteHandler handler) {
-            super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance());
+            super(channel, selector, exceptionHandler, handler, InboundChannelBuffer.allocatingInstance(1 << 14));
         }
 
         @Override

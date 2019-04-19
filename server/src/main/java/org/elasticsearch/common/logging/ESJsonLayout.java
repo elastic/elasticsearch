@@ -121,12 +121,12 @@ public class ESJsonLayout extends AbstractStringLayout {
     private String createPattern(Map<String, Object> map) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
-        String prefix = "";
+        String separator = "";
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            sb.append(prefix);
+            sb.append(separator);
             sb.append(jsonKey(entry.getKey()));
             sb.append(entry.getValue().toString());
-            prefix = ", ";
+            separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
         sb.append("%exceptionAsJson ");

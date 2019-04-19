@@ -22,15 +22,14 @@ package org.elasticsearch.common.logging;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
-import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.logging.log4j.core.pattern.PatternParser;
 import org.apache.logging.log4j.util.StringBuilders;
+import org.elasticsearch.common.Strings;
 
 /**
- * Pattern converter to format ...
+ * Pattern converter to populate ESMessageField in a pattern. It will only populate these if the event have <code>ESLogMessage</code>
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "ESMessageField")
 @ConverterKeys({"ESMessageField"})
@@ -54,11 +53,13 @@ public final class ESMessageFieldConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage() instanceof ESLogMessage) {//TODO this vs instanceof
-            ESLogMessage ESLogMessage = (ESLogMessage)event.getMessage();
-            final Object value = ESLogMessage.getValueFor(key);
-            if (value != null) {
+        if (event.getMessage() instanceof ESLogMessage) {//TODO instanceof vs checking the value returned from getFormat method
+            ESLogMessage ESLogMessage = (ESLogMessage) event.getMessage();
+            final String value = ESLogMessage.getValueFor(key);
+            if (Strings.isNullOrEmpty(value) == false) {
                 StringBuilders.appendValue(toAppendTo, value);
+            } else {
+                StringBuilders.appendValue(toAppendTo, "\"\"");
             }
         }
     }

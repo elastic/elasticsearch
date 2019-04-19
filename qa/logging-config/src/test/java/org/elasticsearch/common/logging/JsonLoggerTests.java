@@ -78,7 +78,9 @@ public class JsonLoggerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("deprecated message", "someId"));
+        testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
+        testLogger.info(new DeprecatedMessage("deprecated message2", ""));
+        testLogger.info(new DeprecatedMessage("deprecated message3", null));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -93,18 +95,39 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("component", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message"),
-                    hasEntry("x-opaque-id", "someId")
-            )));
+                    hasEntry("message", "deprecated message1"),
+                    hasEntry("x-opaque-id", "someId")),
+                allOf(
+                    hasEntry("type", "deprecated"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "deprecated message2"),
+                    hasEntry("x-opaque-id", "")
+                ),
+                allOf(
+                    hasEntry("type", "deprecated"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "deprecated message3"),
+                    hasEntry("x-opaque-id", "")
+                )
+                )
+            );
         }
     }
 
+    //TODO not sure we need that at all. it was initially a way to pass x-opaque-id but I decided to implement custom ES messages
     @SuppressWarnings("unchecked")
     public void testLogMessagesWithUserFields() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
         try (CloseableThreadContext.Instance ctc = CloseableThreadContext.put("contextField", "userValue")) {
-            testLogger.info(new DeprecatedMessage("some message", "someId"));
+            testLogger.info("some message1");//additional field taken from context
         }
+        testLogger.info("some message2");//This message does not carry additional field from context
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");
@@ -119,12 +142,24 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("component", "test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "some message"),
+                    hasEntry("message", "some message1"),
                     hasEntry("hardcodedField", "HardcodedValue"),
-                    hasEntry("contextField", "userValue"))
-            ));
+                    hasEntry("contextField", "userValue")
+                ),
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "some message2"),
+                    hasEntry("hardcodedField", "HardcodedValue"),
+                    hasEntry("contextField", ""))
+                )
+            );
         }
     }
+
 
     @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException {

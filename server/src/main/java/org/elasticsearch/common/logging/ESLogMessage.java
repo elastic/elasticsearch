@@ -38,6 +38,8 @@ public abstract class ESLogMessage extends ParameterizedMessage {
     }
 
     public static String inQuotes(String s) {
+        if(s == null)
+            return inQuotes("");
         return "\"" + s + "\"";
     }
 

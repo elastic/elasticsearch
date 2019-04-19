@@ -481,6 +481,7 @@ public class OptimizerTests extends ESTestCase {
                         randomListOfNulls())));
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     private List<Expression> randomListOfNulls() {
@@ -494,6 +495,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     public void testSimplifyIfNullNulls() {
@@ -507,11 +509,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
 
         e = new SimplifyConditional().rule(new IfNull(EMPTY, ONE, Literal.NULL));
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
 
     public void testFoldNullNotAppliedOnNullIf() {
@@ -539,6 +543,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
 
     public void testSimplifyLeastNulls() {
@@ -560,6 +565,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
     
     public void testConcatFoldingIsNotNull() {

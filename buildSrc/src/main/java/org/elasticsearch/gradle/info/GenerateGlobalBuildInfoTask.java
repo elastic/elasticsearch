@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -174,9 +175,9 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         if (result.getExitValue() != 0) {
             getLogger().error("STDOUT:");
-            stdout.toString(UTF_8).lines().forEach(getLogger()::error);
+            Arrays.stream(stdout.toString(UTF_8).split(System.getProperty("line.separator"))).forEach(getLogger()::error);
             getLogger().error("STDERR:");
-            stderr.toString(UTF_8).lines().forEach(getLogger()::error);
+            Arrays.stream(stderr.toString(UTF_8).split(System.getProperty("line.separator"))).forEach(getLogger()::error);
             result.rethrowFailure();
         }
         return stdout.toString(UTF_8).trim();

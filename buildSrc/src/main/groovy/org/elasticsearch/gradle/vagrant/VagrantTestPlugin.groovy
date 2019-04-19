@@ -300,7 +300,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                     & "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }

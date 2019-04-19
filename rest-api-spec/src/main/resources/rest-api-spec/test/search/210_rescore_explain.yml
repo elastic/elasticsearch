@@ -1,8 +1,5 @@
 ---
 "Score should match explanation in rescore":
-  - skip:
-      version: " - 6.99.99"
-      reason: Explanation for rescoring was corrected after these versions
   - do:
       bulk:
         refresh: true

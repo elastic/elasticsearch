@@ -1,0 +1,159 @@
+caseField
+SELECT CASE WHEN emp_no - 10000 < 10 THEN 'First 10' ELSE 'Second 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+   case
+-----------
+First 10
+First 10
+First 10
+First 10
+First 10
+Second 10
+Second 10
+Second 10
+Second 10
+Second 10
+;
+
+caseFieldNoElse
+SELECT CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+   case
+-----------
+First 10
+First 10
+First 10
+First 10
+First 10
+null
+null
+null
+null
+null
+;
+
+caseWhere
+SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' ELSE 'LongName' END = 'LongName'
+ORDER BY emp_no LIMIT 10;
+
+ last_name
+-----------
+Facello
+Bamford
+Koblick
+Maliniak
+Preusig
+Zielinski
+Kalloufi
+Piveteau
+Bridgland
+Nooteboom
+;
+
+caseWhereNoElse
+SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' END IS NOT NULL
+ORDER BY emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+caseOrderBy
+SELECT last_name FROM test_emp ORDER BY CASE WHEN languages >= 3 THEN 'first' ELSE 'second' END, emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Bamford
+Koblick
+Preusig
+Zielinski
+Piveteau
+Sluis
+Bridgland
+Genin
+Nooteboom
+;
+
+caseOrderByNoElse
+SELECT last_name FROM test_emp ORDER BY CASE WHEN languages >= 3 THEN 'first' END NULLS FIRST, emp_no LIMIT 10;
+
+  last_name
+-------------
+Facello
+Maliniak
+Kalloufi
+Peac
+Terkki
+Cappelletti
+Bouloucos
+Peha
+Haddadi
+Warwick
+;
+
+caseGroupBy
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, CASE WHEN NVL(languages, 0) <= 1  THEN 'zero-to-one' ELSE 'multilingual' END as lang_skills
+FROM test_emp GROUP BY lang_skills ORDER BY lang_skills;
+
+ count | lang_skills
+-------+--------------
+75     | multilingual
+25     | zero-to-one
+;
+
+caseGroupByNoElse
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, CASE WHEN NVL(languages, 0) <= 1  THEN 'zero-to-one' END as lang_skills
+FROM test_emp GROUP BY lang_skills ORDER BY lang_skills;
+
+ count | lang_skills
+-------+-------------
+75     | null
+25     | zero-to-one
+;
+
+caseGroupByComplexNested
+schema::count:l|lang_skills:s
+SELECT count(*) AS count,
+CASE WHEN NVL(languages, 0) = 0 THEN 'zero'
+     WHEN languages = 1 THEN 'one'
+     WHEN languages = 2 THEN 'bilingual'
+     WHEN languages = 3 THEN 'trilingual'
+     ELSE 'multilingual'
+END as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
+
+ count | lang_skills
+-------+--------------
+19     | bilingual
+39     | multilingual
+15     | one
+17     | trilingual
+10     | zero
+;
+
+caseGroupByAndHaving
+schema::count:l|gender:s|languages:s
+SELECT count(*) AS count, gender, languages FROM test_emp
+GROUP BY 2, 3 HAVING CASE WHEN count(*) > 10 THEN 'many' ELSE 'a few' END = 'many'
+ORDER BY 2, 3;
+
+count     |    gender   |   languages
+----------+-------------+---------------
+11        | M           | 2
+11        | M           | 3
+11        | M           | 4
+;

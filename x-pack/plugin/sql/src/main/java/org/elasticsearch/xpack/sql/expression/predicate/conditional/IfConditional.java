@@ -15,6 +15,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Helper function (cannot be directly from a query) to model a {@code WHEN <condition> ELSE <result>}
+ * clause of {@link Case} expression
+ */
 public class IfConditional extends Expression {
 
     private final Expression condition;

@@ -79,20 +79,20 @@ public class IndexingSlowLogTests extends ESTestCase {
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
         IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
-        assertThat(p.toString(), not(containsString("source[")));
+        assertThat(p.getFormattedMessage(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
         p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
-        assertThat(p.toString(), containsString("source[{\"foo\":\"bar\"}]"));
+        assertThat(p.getFormattedMessage(), containsString("source[{\"foo\":\"bar\"}]"));
 
         // And you can truncate the source
         p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
-        assertThat(p.toString(), containsString("source[{\"f]"));
+        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
 
         // And you can truncate the source
         p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
-        assertThat(p.toString(), containsString("source[{\"f]"));
-        assertThat(p.toString(), startsWith("[foo/123] took"));
+        assertThat(p.getFormattedMessage(), containsString("source[{\"f]"));
+        assertThat(p.getFormattedMessage(), startsWith("[foo/123] took"));
 
         // Throwing a error if source cannot be converted
         source = new BytesArray("invalid");

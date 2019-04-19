@@ -154,13 +154,9 @@ public final class SearchSlowLog implements SearchOperationListener {
     }
 
     static final class SearchSlowLogMessage extends ESLogMessage {
-        private final SearchContext context;
-        private final long tookInNanos;
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {
-            super(prepareMap(context, tookInNanos), stringMessage(context, tookInNanos));
-            this.context = context;
-            this.tookInNanos = tookInNanos;
+            super(prepareMap(context, tookInNanos), message(context, tookInNanos));
         }
 
         private static Map<String, String> prepareMap(SearchContext context, long tookInNanos) {
@@ -187,12 +183,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             return messageFields;
         }
 
-        @Override
-        public String toString() {
-            return stringMessage(context, tookInNanos);
-        }
-
-        private static String stringMessage(SearchContext context, long tookInNanos) {
+        private static String message(SearchContext context, long tookInNanos) {
             StringBuilder sb = new StringBuilder();
             sb.append(context.indexShard().shardId())
                 .append(" ")

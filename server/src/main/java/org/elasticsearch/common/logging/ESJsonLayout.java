@@ -85,7 +85,6 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-
     protected ESJsonLayout(String typeName, Charset charset, KeyValuePair[] additionalFields, String[] esmessagefields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
@@ -110,10 +109,10 @@ public class ESJsonLayout extends AbstractStringLayout {
         for (String key : esmessagefields) {
             map.put(key, "%ESMessageField{" + key + "}");
         }
+
         for (KeyValuePair keyValuePair : additionalFields) {
             map.put(keyValuePair.getKey(), keyValuePair.getValue());
         }
-
 
         return createPattern(map);
     }
@@ -144,13 +143,8 @@ public class ESJsonLayout extends AbstractStringLayout {
         return inQuotes(s) + ": ";
     }
 
-
     private String inQuotes(String s) {
         return "\"" + s + "\"";
-    }
-
-    private String asJson(String s) {
-        return "%enc{" + s + "}{JSON}";
     }
 
     @PluginFactory
@@ -171,11 +165,10 @@ public class ESJsonLayout extends AbstractStringLayout {
         Charset charset;
 
         @PluginAttribute("esmessagefields")
-        private String esmessagefields;
+        private String esMessageFields;
 
         @PluginElement("AdditionalField")
         private KeyValuePair[] additionalFields;
-
 
         public Builder() {
             super();
@@ -184,7 +177,7 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         @Override
         public ESJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(esmessagefields) ? new String[]{} : esmessagefields.split(",");
+            String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
             return ESJsonLayout.createLayout(type, charset, additionalFields, split);
         }
 
@@ -192,7 +185,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             return charset;
         }
 
-        public B setCharset(final Charset type) {
+        public B setCharset(final Charset charset) {
             this.charset = charset;
             return asBuilder();
         }
@@ -215,12 +208,12 @@ public class ESJsonLayout extends AbstractStringLayout {
             return asBuilder();
         }
 
-        public String getEsmessagefields() {
-            return esmessagefields;
+        public String getESMessageFields() {
+            return esMessageFields;
         }
 
-        public B setEsmessagefields(String esmessagefields) {
-            this.esmessagefields = esmessagefields;
+        public B setESMessageFields(String esmessagefields) {
+            this.esMessageFields = esmessagefields;
             return asBuilder();
         }
     }

@@ -165,20 +165,10 @@ public final class IndexingSlowLog implements IndexingOperationListener {
     }
 
     static final class IndexingSlowLogMessage extends ESLogMessage {
-        private final ParsedDocument doc;
-        private final long tookInNanos;
-        private final boolean reformat;
-        private final int maxSourceCharsToLog;
-        private final Index index;
 
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),
-                createToString(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
-            this.doc = doc;
-            this.index = index;
-            this.tookInNanos = tookInNanos;
-            this.reformat = reformat;
-            this.maxSourceCharsToLog = maxSourceCharsToLog;
+                message(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
         }
 
         private static Map<String, String> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
@@ -214,12 +204,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             return map;
         }
 
-        @Override
-        public String toString() {
-            return createToString(index,doc,tookInNanos,reformat,maxSourceCharsToLog);
-        }
-
-        private static String createToString(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+        private static String message(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             StringBuilder sb = new StringBuilder();
             sb.append(index).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ");

@@ -293,9 +293,9 @@ public class JsonLoggerTests extends ESTestCase {
         assertFalse("Environment path.home variable should not be set", Environment.PATH_HOME_SETTING.exists(settings));
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
-            .put(settings)
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+                                                .put(settings)
+                                                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                                                .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
         LogConfigurator.configure(environment);

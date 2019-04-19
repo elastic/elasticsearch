@@ -153,25 +153,25 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             final ParsedDocument doc = indexOperation.parsedDoc();
             final long tookInNanos = result.getTook();
             if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-                indexLogger.warn( new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.warn( new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
-                indexLogger.info(new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.info(new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {
-                indexLogger.debug(new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.debug(new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             } else if (indexTraceThreshold >= 0 && tookInNanos > indexTraceThreshold) {
-                indexLogger.trace( new SlowLogParsedDocumentPrinter(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
+                indexLogger.trace( new IndexingSlowLogMessage(index, doc, tookInNanos, reformat, maxSourceCharsToLog));
             }
         }
     }
 
-    static final class SlowLogParsedDocumentPrinter extends ESLogMessage {
+    static final class IndexingSlowLogMessage extends ESLogMessage {
         private final ParsedDocument doc;
         private final long tookInNanos;
         private final boolean reformat;
         private final int maxSourceCharsToLog;
         private final Index index;
 
-        SlowLogParsedDocumentPrinter(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
+        IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),
                 createToString(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
             this.doc = doc;
@@ -249,84 +249,6 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }
             return sb.toString();
         }
-
-//        private String keyValue(String key, Object value) {
-//            return wrapWithQuotes(key) + ": " + wrapWithQuotes(value);
-//        }
-//
-//        private String wrapWithQuotes(Object value) {
-//            if (value == null)
-//                return "\"\"";
-//            return "\"" + value + "\"";
-//        }
-
-//        private String keyValue(String key, String[] value) {
-//            return keyValue(key, asList(value));
-//        }
-//
-//        private String keyValue(String key, Collection<String> value) {
-//            String array;
-//            if (value == null) {
-//                array = "";
-//            } else {
-//                array = value.stream().map(s -> wrapWithQuotes(s)).collect(Collectors.joining(", "));
-//            }
-//            return "\"" + key + "\": [" + array + "]";
-//        }
-
-//        @Override
-//        public String getFormattedMessage() {
-//            StringJoiner sj = new StringJoiner(",");
-//            sj.add(keyValue("message", index));
-//            sj.add(keyValue("took", TimeValue.timeValueNanos(tookInNanos)));
-//            sj.add(keyValue("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
-//            sj.add(keyValue("type", doc.type()));
-//            sj.add(keyValue("id", doc.id()));
-//            sj.add(keyValue("routing", doc.routing()));
-//
-//            if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
-//                return sj.toString();
-//            }
-//            try {
-//                String source = XContentHelper.convertToJson(doc.source(), reformat, doc.getXContentType());
-//                sj.add(keyValue("source", Strings.cleanTruncate(source, maxSourceCharsToLog).trim()));
-//            } catch (IOException e) {
-//                sj.add(keyValue("source", "_failed_to_convert_[" + e.getMessage()+"]"));
-//                /*
-//                 * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
-//                 * will be logged at the warn level.
-//                 */
-//                final String message = String.format(Locale.ROOT, "failed to convert source for slow log entry [%s]", sj.toString());
-//                throw new UncheckedIOException(message, e);
-//            }
-//            return sj.toString();
-//        }
-//
-//        @Override
-//        public String getFormat() {
-//            return "JSON_FORMATTED";
-//        }
-//
-//        @Override
-//        public Object[] getParameters() {
-//            return new Object[0];
-//        }
-//
-//        @Override
-//        public Throwable getThrowable() {
-//            return null;
-//        }
-//
-//        @Override
-//        public void formatTo(StringBuilder buffer) {
-//            String formattedMessage = getFormattedMessage();
-//            buffer.append(formattedMessage);
-//        }
-//
-//        @Override
-//        public Object getValueFor(String key) {
-//            return null;
-//        }
     }
 
     boolean isReformat() {

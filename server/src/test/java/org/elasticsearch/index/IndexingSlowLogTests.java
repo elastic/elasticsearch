@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexingSlowLog.SlowLogParsedDocumentPrinter;
+import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -55,7 +55,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", "routingValue", null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
+        IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
 
         assertThat(p.getValueFor("message"),equalTo("\"[foo/123]\""));
         assertThat(p.getValueFor("took"),equalTo("\"10nanos\""));
@@ -66,7 +66,7 @@ public class IndexingSlowLogTests extends ESTestCase {
         assertThat((String)p.getValueFor("source"), isEmptyOrNullString());
 
         // Turning on document logging logs the whole thing
-        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
+        p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat((String)p.getValueFor("source"), containsString("\"{\\\"foo\\\":\\\"bar\\\"}\""));
     }
 
@@ -78,19 +78,19 @@ public class IndexingSlowLogTests extends ESTestCase {
                 "test", null, null, source, XContentType.JSON, null);
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
-        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 0);
+        IndexingSlowLogMessage p = new IndexingSlowLogMessage(index, pd, 10, true, 0);
         assertThat(p.toString(), not(containsString("source[")));
 
         // Turning on document logging logs the whole thing
-        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, Integer.MAX_VALUE);
+        p = new IndexingSlowLogMessage(index, pd, 10, true, Integer.MAX_VALUE);
         assertThat(p.toString(), containsString("source[{\"foo\":\"bar\"}]"));
 
         // And you can truncate the source
-        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
+        p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
         assertThat(p.toString(), containsString("source[{\"f]"));
 
         // And you can truncate the source
-        p = new SlowLogParsedDocumentPrinter(index, pd, 10, true, 3);
+        p = new IndexingSlowLogMessage(index, pd, 10, true, 3);
         assertThat(p.toString(), containsString("source[{\"f]"));
         assertThat(p.toString(), startsWith("[foo/123] took"));
 
@@ -101,7 +101,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             "test", null, null, source, XContentType.JSON, null);
 
         final UncheckedIOException e = expectThrows(UncheckedIOException.class,
-            ()->new SlowLogParsedDocumentPrinter(index, doc, 10, true, 3));
+            ()->new IndexingSlowLogMessage(index, doc, 10, true, 3));
         assertThat(e, hasToString(containsString("_failed_to_convert_[Unrecognized token 'invalid':"
             + " was expecting ('true', 'false' or 'null')\\n"
             + " at [Source: org.elasticsearch.common.bytes.BytesReference$MarkSupportingStreamInputWrapper")));

@@ -163,16 +163,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
-        assertThat(p.getValueFor("message"),equalTo("\"[foo][0]\""));
-        assertThat(p.getValueFor("took"),equalTo("\"10nanos\""));
-        assertThat(p.getValueFor("took_millis"),equalTo("\"0\""));
-        assertThat(p.getValueFor("total_hits"),equalTo("\"-1\""));
-        assertThat(p.getValueFor("types"),equalTo("[]"));
-        assertThat(p.getValueFor("stats"),equalTo("[]"));
-        assertThat(p.getValueFor("search_type"),equalTo("\"\""));
-        assertThat(p.getValueFor("total_shards"),equalTo("\"1\""));
+        assertThat(p.getValueFor("message"), equalTo("\"[foo][0]\""));
+        assertThat(p.getValueFor("took"), equalTo("\"10nanos\""));
+        assertThat(p.getValueFor("took_millis"), equalTo("\"0\""));
+        assertThat(p.getValueFor("total_hits"), equalTo("\"-1\""));
+        assertThat(p.getValueFor("types"), equalTo("[]"));
+        assertThat(p.getValueFor("stats"), equalTo("[]"));
+        assertThat(p.getValueFor("search_type"), equalTo("\"\""));
+        assertThat(p.getValueFor("total_shards"), equalTo("\"1\""));
         assertThat(p.getValueFor("source"), equalTo("{\"query\":{\"match_all\":{\"boost\":1.0}}}"));
     }
 
@@ -183,7 +183,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.request().source(source);
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.toString(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.toString(), not(containsString("\n")));

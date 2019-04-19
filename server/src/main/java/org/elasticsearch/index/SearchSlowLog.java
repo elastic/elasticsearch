@@ -130,34 +130,34 @@ public final class SearchSlowLog implements SearchOperationListener {
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.info(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(new SlowLogSearchContextPrinter(context, tookInNanos));
+            queryLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn(new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.warn(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info(new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.info(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug(new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.debug(new SearchSlowLogMessage(context, tookInNanos));
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace(new SlowLogSearchContextPrinter(context, tookInNanos));
+            fetchLogger.trace(new SearchSlowLogMessage(context, tookInNanos));
         }
     }
 
-    static final class SlowLogSearchContextPrinter extends ESLogMessage {
+    static final class SearchSlowLogMessage extends ESLogMessage {
         private final SearchContext context;
         private final long tookInNanos;
 
-        SlowLogSearchContextPrinter(SearchContext context, long tookInNanos) {
+        SearchSlowLogMessage(SearchContext context, long tookInNanos) {
             super(prepareMap(context, tookInNanos), stringMessage(context, tookInNanos));
             this.context = context;
             this.tookInNanos = tookInNanos;

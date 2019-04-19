@@ -99,7 +99,11 @@ public final class Sets {
     public static <T> SortedSet<T> sortedDifference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(new SortedSetCollector<>());
+        return left.stream().filter(k -> !right.contains(k)).collect(toSortedSet());
+    }
+
+    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toSortedSet() {
+        return new SortedSetCollector<>();
     }
 
     private static class SortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
@@ -111,7 +115,7 @@ public final class Sets {
 
         @Override
         public BiConsumer<SortedSet<T>, T> accumulator() {
-            return (s, e) -> s.add(e);
+            return SortedSet::add;
         }
 
         @Override

@@ -44,6 +44,7 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isOneOf;
 
 public class ClusterFormationFailureHelperTests extends ESTestCase {
     public void testScheduling() {
@@ -140,19 +141,18 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .version(12L).nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 15L).getDescription(),
-            is("master not discovered yet: have discovered []; discovery will continue using [] from hosts providers and [" + localNode +
-                "] from last-known cluster state; node term 15, last-accepted version 12 in term 0"));
+            is("master not discovered yet: have discovered []; discovery will continue using [] from hosts providers " +
+                "and [] from last-known cluster state; node term 15, last-accepted version 12 in term 0"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 16L).getDescription(),
             is("master not discovered yet: have discovered []; discovery will continue using [" + otherAddress +
-                "] from hosts providers and [" + localNode +
-                "] from last-known cluster state; node term 16, last-accepted version 12 in term 0"));
+                "] from hosts providers and [] from last-known cluster state; node term 16, last-accepted version 12 in term 0"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 17L).getDescription(),
-            is("master not discovered yet: have discovered [" + otherNode + "]; discovery will continue using [] from hosts providers and ["
-                + localNode + "] from last-known cluster state; node term 17, last-accepted version 12 in term 0"));
+            is("master not discovered yet: have discovered [" + otherNode + "]; discovery will continue using [] from hosts providers " +
+                "and [] from last-known cluster state; node term 17, last-accepted version 12 in term 0"));
     }
 
     public void testDescriptionBeforeBootstrapping() {
@@ -363,10 +363,19 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .metaData(MetaData.builder().coordinationMetaData(CoordinationMetaData.builder()
                 .lastAcceptedConfiguration(config(configNodeIds))
                 .lastCommittedConfiguration(config(configNodeIds)).build())).build();
-        assertThat(new ClusterFormationState(Settings.EMPTY, stateWithOtherNodes, emptyList(), emptyList(), 0L).getDescription(),
-            is("master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
+
+        assertThat(new ClusterFormationState(Settings.EMPTY, stateWithOtherNodes, emptyList(), emptyList(), 0L).getDescription(), isOneOf(
+
+            // nodes from last-known cluster state could be in either order
+
+            "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
                 "have discovered [] which is not a quorum; " +
                 "discovery will continue using [] from hosts providers and [" + localNode + ", " + otherMasterNode +
+                "] from last-known cluster state; node term 0, last-accepted version 0 in term 0",
+
+            "master not discovered or elected yet, an election requires two nodes with ids [n1, n2], " +
+                "have discovered [] which is not a quorum; " +
+                "discovery will continue using [] from hosts providers and [" + otherMasterNode + ", " + localNode +
                 "] from last-known cluster state; node term 0, last-accepted version 0 in term 0"));
     }
 }

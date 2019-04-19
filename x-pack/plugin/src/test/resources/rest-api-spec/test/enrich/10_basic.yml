@@ -1,0 +1,7 @@
+---
+"Test enrich crud apis":
+
+  - do:
+      catch: missing
+      enrich.get_policy:
+        name: policy-crud

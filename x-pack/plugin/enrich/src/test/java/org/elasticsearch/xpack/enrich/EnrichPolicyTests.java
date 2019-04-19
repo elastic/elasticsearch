@@ -43,7 +43,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         return randomEnrichPolicy(xContentType);
     }
 
-    static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
+    public static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
         final QueryBuilder queryBuilder;
         if (randomBoolean()) {
             queryBuilder = new MatchAllQueryBuilder();

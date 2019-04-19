@@ -59,11 +59,15 @@ public class Case extends ConditionalFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        DataType resultDataType;
-        if (conditions.isEmpty()) {
-            resultDataType = defaultElse().dataType();
-        } else {
-            resultDataType = conditions.get(0).dataType();
+        DataType expectedResultDataType = null;
+        for (IfConditional ifConditional : conditions) {
+            if (DataTypes.isNull(ifConditional.result().dataType()) == false) {
+                expectedResultDataType = ifConditional.result().dataType();
+                break;
+            }
+        }
+        if (expectedResultDataType == null) {
+            expectedResultDataType = defaultElse().dataType();
         }
 
         for (IfConditional conditional : conditions) {
@@ -73,10 +77,10 @@ public class Case extends ConditionalFunction {
                     Expressions.name(conditional.condition()),
                     conditional.condition().dataType().typeName));
             }
-            if (DataTypes.areTypesCompatible(resultDataType, conditional.dataType()) == false) {
+            if (DataTypes.areTypesCompatible(expectedResultDataType, conditional.dataType()) == false) {
                 return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
                     conditional.sourceText(),
-                    resultDataType.typeName,
+                    expectedResultDataType.typeName,
                     Expressions.name(conditional.result()),
                     conditional.dataType().typeName));
             }
@@ -85,7 +89,7 @@ public class Case extends ConditionalFunction {
         if (DataTypes.areTypesCompatible(dataType, defaultElse.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 defaultElse.sourceText(),
-                resultDataType.typeName,
+                expectedResultDataType.typeName,
                 Expressions.name(defaultElse),
                 defaultElse.dataType().typeName));
         }

@@ -613,6 +613,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT CASE WHEN int > 20 THEN 'foo' ELSE date END FROM test"));
     }
 
+    public void testCaseWithDifferentResultAndDefaultValueDataTypesAndNullTypesSkipped() {
+        assertEquals("1:8: ELSE clause of [date] must be [keyword], found value [date] type [datetime]",
+            error("SELECT CASE WHEN int > 20 THEN null WHEN int > 10 THEN null WHEN int > 5 THEN 'foo' ELSE date END FROM test"));
+    }
+
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
                 error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));

@@ -1,37 +1,37 @@
 caseField
-SELECT CASE WHEN emp_no - 10000 < 10 THEN 'First 10' ELSE 'Second 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' ELSE 'Second 10' END as "case" FROM test_emp WHERE emp_no >= 10005
 ORDER BY emp_no LIMIT 10;
 
-   case
------------
-First 10
-First 10
-First 10
-First 10
-First 10
-Second 10
-Second 10
-Second 10
-Second 10
-Second 10
+ emp_no |   case
+--------+-----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | Second 10
+10011   | Second 10
+10012   | Second 10
+10013   | Second 10
+10014   | Second 10
 ;
 
 caseFieldNoElse
-SELECT CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005
 ORDER BY emp_no LIMIT 10;
 
-   case
------------
-First 10
-First 10
-First 10
-First 10
-First 10
-null
-null
-null
-null
-null
+ emp_no |   case
+--------+----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | null
+10011   | null
+10012   | null
+10013   | null
+10014   | null
 ;
 
 caseWhere
@@ -71,37 +71,41 @@ Heyers
 ;
 
 caseOrderBy
-SELECT last_name FROM test_emp ORDER BY CASE WHEN languages >= 3 THEN 'first' ELSE 'second' END, emp_no LIMIT 10;
+schema::last_name:s|languages:byte|emp_no:i
+SELECT last_name, languages, emp_no FROM test_emp WHERE emp_no BETWEEN 10005 AND 10015
+ORDER BY CASE WHEN languages >= 3 THEN 'first' ELSE 'second' END, emp_no LIMIT 10;
 
- last_name
------------
-Simmel
-Bamford
-Koblick
-Preusig
-Zielinski
-Piveteau
-Sluis
-Bridgland
-Genin
-Nooteboom
+ last_name | languages | emp_no
+-----------+-----------+--------
+ Preusig   | 3         | 10006
+ Zielinski | 4         | 10007
+ Piveteau  | 4         | 10010
+ Sluis     | 5         | 10011
+ Bridgland | 5         | 10012
+ Genin     | 5         | 10014
+ Nooteboom | 5         | 10015
+ Maliniak  | 1         | 10005
+ Kalloufi  | 2         | 10008
+ Peac      | 1         | 10009
 ;
 
 caseOrderByNoElse
-SELECT last_name FROM test_emp ORDER BY CASE WHEN languages >= 3 THEN 'first' END NULLS FIRST, emp_no LIMIT 10;
+schema::last_name:s|languages:byte|emp_no:i
+SELECT last_name, languages, emp_no FROM test_emp WHERE emp_no BETWEEN 10005 AND 10015
+ORDER BY CASE WHEN languages >= 3 THEN 'first' END NULLS FIRST, emp_no LIMIT 10;
 
-  last_name
--------------
-Facello
-Maliniak
-Kalloufi
-Peac
-Terkki
-Cappelletti
-Bouloucos
-Peha
-Haddadi
-Warwick
+ last_name | languages | emp_no
+-----------+-----------+--------
+Maliniak   | 1         | 10005
+Kalloufi   | 2         | 10008
+Peac       | 1         | 10009
+Terkki     | 1         | 10013
+Preusig    | 3         | 10006
+Zielinski  | 4         | 10007
+Piveteau   | 4         | 10010
+Sluis      | 5         | 10011
+Bridgland  | 5         | 10012
+Genin      | 5         | 10014
 ;
 
 caseGroupBy

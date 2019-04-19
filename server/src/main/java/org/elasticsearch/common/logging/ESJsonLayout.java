@@ -100,7 +100,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         }
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("type", inQuotes(type));
-        map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ}"));
+        map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
         map.put("level", inQuotes("%p"));
         map.put("component", inQuotes("%c{1.}"));
         map.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));

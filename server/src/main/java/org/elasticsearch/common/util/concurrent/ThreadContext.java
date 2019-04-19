@@ -135,7 +135,6 @@ public final class ThreadContext implements Closeable, Writeable {
             ThreadContextStruct threadContextStruct =
                 DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
             threadLocal.set(threadContextStruct);
-
         } else{
             threadLocal.set(null);
         }

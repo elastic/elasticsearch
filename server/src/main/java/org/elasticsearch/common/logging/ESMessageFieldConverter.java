@@ -42,8 +42,6 @@ public final class ESMessageFieldConverter extends LogEventPatternConverter {
      * Called by log4j2 to initialize this converter.
      */
     public static ESMessageFieldConverter newInstance(final Configuration config, final String[] options) {
-        final PatternParser parser = PatternLayout.createPatternParser(config);
-
         final String key = options[0];
 
         return new ESMessageFieldConverter(key);

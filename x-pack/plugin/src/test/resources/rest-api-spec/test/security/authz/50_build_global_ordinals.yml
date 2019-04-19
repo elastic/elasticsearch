@@ -1,0 +1,94 @@
+---
+setup:
+  - skip:
+      version: " - 7.1.0"
+      reason: Behavior was changed in 7.1.0
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["test_index"], "privileges": ["read"], "query": "{\"match\": {\"user\": \"u1\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "mixed_role" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              user:
+                type: keyword
+              followers:
+                type: keyword
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+---
+"Building Global Ordinals should not fail when DLS is enabled":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "u1"}}'
+          - '{"user": "u1", "followers": ["u2", "u3"]}'
+          - '{"index": {"_index": "test_index", "_id": "u2"}}'
+          - '{"user": "u2", "followers": ["u1", "u3", "u4"]}'
+          - '{"index": {"_index": "test_index", "_id": "u3"}}'
+          - '{"user": "u3", "followers": ["u1"]}'
+          - '{"index": {"_index": "test_index", "_id": "u4"}}'
+          - '{"user": "u4", "followers": ["u3"]}'
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "u5"}}'
+          - '{"user": "u5", "followers": ["u2", "u3"]}'
+          - '{"index": {"_index": "test_index", "_id": "u6"}}'
+          - '{"user": "u6", "followers": ["u1", "u3", "u4"]}'
+          - '{"index": {"_index": "test_index", "_id": "u7"}}'
+          - '{"user": "u7", "followers": ["u1"]}'
+          - '{"index": {"_index": "test_index", "_id": "u8"}}'
+          - '{"user": "u8", "followers": ["u3"]}'
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        typed_keys: true
+        body:
+          size: 0
+          aggregations:
+            test_terms:
+              terms:
+                field: followers

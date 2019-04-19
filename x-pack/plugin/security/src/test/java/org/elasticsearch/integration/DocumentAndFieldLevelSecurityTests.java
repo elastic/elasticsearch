@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -134,12 +133,9 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                 .prepareSearch("test")
-                .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
         assertSearchHits(response, "1", "2");
-        assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value1"));
-        assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2").toString(), equalTo("value2"));
     }
 
     public void testDLSIsAppliedBeforeFLS() {
@@ -214,15 +210,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
             response = client().filterWithHeader(
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .prepareSearch("test")
-                    .addSort("_id", SortOrder.ASC)
                     .get();
             assertHitCount(response, 2);
-            assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value1"));
-            assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
-            assertThat(response.getHits().getAt(1).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(1).getSourceAsMap().get("field2"), equalTo("value2"));
         }
     }
 

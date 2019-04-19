@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -127,7 +128,11 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger, scriptFunction);
+        if (indexReader instanceof FilterDirectoryReader){
+           indexReader = FilterDirectoryReader.unwrap(indexReader);
+        }
+        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger,
+            scriptFunction);
     }
 
     @Override

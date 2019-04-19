@@ -100,7 +100,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
-                bitsetFilterCache, threadContext, licenseState, scriptService) {
+                bitsetFilterCache, threadContext, licenseState, scriptService, false) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -223,7 +223,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends AbstractBuilde
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(s -> queryShardContext,
-                bitsetFilterCache, threadContext, licenseState, scriptService) {
+                bitsetFilterCache, threadContext, licenseState, scriptService, false) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {

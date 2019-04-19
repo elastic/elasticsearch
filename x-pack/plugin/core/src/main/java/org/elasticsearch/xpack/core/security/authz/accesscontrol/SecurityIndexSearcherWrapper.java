@@ -66,15 +66,18 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final ScriptService scriptService;
+    private final boolean safeTermsEnum;
 
     public SecurityIndexSearcherWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
                                         BitsetFilterCache bitsetFilterCache, ThreadContext threadContext, XPackLicenseState licenseState,
-                                        ScriptService scriptService) {
+                                        ScriptService scriptService,
+                                        boolean safeTermsEnum) {
         this.scriptService = scriptService;
         this.queryShardContextProvider = queryShardContextProvider;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
         this.licenseState = licenseState;
+        this.safeTermsEnum = safeTermsEnum;
     }
 
     @Override
@@ -102,7 +105,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
                 BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
                 if (filterQuery != null) {
-                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery));
+                    wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetFilterCache, new ConstantScoreQuery(filterQuery),
+                        safeTermsEnum);
                 }
             }
 

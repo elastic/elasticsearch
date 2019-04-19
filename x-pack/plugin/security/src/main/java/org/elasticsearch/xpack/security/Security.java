@@ -701,7 +701,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                 }, null),
                                 indexService.cache() != null ? indexService.cache().bitsetFilterCache() : null,
                                 indexService.getThreadPool().getThreadContext(), getLicenseState(),
-                                indexService.getScriptService()));
+                                indexService.getScriptService(),
+                                XPackSettings.STRICT_TERMS_ENUM.get(settings)));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully

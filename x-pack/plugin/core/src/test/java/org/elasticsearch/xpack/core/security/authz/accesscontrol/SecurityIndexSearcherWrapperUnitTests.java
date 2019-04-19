@@ -123,7 +123,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testDefaultMetaFields() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService) {
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService, false) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -153,14 +153,14 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService, false);
         DirectoryReader reader = securityIndexSearcherWrapper.wrap(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService, false);
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
@@ -196,10 +196,10 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
             }
         });
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
+        DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery(), false);
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService, false);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(), sameInstance(indexSearcher.getSimilarity()));
@@ -208,7 +208,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testIntersectScorerAndRoleBits() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService);
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, scriptService, false);
         final Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
                 directory,
@@ -297,7 +297,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testFieldPermissionsWithFieldExceptions() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, null);
+                new SecurityIndexSearcherWrapper(null, null, threadContext, licenseState, null, false);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
         Set<String> expected = new HashSet<>(META_FIELDS);
@@ -520,7 +520,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
             assertThat(bitSet, instanceOf(FixedBitSet.class));
         }
 
-        DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery);
+        DocumentSubsetDirectoryReader filteredReader = DocumentSubsetReader.wrap(reader, cache, roleQuery, false);
         IndexSearcher searcher = new SecurityIndexSearcherWrapper.IndexSearcherWrapper(filteredReader);
 
         // Searching a non-existing term will trigger a null scorer

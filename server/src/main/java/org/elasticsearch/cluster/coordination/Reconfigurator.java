@@ -123,7 +123,7 @@ public class Reconfigurator {
         final Set<String> liveInConfigIds = new TreeSet<>(currentConfig.getNodeIds());
         liveInConfigIds.retainAll(liveNodeIds);
 
-        final Set<String> inConfigNotLiveIds = Sets.sortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
+        final Set<String> inConfigNotLiveIds = Sets.unmodifiableSortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
         final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
         nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
 

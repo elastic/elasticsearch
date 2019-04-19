@@ -61,6 +61,9 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.regex.Matcher
 
 /**
@@ -153,8 +156,12 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
-            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            boolean inFipsJvm = false
+            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                // We don't expect Gradle to be running in a FIPS JVM
+                String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+                inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            }
 
             // Build debugging info
             println '======================================='
@@ -190,24 +197,38 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException(message)
             }
 
-            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
-                final String javaHome = javaVersionEntry.getValue()
-                if (javaHome == null) {
-                    continue
-                }
-                JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                final JavaVersion expectedJavaVersionEnum
-                final int version = javaVersionEntry.getKey()
-                if (version < 9) {
-                    expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
-                } else {
-                    expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version))
-                }
-                if (javaVersionEnum != expectedJavaVersionEnum) {
-                    final String message =
-                            "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                                    " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
-                    throw new GradleException(message)
+            ExecutorService exec = Executors.newFixedThreadPool(javaVersions.size())
+            Set<Future<Void>> results = new HashSet<>()
+
+            javaVersions.entrySet().stream()
+                    .filter { it.getValue() != null }
+                    .forEach { javaVersionEntry ->
+                        results.add(exec.submit {
+                            final String javaHome = javaVersionEntry.getValue()
+                            final int version = javaVersionEntry.getKey()
+                            if (project.file(javaHome).exists() == false) {
+                                throw new GradleException("Invalid JAVA${version}_HOME=${javaHome} location does not exist")
+                            }
+
+                            JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                            final JavaVersion expectedJavaVersionEnum = version < 9 ?
+                                    JavaVersion.toVersion("1." + version) :
+                                    JavaVersion.toVersion(Integer.toString(version))
+
+                            if (javaVersionEnum != expectedJavaVersionEnum) {
+                                final String message =
+                                        "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
+                                                " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
+                                throw new GradleException(message)
+                            }
+                        })
+            }
+
+            project.gradle.taskGraph.whenReady {
+                try {
+                    results.forEach { it.get() }
+                } finally {
+                    exec.shutdown();
                 }
             }
 

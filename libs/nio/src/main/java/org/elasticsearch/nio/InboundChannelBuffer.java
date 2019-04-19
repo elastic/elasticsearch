@@ -228,9 +228,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
     /**
      * Aligns the data in this buffer along the underlying pages. If the beginning of this buffer is in the
-     * middle of a page, it will be copied to the beginning of a new page. The amount of copied into
+     * middle of a page, it will be copied to the beginning of a new page. The number of bytes copied into
      * alignment with the underlying pages is configured by the length parameter. As this operation might add
-     * or remove pages, the it can modify the buffers capacity.
+     * or remove pages, it can modify the buffers capacity.
      *
      * @param length of the data to align
      */

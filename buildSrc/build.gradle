@@ -113,8 +113,6 @@ repositories {
 
 dependencies {
   compile localGroovy()
-  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
@@ -127,16 +125,7 @@ dependencies {
   compile 'de.thetaphi:forbiddenapis:2.6'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
-}
-
-
-// Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
-// Use logging dependency instead
-// Gradle 4.3.1 stopped releasing the logging jars to jcenter, just use the last available one
-GradleVersion logVersion = GradleVersion.current() > GradleVersion.version('4.3') ? GradleVersion.version('4.3') : GradleVersion.current()
-
-dependencies {
-  compileOnly "org.gradle:gradle-logging:${logVersion.getVersion()}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
 }
 
 /*****************************************************************************

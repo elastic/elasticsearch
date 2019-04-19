@@ -55,9 +55,11 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,8 +87,8 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 
-public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
-        DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
+public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
+        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -248,6 +250,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Actio
                 builder.put(p.additionalSettings())
         );
         return builder.build();
+    }
+
+
+    @Override
+    public List<ScriptContext<?>> getContexts() {
+        List<ScriptContext<?>> contexts = new ArrayList<>();
+        filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
+        return contexts;
     }
 
     @Override

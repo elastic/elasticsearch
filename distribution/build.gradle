@@ -296,6 +296,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from { project(':distribution:tools:plugin-cli').jar }
           from { project(':distribution:tools:plugin-cli').configurations.runtime }
         }
+        into('tools/keystore-cli') {
+          from { project(':distribution:tools:keystore-cli').jar }
+        }
         if (oss == false) {
           into('tools/security-cli') {
             from { project(':x-pack:plugin:security:cli').jar }

@@ -28,6 +28,9 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
+import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.file.FileCollection;
@@ -290,6 +293,25 @@ public class TestClustersPlugin implements Plugin<Project> {
         Project rootProject,
         NamedDomainObjectContainer<ElasticsearchCluster> container
     ) {
+        // Download integ test distribution from maven central
+        MavenArtifactRepository mavenCentral = project.getRepositories().mavenCentral();
+        mavenCentral.content(spec -> {
+            spec.includeGroupByRegex("org\\.elasticsearch\\.distribution\\..*");
+        });
+        project.getRepositories().add(mavenCentral);
+
+        // Other distributions from the download service
+        project.getRepositories().add(
+            project.getRepositories().ivy(spec -> {
+                spec.setUrl("https://artifacts.elastic.co/downloads");
+                spec.patternLayout(p -> p.artifact("elasticsearch/[module]-[revision](-[classifier]).[ext]"));
+                HttpHeaderCredentials headerConfig = spec.getCredentials(HttpHeaderCredentials.class);
+                headerConfig.setName("X-Elastic-No-KPI");
+                headerConfig.setValue("1");
+                spec.content(c-> c.includeGroupByRegex("org\\.elasticsearch\\.distribution\\..*"));
+            })
+        );
+
         // When the project evaluated we know of all tasks that use clusters.
         // Each of these have to depend on the artifacts being synced.
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
@@ -324,24 +346,14 @@ public class TestClustersPlugin implements Plugin<Project> {
                         project.getDependencies().project(projectNotation)
                     );
                 } else {
-                    if (distribution.equals(Distribution.INTEG_TEST)) {
-                        rootProject.getDependencies().add(
-                            HELPER_CONFIGURATION_NAME, "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + version
-                        );
-                    } else {
-                        // declare dependencies to be downloaded from the download service.
-                        // The BuildPlugin sets up the right repo for this to work
-                        // TODO: move the repo definition in this plugin when ClusterFormationTasks is removed
-                        String dependency = String.format(
-                            "%s:%s:%s:%s@%s",
-                            distribution.getGroup(),
-                            distribution.getArtifactName(),
-                            version,
-                            distribution.getClassifier(),
-                            distribution.getFileExtension()
-                        );
-                        rootProject.getDependencies().add(HELPER_CONFIGURATION_NAME, dependency);
-                    }
+                    rootProject.getDependencies().add(
+                        HELPER_CONFIGURATION_NAME,
+                        distribution.getGroup() + ":" +
+                            distribution.getArtifactName() + ":" +
+                            version +
+                            (distribution.getClassifier().isEmpty() ? "" : ":" + distribution.getClassifier()) + "@" +
+                            distribution.getFileExtension());
+
                 }
             })));
     }

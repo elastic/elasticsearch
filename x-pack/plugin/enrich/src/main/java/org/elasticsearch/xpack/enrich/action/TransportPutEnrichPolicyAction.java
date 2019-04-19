@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -15,12 +14,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
@@ -50,16 +47,8 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
 
     @Override
     protected void masterOperation(PutEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
-        // TODO license validation
-        putPolicy(request.getName(), request.getPolicy(), enrichStore, listener);
-    }
-
-    static void putPolicy(String name, EnrichPolicy policy, EnrichStore store, ActionListener<AcknowledgedResponse> listener) {
-        if (Strings.isNullOrEmpty(name)) {
-            throw new ResourceNotFoundException("name is missing");
-        }
-        store.putPolicy(name, policy, e -> {
+                                   ActionListener<AcknowledgedResponse> listener) {
+        enrichStore.putPolicy(request.getName(), request.getPolicy(), e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {

@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.HashMap;
@@ -37,7 +38,10 @@ public class EnrichStore {
     public void putPolicy(String name, EnrichPolicy policy, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
-        // TODO: add validation
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        // TODO: add policy validation
 
         final Map<String, EnrichPolicy> policies;
         final EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);

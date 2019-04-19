@@ -36,4 +36,13 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         assertThat(result, equalTo(policy));
     }
 
+    public void testNullOrEmptyName() {
+        EnrichStore enrichStore = new EnrichStore(getInstanceFromNode(ClusterService.class));
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+
+        String randomErrorString = randomBoolean() ? "": null;
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> enrichStore.putPolicy(randomErrorString, policy, null));
+        assertThat(e.getMessage(), equalTo("name is missing or empty"));
+    }
 }

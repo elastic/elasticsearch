@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class PutEnrichPolicyAction extends Action<AcknowledgedResponse> {
+
     public static final PutEnrichPolicyAction INSTANCE = new PutEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/put";
 
@@ -35,9 +36,9 @@ public class PutEnrichPolicyAction extends Action<AcknowledgedResponse> {
     }
 
     public static class Request extends MasterNodeRequest<PutEnrichPolicyAction.Request> {
+
         private final EnrichPolicy policy;
         private final String name;
-
 
         public Request(String name, EnrichPolicy policy) {
             this.name = Objects.requireNonNull(name, "name cannot be null");

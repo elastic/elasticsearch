@@ -14,8 +14,8 @@ setup:
                     type:     double
                   geo:
                     type:     geo_point
-                  date:
-                    type:     date
+                  misc:
+                    type:     text
                   object:
                     type: object
                     properties:
@@ -294,3 +294,28 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+
+---
+"Field caps with include_unmapped":
+  - skip:
+      version: " - 7.99.99"
+      reason: include_unmapped has been added in 7.1.0
+
+  - do:
+      field_caps:
+        include_unmapped: true
+        index: 'test1,test2,test3'
+        fields: [text, misc]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.text.text.indices
+  - is_false: fields.text.text.non_searchable_indices
+  - is_false: fields.text.text.non_aggregatable_indices
+  - match: {fields.misc.text.searchable:                true}
+  - match: {fields.misc.text.aggregatable:              false}
+  - match: {fields.misc.text.indices:                   ["test1"]}
+  - match: {fields.misc.unmapped.searchable:            false}
+  - match: {fields.misc.unmapped.aggregatable:          false}
+  - match: {fields.misc.unmapped.indices:               ["test2", "test3"]}
+

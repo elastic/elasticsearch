@@ -44,6 +44,6 @@ public class JobWrapperSerializingTests extends AbstractSerializingTestCase<GetR
                 new RollupIndexerJobStats(randomNonNegativeLong(), randomNonNegativeLong(),
                     randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                     randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                new RollupJobStatus(state, Collections.emptyMap(), randomBoolean()));
+                new RollupJobStatus(state, Collections.emptyMap()));
     }
 }

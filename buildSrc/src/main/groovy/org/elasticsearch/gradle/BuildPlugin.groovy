@@ -518,7 +518,7 @@ class BuildPlugin implements Plugin<Project> {
                     spec.into "${project.buildDir}/distributions"
                     spec.rename {
                         ext.has('pomFileName') && ext.get('pomFileName') == null ?
-                            "${project.convention.getByType(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
+                            "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
                             ext.get('pomFileName')
                     }
                 }

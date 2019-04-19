@@ -151,7 +151,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             OFFICIAL_PLUGINS = Streams.readAllLines(stream)
                 .stream()
                 .map(String::trim)
-                .collect(Sets.toSortedSet());
+                .collect(Sets.toUnmodifiableSortedSet());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

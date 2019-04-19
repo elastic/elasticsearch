@@ -197,9 +197,10 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
+            final int numberOfPhysicalCores = numberOfPhysicalCores(project.rootProject)
             if (javaVersions.isEmpty() == false) {
 
-                ExecutorService exec = Executors.newFixedThreadPool(javaVersions.size())
+                ExecutorService exec = Executors.newFixedThreadPool(numberOfPhysicalCores)
                 Set<Future<Void>> results = new HashSet<>()
 
                 javaVersions.entrySet().stream()
@@ -247,7 +248,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
-            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
+            project.rootProject.ext.defaultParallel = numberOfPhysicalCores
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -1013,7 +1014,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static int findDefaultParallel(Project project) {
+    private static int numberOfPhysicalCores(Project project) {
         if (project.file("/proc/cpuinfo").exists()) {
             // Count physical cores on any Linux distro ( don't count hyper-threading )
             Map<String, Integer> socketToCore = [:]
@@ -1026,7 +1027,7 @@ class BuildPlugin implements Plugin<Project> {
                     if (name == "physical id") {
                         currentID = value
                     }
-                    // Number  of cores not including hyper-threading
+                    // number of cores not including hyper-threading
                     if (name == "cpu cores") {
                         assert currentID.isEmpty() == false
                         socketToCore[currentID] = Integer.valueOf(value)
@@ -1044,8 +1045,11 @@ class BuildPlugin implements Plugin<Project> {
                 standardOutput = stdout
             }
             return Integer.parseInt(stdout.toString('UTF-8').trim())
+        } else {
+            // guess that it is half the number of processors (which is wrong on systems that do not have simultaneous multi-threading)
+            // TODO: implement this on Windows
+            return Runtime.getRuntime().availableProcessors() / 2
         }
-        return Runtime.getRuntime().availableProcessors() / 2
     }
 
     private static configurePrecommit(Project project) {

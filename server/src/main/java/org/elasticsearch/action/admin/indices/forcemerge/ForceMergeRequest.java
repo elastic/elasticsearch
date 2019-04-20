@@ -114,8 +114,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 
     @Override
     public String getDescription() {
-        return "Force-merge indices[" + Arrays.toString(indices()) +
-            "], maxSegments[" + maxNumSegments +
+        return "Force-merge indices" + Arrays.toString(indices()) +
+            ", maxSegments[" + maxNumSegments +
             "], onlyExpungeDeletes[" + onlyExpungeDeletes +
             "], flush[" + flush + "]";
     }

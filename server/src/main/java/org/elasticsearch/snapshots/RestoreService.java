@@ -308,7 +308,9 @@ public class RestoreService implements ClusterStateApplier {
                                 indexMdBuilder.mappingVersion(
                                         Math.max(snapshotIndexMetaData.getMappingVersion(), 1 + currentIndexMetaData.getMappingVersion()));
                                 indexMdBuilder.settingsVersion(
-                                        Math.max(snapshotIndexMetaData.getSettingsVersion(), 1 + currentIndexMetaData.getSettingsVersion()));
+                                        Math.max(
+                                                snapshotIndexMetaData.getSettingsVersion(),
+                                                1 + currentIndexMetaData.getSettingsVersion()));
                                 indexMdBuilder.aliasesVersion(
                                         Math.max(snapshotIndexMetaData.getAliasesVersion(), 1 + currentIndexMetaData.getAliasesVersion()));
 

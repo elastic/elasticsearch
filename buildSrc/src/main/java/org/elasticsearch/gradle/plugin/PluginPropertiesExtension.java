@@ -131,7 +131,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setLicenseFile(File licenseFile) {
-        this.project.getExtensions().add("licenseFile", licenseFile);
+        this.project.getExtensions().getExtraProperties().set("licenseFile", licenseFile);
         this.licenseFile = licenseFile;
     }
 
@@ -140,7 +140,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setNoticeFile(File noticeFile) {
-        this.project.getExtensions().add("noticeFile", noticeFile);
+        this.project.getExtensions().getExtraProperties().set("noticeFile", noticeFile);
         this.noticeFile = noticeFile;
     }
 

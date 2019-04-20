@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -62,7 +64,9 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -196,6 +200,124 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 try {
                     remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
                 } catch (NoSuchRemoteClusterException e) {
+                    errorHandler.accept(e);
+                }
+            }
+
+            @Override
+            protected void innerUpdateAliases(final LongConsumer handler, final Consumer<Exception> errorHandler) {
+                /*
+                 * The strategy for updating the aliases is fairly simple. We look at the aliases that exist on the leader, and those that
+                 * exist on the follower. We partition these aliases into three sets: the aliases that exist on both the leader and the
+                 * follower, the aliases that are on the leader only, and the aliases that are on the follower only.
+                 *
+                 * For the aliases that are on the leader and the follower, we compare the aliases and add an action to overwrite the
+                 * follower view of the alias if the aliases are different. If the aliases are the same, we skip the alias. Note that the
+                 * meaning of equals here intentionally ignores the write index. There are two reasons for this. First, follower indices
+                 * do not receive direct writes so conceptually the write index is not useful. Additionally, there is a larger challenge.
+                 * Suppose that we did copy over the write index from the leader to the follower. On the leader, when the write index is
+                 * swapped from one index to another, this is done atomically. However, to do this on the follower, we would have to step
+                 * outside the shard follow tasks framework and have a separate framework for copying aliases over. This is because if we
+                 * try to manage the aliases including the write aliases with the shard follow tasks, we do not have a way to move the write
+                 * index atomically (since we have a single-index view here only) and therefore we can end up in situations where we would
+                 * try to assign the write index to two indices. Further, trying to do this outside the shard follow tasks framework has
+                 * problems too, since it could be that the new aliases arrive on the coordinator before the write index has even been
+                 * created on the local cluster. So there are race conditions either way. All of this put together means that we will simply
+                 * ignore the write index.
+                 *
+                 * For aliases that are on the leader but not the follower, we copy those aliases over to the follower.
+                 *
+                 * For aliases that are on the follower but not the leader, we remove those aliases from the follower.
+                 */
+                final var leaderIndex = params.getLeaderShardId().getIndex();
+                final var followerIndex = params.getFollowShardId().getIndex();
+
+                final var clusterStateRequest = CcrRequests.metaDataRequest(leaderIndex.getName());
+
+                final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
+                    final var leaderIndexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                    final var followerIndexMetaData = clusterService.state().metaData().getIndexSafe(followerIndex);
+
+                    // partition the aliases into the three sets
+                    final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
+                    final var aliasesInCommon = new HashSet<String>();
+                    final var aliasesOnFollowerNotOnLeader = new HashSet<String>();
+
+                    for (final var aliasName : leaderIndexMetaData.getAliases().keys()) {
+                        if (followerIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                            aliasesInCommon.add(aliasName.value);
+                        } else {
+                            aliasesOnLeaderNotOnFollower.add(aliasName.value);
+                        }
+                    }
+
+                    for (final var aliasName : followerIndexMetaData.getAliases().keys()) {
+                        if (leaderIndexMetaData.getAliases().containsKey(aliasName.value)) {
+                            assert aliasesInCommon.contains(aliasName.value) : aliasName.value;
+                        } else {
+                            aliasesOnFollowerNotOnLeader.add(aliasName.value);
+                        }
+                    }
+
+                    final var aliasActions = new ArrayList<IndicesAliasesRequest.AliasActions>();
+
+                    // add the aliases the follower does not have
+                    for (final var aliasName : aliasesOnLeaderNotOnFollower) {
+                        final var alias = leaderIndexMetaData.getAliases().get(aliasName);
+                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
+                        aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                                .index(followerIndex.getName())
+                                .alias(alias.alias())
+                                .filter(alias.filter() == null ? null : alias.filter().toString())
+                                .indexRouting(alias.indexRouting())
+                                .searchRouting(alias.searchRouting())
+                                .writeIndex(false));
+                    }
+
+                    // update the aliases that are different (ignoring write aliases)
+                    for (final var aliasName : aliasesInCommon) {
+                        final var leaderAliasMetaData = leaderIndexMetaData.getAliases().get(aliasName);
+                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
+                        final var leaderAliasMetaDataWithoutWriteIndex = new AliasMetaData.Builder(aliasName)
+                                .filter(leaderAliasMetaData.filter())
+                                .indexRouting(leaderAliasMetaData.indexRouting())
+                                .searchRouting(leaderAliasMetaData.searchRouting())
+                                .writeIndex(false)
+                                .build();
+                        final var followerAliasMetaData = followerIndexMetaData.getAliases().get(aliasName);
+                        if (leaderAliasMetaDataWithoutWriteIndex.equals(followerAliasMetaData)) {
+                            // skip this alias, the leader and follower have the same modulo the write index
+                            continue;
+                        }
+                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
+                        aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                                .index(followerIndex.getName())
+                                .alias(leaderAliasMetaData.alias())
+                                .filter(leaderAliasMetaData.filter() == null ? null : leaderAliasMetaData.filter().toString())
+                                .indexRouting(leaderAliasMetaData.indexRouting())
+                                .searchRouting(leaderAliasMetaData.searchRouting())
+                                .writeIndex(false));
+                    }
+
+                    // remove aliases that the leader no longer has
+                    for (final var aliasName : aliasesOnFollowerNotOnLeader) {
+                        aliasActions.add(IndicesAliasesRequest.AliasActions.remove().index(followerIndex.getName()).alias(aliasName));
+                    }
+
+                    final var request = new IndicesAliasesRequest();
+                    if (aliasActions.isEmpty()) {
+                        handler.accept(leaderIndexMetaData.getAliasesVersion());
+                    } else {
+                        aliasActions.forEach(request::addAliasAction);
+                        followerClient.admin().indices().aliases(
+                                request,
+                                ActionListener.wrap(r -> handler.accept(leaderIndexMetaData.getAliasesVersion()), errorHandler));
+                    }
+                };
+
+                try {
+                    remoteClient(params).admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                } catch (final NoSuchRemoteClusterException e) {
                     errorHandler.accept(e);
                 }
             }

@@ -57,6 +57,7 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
                 randomLong(),
                 randomBoolean() ? new ElasticsearchException("fatal error") : null);

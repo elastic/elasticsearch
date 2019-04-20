@@ -106,6 +106,7 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
                 randomLong(),
                 randomBoolean() ? new ElasticsearchException("fatal error") : null);
@@ -190,6 +191,8 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                         equalTo(expectedShardFollowStats.followerMappingVersion()));
                     assertThat(actualShardFollowStats.getFollowerSettingsVersion(),
                         equalTo(expectedShardFollowStats.followerSettingsVersion()));
+                    assertThat(actualShardFollowStats.getFollowerAliasesVersion(),
+                            equalTo(expectedShardFollowStats.followerAliasesVersion()));
                     assertThat(actualShardFollowStats.getTotalReadTimeMillis(),
                         equalTo(expectedShardFollowStats.totalReadTimeMillis()));
                     assertThat(actualShardFollowStats.getSuccessfulReadRequests(),

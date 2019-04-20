@@ -188,6 +188,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             0,
             0,
             0,
+            0,
             Collections.emptyNavigableMap(),
             0,
             null

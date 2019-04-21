@@ -30,8 +30,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -96,8 +94,8 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
             throw new IllegalArgumentException("application privileges must refer to at least one resource");
         }
         this.application = application;
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
-        this.resources = Collections.unmodifiableSet(new HashSet<>(resources));
+        this.privileges = Set.copyOf(privileges);
+        this.resources = Set.copyOf(resources);
     }
 
     public String getApplication() {

@@ -253,12 +253,9 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         Map<String, String> node1Attributes = new HashMap<>();
         node1Attributes.put("rack_id", "rack_1");
         node1Attributes.put("zone", "zone1");
-        Map<String, String> node2Attributes = new HashMap<>();
-        node2Attributes.put("rack_id", "rack_2");
-        node2Attributes.put("zone", "zone2");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .add(newNode("node1", unmodifiableMap(node1Attributes)))
-                .add(newNode("node2", unmodifiableMap(node2Attributes)))
+                .add(newNode("node2", Map.of("rack_id", "rack_2", "zone", "zone2")))
                 .localNodeId("node1")
         ).build();
         clusterState = strategy.reroute(clusterState, "reroute");

@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -75,8 +74,8 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
     public UserIndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
                                  Collection<IndicesPrivileges.FieldSecurity> fieldSecurity, Collection<String> query) {
         super(indices, privileges, allowRestrictedIndices);
-        this.fieldSecurity = fieldSecurity == null ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(fieldSecurity));
-        this.query = query == null ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(query));
+        this.fieldSecurity = fieldSecurity == null ? Collections.emptySet() : Set.copyOf(fieldSecurity);
+        this.query = query == null ? Collections.emptySet() : Set.copyOf(query);
     }
 
     public Set<IndicesPrivileges.FieldSecurity> getFieldSecurity() {

@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +62,7 @@ public interface UserRoleMapper {
             this.username = username;
             this.dn = dn;
             this.groups = groups == null || groups.isEmpty()
-                    ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
+                    ? Collections.emptySet() : Set.copyOf(groups);
             this.metadata = metadata == null || metadata.isEmpty()
                     ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
             this.realm = realm;

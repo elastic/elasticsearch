@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -52,11 +51,10 @@ public final class User {
      */
     public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
             @Nullable String email) {
-        this.username = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-        this.roles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-        this.metadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+        this.username = Objects.requireNonNull(username, "`username` is required, cannot be null");
+        this.roles = Set.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."));
+        this.metadata = Collections.unmodifiableMap(
+                Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
         this.fullName = fullName;
         this.email = email;
     }

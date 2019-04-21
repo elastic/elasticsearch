@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -191,6 +193,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             numOutstandingReads++;
             sendShardChangesRequest(from, requestOpCount, maxRequiredSeqNo);
             lastRequestedSeqNo = maxRequiredSeqNo;
+            Map<String, String> s = new HashMap<>();
+            s.put("a","b");
+            Collections.unmodifiableMap(s);
         }
 
         if (numOutstandingReads == 0 && hasReadBudget()) {

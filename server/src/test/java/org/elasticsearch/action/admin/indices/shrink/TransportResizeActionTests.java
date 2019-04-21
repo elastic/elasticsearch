@@ -42,9 +42,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -217,6 +215,6 @@ public class TransportResizeActionTests extends ESTestCase {
 
     private DiscoveryNode newNode(String nodeId) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
+                java.util.Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 }

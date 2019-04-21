@@ -29,11 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -72,12 +70,12 @@ public final class ApplicationPrivilege implements ToXContentObject {
         if (actions == null || actions.isEmpty()) {
             throw new IllegalArgumentException("actions must be provided");
         } else {
-            this.actions = Collections.unmodifiableSet(new HashSet<>(actions));
+            this.actions = Set.copyOf(actions);
         }
         if (metadata == null || metadata.isEmpty()) {
             this.metadata = Collections.emptyMap();
         } else {
-            this.metadata = Collections.unmodifiableMap(metadata);
+            this.metadata = Map.copyOf(metadata);
         }
     }
 

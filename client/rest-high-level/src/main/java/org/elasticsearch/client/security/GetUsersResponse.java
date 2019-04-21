@@ -122,11 +122,11 @@ public class GetUsersResponse {
 
         public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled,
                           @Nullable String fullName, @Nullable String email) {
-            String checkedUsername = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-            Collection<String> checkedRoles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-            Map<String, Object> checkedMetadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+            String checkedUsername = Objects.requireNonNull(username, "`username` is required, cannot be null");
+            Collection<String> checkedRoles =
+                    Set.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."));
+            Map<String, Object> checkedMetadata = Collections.unmodifiableMap(
+                    Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
             this.user = new User(checkedUsername, checkedRoles, checkedMetadata, fullName, email);
             this.enabled = enabled;
         }

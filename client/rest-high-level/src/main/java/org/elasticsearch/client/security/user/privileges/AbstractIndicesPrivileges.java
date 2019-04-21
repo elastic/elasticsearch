@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -55,8 +54,8 @@ public abstract class AbstractIndicesPrivileges {
         if (null == privileges || privileges.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must define at least one privilege");
         }
-        this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
+        this.indices = Set.copyOf(indices);
+        this.privileges = Set.copyOf(privileges);
         this.allowRestrictedIndices = allowRestrictedIndices;
     }
 
@@ -127,9 +126,9 @@ public abstract class AbstractIndicesPrivileges {
 
         FieldSecurity(Collection<String> grantedFields, Collection<String> deniedFields) {
             // unspecified granted fields means no restriction
-            this.grantedFields = grantedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(grantedFields));
+            this.grantedFields = grantedFields == null ? null : Set.copyOf(grantedFields);
             // unspecified denied fields means no restriction
-            this.deniedFields = deniedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(deniedFields));
+            this.deniedFields = deniedFields == null ? null : Set.copyOf(deniedFields);
         }
 
         /**

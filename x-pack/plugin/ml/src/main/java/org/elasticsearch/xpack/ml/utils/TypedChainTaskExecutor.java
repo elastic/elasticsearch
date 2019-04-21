@@ -63,7 +63,7 @@ public class TypedChainTaskExecutor<T> {
         collectedResponses.add(previousValue);
         if (continuationPredicate.test(previousValue)) {
             if (tasks.isEmpty()) {
-               listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
+               listener.onResponse(List.copyOf(collectedResponses));
                return;
             }
             ChainTask<T> task = tasks.pop();
@@ -83,7 +83,7 @@ public class TypedChainTaskExecutor<T> {
                 }
             });
         } else {
-            listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
+            listener.onResponse(List.copyOf(collectedResponses));
         }
     }
 
@@ -120,6 +120,6 @@ public class TypedChainTaskExecutor<T> {
     }
 
     public synchronized List<T> getCollectedResponses() {
-        return Collections.unmodifiableList(new ArrayList<>(collectedResponses));
+        return List.copyOf(collectedResponses);
     }
 }

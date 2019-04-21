@@ -38,8 +38,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.unmodifiableMap;
-
 public class DocumentMapperParser {
 
     final MapperService mapperService;
@@ -130,7 +128,7 @@ public class DocumentMapperParser {
         if (meta != null) {
             // It may not be required to copy meta here to maintain immutability
             // but the cost is pretty low here.
-            docBuilder.meta(unmodifiableMap(new HashMap<>(meta)));
+            docBuilder.meta(Map.copyOf(meta));
         }
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");

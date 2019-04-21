@@ -714,7 +714,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 aliasesVersion = in.readVLong();
             } else {
-                aliasesVersion = 1;
+                aliasesVersion = 0;
             }
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);

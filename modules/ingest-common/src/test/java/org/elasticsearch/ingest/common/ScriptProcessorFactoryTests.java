@@ -41,7 +41,9 @@ import static org.mockito.Mockito.when;
 public class ScriptProcessorFactoryTests extends ESTestCase {
 
     private ScriptProcessor.Factory factory;
-    private static final Map<String, String> INGEST_SCRIPT_PARAM_TO_TYPE = Map.of("id", "stored", "source", "inline");
+    private static final Map<String, String> INGEST_SCRIPT_PARAM_TO_TYPE = Map.of(
+            "id", "stored",
+            "source", "inline");
 
     @Before
     public void init() {

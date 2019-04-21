@@ -33,7 +33,9 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
     public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-        return Map.of("smb_mmap_fs", SmbMmapFsIndexStore::new, "smb_simple_fs", SmbSimpleFsIndexStore::new);
+        return Map.of(
+                "smb_mmap_fs", SmbMmapFsIndexStore::new,
+                "smb_simple_fs", SmbSimpleFsIndexStore::new);
     }
 
 }

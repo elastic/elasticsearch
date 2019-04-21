@@ -2705,16 +2705,16 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 shards.put(new ShardId(idxName, "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
                 shards.put(new ShardId(idxName, "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
                 return ClusterState.builder(currentState)
-                    .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.of(new Entry(new Snapshot(repositoryName,
-                            createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                            true,
-                            false,
-                            State.ABORTED,
-                            Collections.singletonList(indexId),
-                            System.currentTimeMillis(),
-                            repositoryData.getGenId(),
-                            shards.build()))))
-                    .build();
+                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.of(new Entry(
+                                new Snapshot(repositoryName, createSnapshotResponse.getSnapshotInfo().snapshotId()),
+                                true,
+                                false,
+                                State.ABORTED,
+                                Collections.singletonList(indexId),
+                                System.currentTimeMillis(),
+                                repositoryData.getGenId(),
+                                shards.build()))))
+                        .build();
             }
 
             @Override

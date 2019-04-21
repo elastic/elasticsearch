@@ -71,6 +71,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
+import static java.util.Map.entry;
+
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
  *
@@ -592,111 +594,178 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS;
-
-    static {
-        WRITERS = Map.ofEntries(Map.entry(String.class, (o, v) -> {
-            o.writeByte((byte) 0);
-            o.writeString((String) v);
-        }), Map.entry(Integer.class, (o, v) -> {
-            o.writeByte((byte) 1);
-            o.writeInt((Integer) v);
-        }), Map.entry(Long.class, (o, v) -> {
-            o.writeByte((byte) 2);
-            o.writeLong((Long) v);
-        }), Map.entry(Float.class, (o, v) -> {
-            o.writeByte((byte) 3);
-            o.writeFloat((float) v);
-        }), Map.entry(Double.class, (o, v) -> {
-            o.writeByte((byte) 4);
-            o.writeDouble((double) v);
-        }), Map.entry(Boolean.class, (o, v) -> {
-            o.writeByte((byte) 5);
-            o.writeBoolean((boolean) v);
-        }), Map.entry(byte[].class, (o, v) -> {
-            o.writeByte((byte) 6);
-            final byte[] bytes = (byte[]) v;
-            o.writeVInt(bytes.length);
-            o.writeBytes(bytes);
-        }), Map.entry(List.class, (o, v) -> {
-            o.writeByte((byte) 7);
-            final List list = (List) v;
-            o.writeVInt(list.size());
-            for (Object item : list) {
-                o.writeGenericValue(item);
-            }
-        }), Map.entry(Object[].class, (o, v) -> {
-            o.writeByte((byte) 8);
-            final Object[] list = (Object[]) v;
-            o.writeVInt(list.length);
-            for (Object item : list) {
-                o.writeGenericValue(item);
-            }
-        }), Map.entry(Map.class, (o, v) -> {
-            if (v instanceof LinkedHashMap) {
-                o.writeByte((byte) 9);
-            } else {
-                o.writeByte((byte) 10);
-            }
-            @SuppressWarnings("unchecked") final Map<String, Object> map = (Map<String, Object>) v;
-            o.writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                o.writeString(entry.getKey());
-                o.writeGenericValue(entry.getValue());
-            }
-        }), Map.entry(Byte.class, (o, v) -> {
-            o.writeByte((byte) 11);
-            o.writeByte((Byte) v);
-        }), Map.entry(Date.class, (o, v) -> {
-            o.writeByte((byte) 12);
-            o.writeLong(((Date) v).getTime());
-        }), Map.entry(ReadableInstant.class, (o, v) -> {
-            o.writeByte((byte) 13);
-            final ReadableInstant instant = (ReadableInstant) v;
-            o.writeString(instant.getZone().getID());
-            o.writeLong(instant.getMillis());
-        }), Map.entry(BytesReference.class, (o, v) -> {
-            o.writeByte((byte) 14);
-            o.writeBytesReference((BytesReference) v);
-        }), Map.entry(Text.class, (o, v) -> {
-            o.writeByte((byte) 15);
-            o.writeText((Text) v);
-        }), Map.entry(Short.class, (o, v) -> {
-            o.writeByte((byte) 16);
-            o.writeShort((Short) v);
-        }), Map.entry(int[].class, (o, v) -> {
-            o.writeByte((byte) 17);
-            o.writeIntArray((int[]) v);
-        }), Map.entry(long[].class, (o, v) -> {
-            o.writeByte((byte) 18);
-            o.writeLongArray((long[]) v);
-        }), Map.entry(float[].class, (o, v) -> {
-            o.writeByte((byte) 19);
-            o.writeFloatArray((float[]) v);
-        }), Map.entry(double[].class, (o, v) -> {
-            o.writeByte((byte) 20);
-            o.writeDoubleArray((double[]) v);
-        }), Map.entry(BytesRef.class, (o, v) -> {
-            o.writeByte((byte) 21);
-            o.writeBytesRef((BytesRef) v);
-        }), Map.entry(GeoPoint.class, (o, v) -> {
-            o.writeByte((byte) 22);
-            o.writeGeoPoint((GeoPoint) v);
-        }), Map.entry(ZonedDateTime.class, (o, v) -> {
-            o.writeByte((byte) 23);
-            final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
-            o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-        }), Map.entry(JodaCompatibleZonedDateTime.class, (o, v) -> {
-            // write the joda compatibility datetime as joda datetime
-            o.writeByte((byte) 13);
-            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
-            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-            // joda does not understand "Z" for utc, so we must special case
-            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-        }));
-    }
+    private static final Map<Class<?>, Writer> WRITERS = Map.ofEntries(
+            entry(
+                    String.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 0);
+                        o.writeString((String) v);
+                    }),
+            entry(
+                    Integer.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 1);
+                        o.writeInt((Integer) v);
+                    }),
+            entry(
+                    Long.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 2);
+                        o.writeLong((Long) v);
+                    }),
+            entry(
+                    Float.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 3);
+                        o.writeFloat((float) v);
+                    }),
+            entry(Double.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 4);
+                        o.writeDouble((double) v);
+                    }),
+            entry(
+                    Boolean.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 5);
+                        o.writeBoolean((boolean) v);
+                    }),
+            entry(
+                    byte[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 6);
+                        final byte[] bytes = (byte[]) v;
+                        o.writeVInt(bytes.length);
+                        o.writeBytes(bytes);
+                    }),
+            entry(
+                    List.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 7);
+                        final List list = (List) v;
+                        o.writeVInt(list.size());
+                        for (Object item : list) {
+                            o.writeGenericValue(item);
+                        }
+                    }),
+            entry(
+                    Object[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 8);
+                        final Object[] list = (Object[]) v;
+                        o.writeVInt(list.length);
+                        for (Object item : list) {
+                            o.writeGenericValue(item);
+                        }
+                    }),
+            entry(
+                    Map.class,
+                    (o, v) -> {
+                        if (v instanceof LinkedHashMap) {
+                            o.writeByte((byte) 9);
+                        } else {
+                            o.writeByte((byte) 10);
+                        }
+                        @SuppressWarnings("unchecked") final Map<String, Object> map = (Map<String, Object>) v;
+                        o.writeVInt(map.size());
+                        for (Map.Entry<String, Object> entry : map.entrySet()) {
+                            o.writeString(entry.getKey());
+                            o.writeGenericValue(entry.getValue());
+                        }
+                    }),
+            entry(
+                    Byte.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 11);
+                        o.writeByte((Byte) v);
+                    }),
+            entry(
+                    Date.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 12);
+                        o.writeLong(((Date) v).getTime());
+                    }),
+            entry(
+                    ReadableInstant.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 13);
+                        final ReadableInstant instant = (ReadableInstant) v;
+                        o.writeString(instant.getZone().getID());
+                        o.writeLong(instant.getMillis());
+                    }),
+            entry(
+                    BytesReference.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 14);
+                        o.writeBytesReference((BytesReference) v);
+                    }),
+            entry(
+                    Text.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 15);
+                        o.writeText((Text) v);
+                    }),
+            entry(
+                    Short.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 16);
+                        o.writeShort((Short) v);
+                    }),
+            entry(
+                    int[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 17);
+                        o.writeIntArray((int[]) v);
+                    }),
+            entry(
+                    long[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 18);
+                        o.writeLongArray((long[]) v);
+                    }),
+            entry(
+                    float[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 19);
+                        o.writeFloatArray((float[]) v);
+                    }),
+            entry(
+                    double[].class,
+                    (o, v) -> {
+                        o.writeByte((byte) 20);
+                        o.writeDoubleArray((double[]) v);
+                    }),
+            entry(
+                    BytesRef.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 21);
+                        o.writeBytesRef((BytesRef) v);
+                    }),
+            entry(
+                    GeoPoint.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 22);
+                        o.writeGeoPoint((GeoPoint) v);
+                    }),
+            entry(
+                    ZonedDateTime.class,
+                    (o, v) -> {
+                        o.writeByte((byte) 23);
+                        final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
+                        o.writeString(zonedDateTime.getZone().getId());
+                        o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+                    }),
+            entry(
+                    JodaCompatibleZonedDateTime.class,
+                    (o, v) -> {
+                        // write the joda compatibility datetime as joda datetime
+                        o.writeByte((byte) 13);
+                        final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
+                        String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
+                        // joda does not understand "Z" for utc, so we must special case
+                        o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
+                        o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+                    }));
 
     /**
      * Notice: when serialization a map, the stream out map with the stream in map maybe have the

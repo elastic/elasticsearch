@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Collections;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -214,7 +215,12 @@ public class TransportResizeActionTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-                java.util.Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
+        return new DiscoveryNode(
+                nodeId,
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA),
+                Version.CURRENT);
     }
+
 }

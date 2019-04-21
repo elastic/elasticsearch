@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -50,6 +51,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_A
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -98,17 +100,34 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseIndex() throws Exception {
+        final int numberOfReplicas = randomIntBetween(0, 2);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName);
-
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas).build());
+        ensureGreen(indexName);
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
 
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
-
+        ensureGreen(indexName);
+        for (RecoveryState recoveryState :
+            client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recoveryState.getPrimary() == false) {
+                assertThat(recoveryState.getIndex().fileDetails(), empty());
+            }
+        }
         assertAcked(client().admin().indices().prepareOpen(indexName));
+        ensureGreen(indexName);
+        for (RecoveryState recoveryState :
+            client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recoveryState.getPrimary() == false) {
+                assertThat(recoveryState.getIndex().fileDetails(), empty());
+            }
+        }
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 

@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,12 +33,15 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.TaskId;
@@ -110,8 +114,12 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
             throw new IllegalStateException("Index shard " + shardId + " must be blocked by " + request.clusterBlock() + " before closing");
         }
         indexShard.verifyShardBeforeIndexClosing();
-        indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
-        logger.trace("{} shard is ready for closing", shardId);
+        final Engine.CommitId commitId = indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+        // don't issue synced flush for recovering copies.
+        if (indexShard.state() == IndexShardState.STARTED && Strings.hasText(request.syncId)) {
+            indexShard.syncFlush(request.syncId, commitId);
+        }
+        logger.trace("{} shard is ready for closing with sync_id [{}]", shardId, request.syncId);
     }
 
     @Override
@@ -135,21 +143,28 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
     public static class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
+        private final String syncId;
 
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                syncId = in.readString();
+            } else {
+                syncId = "";
+            }
         }
 
-        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
+        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final String syncId, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);
+            this.syncId = Objects.requireNonNull(syncId);
             setParentTask(parentTaskId);
         }
 
         @Override
         public String toString() {
-            return "verify shard " + shardId + " before close with block " + clusterBlock;
+            return "verify shard " + shardId + " before close with block " + clusterBlock + " sync_id " + syncId;
         }
 
         @Override
@@ -161,6 +176,9 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeString(syncId);
+            }
         }
 
         public ClusterBlock clusterBlock() {

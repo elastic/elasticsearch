@@ -384,8 +384,9 @@ public class MetaDataIndexStateService {
                 return;
             }
             final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), request.taskId());
+            final String syncId = UUIDs.randomBase64UUID();
             final TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest =
-                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, parentTaskId);
+                new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, closingBlock, syncId, parentTaskId);
             if (request.ackTimeout() != null) {
                 shardRequest.timeout(request.ackTimeout());
             }

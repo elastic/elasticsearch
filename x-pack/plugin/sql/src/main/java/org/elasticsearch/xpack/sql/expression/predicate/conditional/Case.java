@@ -102,7 +102,7 @@ public class Case extends ConditionalFunction {
             }
         }
 
-        if (DataTypes.areTypesCompatible(dataType, defaultElse.dataType()) == false) {
+        if (DataTypes.areTypesCompatible(expectedResultDataType, defaultElse.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
                 defaultElse.sourceText(),
                 expectedResultDataType.typeName,
@@ -120,15 +120,12 @@ public class Case extends ConditionalFunction {
     @Override
     public boolean foldable() {
         return (conditions.isEmpty() && defaultElse.foldable()) ||
-            (conditions.isEmpty() == false && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
+            (conditions.size() == 1 && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
     }
 
     @Override
     public Object fold() {
-        if (conditions.isEmpty()) {
-            return defaultElse.fold();
-        }
-        if (conditions.get(0).condition().fold() == Boolean.TRUE) {
+        if (conditions.isEmpty() == false && conditions.get(0).condition().fold() == Boolean.TRUE) {
             return conditions.get(0).result().fold();
         }
         return defaultElse.fold();

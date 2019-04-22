@@ -37,3 +37,10 @@ SELECT COALESCE(null, null, null) AS c;
 c
 null
 ;
+
+coalesceMixed
+SELECT COALESCE(null, 123, null, 321);
+
+COALESCE(null, 123, null, 321):i
+123
+;

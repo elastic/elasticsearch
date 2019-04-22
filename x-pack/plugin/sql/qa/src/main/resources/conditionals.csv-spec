@@ -16,6 +16,23 @@ ORDER BY emp_no LIMIT 10;
 10014   | Second 10
 ;
 
+caseFieldWithoutAlias
+SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN emp_no ELSE emp_no % 10 END FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | CASE WHEN emp_no - 10000 < 10 THEN emp_no ELSE emp_no % 10 END
+--------+----------------------------------------------------------------
+10005   | 10005
+10006   | 10006
+10007   | 10007
+10008   | 10008
+10009   | 10009
+10010   | 0
+10011   | 1
+10012   | 2
+10013   | 3
+10014   | 4
+
 caseFieldNoElse
 SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005
 ORDER BY emp_no LIMIT 10;

@@ -28,18 +28,14 @@ import java.io.IOException;
 public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
 
-    private final EnrichStore enrichStore;
-
     @Inject
     public TransportGetEnrichPolicyAction(TransportService transportService,
                                                ClusterService clusterService,
                                                ThreadPool threadPool,
                                                ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               EnrichStore enrichStore) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetEnrichPolicyAction.Request::new, indexNameExpressionResolver);
-        this.enrichStore = enrichStore;
     }
 
     @Override
@@ -61,19 +57,8 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     protected void masterOperation(GetEnrichPolicyAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
-        final EnrichPolicy policy = getPolicy(request.getName(), enrichStore);
+        final EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
         listener.onResponse(new GetEnrichPolicyAction.Response(policy));
-    }
-
-    static EnrichPolicy getPolicy(String name, EnrichStore store) {
-        if (Strings.isNullOrEmpty(name)) {
-            throw new ResourceNotFoundException("name is missing");
-        }
-        var policy = store.getPolicy(name);
-        if (policy == null) {
-            throw new ResourceNotFoundException("policy [{}] is missing", name);
-        }
-        return policy;
     }
 
     @Override

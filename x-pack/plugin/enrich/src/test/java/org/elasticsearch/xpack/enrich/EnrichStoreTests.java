@@ -32,7 +32,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         latch.await();
         assertThat(error.get(), nullValue());
 
-        EnrichPolicy result = enrichStore.getPolicy("my-policy");
+        EnrichPolicy result = enrichStore.getPolicy("my-policy", getInstanceFromNode(ClusterService.class).state());
         assertThat(result, equalTo(policy));
     }
 

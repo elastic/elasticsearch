@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.HashMap;
@@ -37,7 +38,10 @@ public class EnrichStore {
     public void putPolicy(String name, EnrichPolicy policy, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
-        // TODO: add validation
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        // TODO: add policy validation
 
         final Map<String, EnrichPolicy> policies;
         final EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
@@ -76,10 +80,15 @@ public class EnrichStore {
      * Gets an enrich policy for the provided name if exists or otherwise returns <code>null</code>.
      *
      * @param name  The name of the policy to fetch
+     * @param state The cluster state that contains the policy
      * @return enrich policy if exists or <code>null</code> otherwise
      */
-    public EnrichPolicy getPolicy(String name) {
-        EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
+    public static final EnrichPolicy getPolicy(String name, ClusterState state) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+
+        EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata == null) {
             return null;
         }

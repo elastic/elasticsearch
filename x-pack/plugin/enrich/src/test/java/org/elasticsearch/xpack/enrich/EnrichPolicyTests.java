@@ -81,7 +81,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         assertEqualPolicies(expectedInstance, newInstance);
     }
 
-    static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
+    public static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
         assertThat(newInstance.getType(), equalTo(expectedInstance.getType()));
         if (newInstance.getQuery() != null) {
             // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:

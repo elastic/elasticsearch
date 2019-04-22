@@ -111,6 +111,10 @@ public class GetEnrichPolicyAction extends Action<GetEnrichPolicyAction.Response
             return builder;
         }
 
+        public EnrichPolicy getPolicy() {
+            return policy;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

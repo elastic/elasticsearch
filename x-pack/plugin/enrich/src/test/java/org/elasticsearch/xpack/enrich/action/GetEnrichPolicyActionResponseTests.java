@@ -6,22 +6,40 @@
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 
-public class GetEnrichPolicyActionResponseTests extends AbstractWireSerializingTestCase<GetEnrichPolicyAction.Response> {
+public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<GetEnrichPolicyAction.Response> {
+    @Override
+    protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
+        EnrichPolicy policy = EnrichPolicy.fromXContent(parser);
+        return new GetEnrichPolicyAction.Response(policy);
+    }
+
     @Override
     protected GetEnrichPolicyAction.Response createTestInstance() {
-        final EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
         return new GetEnrichPolicyAction.Response(policy);
     }
 
     @Override
     protected Writeable.Reader<GetEnrichPolicyAction.Response> instanceReader() {
         return GetEnrichPolicyAction.Response::new;
+    }
+
+    @Override
+    protected void assertEqualInstances(GetEnrichPolicyAction.Response expectedInstance, GetEnrichPolicyAction.Response newInstance) {
+        assertNotSame(expectedInstance, newInstance);
+        // the tests shuffle around the policy query source xcontent type, so this is needed here
+        assertEqualPolicies(expectedInstance.getPolicy(), newInstance.getPolicy());
     }
 }

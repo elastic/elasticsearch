@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.If;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
@@ -683,6 +684,28 @@ public class OptimizerTests extends ESTestCase {
         assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[=1,=1]#"));
         assertTrue(c.foldable());
         assertEquals("foo2", c.fold());
+    }
+
+    public void testSimplifyIf_ConditionTrue() {
+        SimplifyCase rule = new SimplifyCase();
+        If iif = new If(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Expression e = rule.rule(iif);
+        assertEquals(If.class, e.getClass());
+        iif = (If) e;
+        assertEquals(1, iif.conditions().size());
+        assertTrue(iif.foldable());
+        assertEquals("foo", iif.fold());
+    }
+
+    public void testSimplifyIf_ConditionFalse() {
+        SimplifyCase rule = new SimplifyCase();
+        If iif = new If(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Expression e = rule.rule(iif);
+        assertEquals(If.class, e.getClass());
+        iif = (If) e;
+        assertEquals(0, iif.conditions().size());
+        assertTrue(iif.foldable());
+        assertEquals("bar", iif.fold());
     }
 
     //

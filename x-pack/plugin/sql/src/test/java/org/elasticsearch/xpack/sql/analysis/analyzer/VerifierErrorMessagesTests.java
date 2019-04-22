@@ -618,6 +618,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT CASE WHEN int > 20 THEN null WHEN int > 10 THEN null WHEN int > 5 THEN 'foo' ELSE date END FROM test"));
     }
 
+    public void testIfWithNonBooleanConditionExpression() {
+        assertEquals("1:8: first argument of [IF(int, 'one', 'zero')] must be [boolean], found value [int] type [integer]",
+            error("SELECT IF(int, 'one', 'zero') FROM test"));
+    }
+
+    public void testIfWithDifferentResultAndDefaultValueDataTypes() {
+        assertEquals("1:8: third argument of [IF(int > 20, 'foo', date)] must be [keyword], found value [date] type [datetime]",
+            error("SELECT IF(int > 20, 'foo', date) FROM test"));
+    }
+
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
                 error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));

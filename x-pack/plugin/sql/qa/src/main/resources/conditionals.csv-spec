@@ -179,3 +179,133 @@ count     |    gender   |   languages
 11        | M           | 3
 11        | M           | 4
 ;
+
+
+ifField
+SELECT emp_no, IF(emp_no - 10000 < 10, 'First 10', 'Second 10') as "if_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | if_result
+--------+-----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | Second 10
+10011   | Second 10
+10012   | Second 10
+10013   | Second 10
+10014   | Second 10
+;
+
+ifFieldWithoutAlias
+SELECT emp_no, IF(emp_no - 10000 < 10, emp_no, emp_no % 10) FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | IF(emp_no - 10000 < 10, emp_no, emp_no % 10)
+--------+----------------------------------------------
+10005   | 10005
+10006   | 10006
+10007   | 10007
+10008   | 10008
+10009   | 10009
+10010   | 0
+10011   | 1
+10012   | 2
+10013   | 3
+10014   | 4
+;
+
+ifFieldNoElse
+SELECT emp_no, IIF(emp_no - 10000 < 10, 'First 10') as "iif_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | iif_result
+--------+----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | null
+10011   | null
+10012   | null
+10013   | null
+10014   | null
+;
+
+ifWhere
+SELECT last_name FROM test_emp WHERE IF(LENGTH(last_name) < 7, 'ShortName') IS NOT NULL ORDER BY emp_no LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+ifOrderBy
+SELECT last_name FROM test_emp ORDER BY IF(languages >= 3, 'first', 'second'), emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Bamford
+Koblick
+Preusig
+Zielinski
+Piveteau
+Sluis
+Bridgland
+Genin
+Nooteboom
+;
+
+ifGroupBy
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, IF(NVL(languages, 0) <= 1 , 'zero-to-one', 'multilingual') as lang_skills FROM test_emp
+GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+75             |multilingual
+25             |zero-to-one
+;
+
+ifGroupByComplexNested
+schema::count:l|lang_skills:s
+SELECT count(*) AS count,
+IF(NVL(languages, 0) = 0, 'zero',
+  IF(languages = 1, 'one',
+    IF(languages = 2, 'bilingual',
+      IF(languages = 3, 'trilingual', 'multilingual')))) as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+19             |bilingual
+39             |multilingual
+15             |one
+17             |trilingual
+10             |zero
+;
+
+ifGroupByAndHaving
+schema::count:l|gender:s|languages:byte
+SELECT count(*) AS count, gender, languages FROM test_emp
+GROUP BY 2, 3 HAVING IF(count(*) > 10, 'many', 'a few') = 'many'
+ORDER BY 2, 3;
+
+     count     |    gender     |   languages
+---------------+---------------+---------------
+11             |M              |2
+11             |M              |3
+11             |M              |4
+;

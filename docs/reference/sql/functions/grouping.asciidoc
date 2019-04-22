@@ -12,8 +12,13 @@ as part of the <<sql-syntax-group-by, grouping>>.
 .Synopsis:
 [source, sql]
 ----
-HISTOGRAM(numeric_exp<1>, numeric_interval<2>)
-HISTOGRAM(date_exp<3>, date_time_interval<4>)
+HISTOGRAM(
+    numeric_exp,        <1>
+    numeric_interval)   <2>
+
+HISTOGRAM(
+    date_exp,           <3>
+    date_time_interval) <4>
 ----
 
 *Input*:

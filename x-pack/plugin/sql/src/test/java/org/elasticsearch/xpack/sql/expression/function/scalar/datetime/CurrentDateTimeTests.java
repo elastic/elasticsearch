@@ -6,11 +6,21 @@
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.parser.ParsingException;
+import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.tree.AbstractNodeTestCase;
+import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -22,7 +32,7 @@ import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, Expression> {
 
     public static CurrentDateTime randomCurrentDateTime() {
-        return new CurrentDateTime(EMPTY, Literal.of(EMPTY, randomInt(10)), TestUtils.randomConfiguration());
+        return new CurrentDateTime(EMPTY, Literal.of(EMPTY, randomInt(9)), TestUtils.randomConfiguration());
     }
 
     @Override
@@ -39,8 +49,8 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
     protected CurrentDateTime mutate(CurrentDateTime instance) {
         ZonedDateTime now = instance.configuration().now();
         ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-                () -> randomZone());
-        return new CurrentDateTime(instance.source(), Literal.of(EMPTY, randomInt(10)), TestUtils.randomConfiguration(mutatedZoneId));
+            ESTestCase::randomZone);
+        return new CurrentDateTime(instance.source(), Literal.of(EMPTY, randomInt(9)), TestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override
@@ -74,5 +84,20 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
         
         ZonedDateTime zdt = ZonedDateTime.parse("2019-02-26T12:34:56.123456789Z");
         assertEquals(123_000_000, CurrentDateTime.nanoPrecision(zdt, null).getNano());
+    }
+
+    public void testInvalidPrecision() {
+        SqlParser parser = new SqlParser();
+        IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
+            TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+
+        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), indexResolution, new Verifier(new Metrics()));
+        ParsingException e = expectThrows(ParsingException.class, () ->
+            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100000000000000)"), true));
+        assertEquals("line 1:27: invalid precision; [100000000000000] out of [integer] range", e.getMessage());
+
+        e = expectThrows(ParsingException.class, () ->
+            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100)"), true));
+        assertEquals("line 1:27: precision needs to be between [0-9], received [100]", e.getMessage());
     }
 }

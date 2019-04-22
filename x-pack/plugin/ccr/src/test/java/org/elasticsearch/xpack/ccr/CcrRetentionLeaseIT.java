@@ -266,6 +266,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39331")
     public void testRetentionLeasesAreNotBeingRenewedAfterRecoveryCompletes() throws Exception {
         final String leaderIndex = "leader";
         final int numberOfShards = randomIntBetween(1, 3);

@@ -320,7 +320,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * are closed and all shard {@link CacheHelper#addClosedListener(org.apache.lucene.index.IndexReader.ClosedListener) closed
      * listeners} have run. However some {@link IndexEventListener#onStoreClosed(ShardId) shard closed listeners} might not have
      * run.
-     * @returns true if all shards closed within the given timeout, false otherwise
+     * @return true if all shards closed within the given timeout, false otherwise
      * @throws InterruptedException if the current thread got interrupted while waiting for shards to close
      */
     public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {

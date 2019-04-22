@@ -55,7 +55,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -107,7 +106,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         return new Response();
     }
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContent {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");

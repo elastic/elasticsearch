@@ -91,8 +91,8 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
                 .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/41076")
     public void testGetBehind() {
+        String baseIndexName = randomAlphaOfLength(8);
         String id = randomAlphaOfLengthBetween(1, 10);
         long timestamp = randomNonNegativeLong();
 
@@ -112,7 +112,7 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
                 checkpoints2.add(shardCheckpoint + 10);
             }
 
-            String indexName = randomAlphaOfLengthBetween(1, 10);
+            String indexName = baseIndexName + i;
 
             checkpointsByIndexOld.put(indexName, checkpoints1.stream().mapToLong(l -> l).toArray());
             checkpointsByIndexNew.put(indexName, checkpoints2.stream().mapToLong(l -> l).toArray());

@@ -26,6 +26,7 @@ import org.apache.commons.io.IOUtils
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
@@ -92,6 +93,9 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        // make sure the global build info plugin is applied to the root project
+        project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
+
         if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
               throw new InvalidUserDataException('elasticsearch.standalone-test, '
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '

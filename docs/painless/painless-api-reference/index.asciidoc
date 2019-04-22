@@ -1,32 +1,32 @@
 [cols="<3,^3,^3"]
 |====
-|Aggregation Selector | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggregation-selector>> 
-|Aggs | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggs>> 
-|Aggs Combine | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggs-combine>> 
-|Aggs Init | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggs-init>> 
-|Aggs Map | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggs-map>> 
-|Aggs Reduce | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-aggs-reduce>> 
-|Analysis | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-analysis>> 
-|Bucket Aggregation | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-bucket-aggregation>> 
-|Field | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-field>> 
-|Filter | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-filter>> 
-|Ingest | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-ingest>> 
-|Interval | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-interval>> 
-|Moving Function | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-moving-function>> 
-|Number Sort | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-number-sort>> 
-|Painless Test | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-painless-test>> 
-|Processor Conditional | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-processor-conditional>> 
-|Score | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-score>> 
-|Script Heuristic | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-script-heuristic>> 
-|Similarity | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-similarity>> 
-|Similarity Weight | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-similarity-weight>> 
-|String Sort | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-string-sort>> 
-|Template | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-template>> 
-|Terms Set | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-terms-set>> 
-|Update | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-update>> 
-|Watcher Condition | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-watcher-condition>> 
-|Watcher Transform | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-watcher-transform>> 
-|Xpack Template | <<Shared API, painless-api-reference-shared>> | << Specialized API, painless-api-reference-xpack-template>> 
+|Aggregation Selector | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggregation-selector, Specialized API>>
+|Aggs | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs, Specialized API>>
+|Aggs Combine | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-combine, Specialized API>>
+|Aggs Init | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-init, Specialized API>>
+|Aggs Map | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-map, Specialized API>>
+|Aggs Reduce | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs-reduce, Specialized API>>
+|Analysis | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-analysis, Specialized API>>
+|Bucket Aggregation | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-bucket-aggregation, Specialized API>>
+|Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-field, Specialized API>>
+|Filter | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-filter, Specialized API>>
+|Ingest | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ingest, Specialized API>>
+|Interval | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-interval, Specialized API>>
+|Moving Function | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-moving-function, Specialized API>>
+|Number Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-number-sort, Specialized API>>
+|Painless Test | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-painless-test, Specialized API>>
+|Processor Conditional | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-processor-conditional, Specialized API>>
+|Score | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-score, Specialized API>>
+|Script Heuristic | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-script-heuristic, Specialized API>>
+|Similarity | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity, Specialized API>>
+|Similarity Weight | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-similarity-weight, Specialized API>>
+|String Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-string-sort, Specialized API>>
+|Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-template, Specialized API>>
+|Terms Set | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-terms-set, Specialized API>>
+|Update | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-update, Specialized API>>
+|Watcher Condition | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-condition, Specialized API>>
+|Watcher Transform | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-watcher-transform, Specialized API>>
+|Xpack Template | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-xpack-template, Specialized API>>
 |====
 
 include::painless-api-reference-shared/index.asciidoc[]

@@ -54,11 +54,13 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
     private final List<String> configuredHosts;
     private final int limitPortCounts;
 
+
     public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
         if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_SEED_HOSTS_SETTING.get(settings);
             // we only limit to 1 address, makes no sense to ping 100 ports
             limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
+            checkInvalidPorts(configuredHosts);
         } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
             configuredHosts = transportService.getLocalAddresses();
@@ -66,6 +68,15 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
         }
 
         logger.debug("using initial hosts {}", configuredHosts);
+    }
+
+    public void checkInvalidPorts(List<String> configuredHosts) {
+        for (String host : configuredHosts) {
+            if (host.contains("-")) {
+                throw new IllegalArgumentException("Configuration Setting discovery.seed_hosts does not support a range of ports, [" +
+                                                    host + "] was found in provided seed hosts");
+            }
+        }
     }
 
     @Override

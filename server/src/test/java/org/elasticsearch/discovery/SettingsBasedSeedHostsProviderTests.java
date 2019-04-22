@@ -74,4 +74,28 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
             .build(), null).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }
+
+    public void testExceptionOnPortRange() {
+        boolean exceptionThrown = false;
+        try {
+            new SettingsBasedSeedHostsProvider(Settings.builder()
+                .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost:9200-9300")
+                .build(), null);
+        } catch (IllegalArgumentException e) {
+            exceptionThrown = true;
+        }
+        assertTrue(exceptionThrown);
+    }
+
+    public void testSeedWithoutPortRange() {
+        boolean exceptionThrown = false;
+        try {
+            new SettingsBasedSeedHostsProvider(Settings.builder()
+                .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost:9200")
+                .build(), null);
+        } catch (Exception e) {
+            exceptionThrown = true;
+        }
+        assertFalse(exceptionThrown);
+    }
 }

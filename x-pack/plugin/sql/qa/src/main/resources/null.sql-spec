@@ -12,6 +12,9 @@ coalesceWithFirstNullOfNumber
 SELECT COALESCE(null, 123) AS c;
 
 coalesceMixed
+SELECT COALESCE(null, 123, null, 321);
+
+coalesceMixedWithAlias
 SELECT COALESCE(null, 123, null, 321) AS c;
 
 coalesceScalar

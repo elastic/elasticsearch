@@ -101,8 +101,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testMinimumIndexCompatibilityVersion() {
-        assertEquals(Version.fromId(5000099), Version.V_6_0_0_beta1.minimumIndexCompatibilityVersion());
-        assertEquals(Version.fromId(2000099), Version.fromId(5000099).minimumIndexCompatibilityVersion());
+        assertEquals(Version.fromId(5000099), Version.fromId(6000099).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
                 Version.fromId(5010000).minimumIndexCompatibilityVersion());
         assertEquals(Version.fromId(2000099),
@@ -161,7 +160,7 @@ public class VersionTests extends ESTestCase {
 
     public void testIndexCreatedVersion() {
         // an actual index has a IndexMetaData.SETTING_INDEX_UUID
-        final Version version = Version.V_6_0_0_beta1;
+        final Version version = VersionUtils.randomVersion(random());
         assertEquals(version, Version.indexCreated(
             Settings.builder()
                 .put(IndexMetaData.SETTING_INDEX_UUID, "foo")

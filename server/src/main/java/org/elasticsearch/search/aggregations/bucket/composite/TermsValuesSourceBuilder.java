@@ -83,7 +83,9 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
         ValuesSource vs = config.toValuesSource(context.getQueryShardContext());
         if (vs == null) {
-            vs = ValuesSource.Numeric.EMPTY;
+            // The field is unmapped so we use a value source that can parse any type of values.
+            // This is needed because the after values are parsed even when there are no values to process.
+            vs = ValuesSource.Bytes.WithOrdinals.EMPTY;
         }
         final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
         final DocValueFormat format;

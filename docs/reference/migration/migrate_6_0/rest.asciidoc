@@ -101,7 +101,7 @@ $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 }
 * Curl_http_done: called premature == 0
 * Connection #0 to host localhost left intact
---------------------------------------------
+-------------------------------------------
 
 ==== Disallow using `_cache` and `_cache_key`
 

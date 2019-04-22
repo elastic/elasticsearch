@@ -166,10 +166,6 @@ setup:
 
 ---
 "Test with rest_total_hits_as_int":
-  - skip:
-      version: " - 6.99.99"
-      reason: hits.total is returned as an object in 7.0.0
-
   - do:
       put_script:
         id: stored_template_1

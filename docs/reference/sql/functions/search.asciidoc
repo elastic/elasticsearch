@@ -14,7 +14,10 @@ such as `0` or `NULL`.
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MATCH(field_exp<1>, constant_exp<2>[, options]<3>)
+MATCH(
+    field_exp,   <1>
+    constant_exp <2>
+    [, options]) <3>
 --------------------------------------------------
 
 *Input*:
@@ -75,7 +78,9 @@ NOTE: The allowed optional parameters for a multi-field `MATCH()` variant (for t
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-QUERY(constant_exp<1>[, options]<2>)
+QUERY(
+    constant_exp <1>
+    [, options]) <2>
 --------------------------------------------------
 
 *Input*:

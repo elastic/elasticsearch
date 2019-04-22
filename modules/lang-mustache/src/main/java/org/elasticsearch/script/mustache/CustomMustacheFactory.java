@@ -30,6 +30,7 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
+import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -86,11 +87,11 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     }
 
     static Encoder createEncoder(String mimeType) {
-        Supplier<Encoder> supplier = ENCODERS.get(mimeType);
+        final Supplier<Encoder> supplier = ENCODERS.get(mimeType);
         if (supplier == null) {
             throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
         }
-        return supplier.get();
+        return ENCODERS.get(mimeType).get();
     }
 
     @Override

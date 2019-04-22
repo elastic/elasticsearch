@@ -85,7 +85,7 @@ public final class EnrichStore {
         return getPolicies(state).get(name);
     }
 
-    private static final Map<String, EnrichPolicy> getPolicies(ClusterState state) {
+    private static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
         final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
@@ -97,7 +97,7 @@ public final class EnrichStore {
         return policies;
     }
 
-    private static final void updateClusterState(Map<String, EnrichPolicy> policies, ClusterService clusterService,
+    private static void updateClusterState(Map<String, EnrichPolicy> policies, ClusterService clusterService,
                                                  Consumer<Exception> handler) {
         clusterService.submitStateUpdateTask("update-enrich-policy", new ClusterStateUpdateTask() {
 

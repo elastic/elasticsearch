@@ -60,6 +60,7 @@ import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
@@ -529,16 +530,17 @@ class BuildPlugin implements Plugin<Project> {
                 assemble.dependsOn(generatePOMTask)
             }
         }
-        project.pluginManager.withPlugin('maven-publishing') {
+        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             publishing.publications.all { MavenPublication publication -> // we only deal with maven
                 // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                 publication.pom.withXml(fixupDependencies(project))
             }
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                publishing.publications.create('nebula', MavenPublication, { MavenPublication publication ->
-                    publication.artifacts = [ project.tasks.getByName('shadowJar') ]
-                } as Action<MavenPublication>)
+                MavenPublication publication = publishing.publications.maybeCreate('nebula', MavenPublication)
+                publication.with {
+                    artifacts = [ project.tasks.getByName('shadowJar') ]
+                }
             }
         }
     }

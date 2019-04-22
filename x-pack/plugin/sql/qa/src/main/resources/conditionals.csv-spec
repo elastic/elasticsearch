@@ -32,6 +32,7 @@ ORDER BY emp_no LIMIT 10;
 10012   | 2
 10013   | 3
 10014   | 4
+;
 
 caseFieldNoElse
 SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' END as "case" FROM test_emp WHERE emp_no >= 10005

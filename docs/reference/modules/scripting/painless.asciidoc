@@ -219,9 +219,7 @@ GET hockey/_search
 The key here is that instead of indexing directly into `doc.born` like you would
 a normal field you have to call `doc.born.date` to get a
 <<painless-api-reference-org-joda-time-ReadableDateTime, `ReadableDateTime`>>.
-From there you can call methods like
-<<painless-api-reference-org-joda-time-ReadableDateTime-getYear-0, `getYear`>>,
-and <<painless-api-reference-org-joda-time-ReadableDateTime-getDayOfWeek-0, `getDayOfWeek`>>.
+From there you can call methods like `getYear` and `getDayOfWeek`.
 In the example above `year` is a shortcut to `getYear()`.
 
 If the date field is a list then `date` will always return the first date. To
@@ -373,8 +371,7 @@ Java, leading to some trouble when it whitelists classes from the Java
 standard library. For example, in Java and Groovy, `Matcher` has two methods:
 `group(int)` and `group(String)`. Painless can't whitelist both of them methods
 because they have the same name and the same number of parameters. So instead it
-has <<painless-api-reference-Matcher-group-1, `group(int)`>> and
-<<painless-api-reference-Matcher-namedGroup-1, `namedGroup(String)`>>.
+has `group(int)` and `namedGroup(String)`.
 
 We have a few justifications for this different way of dispatching methods:
 

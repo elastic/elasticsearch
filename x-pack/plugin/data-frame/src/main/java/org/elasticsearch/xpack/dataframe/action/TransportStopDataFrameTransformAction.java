@@ -13,20 +13,27 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.ExceptionsHelper.convertToElastic;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -52,17 +59,28 @@ public class TransportStopDataFrameTransformAction extends
     @Override
     protected void doExecute(Task task, StopDataFrameTransformAction.Request request,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
-        // Need to verify that the config actually exists
-        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), ActionListener.wrap(
-            config -> super.doExecute(task, request, listener),
-            listener::onFailure
+
+        dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
+                expandedIds -> {
+                    request.setExpandedIds(new HashSet<>(expandedIds));
+                    request.setNodes(dataframeNodes(expandedIds, clusterService.state()));
+                    super.doExecute(task, request, listener);
+                },
+                listener::onFailure
         ));
     }
 
     @Override
     protected void taskOperation(StopDataFrameTransformAction.Request request, DataFrameTransformTask transformTask,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
-        if (transformTask.getTransformId().equals(request.getId())) {
+
+        Set<String> ids = request.getExpandedIds();
+        if (ids == null) {
+            listener.onFailure(new IllegalStateException("Request does not have expandedIds set"));
+            return;
+        }
+
+        if (ids.contains(transformTask.getTransformId())) {
             if (transformTask.getState().getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
                 listener.onFailure(
                     new ElasticsearchStatusException("Unable to stop data frame transform [" + request.getId()
@@ -138,9 +156,28 @@ public class TransportStopDataFrameTransformAction extends
             }
         }
 
-        assert tasks.size() == 1;
-
         boolean allStopped = tasks.stream().allMatch(StopDataFrameTransformAction.Response::isStopped);
         return new StopDataFrameTransformAction.Response(allStopped);
+    }
+
+     static String[] dataframeNodes(List<String> dataFrameIds, ClusterState clusterState) {
+
+        Set<String> executorNodes = new HashSet<>();
+
+        PersistentTasksCustomMetaData tasksMetaData =
+                PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterState);
+
+        if (tasksMetaData != null) {
+            Set<String> dataFrameIdsSet = new HashSet<>(dataFrameIds);
+
+            Collection<PersistentTasksCustomMetaData.PersistentTask<?>> tasks =
+                tasksMetaData.findTasks(DataFrameField.TASK_NAME, t -> dataFrameIdsSet.contains(t.getId()));
+
+            for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks) {
+                executorNodes.add(task.getExecutorNode());
+            }
+        }
+
+        return executorNodes.toArray(new String[0]);
     }
 }

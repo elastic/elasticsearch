@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
@@ -73,11 +74,13 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
     private WatcherIndexTemplateRegistry registry;
     private NamedXContentRegistry xContentRegistry;
+    private ClusterService clusterService;
+    private ThreadPool threadPool;
     private Client client;
 
     @Before
     public void createRegistryAndClient() {
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
 
@@ -94,14 +97,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             return null;
         }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
 
-        ClusterService clusterService = mock(ClusterService.class);
+        clusterService = mock(ClusterService.class);
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(Arrays.asList(
             new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
                 (p) -> TimeseriesLifecycleType.INSTANCE),
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new WatcherIndexTemplateRegistry(clusterService, threadPool, client, xContentRegistry);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
@@ -130,9 +133,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Settings.builder()
+        registry = new WatcherIndexTemplateRegistry(Settings.builder()
             .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
-            Collections.emptyList(), Collections.emptyMap(), nodes);
+            clusterService, threadPool, client, xContentRegistry);
+        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyList(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         ArgumentCaptor<PutIndexTemplateRequest> argumentCaptor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
         verify(client.admin().indices(), times(3)).putTemplate(argumentCaptor.capture(), anyObject());
@@ -142,8 +146,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME), nodes);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client.admin().indices(), times(4)).putTemplate(captor.capture(), anyObject());
+        verify(client.admin().indices(), times(5)).putTemplate(captor.capture(), anyObject());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
@@ -160,7 +165,11 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        LifecyclePolicy policy = registry.loadWatcherHistoryPolicy();
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyList(), policyMap, nodes);
         registry.clusterChanged(event);
@@ -171,20 +180,25 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Settings.builder()
-                .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
-            Collections.emptyList(), Collections.emptyMap(), nodes); 
+        registry = new WatcherIndexTemplateRegistry(Settings.builder()
+            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            clusterService, threadPool, client, xContentRegistry);
+        ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyList(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
         verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
     }
 
-    public void testPolicyAlreadyExistsButDiffers() throws IOException  {
+    public void testPolicyAlreadyExistsButDiffers() throws IOException {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        LifecyclePolicy policy = registry.loadWatcherHistoryPolicy();
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+            .map(policyConfig -> policyConfig.load(xContentRegistry))
+            .collect(Collectors.toList());
+        assertThat(policies, hasSize(1));
+        LifecyclePolicy policy = policies.get(0);
         try (XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());

@@ -34,7 +34,8 @@ public class DeprecationChecks {
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
-            ClusterDeprecationChecks::checkTemplatesWithTooManyFields
+            ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
+            ClusterDeprecationChecks::checkPollIntervalTooLow
         ));
 
 

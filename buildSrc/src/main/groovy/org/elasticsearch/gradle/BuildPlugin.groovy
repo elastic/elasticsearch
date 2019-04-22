@@ -284,7 +284,7 @@ class BuildPlugin implements Plugin<Project> {
         } else if (ext.has('requiredJavaVersions') == false || ext.get('requiredJavaVersions') == null) {
             // check directly if the version is present since we are already executing
             List<JavaHome> javaVersions = ext.get('javaVersions') as List<JavaHome>
-            if (javaVersions.get(version) == null) {
+            if (javaVersions.find { it.version == version } == null) {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {

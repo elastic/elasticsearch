@@ -69,7 +69,7 @@ For more information, see
 [[oidc-enable-token]]
 ==== Enable the token service
 
-The {es} SAML implementation makes use of the {es} Token Service.  This service
+The {es} OpenID Connect implementation makes use of the {es} Token Service.  This service
 is automatically enabled if you configure TLS on the HTTP interface, and can be
 explicitly configured by including the following in your `elasticsearch.yml` file:
 

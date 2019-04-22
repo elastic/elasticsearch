@@ -110,7 +110,7 @@ of the initial search request:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/twitter/tweet/_search?scroll=1m&search_type=scan' <1> -d '
+curl 'localhost:9200/twitter/tweet/_search?scroll=1m&search_type=scan' -d ' <1>
 {
     "query": {
         "match" : {

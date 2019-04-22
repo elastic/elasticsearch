@@ -111,8 +111,7 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     protected T read(BytesReference bytes) throws IOException {
         try (XContentParser parser = XContentHelper
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
-            T obj = reader.apply(parser);
-            return obj;
+            return reader.apply(parser);
         }
     }
 

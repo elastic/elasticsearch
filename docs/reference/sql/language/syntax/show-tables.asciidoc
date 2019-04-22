@@ -6,7 +6,7 @@
 .Synopsis
 [source, sql]
 ----
-SHOW TABLES [ LIKE? pattern<1>? ]?
+SHOW TABLES [ LIKE? pattern? ]? <1>
 ----
 
 <1> SQL match pattern

@@ -598,6 +598,26 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT 1 = 1 OR " + arbirtraryArgsFunction + "(null, 3, '4') > 1"));
     }
 
+    public void testCaseWithNonBooleanConditionExpression() {
+        assertEquals("1:8: condition of [WHEN abs(int) THEN 'foo'] must be [boolean], found value [abs(int)] type [integer]",
+            error("SELECT CASE WHEN int = 1 THEN 'one' WHEN abs(int) THEN 'foo' END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultDataTypes() {
+        assertEquals("1:8: result of [WHEN int > 10 THEN 10] must be [keyword], found value [10] type [integer]",
+            error("SELECT CASE WHEN int > 20 THEN 'foo' WHEN int > 10 THEN 10 ELSE 'bar' END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultAndDefaultValueDataTypes() {
+        assertEquals("1:8: ELSE clause of [date] must be [keyword], found value [date] type [datetime]",
+            error("SELECT CASE WHEN int > 20 THEN 'foo' ELSE date END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultAndDefaultValueDataTypesAndNullTypesSkipped() {
+        assertEquals("1:8: ELSE clause of [date] must be [keyword], found value [date] type [datetime]",
+            error("SELECT CASE WHEN int > 20 THEN null WHEN int > 10 THEN null WHEN int > 5 THEN 'foo' ELSE date END FROM test"));
+    }
+
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
                 error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));

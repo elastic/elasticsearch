@@ -44,9 +44,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
@@ -112,9 +114,12 @@ import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.Literal.of;
+import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
+import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OptimizerTests extends ESTestCase {
 
@@ -593,6 +598,91 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, foldNull.rule(new Concat(EMPTY, NULL, ONE)).fold());
         assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, NULL)).fold());
         assertEquals(StringUtils.EMPTY, foldNull.rule(new Concat(EMPTY, NULL, NULL)).fold());
+    }
+
+    public void testSimplifyCaseConditionsFoldWhenFalse() {
+        // CASE WHEN a = 1 THEN 'foo1'
+        //      WHEN 1 = 2 THEN 'bar1'
+        //      WHEN 2 = 1 THEN 'bar2'
+        //      WHEN a > 1 THEN 'foo2'
+        // ELSE 'default'
+        // END
+        //
+        // ==>
+        //
+        // CASE WHEN a = 1 THEN 'foo1'
+        //      WHEN a > 1 THEN 'foo2'
+        // ELSE 'default'
+        // END
+
+        Case c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo1")),
+            new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "bar1")),
+            new IfConditional(EMPTY, new Equals(EMPTY, TWO, ONE), Literal.of(EMPTY, "bar2")),
+            new IfConditional(EMPTY, new GreaterThan(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo2")),
+            Literal.of(EMPTY, "default")));
+        Expression e = new SimplifyCase().rule(c);
+        assertEquals(Case.class, e.getClass());
+        c = (Case) e;
+        assertEquals(2, c.conditions().size());
+        assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[a{f}#"));
+        assertThat(c.conditions().get(1).condition().toString(), startsWith("GreaterThan[a{f}#"));
+        assertFalse(c.foldable());
+    }
+
+    public void testSimplifyCaseConditionsFoldWhenTrue() {
+        // CASE WHEN a = 1 THEN 'foo1'
+        //      WHEN 1 = 1 THEN 'bar1'
+        //      WHEN 2 = 1 THEN 'bar2'
+        //      WHEN a > 1 THEN 'foo2'
+        // ELSE 'default'
+        // END
+        //
+        // ==>
+        //
+        // CASE WHEN a = 1 THEN 'foo1'
+        //      WHEN 1 = 1 THEN 'bar1'
+        // ELSE 'default'
+        // END
+
+        SimplifyCase rule = new SimplifyCase();
+        Case c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo1")),
+            new IfConditional(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "bar1")),
+            new IfConditional(EMPTY, new Equals(EMPTY, TWO, ONE), Literal.of(EMPTY, "bar2")),
+            new IfConditional(EMPTY, new GreaterThan(EMPTY, getFieldAttribute(), ONE), Literal.of(EMPTY, "foo2")),
+            Literal.of(EMPTY, "default")));
+        Expression e = rule.rule(c);
+        assertEquals(Case.class, e.getClass());
+        c = (Case) e;
+        assertEquals(2, c.conditions().size());
+        assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[a{f}#"));
+        assertThat(c.conditions().get(1).condition().toString(), startsWith("Equals[=1,=1]#"));
+        assertFalse(c.foldable());
+    }
+
+    public void testSimplifyCaseConditionsFoldCompletely() {
+        // CASE WHEN 1 = 2 THEN 'foo1'
+        //      WHEN 1 = 1 THEN 'foo2'
+        // ELSE 'default'
+        // END
+        //
+        // ==>
+        //
+        // 'foo2'
+
+        SimplifyCase rule = new SimplifyCase();
+        Case c = new Case(EMPTY, Arrays.asList(
+            new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo1")),
+            new IfConditional(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "foo2")),
+            Literal.of(EMPTY, "default")));
+        Expression e = rule.rule(c);
+        assertEquals(Case.class, e.getClass());
+        c = (Case) e;
+        assertEquals(1, c.conditions().size());
+        assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[=1,=1]#"));
+        assertTrue(c.foldable());
+        assertEquals("foo2", c.fold());
     }
 
     //
@@ -1318,7 +1408,7 @@ public class OptimizerTests extends ESTestCase {
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondField, firstField), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
-        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
         
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();
@@ -1350,7 +1440,7 @@ public class OptimizerTests extends ESTestCase {
         OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondAlias, firstAlias), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
-        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        LogicalPlan result = new SortAggregateOnOrderBy().apply(orderByPlan);
         
         assertTrue(result instanceof OrderBy);
         List<Order> order = ((OrderBy) result).order();

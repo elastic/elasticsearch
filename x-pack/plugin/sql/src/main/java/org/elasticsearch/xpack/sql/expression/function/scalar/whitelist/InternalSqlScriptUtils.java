@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProce
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
@@ -146,8 +147,12 @@ public final class InternalSqlScriptUtils {
     }
 
     //
-    // Null
+    // Conditional
     //
+    public static Object caseFunction(List<Object> expressions) {
+        return CaseProcessor.apply(expressions);
+    }
+
     public static Object coalesce(List<Object> expressions) {
         return ConditionalOperation.COALESCE.apply(expressions);
     }

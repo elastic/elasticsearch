@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
@@ -169,7 +170,8 @@ public class FunctionRegistry {
         addToMap(def(Histogram.class, Histogram::new, "HISTOGRAM"));
         // Scalar functions
         // Conditional
-        addToMap(def(Coalesce.class, Coalesce::new, "COALESCE"),
+        addToMap(def(Case.class, Case::new, "CASE"),
+                def(Coalesce.class, Coalesce::new, "COALESCE"),
                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),

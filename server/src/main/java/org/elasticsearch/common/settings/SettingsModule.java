@@ -49,7 +49,7 @@ public class SettingsModule implements Module {
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private final Set<SecureSetting<?>> consistentSecureSettings = new HashSet<>();
+    private final Map<SecureSetting<?>, byte[]> hashesOfConsistentSecureSettings = new HashMap<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -180,13 +180,17 @@ public class SettingsModule implements Module {
                     if (setting instanceof Setting.AffixSetting<?>) {
                         ((Setting.AffixSetting<?>)setting).getAllConcreteSettings(this.settings).forEach(concreteSetting -> {
                             if (concreteSetting instanceof SecureSetting<?>) {
-                                consistentSecureSettings.add((SecureSetting<?>) concreteSetting);
+                                final SecureSetting<?> concreteSecureSetting = (SecureSetting<?>) concreteSetting;
+                                hashesOfConsistentSecureSettings.put(concreteSecureSetting,
+                                        concreteSecureSetting.getSecretValueSHA256(this.settings));
                             } else {
                                 throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                             }
                         });
                     } else if (setting instanceof SecureSetting<?>) {
-                        consistentSecureSettings.add((SecureSetting<?>) setting);
+                        final SecureSetting<?> concreteSecureSetting = (SecureSetting<?>) setting;
+                        hashesOfConsistentSecureSettings.put(concreteSecureSetting,
+                                concreteSecureSetting.getSecretValueSHA256(this.settings));
                     } else {
                         throw new RuntimeException("Unrecognized consistent setting [" + setting.getKey() + "]");
                     }
@@ -230,8 +234,8 @@ public class SettingsModule implements Module {
         return clusterSettings;
     }
 
-    public Set<SecureSetting<?>> getConsistentSecureSettings() {
-        return consistentSecureSettings;
+    public Map<SecureSetting<?>, byte[]> getHashesOfConsistentSecureSettings() {
+        return hashesOfConsistentSecureSettings;
     }
 
     public SettingsFilter getSettingsFilter() {

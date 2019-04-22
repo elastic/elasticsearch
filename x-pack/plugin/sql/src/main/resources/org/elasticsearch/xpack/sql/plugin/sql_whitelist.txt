@@ -47,8 +47,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean isNotNull(Object)
 
 #
-# Null
+# Conditional
 #
+  def caseFunction(java.util.List)
   def coalesce(java.util.List)
   def greatest(java.util.List)
   def least(java.util.List)

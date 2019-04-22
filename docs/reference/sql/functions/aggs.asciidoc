@@ -16,7 +16,7 @@ Functions for computing a _single_ result from a set of input values.
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-AVG(numeric_field<1>)
+AVG(numeric_field) <1>
 --------------------------------------------------
 
 *Input*:
@@ -40,7 +40,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggAvg]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COUNT(expression<1>)
+COUNT(expression) <1>
 --------------------------------------------------
 
 *Input*:
@@ -70,7 +70,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggCountStar]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COUNT(ALL field_name<1>)
+COUNT(ALL field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -95,7 +95,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggCountAll]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-COUNT(DISTINCT field_name<1>)
+COUNT(DISTINCT field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -119,7 +119,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggCountDistinct]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MAX(field_name<1>)
+MAX(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -143,7 +143,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggMax]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MIN(field_name<1>)
+MIN(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -167,7 +167,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggMin]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SUM(field_name<1>)
+SUM(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -193,7 +193,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggSum]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-KURTOSIS(field_name<1>)
+KURTOSIS(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -217,7 +217,9 @@ include-tagged::{sql-specs}/docs.csv-spec[aggKurtosis]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-PERCENTILE(field_name<1>, numeric_exp<2>)
+PERCENTILE(
+    field_name,  <1>
+    numeric_exp) <2>
 --------------------------------------------------
 
 *Input*:
@@ -243,7 +245,9 @@ include-tagged::{sql-specs}/docs.csv-spec[aggPercentile]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-PERCENTILE_RANK(field_name<1>, numeric_exp<2>)
+PERCENTILE_RANK(
+    field_name,  <1>
+    numeric_exp) <2>
 --------------------------------------------------
 
 *Input*:
@@ -269,7 +273,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggPercentileRank]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SKEWNESS(field_name<1>)
+SKEWNESS(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -293,7 +297,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggSkewness]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-STDDEV_POP(field_name<1>)
+STDDEV_POP(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -317,7 +321,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggStddevPop]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SUM_OF_SQUARES(field_name<1>)
+SUM_OF_SQUARES(field_name) <1>
 --------------------------------------------------
 
 *Input*:
@@ -341,7 +345,7 @@ include-tagged::{sql-specs}/docs.csv-spec[aggSumOfSquares]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-VAR_POP(field_name<1>)
+VAR_POP(field_name) <1>
 --------------------------------------------------
 
 *Input*:

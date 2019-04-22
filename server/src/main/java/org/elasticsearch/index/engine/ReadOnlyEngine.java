@@ -146,7 +146,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+    public void prepareEngineBeforeIndexClosing(String syncId) throws IllegalStateException {
         // the value of the global checkpoint is verified when the read-only engine is opened,
         // and it is not expected to change during the lifecycle of the engine. We could also
         // check this value before closing the read-only engine but if something went wrong
@@ -156,7 +156,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
-                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+                                               Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);

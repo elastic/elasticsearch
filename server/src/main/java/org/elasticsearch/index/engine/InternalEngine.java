@@ -2756,4 +2756,25 @@ public class InternalEngine extends Engine {
         final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
         store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
     }
+
+    protected void verifyEngineBeforeIndexClosing() {
+        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
+        if (globalCheckpoint != maxSeqNo) {
+            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
+                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
+        }
+    }
+
+    @Override
+    public void prepareEngineBeforeIndexClosing(String syncId) throws IllegalStateException {
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            ensureOpen();
+            verifyEngineBeforeIndexClosing();
+            final CommitId commitId = flush(true, true);
+            if (syncId != null) {
+                syncFlush(syncId, commitId);
+            }
+        }
+    }
 }

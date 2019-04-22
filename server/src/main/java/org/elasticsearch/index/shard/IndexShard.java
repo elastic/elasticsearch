@@ -3159,12 +3159,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Performs the pre-closing checks on the {@link IndexShard}.
+     * Performs the pre-closing action on the {@link IndexShard}.
      *
      * @throws IllegalStateException if the sanity checks failed
      */
-    public void verifyShardBeforeIndexClosing() throws IllegalStateException {
-        getEngine().verifyEngineBeforeIndexClosing();
+    public void prepareShardBeforeIndexClosing(String syncId) throws IllegalStateException {
+        // don't issue synced-flush for recovering shards
+        getEngine().prepareEngineBeforeIndexClosing(state == IndexShardState.STARTED ? syncId : null);
     }
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {

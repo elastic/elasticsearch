@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -183,10 +184,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
     }
 
     /**
-     * Test that {@link ReadOnlyEngine#verifyEngineBeforeIndexClosing()} never fails
+     * Test that {@link ReadOnlyEngine#prepareEngineBeforeIndexClosing(String)} never fails
      * whatever the value of the global checkpoint to check is.
      */
-    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
+    public void testPrepareShardBeforeIndexClosingIsNoOp() throws IOException {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
@@ -195,7 +196,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {
-                    readOnlyEngine.verifyEngineBeforeIndexClosing();
+                    readOnlyEngine.prepareEngineBeforeIndexClosing(UUIDs.randomBase64UUID());
                 } catch (final IllegalStateException e) {
                     fail("Read-only engine pre-closing verifications failed");
                 }

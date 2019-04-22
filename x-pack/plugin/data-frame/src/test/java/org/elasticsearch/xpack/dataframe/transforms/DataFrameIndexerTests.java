@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
@@ -202,8 +201,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
-            DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1", TEST_INDEX, TEST_ORIGIN,
-                    DataFrameAuditMessage.builder());
+            DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                     new DataFrameIndexerTransformStats(config.getId()), searchFunction, bulkFunction, failureConsumer);

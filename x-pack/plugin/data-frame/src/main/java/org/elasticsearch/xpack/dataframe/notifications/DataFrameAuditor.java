@@ -6,19 +6,17 @@
 package org.elasticsearch.xpack.dataframe.notifications;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 
 /**
  * DataFrameAuditor class that abstracts away generic templating for easier injection
  */
 public class DataFrameAuditor extends Auditor<DataFrameAuditMessage> {
-    public DataFrameAuditor(Client client,
-                   String nodeName,
-                   String auditIndex,
-                   String executionOrigin,
-                   AbstractAuditMessage.AbstractBuilder<DataFrameAuditMessage> messageBuilder) {
-        super(client, nodeName, auditIndex, executionOrigin, messageBuilder);
+    public DataFrameAuditor(Client client, String nodeName) {
+        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, DataFrameAuditMessage.builder());
     }
 }

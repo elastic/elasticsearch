@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -20,20 +21,92 @@ import static org.hamcrest.Matchers.nullValue;
 public class EnrichStoreTests extends ESSingleNodeTestCase {
 
     public void testCrud() throws Exception {
-        EnrichStore enrichStore = new EnrichStore(getInstanceFromNode(ClusterService.class));
         EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String name = "my-policy";
 
+        AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        assertThat(result, equalTo(policy));
+
+        error = deleteEnrichPolicy(name, clusterService);
+        assertThat(error.get(), nullValue());
+    }
+
+    public void testPutValidation() throws Exception {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        {
+            String nullOrEmptyName = randomBoolean() ? "" : null;
+
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> saveEnrichPolicy(nullOrEmptyName, policy, clusterService));
+
+            assertThat(error.getMessage(), equalTo("name is missing or empty"));
+        }
+        {
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> saveEnrichPolicy("my-policy", null, clusterService));
+
+            assertThat(error.getMessage(), equalTo("policy is missing"));
+        }
+    }
+
+    public void testDeleteValidation() {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        {
+            String nullOrEmptyName = randomBoolean() ? "" : null;
+
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> deleteEnrichPolicy(nullOrEmptyName, clusterService));
+
+            assertThat(error.getMessage(), equalTo("name is missing or empty"));
+        }
+        {
+            ResourceNotFoundException error = expectThrows(ResourceNotFoundException.class,
+                () -> deleteEnrichPolicy("my-policy", clusterService));
+
+            assertThat(error.getMessage(), equalTo("policy [my-policy] not found"));
+        }
+    }
+
+    public void testGetValidation() {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String nullOrEmptyName = randomBoolean() ? "" : null;
+
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state()));
+
+        assertThat(error.getMessage(), equalTo("name is missing or empty"));
+
+        EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state());
+        assertNull(policy);
+    }
+
+    private AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
+                                                        ClusterService clusterService) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        enrichStore.putPolicy("my-policy", policy, e -> {
+        EnrichStore.putPolicy(name, policy, clusterService, e -> {
             error.set(e);
             latch.countDown();
         });
         latch.await();
-        assertThat(error.get(), nullValue());
-
-        EnrichPolicy result = enrichStore.getPolicy("my-policy");
-        assertThat(result, equalTo(policy));
+        return error;
     }
 
+    private AtomicReference<Exception> deleteEnrichPolicy(String name, ClusterService clusterService) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        EnrichStore.deletePolicy(name, clusterService, e -> {
+            error.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        return error;
+    }
 }

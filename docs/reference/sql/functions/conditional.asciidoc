@@ -20,7 +20,7 @@ END
 *Input*:
 
 One or multiple _WHEN *condition* THEN *result_* clauses are used and the expression can optionally have
-an _ELSE *default_result_* clause. Every *condition* should be boolean expression.
+an _ELSE *default_result_* clause. Every *condition* should be a boolean expression.
 
 *Output*: one of the *result* expressions if the corresponding _WHEN *condition_* evaluates to `true` or
 the *default_result* if all _WHEN *condition_* clauses evaluate to `false`. If the optional _ELSE *default_result_*

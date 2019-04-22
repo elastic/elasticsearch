@@ -132,7 +132,8 @@ public class DocumentMapperParser {
              *
              * Note: this copy can not be replaced by Map#copyOf because we rely on consistent serialization order since we do byte-level
              * checks on the mapping between what we receive from the master and what we have locally. As Map#copyOf is not necessarily
-             * the same underlying map implementation, we could end up with a different iteration order.
+             * the same underlying map implementation, we could end up with a different iteration order. For reference, see
+             * MapperService#assertSerializtion and GitHub issues #10302 and #10318.
              *
              * Do not change this to Map#copyOf or any other method of copying meta that could change the iteration order.
              *

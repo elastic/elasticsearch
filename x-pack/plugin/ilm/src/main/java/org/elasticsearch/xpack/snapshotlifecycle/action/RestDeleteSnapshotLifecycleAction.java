@@ -18,12 +18,12 @@ public class RestDeleteSnapshotLifecycleAction extends BaseRestHandler {
 
     public RestDeleteSnapshotLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/snapshot/{name}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_slm/policy/{name}", this);
     }
 
     @Override
     public String getName() {
-        return "ilm_delete_snapshot_lifecycle";
+        return "slm_delete_lifecycle";
     }
 
     @Override

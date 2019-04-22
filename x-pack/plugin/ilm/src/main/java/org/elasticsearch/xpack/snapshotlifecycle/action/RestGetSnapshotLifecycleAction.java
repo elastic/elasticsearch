@@ -19,13 +19,13 @@ public class RestGetSnapshotLifecycleAction extends BaseRestHandler {
 
     public RestGetSnapshotLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm/snapshot", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm/snapshot/{name}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_slm/policy", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_slm/policy/{name}", this);
     }
 
     @Override
     public String getName() {
-        return "ilm_get_snapshot_lifecycle";
+        return "slm_get_lifecycle";
     }
 
     @Override

@@ -20,12 +20,12 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
     public RestExecuteSnapshotLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ilm/snapshot/{name}/_execute", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_slm/policy/{name}/_execute", this);
     }
 
     @Override
     public String getName() {
-        return "ilm_execute_snapshot_lifecycle";
+        return "slm_execute_lifecycle";
     }
 
     @Override

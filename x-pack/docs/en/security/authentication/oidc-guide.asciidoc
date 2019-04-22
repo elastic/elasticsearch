@@ -595,6 +595,7 @@ POST /_security/oidc/prepare
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:These are properly tested in the OpenIDConnectIT suite]
 +
 . Handle the response to `/_security/oidc/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `state`, `nonce`. The custom web application would need to store the values for `state`
@@ -619,6 +620,7 @@ POST /_security/oidc/authenticate
 }
 -----------------------------------------------------------------------
 // CONSOLE
+// TEST[skip:These are properly tested in the OpenIDConnectIT suite]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
   as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
@@ -635,6 +637,7 @@ POST /_security/oidc/logout
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[skip:These are properly tested in the OpenIDConnectIT suite]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where
 the user needs to be redirected in the OP in order to complete the logout process.

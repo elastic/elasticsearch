@@ -213,7 +213,7 @@ In order to execute the stored template, reference it by it's name under the `te
 ------------------------------------------
 GET /_search/template
 {
-    "template": "storedTemplate" <1>,
+    "template": "storedTemplate", <1>
     "params": {
         "query_string": "search for these words"
     }

@@ -1,3 +1,5 @@
+// This file is auto-generated. Do not edit.
+
 
 [role="exclude",id="painless-api-reference-moving-function-org-elasticsearch-search-aggregations-pipeline"]
 === Moving Function API for package org.elasticsearch.search.aggregations.pipeline

@@ -1,3 +1,5 @@
+// This file is auto-generated. Do not edit.
+
 
 [role="exclude",id="painless-api-reference-ingest-org-elasticsearch-ingest-common"]
 === Ingest API for package org.elasticsearch.ingest.common

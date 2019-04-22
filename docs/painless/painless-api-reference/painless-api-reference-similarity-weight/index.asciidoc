@@ -1,9 +1,0 @@
-[[painless-api-reference-similarity-weight]]
-=== Similarity Weight API
-
-The following specialized API is available in the Similarity Weight context.
-
-* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
-
-include::packages.asciidoc[]
-

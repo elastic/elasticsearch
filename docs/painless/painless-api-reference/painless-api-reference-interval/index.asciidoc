@@ -1,9 +1,0 @@
-[[painless-api-reference-interval]]
-=== Interval API
-
-The following specialized API is available in the Interval context.
-
-* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
-
-include::packages.asciidoc[]
-

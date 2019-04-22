@@ -1,9 +1,0 @@
-[[painless-api-reference-bucket-aggregation]]
-=== Bucket Aggregation API
-
-The following specialized API is available in the Bucket Aggregation context.
-
-* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
-
-include::packages.asciidoc[]
-

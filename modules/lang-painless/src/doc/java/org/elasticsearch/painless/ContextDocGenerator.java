@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,21 +72,28 @@ public final class ContextDocGenerator {
         Set<PainlessContextClassInfo> sharedClassInfos = createShared(contextInfos);
 
         Path rootDir = resetRootDir();
-        printRootIndexPage(rootDir, contextInfos);
 
         Path sharedDir = createSharedDir(rootDir);
-        List<PainlessContextClassInfo> classInfos = sortClassInfos(new ArrayList<>(sharedClassInfos));
+        List<PainlessContextClassInfo> classInfos = sortClassInfos(new ArrayList<>(sharedClassInfos), Collections.emptySet());
         Map<String, String> javaNamesToDisplayNames = getDisplayNames(classInfos);
         printSharedIndexPage(sharedDir, javaNamesToDisplayNames, classInfos);
         printSharedPackagesPages(sharedDir, javaNamesToDisplayNames, classInfos);
 
+        Set<PainlessContextInfo> isSpecialized = new HashSet<>();
+
         for (PainlessContextInfo contextInfo : contextInfos) {
             Path contextDir = createContextDir(rootDir, contextInfo);
-            classInfos = sortClassInfos(new ArrayList<>(contextInfo.getClasses()));
-            javaNamesToDisplayNames = getDisplayNames(classInfos);
-            printContextIndexPage(contextDir, javaNamesToDisplayNames, sharedClassInfos, contextInfo, classInfos);
-            printContextPackagesPages(contextDir, javaNamesToDisplayNames, sharedClassInfos, contextInfo, classInfos);
+            classInfos = sortClassInfos(new ArrayList<>(contextInfo.getClasses()), sharedClassInfos);
+
+            if (classInfos.isEmpty() == false) {
+                isSpecialized.add(contextInfo);
+                javaNamesToDisplayNames = getDisplayNames(contextInfo.getClasses());
+                printContextIndexPage(contextDir, javaNamesToDisplayNames, sharedClassInfos, contextInfo, classInfos);
+                printContextPackagesPages(contextDir, javaNamesToDisplayNames, sharedClassInfos, contextInfo, classInfos);
+            }
         }
+
+        printRootIndexPage(rootDir, contextInfos, isSpecialized);
     }
 
     @SuppressForbidden(reason = "retrieving data from an internal API not exposed as part of the REST client")
@@ -138,36 +146,6 @@ public final class ContextDocGenerator {
         return rootDir;
     }
 
-    private static void printRootIndexPage(Path rootDir, List<PainlessContextInfo> contextInfos) throws IOException {
-        Path rootIndexPath = rootDir.resolve("index.asciidoc");
-
-        try (PrintStream rootIndexStream = new PrintStream(
-                Files.newOutputStream(rootIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
-
-            rootIndexStream.println("[cols=\"<3,^3,^3\"]");
-            rootIndexStream.println("|====");
-
-            for (PainlessContextInfo contextInfo : contextInfos) {
-                String contextName = getContextName(contextInfo);
-                String contextHeader = getContextHeader(contextInfo);
-
-                rootIndexStream.print("|" + contextName + " ");
-                rootIndexStream.print("| <<" + SHARED_HEADER + ", " + SHARED_NAME + " API>> ");
-                rootIndexStream.println("| <<" + contextHeader + ", Specialized API>>");
-            }
-
-            rootIndexStream.println("|====");
-            rootIndexStream.println();
-
-            rootIndexStream.println("include::" + SHARED_HEADER + "/index.asciidoc[]");
-
-            for (PainlessContextInfo contextInfo : contextInfos) {
-                rootIndexStream.println("include::" + getContextHeader(contextInfo) + "/index.asciidoc[]");
-            }
-        }
-    }
-
     private static Path createSharedDir(Path rootDir) throws IOException {
         Path sharedDir = rootDir.resolve(SHARED_HEADER);
         Files.createDirectories(sharedDir);
@@ -182,6 +160,11 @@ public final class ContextDocGenerator {
         return contextDir;
     }
 
+    private static void printAutomatedMessage(PrintStream stream) {
+        stream.println("// This file is auto-generated. Do not edit.");
+        stream.println();
+    }
+
     private static void printSharedIndexPage(
             Path sharedDir, Map<String, String> javaNamesToDisplayNames, List<PainlessContextClassInfo> classInfos) throws IOException {
 
@@ -190,6 +173,8 @@ public final class ContextDocGenerator {
         try (PrintStream sharedIndexStream = new PrintStream(
                 Files.newOutputStream(sharedIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
+
+            printAutomatedMessage(sharedIndexStream);
 
             sharedIndexStream.println("[[" + SHARED_HEADER + "]]");
             sharedIndexStream.println("=== " + SHARED_NAME + " API");
@@ -209,6 +194,8 @@ public final class ContextDocGenerator {
         try (PrintStream contextIndexStream = new PrintStream(
                 Files.newOutputStream(contextIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
+
+            printAutomatedMessage(contextIndexStream);
 
             contextIndexStream.println("[[" + getContextHeader(contextInfo) + "]]");
             contextIndexStream.println("=== " + getContextName(contextInfo) + " API");
@@ -262,6 +249,7 @@ public final class ContextDocGenerator {
                 Files.newOutputStream(sharedClassesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
 
+            printAutomatedMessage(sharedPackagesStream);
             printPackages(sharedPackagesStream, SHARED_NAME, SHARED_HEADER, javaNamesToDisplayNames, Collections.emptySet(), classInfos);
         }
     }
@@ -276,6 +264,7 @@ public final class ContextDocGenerator {
                 Files.newOutputStream(contextPackagesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
                 false, StandardCharsets.UTF_8.name())) {
 
+            printAutomatedMessage(contextPackagesStream);
             printPackages(contextPackagesStream,
                     getContextName(contextInfo), getContextHeader(contextInfo), javaNamesToDisplayNames, excludes, classInfos);
         }
@@ -333,6 +322,46 @@ public final class ContextDocGenerator {
         }
 
         packagesStream.println();
+    }
+
+    private static void printRootIndexPage(Path rootDir,
+            List<PainlessContextInfo> contextInfos, Set<PainlessContextInfo> isSpecialized) throws IOException {
+        Path rootIndexPath = rootDir.resolve("index.asciidoc");
+
+        try (PrintStream rootIndexStream = new PrintStream(
+                Files.newOutputStream(rootIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false, StandardCharsets.UTF_8.name())) {
+
+            printAutomatedMessage(rootIndexStream);
+
+            rootIndexStream.println("[cols=\"<3,^3,^3\"]");
+            rootIndexStream.println("|====");
+
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                String contextName = getContextName(contextInfo);
+                String contextHeader = getContextHeader(contextInfo);
+
+                rootIndexStream.print("|" + contextName + " ");
+                rootIndexStream.print("| <<" + SHARED_HEADER + ", " + SHARED_NAME + " API>> ");
+
+                if (isSpecialized.contains(contextInfo)) {
+                    rootIndexStream.println("| <<" + contextHeader + ", Specialized API>>");
+                } else {
+                    rootIndexStream.println("| ");
+                }
+            }
+
+            rootIndexStream.println("|====");
+            rootIndexStream.println();
+
+            rootIndexStream.println("include::" + SHARED_HEADER + "/index.asciidoc[]");
+
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                if (isSpecialized.contains(contextInfo)) {
+                    rootIndexStream.println("include::" + getContextHeader(contextInfo) + "/index.asciidoc[]");
+                }
+            }
+        }
     }
 
     private static void printConstructor(
@@ -573,11 +602,16 @@ public final class ContextDocGenerator {
         return contextNameBuilder.substring(0, contextNameBuilder.length() - 1);
     }
 
-    private static List<PainlessContextClassInfo> sortClassInfos(List<PainlessContextClassInfo> classInfos) {
+    private static List<PainlessContextClassInfo> sortClassInfos(
+            List<PainlessContextClassInfo> classInfos, Set<PainlessContextClassInfo> excludes) {
         classInfos = new ArrayList<>(classInfos);
-        classInfos.removeIf(v -> "void".equals(v.getName()) || "boolean".equals(v.getName()) || "byte".equals(v.getName()) ||
-                "short".equals(v.getName()) || "char".equals(v.getName()) || "int".equals(v.getName()) || "long".equals(v.getName()) ||
-                "float".equals(v.getName()) || "double".equals(v.getName()) || "org.elasticsearch.painless.lookup.def".equals(v.getName()));
+        classInfos.removeIf(v ->
+                "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
+                "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
+                "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
+                "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||
+                isInternalClass(v.getName()) || excludes.contains(v)
+        );
 
         classInfos.sort((c1, c2) -> {
             String n1 = c1.getName();
@@ -621,6 +655,13 @@ public final class ContextDocGenerator {
         }
 
         return javaNamesToDisplayNames;
+    }
+
+    private static boolean isInternalClass(String javaName) {
+        return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
+                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
+                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
+                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth");
     }
 
     private ContextDocGenerator() {

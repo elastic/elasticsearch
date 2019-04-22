@@ -1,9 +1,0 @@
-[[painless-api-reference-terms-set]]
-=== Terms Set API
-
-The following specialized API is available in the Terms Set context.
-
-* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
-
-include::packages.asciidoc[]
-

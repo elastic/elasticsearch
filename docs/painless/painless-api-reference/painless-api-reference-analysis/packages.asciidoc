@@ -1,3 +1,5 @@
+// This file is auto-generated. Do not edit.
+
 
 [role="exclude",id="painless-api-reference-analysis-org-elasticsearch-analysis-common"]
 === Analysis API for package org.elasticsearch.analysis.common

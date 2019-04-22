@@ -1,3 +1,5 @@
+// This file is auto-generated. Do not edit.
+
 
 [role="exclude",id="painless-api-reference-score-org-elasticsearch-index-query"]
 === Score API for package org.elasticsearch.index.query
@@ -162,17 +164,6 @@ See the <<painless-api-reference-score, Score API>> for a high-level overview of
 * double sum(ToDoubleFunction)
 * def[] {java11-javadoc}/java.base/java/util/Collection.html#toArray()[toArray]()
 * def[] {java11-javadoc}/java.base/java/util/Collection.html#toArray(java.lang.Object%5B%5D)[toArray](def[])
-* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
-
-
-[role="exclude",id="painless-api-reference-score-org-elasticsearch-script"]
-=== Score API for package org.elasticsearch.script
-See the <<painless-api-reference-score, Score API>> for a high-level overview of all packages.
-
-[[painless-api-reference-score-org-elasticsearch-script-ScoreScript]]
-==== org.elasticsearch.script.ScoreScript
-* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
-* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 

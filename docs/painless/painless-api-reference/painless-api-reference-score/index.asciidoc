@@ -1,3 +1,5 @@
+// This file is auto-generated. Do not edit.
+
 [[painless-api-reference-score]]
 === Score API
 
@@ -11,11 +13,6 @@ The following specialized API is available in the Score context.
 * <<painless-api-reference-score-VectorScriptDocValues, VectorScriptDocValues>>
 * <<painless-api-reference-score-VectorScriptDocValues-DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
 * <<painless-api-reference-score-VectorScriptDocValues-SparseVectorScriptDocValues, VectorScriptDocValues.SparseVectorScriptDocValues>>
-
-==== org.elasticsearch.script
-<<painless-api-reference-score-org-elasticsearch-script, Expand details for org.elasticsearch.script>>
-
-* <<painless-api-reference-score-org-elasticsearch-script-ScoreScript, org.elasticsearch.script.ScoreScript>>
 
 include::packages.asciidoc[]
 

@@ -80,8 +80,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -1798,6 +1800,103 @@ public class FieldSortIT extends ESIntegTestCase {
                 assertThat(exc.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(exc.getDetailedMessage(), containsString("[numeric_type] option cannot be set on a non-numeric field"));
             }
+        }
+    }
+
+    public void testLongSortOptimizationCorrectResults() {
+        assertAcked(prepareCreate("test1")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5))
+            .addMapping("_doc", "long_field", "type=long", "int_field", "type=integer", "keyword_field", "type=keyword").get());
+
+        long currentLong;
+        long previousLong = 0;
+        int currentInt;
+        int previousInt = 0;
+        // fill data with some equal values
+        for (int i = 1; i <= 50; i++) {
+            currentLong = randomBoolean() ? randomLong() : previousLong;
+            currentInt = randomBoolean() ? randomInt() : previousInt;
+            String source = "{\"long_field\":" + currentLong + ", \"int_field\":" + currentInt +
+                ", \"keyword_field\": \"" + randomAlphaOfLength(5)  + "\"}";
+            client().prepareIndex("test1", "_doc", Integer.toString(i)).setSource(source, XContentType.JSON).get();
+            previousLong = currentLong;
+            previousInt = currentInt;
+        }
+        refresh();
+
+        //*** 1. sort DESC on long_field
+        SearchResponse searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.DESC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        previousLong = Long.MAX_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            currentLong = (long) searchResponse.getHits().getHits()[i].getSourceAsMap().get("long_field");
+            assertThat(searchResponse.toString(), currentLong, lessThanOrEqualTo(previousLong));
+
+            // check that sort values filled correctly
+            long longSortValue = (long) hit.getSortValues()[0];
+            assertEquals(currentLong, longSortValue);
+
+            previousLong = currentLong;
+        }
+
+        //*** 2. sort ASC on long_field
+        searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.ASC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        previousLong = Long.MIN_VALUE;
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            currentLong = (long) searchResponse.getHits().getHits()[i].getSourceAsMap().get("long_field");
+            assertThat(searchResponse.toString(), currentLong, greaterThanOrEqualTo(previousLong));
+
+            // check that sort values filled correctly
+            long longSortValue = (long) hit.getSortValues()[0];
+            assertEquals(currentLong, longSortValue);
+
+            previousLong = currentLong;
+        }
+
+        //*** 3. multi sort on long_field, int_field, keyword
+        searchResponse = client().prepareSearch()
+            .addSort(new FieldSortBuilder("long_field").order(SortOrder.ASC))
+            .addSort(new FieldSortBuilder("int_field").order(SortOrder.ASC))
+            .addSort(new FieldSortBuilder("keyword_field").order(SortOrder.ASC))
+            .setSize(10).get();
+        assertSearchResponse(searchResponse);
+        previousLong = Long.MIN_VALUE;
+        previousInt = Integer.MIN_VALUE;
+        String previousKeyword = "";
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            // check the correct sort order
+            SearchHit hit = searchResponse.getHits().getHits()[i];
+            currentLong = (long) searchResponse.getHits().getHits()[i].getSourceAsMap().get("long_field");
+            currentInt = (int) searchResponse.getHits().getHits()[i].getSourceAsMap().get("int_field");
+            String currentKeyword = (String) searchResponse.getHits().getHits()[i].getSourceAsMap().get("keyword_field");
+            assertThat(searchResponse.toString(), currentLong, greaterThanOrEqualTo(previousLong));
+            if (currentLong == previousLong) {
+                assertThat(searchResponse.toString(), currentInt, greaterThanOrEqualTo(previousInt));
+                if (currentInt == previousInt) {
+                    assertThat(searchResponse.toString(), currentKeyword, greaterThanOrEqualTo(previousKeyword));
+                }
+            }
+
+            // check that sort values filled correctly
+            long longSortValue = (long) hit.getSortValues()[0];
+            int intSortValue = ((Long) hit.getSortValues()[1]).intValue();
+            String keywordSortValue = (String) hit.getSortValues()[2];
+            assertEquals(currentLong, longSortValue);
+            assertEquals(currentInt, intSortValue);
+            assertEquals(currentKeyword, keywordSortValue);
+
+            previousLong = currentLong;
+            previousInt = currentInt;
+            previousKeyword = currentKeyword;
         }
     }
 }

@@ -66,6 +66,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -203,10 +204,8 @@ public class QueryPhase implements SearchPhase {
                         DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
                         newSortFields[0] = SortField.FIELD_SCORE;
                         newFormats[0] = DocValueFormat.RAW;
-                        for (int i = 0; i < oldSortFields.length; i++) {
-                            newSortFields[i + 1] = oldSortFields[i];
-                            newFormats[i + 1] = oldFormats[i];
-                        }
+                        System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
+                        System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
                         sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                         searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
                     }
@@ -353,26 +352,35 @@ public class QueryPhase implements SearchPhase {
     }
 
      private static Query tryRewriteNumericLongOrDateSort(SearchContext searchContext, IndexReader reader) throws IOException {
-        // child docs can inherit scores from parent, so avoid has_parent query
-        if (searchContext.request().source().query().getName().equals("has_parent")) return null;
-
         if (searchContext.searchAfter() != null) return null;
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
         Sort sort = searchContext.sort().sort;
-        if (Sort.RELEVANCE.equals(sort)) return null;
-        if (Sort.INDEXORDER.equals(sort)) return null;
         SortField sortField = sort.getSort()[0];
 
-         // check if this is a field of type Long or Date, that is indexed and has doc values
+        // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
-        if (fieldName == null) return null; // happens when _score is the 1st sort field
+        if (fieldName == null) return null; // happens when _score or _doc is the 1st sort field
         if (searchContext.mapperService() == null) return null; // mapperService can be null in tests
         final MappedFieldType fieldType = searchContext.mapperService().fullName(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
-         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
+        if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
         if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
         if (fieldType.hasDocValues() == false) return null;
+
+        // has_parent query has a parameter "score" : true, which expects child docs inherit scores from their parent
+        // even if there is a sort field for children.
+        // this optimization breaks this, as it substitutes parent's scores with scores from DistanceFeatureQuery
+        // thus, we need to avoid to run this optimization for  "has_parent" query
+        if (searchContext.request() != null && searchContext.request().source().query() != null) {
+            if (searchContext.request().source().query().getName().equals("has_parent"))
+                return null;
+        }
+
+        // check that there is NO _score sort field among sort fields, as it will be overwritten with score from DistanceFeatureQuery
+        for (int i = 1; i < sort.getSort().length; i++) {
+            if (SortField.FIELD_SCORE.equals(sort.getSort()[i])) return  null;
+        }
 
         // check that setting of missing values allows optimization
         if (sortField.getMissingValue() == null) return null;
@@ -381,18 +389,23 @@ public class QueryPhase implements SearchPhase {
         ((sortField.getReverse() == false) && (missingValue == Long.MAX_VALUE));
         if (missingValuesAccordingToSort == false) return null;
 
-         // check for multiple values
+        // check for multiple values
         if (PointValues.size(reader, fieldName) != PointValues.getDocCount(reader, fieldName)) return null; //TODO: handle multiple values
 
         byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
         byte[] maxValueBytes = PointValues.getMaxPackedValue(reader, fieldName);
-        if ((maxValueBytes == null) || (minValueBytes == null)) return new MatchAllDocsQuery(); // no values on this shard
+        if ((maxValueBytes == null) || (minValueBytes == null)) return null;
         long minValue = LongPoint.decodeDimension(minValueBytes, 0);
         long maxValue = LongPoint.decodeDimension(maxValueBytes, 0);
         if (minValue == maxValue) return new DocValuesFieldExistsQuery(fieldName);
 
         final long origin = (sortField.getReverse()) ? maxValue : minValue;
-        final long pivotDistance = (maxValue - minValue)/2;
+        long pivotDistance = (maxValue - minValue) / 2;
+        if (pivotDistance == 0) { // 0 if maxValue = minValue + 1
+            pivotDistance = 1;
+        } else if (pivotDistance < 0) { // negative if overflow happened
+            pivotDistance = - pivotDistance;
+        }
         return LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
     }
 
@@ -402,12 +415,7 @@ public class QueryPhase implements SearchPhase {
         TopDocs topDocs = result.topDocs().topDocs;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-            Object[] oldFieldValues = fieldDoc.fields;
-            Object[] newFieldValues = new Object[oldFieldValues.length - 1];
-            for (int i = 0; i < oldFieldValues.length - 1; i++) {
-                newFieldValues[i] = oldFieldValues[i + 1];
-            }
-            fieldDoc.fields = newFieldValues;
+            fieldDoc.fields = Arrays.copyOfRange(fieldDoc.fields, 1, fieldDoc.fields.length);
         }
         TopFieldDocs newTopDocs = new TopFieldDocs(topDocs.totalHits, topDocs.scoreDocs, originalSortAndFormats.sort.getSort());
         result.topDocs(new TopDocsAndMaxScore(newTopDocs, Float.NaN), originalSortAndFormats.formats);

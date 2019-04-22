@@ -796,37 +796,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testNumericLongSortOptimizationNoValuesForField() throws Exception {
-        final String fieldNameLong = "long-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fullName(fieldNameLong)).thenReturn(fieldTypeLong);
-        TestSearchContext searchContext = spy(new TestSearchContext(null, indexShard));
-        when(searchContext.mapperService()).thenReturn(mapperService);
-
-        Directory dir = newDirectory();
-        RandomIndexWriter writer = new RandomIndexWriter(random(), dir);
-        Document doc = new Document();
-        doc.add(new LongPoint("random_field", randomLong()));
-        writer.addDocument(doc);
-        writer.close();
-        final IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = getAssertingSortOptimizedSearcher(reader, 2);
-
-        final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
-        QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, 1, false);
-        reader.close();
-        dir.close();
-    }
-
     // used to check that numeric long or date sort optimization was run
     private static IndexSearcher getAssertingSortOptimizedSearcher(IndexReader reader, int queryType) {
         return new IndexSearcher(reader) {
@@ -843,7 +812,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     );
                 }
                 if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                if (queryType == 2) assertTrue(clauses.get(1).getQuery() instanceof MatchAllDocsQuery);
                 super.search(query, results);
             }
         };

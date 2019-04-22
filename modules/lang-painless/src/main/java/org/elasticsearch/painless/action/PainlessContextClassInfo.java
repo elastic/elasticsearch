@@ -77,13 +77,13 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
                 (p, c) -> PainlessContextFieldInfo.fromXContent(p), FIELDS);
     }
 
-    public final String name;
-    public final boolean imported;
-    public final List<PainlessContextConstructorInfo> constructors;
-    public final List<PainlessContextMethodInfo> staticMethods;
-    public final List<PainlessContextMethodInfo> methods;
-    public final List<PainlessContextFieldInfo> staticFields;
-    public final List<PainlessContextFieldInfo> fields;
+    private final String name;
+    private final boolean imported;
+    private final List<PainlessContextConstructorInfo> constructors;
+    private final List<PainlessContextMethodInfo> staticMethods;
+    private final List<PainlessContextMethodInfo> methods;
+    private final List<PainlessContextFieldInfo> staticFields;
+    private final List<PainlessContextFieldInfo> fields;
 
     public PainlessContextClassInfo(Class<?> javaClass, boolean imported, PainlessClass painlessClass) {
         this(
@@ -195,5 +195,33 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
                 ", staticFields=" + staticFields +
                 ", fields=" + fields +
                 '}';
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public boolean isImported() {
+        return imported;
+    }
+
+    public List<PainlessContextConstructorInfo> getConstructors() {
+        return constructors;
+    }
+
+    public List<PainlessContextMethodInfo> getStaticMethods() {
+        return staticMethods;
+    }
+
+    public List<PainlessContextMethodInfo> getMethods() {
+        return methods;
+    }
+
+    public List<PainlessContextFieldInfo> getStaticFields() {
+        return staticFields;
+    }
+
+    public List<PainlessContextFieldInfo> getFields() {
+        return fields;
     }
 }

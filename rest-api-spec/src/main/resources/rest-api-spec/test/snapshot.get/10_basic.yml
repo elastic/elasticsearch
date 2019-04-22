@@ -154,8 +154,8 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      - version: " - 7.9.99"
-      - reason: "https://github.com/elastic/elasticsearch/pull/41281 not yet backported to 7.x"
+      version: " - 7.9.99"
+      reason: "https://github.com/elastic/elasticsearch/pull/41281 not yet backported to 7.x"
 
   - do:
       indices.create:
@@ -187,4 +187,4 @@ setup:
   - do:
       snapshot.delete:
         repository: test_repo_get_1
-        snapshot: test_snapshot_with_include_global_state
+        snapshot: test_snapshot_with_metadata

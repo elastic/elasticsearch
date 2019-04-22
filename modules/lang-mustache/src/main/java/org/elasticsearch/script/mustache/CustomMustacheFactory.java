@@ -91,7 +91,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         if (supplier == null) {
             throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
         }
-        return ENCODERS.get(mimeType).get();
+        return supplier.get();
     }
 
     @Override

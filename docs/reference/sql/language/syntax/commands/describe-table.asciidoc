@@ -6,7 +6,9 @@
 .Synopsis
 [source, sql]
 ----
-DESCRIBE [table identifier<1> | [LIKE pattern<2>]]
+DESCRIBE
+    [table identifier | <1>
+    [LIKE pattern]]     <2>
 ----
 
 <1> single table identifier or double quoted es multi index
@@ -16,7 +18,9 @@ or
 
 [source, sql]
 ----
-DESC [table identifier<1>|[LIKE pattern<2>]]
+DESC 
+    [table identifier | <1>
+    [LIKE pattern]]     <2>
 ----
 
 <1> single table identifier or double quoted es multi index

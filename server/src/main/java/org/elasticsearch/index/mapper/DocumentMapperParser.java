@@ -135,9 +135,11 @@ public class DocumentMapperParser {
              * the same underlying map implementation, we could end up with a different iteration order.
              *
              * Do not change this to Map#copyOf or any other method of copying meta that could change the iteration order.
+             *
+             * TODO:
+             *  - this should almost surely be a copy as a LinkedHashMap to have the ordering guarantees that we are relying on
+             *  - investigate the above note about whether or not we really need to be copying here, the ideal outcome would be to not
              */
-            // TODO: this should almost surely be a copy as a LinkedHashMap to have the ordering guarantees that we are relying on.
-            // TODO: investigate the above note about whether or not we really need to be copying here, the ideal outcome would be to not
             docBuilder.meta(Collections.unmodifiableMap(new HashMap<>(meta)));
         }
 

@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +56,7 @@ import java.util.regex.Pattern;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 public class IndexResolver {
 
@@ -360,7 +362,7 @@ public class IndexResolver {
 
         return esField;
     }
-    
+
     private static EsField createField(String fieldName, String typeName, Map<String, EsField> props, boolean isAggregateable) {
         DataType esType = DataType.fromTypeName(typeName);
         switch (esType) {
@@ -439,7 +441,7 @@ public class IndexResolver {
             
             // filter meta fields and unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
-            List<String> unmappedIndices = unmapped != null ? asList(unmapped.indices()) : emptyList();
+            Set<String> unmappedIndices = unmapped != null ? new HashSet<>(asList(unmapped.indices())) : emptySet();
 
             // check each type
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {
@@ -455,10 +457,16 @@ public class IndexResolver {
                 // compute the actual indices - if any are specified, take into account the unmapped indices
                 List<String> concreteIndices = null;
                 if (capIndices != null) {
-                    // make a copy of the list to be able to modify it
-                    concreteIndices = new ArrayList<>(asList(capIndices));
-                    if (unmappedIndices.isEmpty() == false) {
-                        concreteIndices.removeAll(unmappedIndices);
+                    if (unmappedIndices.isEmpty() == true) {
+                        concreteIndices = asList(capIndices);
+                    } else {
+                        concreteIndices = new ArrayList<>(capIndices.length - unmappedIndices.size() + 1);
+                        for (String capIndex : capIndices) {
+                            // add only indices that have a mapping
+                            if (unmappedIndices.contains(capIndex) == false) {
+                                concreteIndices.add(capIndex);
+                            }
+                        }
                     }
                 } else {
                     concreteIndices = resolvedIndices;

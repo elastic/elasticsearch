@@ -30,9 +30,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
@@ -145,6 +144,51 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+    }
+
+    public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
+        String sourceIndex = "test-outlier-detection-with-enough-docs-to-scroll";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        int docCount = randomIntBetween(1024, 2048);
+        for (int i = 0; i < docCount; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_with_enough_docs_to_scroll";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(id, sourceIndex, "custom_ml");
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+        startAnalytics(id);
+        assertState(id, DataFrameAnalyticsState.STARTED);
+
+        assertThat(stopAnalytics(id).isStopped(), is(true));
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        if (searchResponse.getHits().getTotalHits().value == docCount) {
+            searchResponse = client().prepareSearch(config.getDest().getIndex())
+                .setTrackTotalHits(true)
+                .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+            logger.debug("We stopped during analysis: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
+            assertThat(searchResponse.getHits().getTotalHits().value, lessThan((long) docCount));
+        } else {
+            logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
+        }
     }
 
     private static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String sourceIndex, @Nullable String resultsField) {

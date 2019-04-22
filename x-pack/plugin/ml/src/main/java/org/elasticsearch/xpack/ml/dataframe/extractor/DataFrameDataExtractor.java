@@ -74,6 +74,7 @@ public class DataFrameDataExtractor {
     }
 
     public void cancel() {
+        LOGGER.debug("[{}] Data extractor was cancelled", context.jobId);
         isCancelled = true;
     }
 

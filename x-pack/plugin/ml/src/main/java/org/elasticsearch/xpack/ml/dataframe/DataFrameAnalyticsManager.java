@@ -137,9 +137,18 @@ public class DataFrameAnalyticsManager {
     }
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        if (task.isStopping()) {
+            // The task was requested to stop before we started reindexing
+            task.markAsCompleted();
+            return;
+        }
+
         // Reindexing is complete; start analytics
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> startAnalytics(task, config, false),
+            refreshResponse -> {
+                task.setReindexingTaskId(null);
+                startAnalytics(task, config, false);
+            },
             task::markAsFailed
         );
 
@@ -184,7 +193,7 @@ public class DataFrameAnalyticsManager {
                 DataFrameAnalyticsTaskState analyzingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.ANALYZING,
                     task.getAllocationId());
                 task.updatePersistentTaskState(analyzingState, ActionListener.wrap(
-                    updatedTask -> processManager.runJob(task.getAllocationId(), config, dataExtractorFactory,
+                    updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
                         error -> {
                             if (error != null) {
                                 task.markAsFailed(error);
@@ -213,7 +222,7 @@ public class DataFrameAnalyticsManager {
         }
 
         Settings.Builder settingsBuilder = Settings.builder().put(indexMetaData.getSettings());
-        INTERNAL_SETTINGS.stream().forEach(settingsBuilder::remove);
+        INTERNAL_SETTINGS.forEach(settingsBuilder::remove);
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataFrameAnalyticsFields.ID);
         settingsBuilder.put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), SortOrder.ASC);
 
@@ -230,11 +239,18 @@ public class DataFrameAnalyticsManager {
     private static void addDestinationIndexMappings(IndexMetaData indexMetaData, CreateIndexRequest createIndexRequest) {
         ImmutableOpenMap<String, MappingMetaData> mappings = indexMetaData.getMappings();
         Map<String, Object> mappingsAsMap = mappings.valuesIt().next().sourceAsMap();
+
+        @SuppressWarnings("unchecked")
         Map<String, Object> properties = (Map<String, Object>) mappingsAsMap.get("properties");
+
         Map<String, Object> idCopyMapping = new HashMap<>();
         idCopyMapping.put("type", "keyword");
         properties.put(DataFrameAnalyticsFields.ID, idCopyMapping);
 
         createIndexRequest.mapping(mappings.keysIt().next(), mappingsAsMap);
+    }
+
+    public void stop(DataFrameAnalyticsTask task) {
+        processManager.stop(task);
     }
 }

@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -44,6 +46,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
@@ -250,13 +253,21 @@ public class TransportStartDataFrameAnalyticsAction
 
     public static class DataFrameAnalyticsTask extends AllocatedPersistentTask implements StartDataFrameAnalyticsAction.TaskMatcher {
 
+        private final Client client;
+        private final ClusterService clusterService;
+        private final DataFrameAnalyticsManager analyticsManager;
         private final StartDataFrameAnalyticsAction.TaskParams taskParams;
         @Nullable
         private volatile Long reindexingTaskId;
+        private volatile boolean isStopping;
 
         public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
+                                      Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
                                       StartDataFrameAnalyticsAction.TaskParams taskParams) {
             super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
+            this.client = Objects.requireNonNull(client);
+            this.clusterService = Objects.requireNonNull(clusterService);
+            this.analyticsManager = Objects.requireNonNull(analyticsManager);
             this.taskParams = Objects.requireNonNull(taskParams);
         }
 
@@ -264,7 +275,7 @@ public class TransportStartDataFrameAnalyticsAction
             return taskParams;
         }
 
-        public void setReindexingTaskId(long reindexingTaskId) {
+        public void setReindexingTaskId(Long reindexingTaskId) {
             this.reindexingTaskId = reindexingTaskId;
         }
 
@@ -272,10 +283,52 @@ public class TransportStartDataFrameAnalyticsAction
         public Long getReindexingTaskId() {
             return reindexingTaskId;
         }
+
+        public boolean isStopping() {
+            return isStopping;
+        }
+
+        @Override
+        protected void onCancelled() {
+            stop(getReasonCancelled(), TimeValue.ZERO);
+        }
+
+        public void stop(String reason, TimeValue timeout) {
+            isStopping = true;
+            if (reindexingTaskId != null) {
+                cancelReindexingTask(reason, timeout);
+            }
+            analyticsManager.stop(this);
+        }
+
+        private void cancelReindexingTask(String reason, TimeValue timeout) {
+            TaskId reindexTaskId = new TaskId(clusterService.localNode().getId(), reindexingTaskId);
+            LOGGER.debug("[{}] Cancelling reindex task [{}]", taskParams.getId(), reindexTaskId);
+
+            CancelTasksRequest cancelReindex = new CancelTasksRequest();
+            cancelReindex.setTaskId(reindexTaskId);
+            cancelReindex.setReason(reason);
+            cancelReindex.setTimeout(timeout);
+            CancelTasksResponse cancelReindexResponse = client.admin().cluster().cancelTasks(cancelReindex).actionGet();
+            Throwable firstError = null;
+            if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
+                firstError = cancelReindexResponse.getNodeFailures().get(0).getRootCause();
+            }
+            if (cancelReindexResponse.getTaskFailures().isEmpty() == false) {
+                firstError = cancelReindexResponse.getTaskFailures().get(0).getCause();
+            }
+            if (firstError != null) {
+                throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
+            } else {
+                LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());
+            }
+        }
     }
 
     public static class TaskExecutor extends PersistentTasksExecutor<StartDataFrameAnalyticsAction.TaskParams> {
 
+        private final Client client;
+        private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
         private final MlMemoryTracker memoryTracker;
 
@@ -283,9 +336,11 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
 
-        public TaskExecutor(Settings settings, ClusterService clusterService, DataFrameAnalyticsManager manager,
+        public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
                             MlMemoryTracker memoryTracker) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            this.client = Objects.requireNonNull(client);
+            this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.memoryTracker = Objects.requireNonNull(memoryTracker);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
@@ -302,7 +357,8 @@ public class TransportStartDataFrameAnalyticsAction
             long id, String type, String action, TaskId parentTaskId,
             PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> persistentTask,
             Map<String, String> headers) {
-            return new DataFrameAnalyticsTask(id, type, action, parentTaskId, headers, persistentTask.getParams());
+            return new DataFrameAnalyticsTask(id, type, action, parentTaskId, headers, client, clusterService, manager,
+                persistentTask.getParams());
         }
 
         @Override

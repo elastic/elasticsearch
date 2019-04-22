@@ -297,7 +297,7 @@ class BuildPlugin implements Plugin<Project> {
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
         def javaVersions = task.project.property('javaVersions') as List<JavaHome>
-        return javaVersions.find { it.version == version }
+        return javaVersions.find { it.version == version }.javaHome.absolutePath
     }
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */

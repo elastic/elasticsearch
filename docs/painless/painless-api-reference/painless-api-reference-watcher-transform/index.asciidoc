@@ -1,0 +1,9 @@
+[[painless-api-reference-watcher-transform]]
+=== Watcher Transform API
+
+The following specialized API is available in the Watcher Transform context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+include::packages.asciidoc[]
+

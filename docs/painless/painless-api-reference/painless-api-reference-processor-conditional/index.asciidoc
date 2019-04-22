@@ -1,0 +1,9 @@
+[[painless-api-reference-processor-conditional]]
+=== Processor Conditional API
+
+The following specialized API is available in the Processor Conditional context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+include::packages.asciidoc[]
+

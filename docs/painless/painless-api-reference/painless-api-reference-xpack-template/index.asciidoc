@@ -1,0 +1,9 @@
+[[painless-api-reference-xpack-template]]
+=== Xpack Template API
+
+The following specialized API is available in the Xpack Template context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+include::packages.asciidoc[]
+

@@ -1,0 +1,9 @@
+[[painless-api-reference-painless-test]]
+=== Painless Test API
+
+The following specialized API is available in the Painless Test context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+include::packages.asciidoc[]
+

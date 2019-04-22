@@ -1,0 +1,20 @@
+[[painless-api-reference-aggregation-selector]]
+=== Aggregation Selector API
+
+The following specialized API is available in the Aggregation Selector context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== org.elasticsearch.xpack.sql.expression.function.scalar.whitelist
+<<painless-api-reference-aggregation-selector-org-elasticsearch-xpack-sql-expression-function-scalar-whitelist, Expand details for org.elasticsearch.xpack.sql.expression.function.scalar.whitelist>>
+
+* <<painless-api-reference-aggregation-selector-InternalSqlScriptUtils, InternalSqlScriptUtils>>
+
+==== org.elasticsearch.xpack.sql.expression.literal
+<<painless-api-reference-aggregation-selector-org-elasticsearch-xpack-sql-expression-literal, Expand details for org.elasticsearch.xpack.sql.expression.literal>>
+
+* <<painless-api-reference-aggregation-selector-IntervalDayTime, IntervalDayTime>>
+* <<painless-api-reference-aggregation-selector-IntervalYearMonth, IntervalYearMonth>>
+
+include::packages.asciidoc[]
+

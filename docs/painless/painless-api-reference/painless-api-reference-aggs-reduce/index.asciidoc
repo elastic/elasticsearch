@@ -1,0 +1,9 @@
+[[painless-api-reference-aggs-reduce]]
+=== Aggs Reduce API
+
+The following specialized API is available in the Aggs Reduce context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+include::packages.asciidoc[]
+

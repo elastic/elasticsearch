@@ -383,5 +383,11 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     }
 
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41402")
+    public void testMustRewrite() throws IOException {
+        super.testMustRewrite();
+    }
+
 
 }

@@ -27,9 +27,9 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -99,7 +99,7 @@ public class GetUsersResponse {
         (constructorObjects) -> {
             int i = 0;
             final String username = (String) constructorObjects[i++];
-            final Collection<String> roles = (Collection<String>) constructorObjects[i++];
+            final List<String> roles = (List<String>) constructorObjects[i++];
             final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
             final Boolean enabled = (Boolean) constructorObjects[i++];
             final String fullName = (String) constructorObjects[i++];
@@ -120,11 +120,11 @@ public class GetUsersResponse {
         protected User user;
         protected boolean enabled;
 
-        public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled,
+        public ParsedUser(String username, List<String> roles, Map<String, Object> metadata, Boolean enabled,
                           @Nullable String fullName, @Nullable String email) {
             String checkedUsername = Objects.requireNonNull(username, "`username` is required, cannot be null");
-            Collection<String> checkedRoles =
-                    Set.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."));
+            List<String> checkedRoles =
+                    List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."));
             Map<String, Object> checkedMetadata = Collections.unmodifiableMap(
                     Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
             this.user = new User(checkedUsername, checkedRoles, checkedMetadata, fullName, email);

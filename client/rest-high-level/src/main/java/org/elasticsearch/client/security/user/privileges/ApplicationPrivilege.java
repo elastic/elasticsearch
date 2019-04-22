@@ -30,11 +30,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -53,10 +52,10 @@ public final class ApplicationPrivilege implements ToXContentObject {
 
     private final String application;
     private final String name;
-    private final Set<String> actions;
+    private final List<String> actions;
     private final Map<String, Object> metadata;
 
-    public ApplicationPrivilege(String application, String name, Collection<String> actions, @Nullable Map<String, Object> metadata) {
+    public ApplicationPrivilege(String application, String name, List<String> actions, @Nullable Map<String, Object> metadata) {
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application name must be provided");
         } else {
@@ -70,7 +69,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
         if (actions == null || actions.isEmpty()) {
             throw new IllegalArgumentException("actions must be provided");
         } else {
-            this.actions = Set.copyOf(actions);
+            this.actions = List.copyOf(actions);
         }
         if (metadata == null || metadata.isEmpty()) {
             this.metadata = Collections.emptyMap();
@@ -87,7 +86,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
         return name;
     }
 
-    public Set<String> getActions() {
+    public List<String> getActions() {
         return actions;
     }
 
@@ -98,7 +97,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ApplicationPrivilege, String> PARSER = new ConstructingObjectParser<>(
         "application_privilege",
-        true, args -> new ApplicationPrivilege((String) args[0], (String) args[1], (Collection<String>) args[2],
+        true, args -> new ApplicationPrivilege((String) args[0], (String) args[1], (List<String>) args[2],
         (Map<String, Object>) args[3]));
 
     static {
@@ -135,7 +134,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
     public static final class Builder {
         private String applicationName = null;
         private String privilegeName = null;
-        private Collection<String> actions = null;
+        private List<String> actions = null;
         private Map<String, Object> metadata = null;
 
         private Builder() {
@@ -156,7 +155,7 @@ public final class ApplicationPrivilege implements ToXContentObject {
             return this;
         }
 
-        public Builder actions(Collection<String> actions) {
+        public Builder actions(List<String> actions) {
             this.actions = Objects.requireNonNull(actions);
             return this;
         }

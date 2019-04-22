@@ -97,6 +97,7 @@ import org.hamcrest.Matchers;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1635,13 +1636,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("write")
-                .actions(Sets.newHashSet("action:write"))
+                .actions(List.of("action:write"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
             // end::put-privileges-request
@@ -1664,7 +1665,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             privileges.add(ApplicationPrivilege.builder()
                 .application("app01")
                 .privilege("all")
-                .actions(Sets.newHashSet("action:login"))
+                .actions(List.of("action:login"))
                 .metadata(Collections.singletonMap("k1", "v1"))
                 .build());
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);

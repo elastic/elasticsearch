@@ -76,6 +76,15 @@ native realm:
 * <<security-api-enable-user,Enable users>>
 * <<security-api-get-user,Get users>>
 
+=== OpenID Connect
+
+You can use the following APIs to authenticate users against an OpenID Connect
+authentication realm
+
+* <<security-api-oidc-prepare-authentication, Prepare an authentication request>>
+* <<security-api-oidc-authenticate, Submit an authentication response>>
+* <<security-api-oidc-logout, Logout an authenticated user>>
+
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
@@ -102,3 +111,6 @@ include::security/has-privileges.asciidoc[]
 include::security/invalidate-api-keys.asciidoc[]
 include::security/invalidate-tokens.asciidoc[]
 include::security/ssl.asciidoc[]
+include::security/oidc-prepare-authentication-api.asciidoc[]
+include::security/oidc-authenticate-api.asciidoc[]
+include::security/oidc-logout-api.asciidoc[]

@@ -35,3 +35,36 @@ SELECT ST_Distance(ST_WKTToSQL('POINT (10 20)'), ST_WKTToSQL('POINT (20 30)')) d
 1499101.2889383635
 // end::distance
 ;
+
+///////////////////////////////
+//
+// Geometry Properties
+//
+///////////////////////////////
+
+selectGeometryType
+// tag::geometrytype
+SELECT ST_GeometryType(ST_WKTToSQL('POINT (10 20)')) type;
+
+      type:s
+POINT
+// end::geometrytype
+;
+
+selectX
+// tag::x
+SELECT ST_X(ST_WKTToSQL('POINT (10 20)')) x;
+
+      x:d
+10.0
+// end::x
+;
+
+selectY
+// tag::y
+SELECT ST_Y(ST_WKTToSQL('POINT (10 20)')) y;
+
+      y:d
+20.0
+// end::y
+;

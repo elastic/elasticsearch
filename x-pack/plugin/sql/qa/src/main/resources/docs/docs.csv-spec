@@ -312,8 +312,11 @@ USER             |SCALAR
 ST_ASTEXT        |SCALAR
 ST_ASWKT         |SCALAR
 ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
 ST_GEOMFROMTEXT  |SCALAR
 ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
 SCORE            |SCORE
 // end::showFunctions
 ;

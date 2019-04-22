@@ -652,6 +652,39 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(25.0, gq.distance(), 0.00001);
     }
 
+    public void testTranslateStXY() {
+        String dim = randomFrom("X", "Y");
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_" + dim + "(point) = 10");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.st" + dim + "(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=10}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStGeometryType() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(shape) = 'POLYGON'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=shape}, {v=POLYGON}]", sc.script().params().toString());
+    }
+
     public void testTranslateCoalesce_GroupBy_Painless() {
         LogicalPlan p = plan("SELECT COALESCE(int, 10) FROM test GROUP BY 1");
         assertTrue(p instanceof Aggregate);

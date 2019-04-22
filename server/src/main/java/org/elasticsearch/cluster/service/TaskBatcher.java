@@ -103,7 +103,7 @@ public abstract class TaskBatcher {
         final Set<IdentityWrapper> ids = new HashSet<>(tasks.size());
         final List<BatchedTask> toRemove = new ArrayList<>(tasks.size());
         for (BatchedTask task : tasks) {
-            if (!task.processed.getAndSet(true)) {
+            if (task.processed.getAndSet(true) == false) {
                 logger.debug("task [{}] timed out after [{}]", task.source, timeout);
                 ids.add(new IdentityWrapper(task.getTask()));
                 toRemove.add(task);
@@ -127,7 +127,7 @@ public abstract class TaskBatcher {
                 } else {
                     final Map<IdentityWrapper, BatchedTask> merged = new LinkedHashMap<>(v.size());
                     v.forEach((id, task) -> {
-                        if (!ids.contains(id)) {
+                        if (ids.contains(id) == false) {
                             merged.put(id, task);
                         }
                     });
@@ -147,13 +147,13 @@ public abstract class TaskBatcher {
     private void runIfNotProcessed(BatchedTask updateTask) {
         // if this task is already processed, it shouldn't execute other tasks with same batching key that arrived later,
         // to give other tasks with different batching key a chance to execute.
-        if (!updateTask.processed.get()) {
+        if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             final Map<IdentityWrapper, BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {
                 for (BatchedTask task : pending.values()) {
-                    if (!task.processed.getAndSet(true)) {
+                    if (task.processed.getAndSet(true) == false) {
                         logger.trace("will process {}", task);
                         toExecute.add(task);
                         processTasksBySource.computeIfAbsent(task.source, s -> new ArrayList<>()).add(task);
@@ -163,7 +163,7 @@ public abstract class TaskBatcher {
                 }
             }
 
-            if (!toExecute.isEmpty()) {
+            if (toExecute.isEmpty() == false) {
                 final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
                     String tasks = updateTask.describeTasks(entry.getValue());
                     return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";

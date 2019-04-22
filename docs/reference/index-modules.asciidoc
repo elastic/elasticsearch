@@ -45,32 +45,23 @@ specific index module:
     part of the cluster.
 
 `index.shard.check_on_startup`::
+
+experimental[] Whether or not shards should be checked for corruption before
+opening. When corruption is detected, it will prevent the shard from being
+opened. Accepts:
+
+`false`:: (default) Don't check for corruption when opening a shard.
+
+`checksum`:: Check for physical corruption.
+
+`true`:: Check for both physical and logical corruption. This is much more
+expensive in terms of CPU and memory usage.
+
+`fix`:: Check for both physical and logical corruption.  Segments that were
+reported as corrupted will be automatically removed. This option *may result in
+data loss*. Use with extreme caution!
 +
---
-experimental[] Whether or not shards should be checked for corruption before opening. When
-corruption is detected, it will prevent the shard from being opened. Accepts:
-
-`false`::
-
-    (default) Don't check for corruption when opening a shard.
-
-`checksum`::
-
-    Check for physical corruption.
-
-`true`::
-
-    Check for both physical and logical corruption. This is much more
-    expensive in terms of CPU and memory usage.
-
-`fix`::
-
-    Check for both physical and logical corruption.  Segments that were reported
-    as corrupted will be automatically removed. This option *may result in data loss*.
-    Use with extreme caution!
-
 Checking shards may take a lot of time on large indices.
---
 
 [[index-codec]] `index.codec`::
 

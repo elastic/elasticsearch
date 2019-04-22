@@ -48,24 +48,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * The gradle task generateContextDoc uses ContextDocGenerator to rebuild
+ * the Painless API documentation from a clean state after the
+ * existing documentation is deleted. The following pages are generated:
+ * <ul>
+ *     <li>An index page with each context and links to the APIs</li>
+ *     <li>A high-level overview page of shared API for all contexts</li>
+ *     <li>A detailed page per package per context of shared API for all contexts</li>
+ *     <li>A high-level overview page of specialized API for each context</li>
+ *     <li>A detailed page per package per context of specialized API for each context</li>
+ * </ul>
+ * Use the docs build to generate HTML pages from the resultant asciidoc files.
+ */
 public final class ContextDocGenerator {
 
     private static final String SHARED_HEADER = "painless-api-reference-shared";
     private static final String SHARED_NAME = "Shared";
 
-    /**
-     * The gradle task generateContextDoc uses ContextDocGenerator to rebuild
-     * the Painless API documentation from a clean state after the
-     * existing documentation is deleted. The following pages are generated:
-     * <ul>
-     *     <li>An index page with each context and links to the APIs</li>
-     *     <li>A high-level overview page of shared API for all contexts</li>
-     *     <li>A detailed page per package per context of shared API for all contexts</li>
-     *     <li>A high-level overview page of specialized API for each context</li>
-     *     <li>A detailed page per package per context of specialized API for each context</li>
-     * </ul>
-     * Use the docs build to generate HTML pages from the resultant asciidoc files.
-     */
     public static void main(String[] args) throws IOException {
         List<PainlessContextInfo> contextInfos = getContextInfos();
         Set<PainlessContextClassInfo> sharedClassInfos = createShared(contextInfos);

@@ -41,9 +41,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -139,6 +142,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshot);
         boolean waitForCompletion = randomBoolean();
         request.waitForCompletion(waitForCompletion);
+        if (randomBoolean()) {
+            Map<String, Object> originalMetadata = new HashMap<>();
+            originalMetadata.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+            originalMetadata.put(randomAlphaOfLength(6), randomAlphaOfLength(10));
+            request.userMetadata(originalMetadata);
+        }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
 
@@ -167,6 +176,10 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
         CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
+        Map<String, Object> originalMetadata = new HashMap<>();
+        originalMetadata.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+        originalMetadata.put(randomAlphaOfLength(6), randomAlphaOfLength(10));
+        createSnapshotRequest2.userMetadata(originalMetadata);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, putSnapshotResponse1.status());
@@ -186,6 +199,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertEquals(2, response.getSnapshots().size());
         assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
             contains("test_snapshot1", "test_snapshot2"));
+        response.getSnapshots().stream()
+            .filter(s -> s.snapshotId().getName().equals("test_snapshot2"))
+            .findFirst()
+            .map(SnapshotInfo::userMetadata)
+            .ifPresentOrElse(metadata -> assertEquals(originalMetadata, metadata),
+                () -> fail("response did not contain expected _meta field"));
     }
 
     public void testSnapshotsStatus() throws IOException {
@@ -231,6 +250,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(testRepository, testSnapshot);
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            Map<String, Object> originalMetadata = new HashMap<>();
+            originalMetadata.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+            originalMetadata.put(randomAlphaOfLength(6), randomAlphaOfLength(10));
+            createSnapshotRequest.userMetadata(originalMetadata);
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
 
@@ -261,6 +286,12 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         createSnapshotRequest.waitForCompletion(true);
+        if (randomBoolean()) {
+            Map<String, Object> originalMetadata = new HashMap<>();
+            originalMetadata.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
+            originalMetadata.put(randomAlphaOfLength(6), randomAlphaOfLength(10));
+            createSnapshotRequest.userMetadata(originalMetadata);
+        }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, createSnapshotResponse.status());

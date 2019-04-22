@@ -22,7 +22,7 @@ index 1     97ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hy
 index 2     93ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
 index 3     90ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
 index 4     9ms  store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
----------------------------------------------------------------------------
+----------------------------------------------------------------------------
 
 In the above case, the source and target nodes are the same because the recovery
 type was store, i.e. they were read from local storage on node start.

@@ -57,6 +57,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(JavaBasePlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
+        BuildPlugin.configureCompile(project)
         BuildPlugin.configureRepositories(project)
         BuildPlugin.configureTestTasks(project)
 

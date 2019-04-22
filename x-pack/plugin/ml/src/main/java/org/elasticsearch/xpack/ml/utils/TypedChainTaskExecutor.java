@@ -63,7 +63,8 @@ public class TypedChainTaskExecutor<T> {
         collectedResponses.add(previousValue);
         if (continuationPredicate.test(previousValue)) {
             if (tasks.isEmpty()) {
-               listener.onResponse(List.copyOf(collectedResponses));
+                // noinspection Java9CollectionFactory (because the list can contain null entries)
+                listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
                return;
             }
             ChainTask<T> task = tasks.pop();
@@ -83,7 +84,8 @@ public class TypedChainTaskExecutor<T> {
                 }
             });
         } else {
-            listener.onResponse(List.copyOf(collectedResponses));
+            // noinspection Java9CollectionFactory (because the list can contain null entries)
+            listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
         }
     }
 

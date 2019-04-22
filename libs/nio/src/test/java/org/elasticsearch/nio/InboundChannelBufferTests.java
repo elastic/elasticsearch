@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 public class InboundChannelBufferTests extends ESTestCase {
 

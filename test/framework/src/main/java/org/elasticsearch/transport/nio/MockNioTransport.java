@@ -37,8 +37,8 @@ import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -61,7 +61,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -34,11 +33,9 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import javax.net.ssl.SSLEngine;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 

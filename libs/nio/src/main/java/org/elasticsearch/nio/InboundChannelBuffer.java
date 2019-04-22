@@ -29,7 +29,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 /**
  * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
@@ -42,19 +41,15 @@ public final class InboundChannelBuffer implements AutoCloseable {
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
     private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
-    private final int pageSize;
     private final IntFunction<Page> pageAllocator;
     private final ArrayDeque<Page> pages = new ArrayDeque<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
+    private int pageSize;
     private long capacity = 0;
     private long internalIndex = 0;
     // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
-
-    public InboundChannelBuffer(Supplier<Page> pageSupplier, int pageSize) {
-        this((n) -> pageSupplier.get(), pageSize);
-    }
 
     public InboundChannelBuffer(IntFunction<Page> pageAllocator, int pageSize) {
         this.pageSize = pageSize;
@@ -62,7 +57,8 @@ public final class InboundChannelBuffer implements AutoCloseable {
     }
 
     public static InboundChannelBuffer allocatingInstance(int pageSize) {
-        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}), pageSize);
+        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {
+        }), pageSize);
     }
 
     @Override
@@ -247,9 +243,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
             pages.addFirst(newPage);
             oldPage.close();
         } else {
-            long indexWithOffset = length + offset;
-            int pageIndex = pageIndex(length);
-            int newPageCount = indexInPage(indexWithOffset) != 0 ? pageIndex + 1 : pageIndex;
+            int newPageCount = numPages(length);
             Page[] newPages = new Page[newPageCount];
 
             Page newPage = pageAllocator.apply(pageSize);
@@ -257,14 +251,13 @@ public final class InboundChannelBuffer implements AutoCloseable {
             Page oldPage = pages.removeFirst();
             ByteBuffer oldByteBuffer = oldPage.getByteBuffer().duplicate();
             oldByteBuffer.position(offset);
-            long bytesToCopy = internalIndex;
+            long totalBytesToCopy = length;
             int newBufferIndex = 0;
-            while (bytesToCopy > 0) {
+            while (totalBytesToCopy > 0) {
                 if (newByteBuffer.remaining() == 0) {
-                    newPages[newBufferIndex] = newPage;
+                    newPages[newBufferIndex++] = newPage;
                     newPage = pageAllocator.apply(pageSize);
                     newByteBuffer = newPage.getByteBuffer();
-                    ++newBufferIndex;
                 }
                 if (oldByteBuffer.remaining() == 0) {
                     oldPage.close();
@@ -272,13 +265,13 @@ public final class InboundChannelBuffer implements AutoCloseable {
                     oldByteBuffer = oldPage.getByteBuffer().duplicate();
                 }
 
-                int limitDelta = Math.min(Math.min((int) bytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
+                int bytesToCopy = Math.min(Math.min((int) totalBytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
                 // TODO: This is to prevent accidentally setting the buffer's new limit to the capacity which might
                 //  be greater than the limit. Maybe the Page should have a length attribute?
                 int initialLimit = oldByteBuffer.limit();
-                oldByteBuffer.limit(oldByteBuffer.position() + limitDelta);
+                oldByteBuffer.limit(oldByteBuffer.position() + bytesToCopy);
                 newByteBuffer.put(oldByteBuffer);
-                bytesToCopy -= limitDelta;
+                totalBytesToCopy -= bytesToCopy;
                 oldByteBuffer.limit(initialLimit);
             }
 
@@ -291,6 +284,65 @@ public final class InboundChannelBuffer implements AutoCloseable {
             }
         }
 
+        offset = 0;
+        capacity = pages.size() * pageSize;
+    }
+
+    public void changePageSize(int newPageSize, long length) {
+        if (newPageSize == pageSize) {
+            return;
+        }
+
+        int newPageCount = numPagesForPageSize(newPageSize, capacity);
+        Page[] newPages = new Page[newPageCount];
+
+        Page newPage = pageAllocator.apply(newPageSize);
+        ByteBuffer newByteBuffer = newPage.getByteBuffer();
+        Page oldPage = pages.removeFirst();
+        ByteBuffer oldByteBuffer = oldPage.getByteBuffer().duplicate();
+        oldByteBuffer.position(offset);
+        long bytesToCopy = length;
+        int newBufferIndex = 0;
+        while (bytesToCopy > 0) {
+            if (newByteBuffer.remaining() == 0) {
+                newPages[newBufferIndex] = newPage;
+                newPage = pageAllocator.apply(newPageSize);
+                newByteBuffer = newPage.getByteBuffer();
+                ++newBufferIndex;
+            }
+            if (oldByteBuffer.remaining() == 0) {
+                oldPage.close();
+                oldPage = pages.removeFirst();
+                oldByteBuffer = oldPage.getByteBuffer().duplicate();
+            }
+
+            int limitDelta = Math.min(Math.min((int) bytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
+            // TODO: This is to prevent accidentally setting the buffer's new limit to the capacity which might
+            //  be greater than the limit. Maybe the Page should have a length attribute?
+            int initialLimit = oldByteBuffer.limit();
+            oldByteBuffer.limit(oldByteBuffer.position() + limitDelta);
+            newByteBuffer.put(oldByteBuffer);
+            bytesToCopy -= limitDelta;
+            oldByteBuffer.limit(initialLimit);
+        }
+
+        for (int i = 0; i < pages.size(); i++) {
+            pages.removeFirst().close();
+        }
+
+        while (newBufferIndex < newPageCount) {
+            newPages[newBufferIndex++] = newPage;
+            newPage = pageAllocator.apply(newPageSize);
+        }
+
+        for (int i = newPageCount - 1; i >= 0; --i) {
+            Page page = newPages[i];
+            page.getByteBuffer().clear();
+            pages.addFirst(newPage);
+        }
+
+
+        pageSize = newPageSize;
         offset = 0;
         capacity = pages.size() * pageSize;
     }
@@ -323,6 +375,10 @@ public final class InboundChannelBuffer implements AutoCloseable {
     }
 
     private int numPages(long capacity) {
+        return numPagesForPageSize(pageSize, capacity);
+    }
+
+    private static int numPagesForPageSize(int pageSize, long capacity) {
         long minPages = capacity / pageSize;
         long remainder = capacity % pageSize;
         final long numPages = remainder != 0 ? minPages + 1 : minPages;

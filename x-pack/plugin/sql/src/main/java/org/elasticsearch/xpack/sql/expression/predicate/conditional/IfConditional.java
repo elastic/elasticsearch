@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Helper function (cannot be directly from a query) to model a {@code WHEN <condition> ELSE <result>}
- * clause of {@link Case} expression
+ * Helper expression (cannot be created directly from a query) to model a
+ * {@code WHEN <condition> ELSE <result>} clause of {@link Case} expression
  */
 public class IfConditional extends Expression {
 
@@ -25,13 +25,9 @@ public class IfConditional extends Expression {
     private final Expression result;
 
     public IfConditional(Source source, Expression condition, Expression result) {
-        this(source, Arrays.asList(condition, result));
-    }
-
-    private IfConditional(Source source, List<Expression> children) {
-        super(source, children);
-        this.condition = children.get(0);
-        this.result = children.get(1);
+        super(source, Arrays.asList(condition, result));
+        this.condition = condition;
+        this.result = result;
     }
 
     public Expression condition() {
@@ -57,7 +53,7 @@ public class IfConditional extends Expression {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new IfConditional(source(), newChildren);
+        return new IfConditional(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override

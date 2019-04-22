@@ -1242,7 +1242,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 Case c = (Case) e;
 
                 // Remove or foldable conditions that fold to FALSE
-                // Stop at the 1st foldable condition taht folds to TRUE
+                // Stop at the 1st foldable condition that folds to TRUE
                 List<IfConditional> newConditions = new ArrayList<>();
                 for (IfConditional conditional : c.conditions()) {
                     if (conditional.condition().foldable()) {

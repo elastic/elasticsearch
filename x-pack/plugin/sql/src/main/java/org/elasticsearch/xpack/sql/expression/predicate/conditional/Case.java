@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -36,7 +37,6 @@ public class Case extends ConditionalFunction {
         super(source, expressions);
         this.conditions = (List<IfConditional>) (List<?>) expressions.subList(0, expressions.size() - 1);
         this.defaultElse = expressions.get(expressions.size() - 1);
-        setDataType();
     }
 
     public List<IfConditional> conditions() {
@@ -45,6 +45,22 @@ public class Case extends ConditionalFunction {
 
     public Expression defaultElse() {
         return defaultElse;
+    }
+
+    @Override
+    public DataType dataType() {
+        if (dataType == null) {
+            if (conditions.isEmpty()) {
+                dataType = defaultElse().dataType();
+            } else {
+                dataType = DataType.NULL;
+
+                for (IfConditional conditional : conditions) {
+                    dataType = DataTypeConversion.commonType(dataType, conditional.dataType());
+                }
+            }
+        }
+        return dataType;
     }
 
     @Override
@@ -97,10 +113,14 @@ public class Case extends ConditionalFunction {
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    /**
+     * All foldable conditions that fold to FALSE should have
+     * been removed by the {@link Optimizer}.
+     */
     @Override
     public boolean foldable() {
-        return defaultElse.foldable() && (conditions.isEmpty() ||
-            (conditions.size() == 1 && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable()));
+        return (conditions.isEmpty() && defaultElse.foldable()) ||
+            (conditions.isEmpty() == false && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
     }
 
     @Override
@@ -143,17 +163,5 @@ public class Case extends ConditionalFunction {
         }
 
         return new ScriptTemplate(formatTemplate(template.toString()), params.build(), dataType());
-    }
-
-    private void setDataType() {
-        if (conditions.isEmpty()) {
-            dataType = defaultElse().dataType();
-        } else {
-            dataType = conditions.get(0).dataType();
-        }
-
-        for (IfConditional conditional : conditions) {
-            dataType = DataTypeConversion.commonType(dataType, conditional.dataType());
-        }
     }
 }

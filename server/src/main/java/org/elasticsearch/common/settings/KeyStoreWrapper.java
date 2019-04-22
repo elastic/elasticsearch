@@ -67,6 +67,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.hash.MessageDigests;
 
 /**
  * A disk based container for sensitive settings in Elasticsearch.
@@ -88,10 +89,12 @@ public class KeyStoreWrapper implements SecureSettings {
     private static class Entry {
         final EntryType type;
         final byte[] bytes;
+        final byte[] bytesSHA256Digest;
 
         Entry(EntryType type, byte[] bytes) {
             this.type = type;
             this.bytes = bytes;
+            this.bytesSHA256Digest = MessageDigests.sha256().digest(bytes);
         }
     }
 
@@ -543,6 +546,16 @@ public class KeyStoreWrapper implements SecureSettings {
             throw new IllegalArgumentException("Secret setting " + setting + " is not a file");
         }
         return new ByteArrayInputStream(entry.bytes);
+    }
+
+    @Override
+    public byte[] getSHA256Digest(String setting) {
+        assert entries.get() != null : "Keystore is not loaded";
+        final Entry entry = entries.get().get(setting);
+        if (entry == null) {
+            throw new IllegalArgumentException("Secret setting " + setting + " does not exist");
+        }
+        return entry.bytesSHA256Digest;
     }
 
     /**

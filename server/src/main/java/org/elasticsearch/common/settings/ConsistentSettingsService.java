@@ -55,7 +55,7 @@ public final class ConsistentSettingsService {
     private final SecretKeyFactory PBKDF2KeyFactory;
 
     public ConsistentSettingsService(Settings settings, ClusterService clusterService,
-            Collection<Setting<?>> secureSettingsCollection) {
+                                     Collection<Setting<?>> secureSettingsCollection) {
         this.settings = settings;
         this.clusterService = clusterService;
         this.secureSettingsCollection = secureSettingsCollection;
@@ -118,7 +118,7 @@ public final class ConsistentSettingsService {
             final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
             if (publishedSaltAndHash == null && localHash == null) {
                 // consistency of missing
-                logger.debug("no published hash for the consistent secure setting [{}] but also it does NOT exist on the local node",
+                logger.debug("no published hash for the consistent secure setting [{}] but it also does NOT exist on the local node",
                         concreteSecureSetting.getKey());
             } else if (publishedSaltAndHash == null && localHash != null) {
                 // setting missing on master but present locally

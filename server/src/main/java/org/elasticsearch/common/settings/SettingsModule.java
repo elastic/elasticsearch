@@ -196,7 +196,7 @@ public class SettingsModule implements Module {
                     throw new IllegalArgumentException("Cannot register setting [" + setting.getKey() + "] twice");
                 }
                 if (setting.isConsistent()) {
-                    throw new IllegalArgumentException("Consistent setting [" + setting.getKey() + "] cannot be index scoped");
+                    throw new IllegalStateException("Consistent setting [" + setting.getKey() + "] cannot be index scoped");
                 }
                 indexSettings.put(setting.getKey(), setting);
             }

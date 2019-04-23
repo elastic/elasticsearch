@@ -325,12 +325,6 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertSame(noReloadingEither, AnalysisRegistry.rebuildIfNecessary(noReloadingEither, null, null, null, null));
 
 
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
-                .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
-                .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
-
         final AtomicInteger factoryCounter = new AtomicInteger(0);
         TestAnalysis testAnalysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisPlugin() {
 
@@ -351,9 +345,14 @@ public class AnalysisRegistryTests extends ESTestCase {
         tokenFilters[0] = testAnalysis.tokenFilter.get("myReloadableFilter");
         NamedAnalyzer reloadableAnalyzer = new NamedAnalyzer("reloadableAnalyzer", AnalyzerScope.INDEX,
                 new CustomAnalyzer("tokenizer", null, null, tokenFilters));
-        IndexSettings indexSetings = new IndexSettings(IndexMetaData.builder("testIndex").settings(indexSettings).build(), indexSettings);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+                .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
+        IndexSettings indexSettings = new IndexSettings(IndexMetaData.builder("testIndex").settings(settings).build(), settings);
 
-        NamedAnalyzer rebuilt = AnalysisRegistry.rebuildIfNecessary(reloadableAnalyzer, indexSetings, testAnalysis.charFilter,
+        NamedAnalyzer rebuilt = AnalysisRegistry.rebuildIfNecessary(reloadableAnalyzer, indexSettings, testAnalysis.charFilter,
                 testAnalysis.tokenizer, testAnalysis.tokenFilter);
         assertEquals(reloadableAnalyzer.name(), rebuilt.name());
         assertNotSame(reloadableAnalyzer, rebuilt);
@@ -363,12 +362,62 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertEquals(2, MyReloadableFilter.constructorCounter);
     }
 
+    public void testRebuildIndexAnalyzers() throws IOException {
+
+        final AtomicInteger factoryCounter = new AtomicInteger(0);
+        AnalysisPlugin testPlugin = new AnalysisPlugin() {
+
+            @Override
+           public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+                return Collections.singletonMap("myReloadableFilter", new AnalysisProvider<TokenFilterFactory>() {
+
+                    @Override
+                    public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
+                            throws IOException {
+                        factoryCounter.getAndIncrement();
+                        return new MyReloadableFilter();
+                    }
+                });
+            }
+        };
+
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+                .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
+                .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
+        AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(testPlugin));
+        AnalysisRegistry registry = analysisModule.getAnalysisRegistry();
+        IndexSettings indexSettings = new IndexSettings(IndexMetaData.builder("testIndex").settings(settings).build(), settings);
+        IndexAnalyzers oldIndexAnalyzers = registry.build(indexSettings);
+        assertEquals(1, factoryCounter.get());
+
+        IndexAnalyzers rebuildAnalyzers = registry.reloadIndexAnalyzers(oldIndexAnalyzers, indexSettings);
+        assertNotSame(oldIndexAnalyzers, rebuildAnalyzers);
+        assertEquals(2, factoryCounter.get());
+        assertSame(oldIndexAnalyzers.getDefaultIndexAnalyzer(), rebuildAnalyzers.getDefaultIndexAnalyzer());
+        assertSame(oldIndexAnalyzers.getDefaultSearchAnalyzer(), rebuildAnalyzers.getDefaultSearchAnalyzer());
+        assertSame(oldIndexAnalyzers.getDefaultSearchQuoteAnalyzer(), rebuildAnalyzers.getDefaultSearchQuoteAnalyzer());
+        assertNotSame(oldIndexAnalyzers.getAnalyzers(), rebuildAnalyzers.getAnalyzers());
+        assertEquals(oldIndexAnalyzers.getAnalyzers().size(), rebuildAnalyzers.getAnalyzers().size());
+        NamedAnalyzer oldVersion = oldIndexAnalyzers.get("reloadableAnalyzer");
+        NamedAnalyzer newVersion = rebuildAnalyzers.get("reloadableAnalyzer");
+        assertNotSame(oldVersion, newVersion);
+        assertThat(((CustomAnalyzer) oldVersion.analyzer()).tokenFilters()[0], instanceOf(MyReloadableFilter.class));
+        assertEquals(1, ((MyReloadableFilter) ((CustomAnalyzer) oldVersion.analyzer()).tokenFilters()[0]).generation);
+        assertThat(((CustomAnalyzer) newVersion.analyzer()).tokenFilters()[0], instanceOf(MyReloadableFilter.class));
+        assertEquals(2, ((MyReloadableFilter) ((CustomAnalyzer) newVersion.analyzer()).tokenFilters()[0]).generation);
+    }
+
     static class MyReloadableFilter implements TokenFilterFactory {
 
         static int constructorCounter = 0;
+        private final int generation;
 
         MyReloadableFilter() {
             constructorCounter++;
+            generation = constructorCounter;
         }
 
         @Override
@@ -378,11 +427,12 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
-            return null;
+            return tokenStream;
         }
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.SEARCH_TIME;
         }
-    };
+    }
+
 }

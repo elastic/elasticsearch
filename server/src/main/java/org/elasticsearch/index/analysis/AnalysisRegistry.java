@@ -34,6 +34,7 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +47,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -535,24 +535,27 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Create an new IndexAnalyzer instance based on the existing one. Analyzers that are in {@link AnalysisMode#SEARCH_TIME} are tried to
-     * be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
+     * Creates an new IndexAnalyzer instance based on the existing one passed in. If there are no analysis components that need reloading,
+     * the same instance of {@link IndexAnalyzers} is returned. Otherwise, analyzers that are in {@link AnalysisMode#SEARCH_TIME} are tried
+     * to be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
      */
-    public IndexAnalyzers rebuildIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
-
+    public IndexAnalyzers reloadIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
         // scan analyzers to collect token filters that we need to reload
-        List<NamedAnalyzer> analyzers = Stream.concat(
-                Stream.of(indexAnalyzers.getDefaultSearchAnalyzer(), indexAnalyzers.getDefaultIndexAnalyzer()),
-                indexAnalyzers.getAnalyzers().values().stream()).collect(Collectors.toList());
-
+        Map<String, NamedAnalyzer> oldAnalyzers = indexAnalyzers.getAnalyzers();
+        List<NamedAnalyzer> analyzers = new ArrayList<>(oldAnalyzers.values());
+        analyzers.add(indexAnalyzers.getDefaultIndexAnalyzer());
+        analyzers.add(indexAnalyzers.getDefaultSearchAnalyzer());
         Set<String> filtersThatNeedReloading = filtersThatNeedReloading(analyzers);
-        final Map<String, Settings> tokenFiltersToReloading = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER)
+        if (filtersThatNeedReloading.size() == 0) {
+            return indexAnalyzers;
+        }
+        final Map<String, Settings> tokenFiltersToReload = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER)
                 .entrySet().stream()
                 .filter(entry -> filtersThatNeedReloading.contains(entry.getKey()))
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 
         final Map<String, TokenFilterFactory> newTokenFilterFactories = buildMapping(Component.FILTER, indexSettings,
-                tokenFiltersToReloading, this.tokenFilters, prebuiltAnalysis.preConfiguredTokenFilters);
+                tokenFiltersToReload, this.tokenFilters, prebuiltAnalysis.preConfiguredTokenFilters);
 
         // fill the rest of the token filter factory map with the entries that are missing (were not reloaded)
         for (Entry<String, TokenFilterFactory> entry : indexAnalyzers.getTokenFilterFactoryFactories().entrySet()) {
@@ -567,9 +570,10 @@ public final class AnalysisRegistry implements Closeable {
         NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexSettings,
                 currentCharFilterFactories, currentTokenizerFactories, newTokenFilterFactories);
         Map<String, NamedAnalyzer> newAnalyzers = new HashMap<>();
-        for (NamedAnalyzer analyzer : indexAnalyzers.getAnalyzers().values()) {
-            newAnalyzers.put(analyzer.name(), rebuildIfNecessary(analyzer, indexSettings, currentCharFilterFactories,
-                    currentTokenizerFactories, newTokenFilterFactories));
+        for (String analyzerName : oldAnalyzers.keySet()) {
+            NamedAnalyzer analyzer = rebuildIfNecessary(oldAnalyzers.get(analyzerName), indexSettings, currentCharFilterFactories,
+                    currentTokenizerFactories, newTokenFilterFactories);
+            newAnalyzers.put(analyzerName, analyzer);
         }
 
         IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(currentTokenizerFactories, currentCharFilterFactories,

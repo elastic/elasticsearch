@@ -852,7 +852,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         logger.info("reloading search analyzers");
 
         // refresh indexAnalyzers and search analyzers
-        this.indexAnalyzers = registry.rebuildIndexAnalyzers(this.indexAnalyzers, indexSettings);
+        this.indexAnalyzers = registry.reloadIndexAnalyzers(this.indexAnalyzers, indexSettings);
         this.searchAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
                 p -> p.searchQuoteAnalyzer());

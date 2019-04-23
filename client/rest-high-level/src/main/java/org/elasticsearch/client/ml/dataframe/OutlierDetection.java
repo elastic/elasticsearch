@@ -113,7 +113,9 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public String getName() { return NAME.getPreferredName(); }
+    public String getName() {
+        return NAME.getPreferredName();
+    }
 
     @Override
     public Map<String, Object> getParams() {

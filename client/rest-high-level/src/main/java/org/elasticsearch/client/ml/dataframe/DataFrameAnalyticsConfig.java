@@ -47,14 +47,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField SOURCE = new ParseField("source");
     private static final ParseField DEST = new ParseField("dest");
     private static final ParseField ANALYSIS = new ParseField("analysis");
-    private static final ParseField CONFIG_TYPE = new ParseField("config_type");
     private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
 
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
 
     static {
-        PARSER.declareString((c, s) -> {}, CONFIG_TYPE);
         PARSER.declareString(Builder::setId, ID);
         PARSER.declareObject(Builder::setSource, (p, c) -> DataFrameAnalyticsSource.fromXContent(p), SOURCE);
         PARSER.declareObject(Builder::setDest, (p, c) -> DataFrameAnalyticsDest.fromXContent(p), DEST);

@@ -49,7 +49,7 @@ public class SettingsModule implements Module {
     private final Set<String> settingsFilterPattern = new HashSet<>();
     private final Map<String, Setting<?>> nodeSettings = new HashMap<>();
     private final Map<String, Setting<?>> indexSettings = new HashMap<>();
-    private final Set<SecureSetting<?>> consistentSecureSettings = new HashSet<>();
+    private final Set<Setting<?>> consistentSecureSettings = new HashSet<>();
     private final IndexScopedSettings indexScopedSettings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
@@ -178,17 +178,15 @@ public class SettingsModule implements Module {
                 nodeSettings.put(setting.getKey(), setting);
                 if (setting.isConsistent()) {
                     if (setting instanceof Setting.AffixSetting<?>) {
-                        ((Setting.AffixSetting<?>)setting).getAllConcreteSettings(this.settings).forEach(concreteSetting -> {
-                            if (concreteSetting instanceof SecureSetting<?>) {
-                                consistentSecureSettings.add((SecureSetting<?>) concreteSetting);
-                            } else {
-                                throw new IllegalArgumentException("Unrecognized consistent setting [" + setting.getKey() + "]");
-                            }
-                        });
+                        if (((Setting.AffixSetting<?>)setting).getConcreteSettingForNamespace("_na_") instanceof SecureSetting<?>) {
+                            consistentSecureSettings.add(setting);
+                        } else {
+                            throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
+                        }
                     } else if (setting instanceof SecureSetting<?>) {
-                        consistentSecureSettings.add((SecureSetting<?>) setting);
+                        consistentSecureSettings.add(setting);
                     } else {
-                        throw new IllegalArgumentException("Unrecognized consistent setting [" + setting.getKey() + "]");
+                        throw new IllegalArgumentException("Invalid consistent secure setting [" + setting.getKey() + "]");
                     }
                 }
             }
@@ -233,7 +231,7 @@ public class SettingsModule implements Module {
         return clusterSettings;
     }
 
-    public Set<SecureSetting<?>> getConsistentSecureSettings() {
+    public Set<Setting<?>> getConsistentSecureSettings() {
         return consistentSecureSettings;
     }
 

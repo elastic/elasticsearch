@@ -67,11 +67,19 @@
         },
         "_source_exclude": {
           "type" : "list",
-          "description" : "A list of fields to exclude from the returned _source field"
+          "description" : "A list of fields to exclude from the returned _source field",
+          "deprecated" : {
+            "version" : "7.0.0",
+            "description" : "This option has been removed in Elasticsearch 7.0.0 and is no longer available, it was however documented as part of its 7.0.0 release."
+          }
         },
         "_source_include": {
           "type" : "list",
-          "description" : "A list of fields to extract and return from the _source field"
+          "description" : "A list of fields to extract and return from the _source field",
+          "deprecated" : {
+            "version" : "7.0.0",
+            "description" : "This option has been removed in Elasticsearch 7.0.0 and is no longer available, it was however documented as part of its 7.0.0 release."
+          }
         },
         "version" : {
           "type" : "number",

@@ -64,7 +64,7 @@ public class QueryConfig implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         QueryConfig other = (QueryConfig) o;
-        return Objects.equals(this.query, other.query);
+        return Objects.equals(query, other.query);
     }
 
     @Override
@@ -73,6 +73,6 @@ public class QueryConfig implements ToXContentObject {
     }
 
     public boolean isValid() {
-        return this.query != null;
+        return query != null;
     }
 }

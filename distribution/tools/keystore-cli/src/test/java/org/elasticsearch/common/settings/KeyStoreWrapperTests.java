@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
@@ -125,9 +126,9 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testValueSHA256Digest() throws Exception {
         final KeyStoreWrapper keystore = KeyStoreWrapper.create();
-        final String stringSettingKeyName = randomAlphaOfLength(5).toLowerCase() + "1";
+        final String stringSettingKeyName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + "1";
         final String stringSettingValue = randomAlphaOfLength(32);
-        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray());
+        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray(Locale.ROOT));
         final String fileSettingKeyName = randomAlphaOfLength(5).toLowerCase() + "2";
         final byte[] fileSettingValue = randomByteArrayOfLength(32);
         keystore.setFile(fileSettingKeyName, fileSettingValue);

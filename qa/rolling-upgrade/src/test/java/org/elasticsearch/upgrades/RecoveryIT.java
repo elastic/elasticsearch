@@ -299,6 +299,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(index);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41449")
     public void testRecoveryWithSoftDeletes() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {

@@ -602,6 +602,20 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=int}, {v=10}, {v=foo}, {v=int}, {v=20}, {v=bar}, {v=default}]", scriptTemplate.params().toString());
     }
 
+    public void testTranslateIif_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT IIF(int > 20, 'foo', 'bar') FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt("  +
+                "InternalSqlScriptUtils.docValue(doc,params.v0),params.v1),params.v2,params.v3])",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=20}, {v=foo}, {v=bar}]", scriptTemplate.params().toString());
+    }
+
     public void testGroupByDateHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
         assertTrue(p instanceof Aggregate);

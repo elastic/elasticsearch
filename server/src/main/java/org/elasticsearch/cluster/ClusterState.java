@@ -313,6 +313,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             sb.append(": v[").append(indexMetaData.getVersion())
                     .append("], mv[").append(indexMetaData.getMappingVersion())
                     .append("], sv[").append(indexMetaData.getSettingsVersion())
+                    .append("], av[").append(indexMetaData.getAliasesVersion())
                     .append("]\n");
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");

@@ -29,7 +29,6 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.apache.logging.log4j.core.util.KeyValuePair;
 import org.elasticsearch.common.Strings;
 
 import java.nio.charset.Charset;
@@ -65,18 +64,6 @@ import java.util.Map;
  *  the message passed to a logger will be overriden with a value from %ESMessageField{message}
  *
  *  The value taken from %ESMessageField{message} has to be a correct JSON and is populated in subclasses of <code>ESLogMessage</code>
- *
- *  There is also a way to define custom fields which can be hardcoded, looked up (with log4j MDC) or fetched from <code>ESLogMessage</code>
- *  examples:
- *  appender.custom.layout.additional0.type=KeyValuePair
- *  appender.custom.layout.additional0.key = hardcodedField
- *  appender.custom.layout.additional0.value = "HardcodedValue"
- *  appender.custom.layout.additional1.type=KeyValuePair
- *  appender.custom.layout.additional1.key = contextField
- *  appender.custom.layout.additional1.value = "%X{contextField}"
- *  appender.custom.layout.additional2.type=KeyValuePair
- *  appender.custom.layout.additional2.key = messageField
- *  appender.custom.layout.additional3.value = %ESMessageField{someField}
  *
  */
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)

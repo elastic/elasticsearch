@@ -46,6 +46,72 @@ The specification contains:
 The `methods` and `url.paths` elements list all possible HTTP methods and URLs for the endpoint;
 it is the responsibility of the developer to use this information for a sensible API on the target platform.
 
+## Backwards compatibility 
+
+The specification follows the same backward compatibility guarantees as Elasticsearch. 
+
+- Within a Major, additions only. 
+  - If an item has been documented wrong it should be deprecated instead as removing these might break downstream clients.
+- Major version change, may deprecate pieces or simply remove them given enough deprecation time.
+
+## Deprecations
+
+The spec allows for deprecations of:
+
+#### Entire API:
+
+```json
+{
+  "api" : {
+    "documentation": "...",
+    "deprecated" : {
+      "version" : "7.0.0",
+      "description" : "Reason API is being deprecated"
+    },
+  }
+}
+```
+
+#### Specific paths:
+
+```json
+{
+  "api": {
+    "documentation": "",
+    "url": {
+      "path": "/_monitoring/bulk",
+      "paths": ["/_monitoring/bulk"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_monitoring/{type}/bulk",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
+```
+
+Here `paths` describes the prefered paths and `deprecated_paths` indicates `paths` that will still work but are now 
+deprecated.
+
+#### Parameters 
+
+```json
+{
+  "api": {
+    "documentation": "",
+    "methods": ["GET"],
+    "url": {
+      "params": {
+        "stored_fields": {
+          "type": "list",
+          "description" : ""
+            "deprecated" : {
+              "version" : "7.0.0",
+              "description" : "Reason parameter is being deprecated"
+            },
+        },
+```
+
 ## License
 
 This software is licensed under the Apache License, version 2 ("ALv2").

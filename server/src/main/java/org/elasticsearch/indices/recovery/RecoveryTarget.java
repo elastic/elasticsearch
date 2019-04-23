@@ -352,7 +352,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
                 if (result.getFailure() != null) {
-                    if (Assertions.ENABLED) {
+                    if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
                         throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
                     }
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());

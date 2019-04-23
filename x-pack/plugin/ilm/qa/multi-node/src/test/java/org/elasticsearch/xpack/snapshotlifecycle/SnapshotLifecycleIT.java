@@ -36,6 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleIT extends ESRestTestCase {
@@ -103,6 +104,8 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
 
             String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
             assertThat(lastSnapshotName, startsWith("snap-"));
+
+            assertHistoryIsPresent(policyName, true, repoId);
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -149,6 +152,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 assertNotNull(snapshotName);
                 assertThat(snapshotName, startsWith("snap-"));
             }
+            assertHistoryIsPresent(policyName, false, repoName);
         });
 
         Request delReq = new Request("DELETE", "/_slm/policy/" + policyName);
@@ -190,6 +194,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                         snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                     }
                     assertThat(snapshotResponseMap.size(), greaterThan(0));
+                    assertHistoryIsPresent(policyName, true, repoId);
                 } catch (ResponseException e) {
                     fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
                 }
@@ -204,6 +209,45 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(wipeSnapshots().size(), equalTo(0));
         });
+    }
+
+    private void assertHistoryIsPresent(String policyName, boolean success, String repository) throws IOException {
+        final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
+        historySearchRequest.setJsonEntity("{\n" +
+            "  \"query\": {\n" +
+            "    \"bool\": {\n" +
+            "      \"must\": [\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"policy\": \"" + policyName + "\"\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"success\": " + success + "\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"repository\": \"" + repository + "\"\n" +
+            "          }\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"term\": {\n" +
+            "            \"operation\": \"CREATE\"\n" +
+            "          }\n" +
+            "        }\n" +
+            "      ]\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        Response historyResponse = client().performRequest(historySearchRequest);
+        Map<String, Object> historyResponseMap;
+        try (InputStream is = historyResponse.getEntity().getContent()) {
+            historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+        assertThat((int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
+            greaterThanOrEqualTo(1));
     }
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,

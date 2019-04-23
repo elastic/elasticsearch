@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,6 +43,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class SnapshotLifecycleTaskTests extends ESTestCase {
 
@@ -76,6 +81,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 .build())
             .build();
 
+        final SnapshotHistoryStore historyStore = mock(SnapshotHistoryStore.class);
+
         final ThreadPool threadPool = new TestThreadPool("test");
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
              VerifyingClient client = new VerifyingClient(threadPool, (a, r, l) -> {
@@ -83,12 +90,13 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                  return null;
              })) {
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
 
             // Trigger the event, but since the job name does not match, it should
             // not run the function to create a snapshot
             task.triggered(new SchedulerEngine.Event("nonexistent-job", System.currentTimeMillis(), System.currentTimeMillis()));
         }
+        verify(historyStore, times(0)).putAsync(any());
 
         threadPool.shutdownNow();
     }
@@ -128,6 +136,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             "  }" +
             "}";
 
+        final SnapshotHistoryStore historyStore = mock(SnapshotHistoryStore.class);
+
         final AtomicBoolean called = new AtomicBoolean(false);
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
              // This verifying client will verify that we correctly invoked
@@ -159,13 +169,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                      }
                  })) {
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
             // Trigger the event with a matching job name for the policy
             task.triggered(new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm),
                 System.currentTimeMillis(), System.currentTimeMillis()));
 
             assertTrue("snapshot should be triggered once", called.get());
         }
+        verify(historyStore, times(1)).putAsync(any());
 
         threadPool.shutdownNow();
     }

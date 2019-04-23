@@ -297,7 +297,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         private final Consumer<SchedulerEngine.Event> onTriggered;
 
         FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered) {
-            super(null, null);
+            super(null, null, null);
             this.onTriggered = onTriggered;
         }
 

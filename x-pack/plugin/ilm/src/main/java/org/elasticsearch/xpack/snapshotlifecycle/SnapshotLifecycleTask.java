@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.snapshotlifecycle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotCreationHistoryItem;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicySecurityClient;
 
 import java.io.IOException;
@@ -44,17 +47,19 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
     private final Client client;
     private final ClusterService clusterService;
+    private final SnapshotHistoryStore historyStore;
 
-    public SnapshotLifecycleTask(final Client client, final ClusterService clusterService) {
+    public SnapshotLifecycleTask(final Client client, final ClusterService clusterService, final SnapshotHistoryStore historyStore) {
         this.client = client;
         this.clusterService = clusterService;
+        this.historyStore = historyStore;
     }
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.getJobName());
 
-        final Optional<String> snapshotName = maybeTakeSnapshot(event.getJobName(), client, clusterService);
+        final Optional<String> snapshotName = maybeTakeSnapshot(event.getJobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(name ->
@@ -72,7 +77,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * state in the policy's metadata
      * @return An optional snapshot name if the request was issued successfully
      */
-    public static Optional<String> maybeTakeSnapshot(final String jobId, final Client client, final ClusterService clusterService) {
+    public static Optional<String> maybeTakeSnapshot(final String jobId, final Client client, final ClusterService clusterService,
+                                                     final SnapshotHistoryStore historyStore) {
         Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(jobId, clusterService.state());
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest();
@@ -85,16 +91,36 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
                     logger.debug("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
+                    final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli()));
+                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
+                    historyStore.putAsync(SnapshotCreationHistoryItem.successRecord(timestamp,
+                        policyMetadata.getPolicy().getId(),
+                        request,
+                        policyMetadata.getPolicy().getConfig()));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.error("failed to issue create snapshot request for snapshot lifecycle policy [{}]: {}",
                         policyMetadata.getPolicy().getId(), e);
+                    final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-failure-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), Instant.now().toEpochMilli(), e));
+                        WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e));
+                    final SnapshotCreationHistoryItem failureRecord;
+                    try {
+                        failureRecord = SnapshotCreationHistoryItem.failureRecord(timestamp,
+                            policyMetadata.getPolicy().getId(),
+                            request,
+                            policyMetadata.getPolicy().getConfig(),
+                            e);
+                        historyStore.putAsync(failureRecord);
+                    } catch (IOException ex) {
+                        // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
+                        logger.error(new ParameterizedMessage(
+                            "failed to record snapshot creation failure for snapshot lifecycle policy [{}]",
+                            policyMetadata.getPolicy().getId()), e);
+                    }
                 }
             });
             return request.snapshot();

@@ -20,9 +20,12 @@
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -38,13 +41,21 @@ import static org.elasticsearch.client.ml.dataframe.OutlierDetectionTests.random
 public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<DataFrameAnalyticsConfig> {
 
     public static DataFrameAnalyticsConfig randomDataFrameAnalyticsConfig() {
-        return new DataFrameAnalyticsConfig(
-            randomAlphaOfLengthBetween(1, 10),
-            randomSourceConfig(),
-            randomDestConfig(),
-            randomOutlierDetection(),
-            null,
-            null);
+        DataFrameAnalyticsConfig.Builder builder =
+            new DataFrameAnalyticsConfig.Builder()
+                .setId(randomAlphaOfLengthBetween(1, 10))
+                .setSource(randomSourceConfig())
+                .setDest(randomDestConfig())
+                .setAnalysis(randomOutlierDetection());
+        if (randomBoolean()) {
+            builder.setAnalyzedFields(new FetchSourceContext(true,
+                generateRandomStringArray(10, 10, false, false),
+                generateRandomStringArray(10, 10, false, false)));
+        }
+        if (randomBoolean()) {
+            builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
+        }
+        return builder.build();
     }
 
     @Override

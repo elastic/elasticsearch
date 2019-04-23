@@ -58,7 +58,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         PARSER.declareObject(Builder::setSource, (p, c) -> DataFrameAnalyticsSource.fromXContent(p), SOURCE);
         PARSER.declareObject(Builder::setDest, (p, c) -> DataFrameAnalyticsDest.fromXContent(p), DEST);
         PARSER.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p), ANALYSIS);
-        PARSER.declareField(Builder::setAnalysedFields,
+        PARSER.declareField(Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYSED_FIELDS,
             OBJECT_ARRAY_BOOLEAN_OR_STRING);
@@ -78,17 +78,17 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final DataFrameAnalyticsSource source;
     private final DataFrameAnalyticsDest dest;
     private final DataFrameAnalysis analysis;
-    private final FetchSourceContext analysedFields;
+    private final FetchSourceContext analyzedFields;
     private final ByteSizeValue modelMemoryLimit;
 
     public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, ByteSizeValue modelMemoryLimit,
-                                    FetchSourceContext analysedFields) {
+                                    FetchSourceContext analyzedFields) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.dest = Objects.requireNonNull(dest);
         this.analysis = Objects.requireNonNull(analysis);
-        this.analysedFields = analysedFields;
+        this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
     }
 
@@ -108,8 +108,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return analysis;
     }
 
-    public FetchSourceContext getAnalysedFields() {
-        return analysedFields;
+    public FetchSourceContext getAnalyzedFields() {
+        return analyzedFields;
     }
 
     public ByteSizeValue getModelMemoryLimit() { return modelMemoryLimit; }
@@ -123,8 +123,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         builder.startObject(ANALYSIS.getPreferredName());
         builder.field(analysis.getName(), analysis);
         builder.endObject();
-        if (analysedFields != null) {
-            builder.field(ANALYSED_FIELDS.getPreferredName(), analysedFields);
+        if (analyzedFields != null) {
+            builder.field(ANALYSED_FIELDS.getPreferredName(), analyzedFields);
         }
         if (modelMemoryLimit != null) {
             builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit.getStringRep());
@@ -144,12 +144,12 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             && Objects.equals(dest, other.dest)
             && Objects.equals(analysis, other.analysis)
             && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
-            && Objects.equals(analysedFields, other.analysedFields);
+            && Objects.equals(analyzedFields, other.analyzedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, getModelMemoryLimit(), analysedFields);
+        return Objects.hash(id, source, dest, analysis, getModelMemoryLimit(), analyzedFields);
     }
 
     public static String documentId(String id) {
@@ -162,7 +162,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private DataFrameAnalyticsSource source;
         private DataFrameAnalyticsDest dest;
         private DataFrameAnalysis analysis;
-        private FetchSourceContext analysedFields;
+        private FetchSourceContext analyzedFields;
         private ByteSizeValue modelMemoryLimit;
 
         public Builder() {}
@@ -177,8 +177,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             this.dest = new DataFrameAnalyticsDest(config.dest);
             this.analysis = config.analysis;
             this.modelMemoryLimit = config.modelMemoryLimit;
-            if (config.analysedFields != null) {
-                this.analysedFields = new FetchSourceContext(true, config.analysedFields.includes(), config.analysedFields.excludes());
+            if (config.analyzedFields != null) {
+                this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
         }
 
@@ -206,8 +206,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setAnalysedFields(FetchSourceContext fields) {
-            this.analysedFields = fields;
+        public Builder setAnalyzedFields(FetchSourceContext fields) {
+            this.analyzedFields = fields;
             return this;
         }
 
@@ -217,7 +217,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         }
 
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, modelMemoryLimit, analysedFields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analysis, modelMemoryLimit, analyzedFields);
         }
     }
 }

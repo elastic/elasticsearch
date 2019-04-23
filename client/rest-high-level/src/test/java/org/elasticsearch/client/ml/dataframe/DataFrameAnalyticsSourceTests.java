@@ -38,7 +38,6 @@ public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<Data
         return new DataFrameAnalyticsSource(randomAlphaOfLengthBetween(1, 10), randomQueryConfig());
     }
 
-
     @Override
     protected DataFrameAnalyticsSource doParseInstance(XContentParser parser) throws IOException {
         return DataFrameAnalyticsSource.fromXContent(parser);

@@ -33,12 +33,12 @@ import java.util.Objects;
  */
 public class QueryConfig implements ToXContentObject {
 
-    private final QueryBuilder query;
-
     public static QueryConfig fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
         return new QueryConfig(query);
     }
+
+    private final QueryBuilder query;
 
     public QueryConfig(QueryConfig queryConfig) {
         this(queryConfig.query);

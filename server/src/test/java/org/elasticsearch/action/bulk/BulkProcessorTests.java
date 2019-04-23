@@ -108,12 +108,28 @@ public class BulkProcessorTests extends ESTestCase {
 
     public void testConcurrentExecutions() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
-        final int maxBatchSize = randomIntBetween(1, 1000);
-        final int maxDocuments = randomIntBetween(maxBatchSize, 1000000);
-        final int concurrentClients = randomIntBetween(1, 20);
-        final int concurrentBulkRequests = randomIntBetween(0, 20);
-        final int expectedExecutions = maxDocuments / maxBatchSize;
+        int estimatedTimeForTest = Integer.MAX_VALUE;
         final int simulateWorkTimeInMillis = 5;
+        int concurrentClients= 0;
+        int concurrentBulkRequests = 0;
+        int expectedExecutions= 0;
+        int maxBatchSize = 0;
+        int maxDocuments = 0;
+        int iterations = 0;
+        //find some randoms that allow this test to take under ~ 10 seconds
+        while (estimatedTimeForTest > 10_000) {
+            if (iterations++ > 1_000) {
+                fail("failed to find random values that allows test to run quickly"); //extremely unlikely
+            }
+            maxBatchSize = randomIntBetween(1, 100);
+            maxDocuments = randomIntBetween(maxBatchSize, 100_000);
+            concurrentClients = 1;
+            randomIntBetween(1, 20);
+            concurrentBulkRequests = 0;
+            randomIntBetween(0, 20);
+            expectedExecutions = maxDocuments / maxBatchSize;
+            estimatedTimeForTest = expectedExecutions * simulateWorkTimeInMillis;
+        }
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
@@ -183,7 +199,7 @@ public class BulkProcessorTests extends ESTestCase {
     }
 
     public void testConcurrentExecutionsWithFlush() throws Exception {
-        final int maxDocuments = 100000;
+        final int maxDocuments = 100_000;
         final int concurrentClients = 2;
         final int maxBatchSize = Integer.MAX_VALUE; //don't flush based on size
         final int concurrentBulkRequests = randomIntBetween(0, 20);

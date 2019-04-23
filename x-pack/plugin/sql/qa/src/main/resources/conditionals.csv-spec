@@ -315,6 +315,6 @@ SELECT CONVERT(IIF(languages > 1, IIF(languages = 3, '3')), SQL_BIGINT) AS cond 
 
  cond:l
 -------
-null
 3
+null
 ;

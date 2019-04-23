@@ -47,7 +47,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField DEST = new ParseField("dest");
     private static final ParseField ANALYSIS = new ParseField("analysis");
     private static final ParseField CONFIG_TYPE = new ParseField("config_type");
-    private static final ParseField ANALYSED_FIELDS = new ParseField("analysed_fields");
+    private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
 
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
@@ -60,7 +60,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         PARSER.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p), ANALYSIS);
         PARSER.declareField(Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
-            ANALYSED_FIELDS,
+            ANALYZED_FIELDS,
             OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareField(Builder::setModelMemoryLimit,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()), MODEL_MEMORY_LIMIT, VALUE);
@@ -124,7 +124,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         builder.field(analysis.getName(), analysis);
         builder.endObject();
         if (analyzedFields != null) {
-            builder.field(ANALYSED_FIELDS.getPreferredName(), analyzedFields);
+            builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
         }
         if (modelMemoryLimit != null) {
             builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit.getStringRep());

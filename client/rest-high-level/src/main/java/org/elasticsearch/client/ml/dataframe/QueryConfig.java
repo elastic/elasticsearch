@@ -59,23 +59,17 @@ public class QueryConfig implements ToXContentObject {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(query);
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        QueryConfig other = (QueryConfig) o;
+        return Objects.equals(this.query, other.query);
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-
-        final QueryConfig that = (QueryConfig) other;
-
-        return Objects.equals(this.query, that.query);
+    public int hashCode() {
+        return Objects.hash(query);
     }
 
     public boolean isValid() {

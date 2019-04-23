@@ -14,26 +14,20 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
+import java.util.function.Supplier;
+
 public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
 
-    private final EnrichStore enrichStore;
-
-    @Inject
-    public TransportPutEnrichPolicyAction(TransportService transportService,
-                                          ClusterService clusterService,
-                                          ThreadPool threadPool,
-                                          ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver,
-                                          EnrichStore enrichStore) {
-        super(PutEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutEnrichPolicyAction.Request::new, indexNameExpressionResolver);
-        this.enrichStore = enrichStore;
+    protected TransportPutEnrichPolicyAction(String actionName, TransportService transportService, ClusterService clusterService,
+                                             ThreadPool threadPool, ActionFilters actionFilters,
+                                             IndexNameExpressionResolver indexNameExpressionResolver,
+                                             Supplier<PutEnrichPolicyAction.Request> request) {
+        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 
     @Override
@@ -49,7 +43,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     @Override
     protected void masterOperation(PutEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        enrichStore.putPolicy(request.getName(), request.getPolicy(), e -> {
+        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {

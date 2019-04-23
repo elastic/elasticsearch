@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Locale;
 
 /**
  * Parser for a {@link ClientYamlSuiteRestApi}.
@@ -60,7 +59,8 @@ public class ClientYamlSuiteRestApiParser {
                         restApi.setStability(stability);
                     } catch (IllegalArgumentException ex)
                     {
-                        throw new IllegalArgumentException("API [" + apiName + "] sets wrong state for stability (" + stability + ") [" + location + "]");
+                        throw new IllegalArgumentException("API [" + apiName + "] sets wrong state for stability ("
+                            + stability + ") [" + location + "]");
                     }
                 }
 

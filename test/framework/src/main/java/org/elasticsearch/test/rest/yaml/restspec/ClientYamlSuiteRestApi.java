@@ -21,7 +21,12 @@ package org.elasticsearch.test.rest.yaml.restspec;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Specification of an Elasticsearch endpoint used by the YAML specs to generate REST requests.

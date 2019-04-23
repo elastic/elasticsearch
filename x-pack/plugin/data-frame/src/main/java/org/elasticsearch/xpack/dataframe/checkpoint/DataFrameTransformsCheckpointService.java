@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
 
@@ -82,8 +83,8 @@ public class DataFrameTransformsCheckpointService {
             ActionListener<DataFrameTransformCheckpoint> listener) {
         long timestamp = System.currentTimeMillis();
 
-        // placeholder for time based synchronization
-        long timeUpperBound = 0;
+        // for time based synchronization
+        long timeUpperBound = getTimeStampForTimeBasedSynchronization(transformConfig.getSyncConfig(), timestamp);
 
         // 1st get index to see the indexes the user has access to
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(transformConfig.getSource().getIndex());
@@ -197,6 +198,15 @@ public class DataFrameTransformsCheckpointService {
             logger.debug("Failed to retrieve checkpoints for data frame [" + transformId + "]", e);
             wrappedListener.onFailure(new CheckpointException("Failure during checkpoint info retrieval", e));
         }
+    }
+
+    private long getTimeStampForTimeBasedSynchronization(SyncConfig syncConfig, long timestamp) {
+        if (syncConfig == null || syncConfig.getTimeSyncConfig() == null) {
+            // time based sync is not configured
+            return 0L;
+        }
+
+        return timestamp - syncConfig.getTimeSyncConfig().getDelay().millis();
     }
 
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {

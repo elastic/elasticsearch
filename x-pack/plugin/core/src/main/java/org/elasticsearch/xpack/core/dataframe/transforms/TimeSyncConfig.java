@@ -44,9 +44,10 @@ public class TimeSyncConfig  implements Writeable, ToXContentObject {
                     return new TimeSyncConfig(field, delay);
                     });
 
-                    parser.declareString(constructorArg(), DataFrameField.FIELD);
-                    parser.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataFrameField.DELAY.getPreferredName()),
-                            DataFrameField.DELAY, ObjectParser.ValueType.STRING_OR_NULL);
+        parser.declareString(constructorArg(), DataFrameField.FIELD);
+        parser.declareField(optionalConstructorArg(),
+                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DataFrameField.DELAY.getPreferredName()), DataFrameField.DELAY,
+                ObjectParser.ValueType.STRING_OR_NULL);
 
                     return parser;
                 }

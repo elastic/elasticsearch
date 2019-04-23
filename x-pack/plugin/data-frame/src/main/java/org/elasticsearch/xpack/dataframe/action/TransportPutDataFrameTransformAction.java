@@ -194,9 +194,7 @@ public class TransportPutDataFrameTransformAction
 
     private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
 
-        final Pivot pivot = new Pivot(config.getSource().getIndex(),
-            config.getSource().getQueryConfig().getQuery(),
-            config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig());
 
 
         // <5> Return the listener, or clean up destination index on failure.
@@ -236,13 +234,13 @@ public class TransportPutDataFrameTransformAction
 
         // <2> Deduce our mappings for the destination index
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> pivot.deduceMappings(client, deduceMappingsListener),
+            validationResult -> pivot.deduceMappings(client, config.getSource(), deduceMappingsListener),
             validationException -> listener.onFailure(
                 new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                     validationException))
         );
 
         // <1> Validate our pivot
-        pivot.validate(client, pivotValidationListener);
+        pivot.validate(client, config.getSource(), pivotValidationListener);
     }
 }

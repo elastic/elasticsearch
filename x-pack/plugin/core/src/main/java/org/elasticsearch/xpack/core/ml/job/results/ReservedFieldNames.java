@@ -282,6 +282,7 @@ public final class ReservedFieldNames {
 
             GetResult._ID,
             GetResult._INDEX,
+            GetResult._TYPE
     };
 
     /**

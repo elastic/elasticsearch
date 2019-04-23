@@ -1,0 +1,18 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-score]]
+=== Score API
+
+The following specialized API is available in the Score context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== org.elasticsearch.index.query
+<<painless-api-reference-score-org-elasticsearch-index-query, Expand details for org.elasticsearch.index.query>>
+
+* <<painless-api-reference-score-VectorScriptDocValues, VectorScriptDocValues>>
+* <<painless-api-reference-score-VectorScriptDocValues-DenseVectorScriptDocValues, VectorScriptDocValues.DenseVectorScriptDocValues>>
+* <<painless-api-reference-score-VectorScriptDocValues-SparseVectorScriptDocValues, VectorScriptDocValues.SparseVectorScriptDocValues>>
+
+include::packages.asciidoc[]
+

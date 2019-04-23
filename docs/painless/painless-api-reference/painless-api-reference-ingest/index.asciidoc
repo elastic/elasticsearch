@@ -1,0 +1,16 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-ingest]]
+=== Ingest API
+
+The following specialized API is available in the Ingest context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== org.elasticsearch.ingest.common
+<<painless-api-reference-ingest-org-elasticsearch-ingest-common, Expand details for org.elasticsearch.ingest.common>>
+
+* <<painless-api-reference-ingest-Processors, Processors>>
+
+include::packages.asciidoc[]
+

@@ -505,7 +505,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 hasInfMaxScore = true;
             } else if (query instanceof ESToParentBlockJoinQuery) {
                 ESToParentBlockJoinQuery q = (ESToParentBlockJoinQuery) query;
-                hasInfMaxScore = q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None;
+                hasInfMaxScore |= (q.getScoreMode() != org.apache.lucene.search.join.ScoreMode.None);
             }
         }
     }

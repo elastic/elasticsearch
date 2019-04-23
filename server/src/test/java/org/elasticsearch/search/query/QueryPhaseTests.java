@@ -655,6 +655,18 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     .build(), Occur.FILTER)
                 .build();
             assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
+
+            query = new BooleanQuery.Builder()
+                .add(new BooleanQuery.Builder()
+                    .add(new SpanTermQuery(new Term("field", "foo")), occur)
+                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
+                    .build(), occur)
+                .build();
+            if (occur == Occur.MUST) {
+                assertTrue(TopDocsCollectorContext.hasInfMaxScore(query));
+            } else {
+                assertFalse(TopDocsCollectorContext.hasInfMaxScore(query));
+            }
         }
     }
 

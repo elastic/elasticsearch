@@ -4,7 +4,14 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_mget",
-      "paths": ["/_mget", "/{index}/_mget", "/{index}/{type}/_mget"],
+      "paths": ["/_mget", "/{index}/_mget"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_mget",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "string",

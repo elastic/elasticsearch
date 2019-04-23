@@ -4,7 +4,14 @@
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/_monitoring/bulk",
-      "paths": ["/_monitoring/bulk", "/_monitoring/{type}/bulk"],
+      "paths": ["/_monitoring/bulk"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_monitoring/{type}/bulk",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "type": {
           "type" : "string",

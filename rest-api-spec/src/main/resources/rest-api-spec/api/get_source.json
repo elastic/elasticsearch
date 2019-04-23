@@ -4,7 +4,14 @@
     "methods": ["GET"],
     "url": {
       "path": "/{index}/_source/{id}",
-      "paths": ["/{index}/_source/{id}", "/{index}/{type}/{id}/_source"],
+      "paths": ["/{index}/_source/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}/_source",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",

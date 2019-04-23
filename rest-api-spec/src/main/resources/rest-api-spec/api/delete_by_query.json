@@ -4,7 +4,14 @@
     "methods": ["POST"],
     "url": {
       "path": "/{index}/_delete_by_query",
-      "paths": ["/{index}/_delete_by_query", "/{index}/{type}/_delete_by_query"],
+      "paths": ["/{index}/_delete_by_query"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_delete_by_query",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "comment": "most things below this are just copied from search.json",
       "parts": {
         "index": {

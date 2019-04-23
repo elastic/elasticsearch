@@ -97,6 +97,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
@@ -172,6 +173,7 @@ public class FunctionRegistry {
         // Conditional
         addToMap(def(Case.class, Case::new, "CASE"),
                 def(Coalesce.class, Coalesce::new, "COALESCE"),
+                def(Iif.class, Iif::new, "IIF"),
                 def(IfNull.class, IfNull::new, "IFNULL", "ISNULL", "NVL"),
                 def(NullIf.class, NullIf::new, "NULLIF"),
                 def(Greatest.class, Greatest::new, "GREATEST"),
@@ -544,10 +546,10 @@ public class FunctionRegistry {
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
-            boolean isLocateFunction = function.isAssignableFrom(Locate.class);
-            if (isLocateFunction && (children.size() > 3 || children.size() < 2)) {
+            boolean hasMinimumTwo = function.isAssignableFrom(Locate.class) || function.isAssignableFrom(Iif.class);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new SqlIllegalArgumentException("expects two or three arguments");
-            } else if (!isLocateFunction && children.size() != 3) {
+            } else if (!hasMinimumTwo && children.size() != 3) {
                 throw new SqlIllegalArgumentException("expects exactly three arguments");
             }
             if (distinct) {

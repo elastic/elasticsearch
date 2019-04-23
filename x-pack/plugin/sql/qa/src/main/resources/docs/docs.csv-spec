@@ -206,6 +206,7 @@ CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
 IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
 ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
@@ -2092,6 +2093,29 @@ SELECT IFNULL('elastic', null) AS "ifnull";
 ---------------
 elastic
 // end::ifNullReturnFirst
+;
+
+
+iifWithDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithDefaultValue
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |FALSE
+// end::iifWithDefaultValue
+;
+
+iifWithoutDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithoutDefaultValue
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |null
+// end::iifWithoutDefaultValue
 ;
 
 

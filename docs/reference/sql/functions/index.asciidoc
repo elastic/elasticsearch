@@ -131,6 +131,7 @@
 ** <<sql-functions-conditional-coalesce>>
 ** <<sql-functions-conditional-greatest>>
 ** <<sql-functions-conditional-ifnull>>
+** <<sql-functions-conditional-iif>>
 ** <<sql-functions-conditional-isnull>>
 ** <<sql-functions-conditional-least>>
 ** <<sql-functions-conditional-nullif>>

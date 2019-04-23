@@ -179,3 +179,142 @@ count     |    gender   |   languages
 11        | M           | 3
 11        | M           | 4
 ;
+
+
+iifField
+SELECT emp_no, IIF(emp_no - 10000 < 10, 'First 10', 'Second 10') as "iif_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | iif_result
+--------+-----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | Second 10
+10011   | Second 10
+10012   | Second 10
+10013   | Second 10
+10014   | Second 10
+;
+
+iifFieldWithoutAlias
+SELECT emp_no, IIF(emp_no - 10000 < 10, emp_no, emp_no % 10) FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | IIF(emp_no - 10000 < 10, emp_no, emp_no % 10)
+--------+----------------------------------------------
+10005   | 10005
+10006   | 10006
+10007   | 10007
+10008   | 10008
+10009   | 10009
+10010   | 0
+10011   | 1
+10012   | 2
+10013   | 3
+10014   | 4
+;
+
+iifFieldNoElse
+SELECT emp_no, IIF(emp_no - 10000 < 10, 'First 10') as "iif_result" FROM test_emp WHERE emp_no >= 10005
+ORDER BY emp_no LIMIT 10;
+
+ emp_no | iif_result
+--------+----------
+10005   | First 10
+10006   | First 10
+10007   | First 10
+10008   | First 10
+10009   | First 10
+10010   | null
+10011   | null
+10012   | null
+10013   | null
+10014   | null
+;
+
+iifWhere
+SELECT last_name FROM test_emp WHERE IIF(LENGTH(last_name) < 7, 'ShortName') IS NOT NULL ORDER BY emp_no LIMIT 10;
+
+  last_name
+-----------
+Simmel
+Peac
+Sluis
+Terkki
+Genin
+Peha
+Erde
+Famili
+Pettey
+Heyers
+;
+
+iifOrderBy
+SELECT last_name FROM test_emp ORDER BY IIF(languages >= 3, 'first', 'second'), emp_no LIMIT 10;
+
+ last_name
+-----------
+Simmel
+Bamford
+Koblick
+Preusig
+Zielinski
+Piveteau
+Sluis
+Bridgland
+Genin
+Nooteboom
+;
+
+iifGroupBy
+schema::count:l|lang_skills:s
+SELECT count(*) AS count, IIF(NVL(languages, 0) <= 1 , 'zero-to-one', 'multilingual') as lang_skills FROM test_emp
+GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+75             |multilingual
+25             |zero-to-one
+;
+
+iifGroupByComplexNested
+schema::count:l|lang_skills:s
+SELECT count(*) AS count,
+IIF(NVL(languages, 0) = 0, 'zero',
+  IIF(languages = 1, 'one',
+    IIF(languages = 2, 'bilingual',
+      IIF(languages = 3, 'trilingual', 'multilingual')))) as lang_skills FROM test_emp GROUP BY lang_skills ORDER BY 2;
+
+     count     |  lang_skills
+---------------+---------------
+19             |bilingual
+39             |multilingual
+15             |one
+17             |trilingual
+10             |zero
+;
+
+iifGroupByAndHaving
+schema::count:l|gender:s|languages:byte
+SELECT count(*) AS count, gender, languages FROM test_emp
+GROUP BY 2, 3 HAVING IIF(count(*) > 10, 'many', 'a few') = 'many'
+ORDER BY 2, 3;
+
+     count     |    gender     |   languages
+---------------+---------------+---------------
+11             |M              |2
+11             |M              |3
+11             |M              |4
+;
+
+iifWithConvertAndGroupBy
+SELECT CONVERT(IIF(languages > 1, IIF(languages = 3, '3')), SQL_BIGINT) AS cond FROM test_emp GROUP BY cond ORDER BY cond DESC;
+
+ cond:l
+-------
+3
+null
+;

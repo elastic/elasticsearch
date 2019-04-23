@@ -30,28 +30,28 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 public class Case extends ConditionalFunction {
 
     private final List<IfConditional> conditions;
-    private final Expression defaultElse;
+    private final Expression elseResult;
 
     @SuppressWarnings("unchecked")
     public Case(Source source, List<Expression> expressions) {
         super(source, expressions);
         this.conditions = (List<IfConditional>) (List<?>) expressions.subList(0, expressions.size() - 1);
-        this.defaultElse = expressions.get(expressions.size() - 1);
+        this.elseResult = expressions.get(expressions.size() - 1);
     }
 
     public List<IfConditional> conditions() {
         return conditions;
     }
 
-    public Expression defaultElse() {
-        return defaultElse;
+    public Expression elseResult() {
+        return elseResult;
     }
 
     @Override
     public DataType dataType() {
         if (dataType == null) {
             if (conditions.isEmpty()) {
-                dataType = defaultElse().dataType();
+                dataType = elseResult().dataType();
             } else {
                 dataType = DataType.NULL;
 
@@ -83,7 +83,7 @@ public class Case extends ConditionalFunction {
             }
         }
         if (expectedResultDataType == null) {
-            expectedResultDataType = defaultElse().dataType();
+            expectedResultDataType = elseResult().dataType();
         }
 
         for (IfConditional conditional : conditions) {
@@ -102,12 +102,12 @@ public class Case extends ConditionalFunction {
             }
         }
 
-        if (DataTypes.areTypesCompatible(expectedResultDataType, defaultElse.dataType()) == false) {
+        if (DataTypes.areTypesCompatible(expectedResultDataType, elseResult.dataType()) == false) {
             return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
-                defaultElse.sourceText(),
+                elseResult.sourceText(),
                 expectedResultDataType.typeName,
-                Expressions.name(defaultElse),
-                defaultElse.dataType().typeName));
+                Expressions.name(elseResult),
+                elseResult.dataType().typeName));
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -119,7 +119,7 @@ public class Case extends ConditionalFunction {
      */
     @Override
     public boolean foldable() {
-        return (conditions.isEmpty() && defaultElse.foldable()) ||
+        return (conditions.isEmpty() && elseResult.foldable()) ||
             (conditions.size() == 1 && conditions.get(0).condition().foldable() && conditions.get(0).result().foldable());
     }
 
@@ -128,7 +128,7 @@ public class Case extends ConditionalFunction {
         if (conditions.isEmpty() == false && conditions.get(0).condition().fold() == Boolean.TRUE) {
             return conditions.get(0).result().fold();
         }
-        return defaultElse.fold();
+        return elseResult.fold();
     }
 
     @Override
@@ -138,7 +138,7 @@ public class Case extends ConditionalFunction {
             pipes.add(Expressions.pipe(ifConditional.condition()));
             pipes.add(Expressions.pipe(ifConditional.result()));
         }
-        pipes.add(Expressions.pipe(defaultElse));
+        pipes.add(Expressions.pipe(elseResult));
         return new CasePipe(source(), this, pipes);
     }
 
@@ -149,7 +149,7 @@ public class Case extends ConditionalFunction {
             templates.add(asScript(ifConditional.condition()));
             templates.add(asScript(ifConditional.result()));
         }
-        templates.add(asScript(defaultElse));
+        templates.add(asScript(elseResult));
 
         StringJoiner template = new StringJoiner(",", "{sql}.caseFunction([", "])");
         ParamsBuilder params = paramsBuilder();

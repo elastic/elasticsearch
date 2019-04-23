@@ -1257,7 +1257,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (newConditions.size() < c.children().size()) {
-                    return c.replaceChildren(combine(newConditions, c.defaultElse()));
+                    return c.replaceChildren(combine(newConditions, c.elseResult()));
                 }
             }
 

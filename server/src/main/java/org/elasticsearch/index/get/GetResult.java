@@ -69,7 +69,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     private long seqNo;
     private long primaryTerm;
     private boolean exists;
-    private Map<String, DocumentField> otherFields;
+    private Map<String, DocumentField> documentFields;
     private Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
@@ -79,7 +79,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     }
 
     public GetResult(String index, String type, String id, long seqNo, long primaryTerm, long version, boolean exists,
-                     BytesReference source, Map<String, DocumentField> otherFields, Map<String, DocumentField> metaFields) {
+                     BytesReference source, Map<String, DocumentField> documentFields, Map<String, DocumentField> metaFields) {
         this.index = index;
         this.type = type;
         this.id = id;
@@ -92,9 +92,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         this.version = version;
         this.exists = exists;
         this.source = source;
-        this.otherFields = otherFields;
-        if (this.otherFields == null) {
-            this.otherFields = emptyMap();
+        this.documentFields = documentFields;
+        if (this.documentFields == null) {
+            this.documentFields = emptyMap();
         }
         this.metaFields = metaFields;
         if (this.metaFields == null) {
@@ -232,8 +232,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public Map<String, DocumentField> getFields() {
         Map<String, DocumentField> fields = emptyMap();
         fields.putAll(metaFields);
-        fields.putAll(otherFields);
-        // TODO: question to reviewers - do you think it makes sense to cache this merged `fields` map?
+        fields.putAll(documentFields);
         return fields;
     }
 
@@ -272,9 +271,9 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             XContentHelper.writeRawField(SourceFieldMapper.NAME, source, builder, params);
         }
 
-        if (!otherFields.isEmpty()) {
+        if (!documentFields.isEmpty()) {
             builder.startObject(NON_METADATA_FIELDS);
-            for (DocumentField field : otherFields.values()) {
+            for (DocumentField field : documentFields.values()) {
                 field.toXContent(builder, params);
             }
             builder.endObject();
@@ -316,7 +315,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         long primaryTerm = UNASSIGNED_PRIMARY_TERM;
         Boolean found = null;
         BytesReference source = null;
-        Map<String, DocumentField> otherFields = new HashMap<>();
+        Map<String, DocumentField> documentFields = new HashMap<>();
         Map<String, DocumentField> metaFields = new HashMap<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -351,20 +350,20 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 } else if (NON_METADATA_FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         DocumentField getField = DocumentField.fromXContent(parser);
-                        otherFields.put(getField.getName(), getField);
+                        documentFields.put(getField.getName(), getField);
                     }
                 } else {
                     parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {
-                    otherFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
+                    documentFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
                 } else {
                     parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
         }
-        return new GetResult(index, type, id, seqNo, primaryTerm, version, found, source, otherFields, metaFields);
+        return new GetResult(index, type, id, seqNo, primaryTerm, version, found, source, documentFields, metaFields);
     }
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
@@ -428,13 +427,13 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 source = null;
             }
             if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                otherFields = readFields(in);
+                documentFields = readFields(in);
                 metaFields = readFields(in);            
             } else {
                 Map<String, DocumentField> fields = readFields(in);
-                otherFields = emptyMap();
+                documentFields = emptyMap();
                 metaFields = emptyMap();
-                splitFieldsByMetadata(fields, otherFields, metaFields);
+                splitFieldsByMetadata(fields, documentFields, metaFields);
             }
         }
     }
@@ -453,7 +452,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         if (exists) {
             out.writeBytesReference(source);
             if (out.getVersion().onOrAfter(Version.V_7_0_0)) {                
-                writeFields(out, otherFields);
+                writeFields(out, documentFields);
                 writeFields(out, metaFields);
             } else {
                 writeFields(out, this.getFields());                
@@ -488,14 +487,14 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 Objects.equals(index, getResult.index) &&
                 Objects.equals(type, getResult.type) &&
                 Objects.equals(id, getResult.id) &&
-                Objects.equals(otherFields, getResult.otherFields) &&
+                Objects.equals(documentFields, getResult.documentFields) &&
                 Objects.equals(metaFields, getResult.metaFields) &&
                 Objects.equals(sourceAsMap(), getResult.sourceAsMap());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, otherFields, metaFields, sourceAsMap());
+        return Objects.hash(version, seqNo, primaryTerm, exists, index, type, id, documentFields, metaFields, sourceAsMap());
     }
 
     @Override

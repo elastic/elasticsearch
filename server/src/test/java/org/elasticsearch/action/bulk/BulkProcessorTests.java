@@ -173,7 +173,7 @@ public class BulkProcessorTests extends ESTestCase {
     public void testConcurrentExecutionsWithFlush() throws Exception {
         final int maxDocuments = 100000;
         final int concurrentClients = 2;
-        final int maxBatchSize = maxDocuments / (concurrentClients * 2); //flush at least once based on size
+        final int maxBatchSize = maxDocuments / (concurrentClients * 2); //maybe flush at least once based on size
         final int concurrentBulkRequests = randomIntBetween(0, 20);
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
@@ -183,7 +183,7 @@ public class BulkProcessorTests extends ESTestCase {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) ->
         {
             try {
-                //sleep for 2 ms to give the flush a chance to flush
+                //sleep for 2 ms to simulate work and maybe get flushed
                 listener.onResponse(bulkResponse);
                 Thread.sleep(2);
             } catch (InterruptedException e) {

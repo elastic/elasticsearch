@@ -221,7 +221,7 @@ public class BulkProcessor implements Closeable {
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
-    volatile private BulkRequest bulkRequest;
+    private volatile BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
     private final BulkRequestHandler bulkRequestHandler;
     private final Runnable onClose;

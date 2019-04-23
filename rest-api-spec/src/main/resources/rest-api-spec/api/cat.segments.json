@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-segments.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/segments",
       "paths": ["/_cat/segments", "/_cat/segments/{index}"],
       "parts": {
         "index": {

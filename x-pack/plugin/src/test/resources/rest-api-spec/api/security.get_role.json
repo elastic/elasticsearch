@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_security/role/{name}",
       "paths": [
         "/_security/role/{name}",
         "/_security/role"

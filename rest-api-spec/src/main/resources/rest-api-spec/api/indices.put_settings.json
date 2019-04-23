@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-update-settings.html",
     "methods": ["PUT"],
     "url": {
-      "path": "/_settings",
       "paths": ["/_settings", "/{index}/_settings"],
       "parts": {
         "index": {

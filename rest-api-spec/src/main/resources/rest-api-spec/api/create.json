@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
     "methods": ["PUT","POST"],
     "url": {
-      "path": "/{index}/_create/{id}",
       "paths": ["/{index}/_create/{id}"],
       "deprecated_paths" : [
         {

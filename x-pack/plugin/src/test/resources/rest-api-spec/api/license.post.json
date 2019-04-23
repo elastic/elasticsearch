@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-license.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_license",
       "paths": ["/_license"],
       "parts" : {
       },

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/find_file_structure",
       "paths": [ "/_ml/find_file_structure" ],
       "params": {
         "lines_to_sample": {

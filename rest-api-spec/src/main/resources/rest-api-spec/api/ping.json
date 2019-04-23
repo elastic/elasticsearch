@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/",
     "methods": ["HEAD"],
     "url": {
-      "path": "/",
       "paths": ["/"],
       "parts": {
       },

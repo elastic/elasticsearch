@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/migration-api-deprecation.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_migration/deprecations",
       "paths": ["/_migration/deprecations", "/{index}/_migration/deprecations"],
       "parts": {
         "index": {

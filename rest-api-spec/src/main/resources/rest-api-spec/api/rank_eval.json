@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-rank-eval.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_rank_eval",
       "paths": ["/_rank_eval", "/{index}/_rank_eval"],
       "parts": {
         "index": {

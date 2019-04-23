@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-clearcache.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_cache/clear",
       "paths": ["/_cache/clear", "/{index}/_cache/clear"],
       "parts": {
         "index": {

@@ -2,7 +2,6 @@
   "ml.forecast": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/anomaly_detectors/{job_id}/_forecast",
       "paths": [ "/_ml/anomaly_detectors/{job_id}/_forecast" ],
       "parts": {
         "job_id": {

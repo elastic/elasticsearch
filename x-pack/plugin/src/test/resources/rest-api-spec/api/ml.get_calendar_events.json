@@ -2,7 +2,6 @@
   "ml.get_calendar_events": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}/events",
       "paths": [
         "/_ml/calendars/{calendar_id}/events"
       ],

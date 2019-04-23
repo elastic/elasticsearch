@@ -3,7 +3,6 @@
     "documentation": "TODO",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_security/privilege/{application}/{name}",
       "paths": [
         "/_security/privilege/{application}/{name}"
       ],

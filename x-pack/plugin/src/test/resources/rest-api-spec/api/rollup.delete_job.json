@@ -3,7 +3,6 @@
     "documentation": "",
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_rollup/job/{id}",
       "paths": [ "/_rollup/job/{id}" ],
       "parts": {
         "id": {

@@ -5,7 +5,6 @@
       "POST"
     ],
     "url": {
-      "path": "/_ml/datafeeds/{datafeed_id}/_stop",
       "paths": [
         "/_ml/datafeeds/{datafeed_id}/_stop"
       ],

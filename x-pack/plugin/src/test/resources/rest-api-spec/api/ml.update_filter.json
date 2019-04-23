@@ -2,7 +2,6 @@
   "ml.update_filter": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/filters/{filter_id}/_update",
       "paths": [ "/_ml/filters/{filter_id}/_update" ],
       "parts": {
         "filter_id": {

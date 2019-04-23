@@ -2,7 +2,6 @@
   "ml.post_calendar_events": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}/events",
       "paths": [ "/_ml/calendars/{calendar_id}/events" ],
       "parts": {
         "calendar_id": {

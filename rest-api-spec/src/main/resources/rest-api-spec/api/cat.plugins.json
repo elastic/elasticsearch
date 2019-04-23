@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-plugins.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/plugins",
       "paths": ["/_cat/plugins"],
       "params": {
         "format": {

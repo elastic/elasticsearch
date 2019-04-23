@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_security/role_mapping/{name}",
       "paths": [
         "/_security/role_mapping/{name}",
         "/_security/role_mapping"

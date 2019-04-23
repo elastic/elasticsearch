@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-health.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cluster/health",
       "paths": ["/_cluster/health", "/_cluster/health/{index}"],
       "parts": {
         "index": {

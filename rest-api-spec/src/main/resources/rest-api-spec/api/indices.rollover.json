@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-rollover-index.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{alias}/_rollover",
       "paths": ["/{alias}/_rollover", "/{alias}/_rollover/{new_index}"],
       "parts": {
         "alias": {

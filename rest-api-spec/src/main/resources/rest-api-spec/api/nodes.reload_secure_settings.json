@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/secure-settings.html#reloadable-secure-settings",
     "methods": ["POST"],
     "url": {
-      "path": "/_nodes/reload_secure_settings",
       "paths": ["/_nodes/reload_secure_settings", "/_nodes/{node_id}/reload_secure_settings"],
       "parts": {
         "node_id": {

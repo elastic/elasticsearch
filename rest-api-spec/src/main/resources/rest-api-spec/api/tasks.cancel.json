@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_tasks",
       "paths": ["/_tasks/_cancel", "/_tasks/{task_id}/_cancel"],
       "parts": {
         "task_id": {

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-put-mapping.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "{index}/_mapping",
       "paths": ["{index}/_mapping"],
       "deprecated_paths" : [
         {

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-scripting.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/_scripts/{id}",
       "paths": [ "/_scripts/{id}", "/_scripts/{id}/{context}" ],
       "parts": {
         "id": {

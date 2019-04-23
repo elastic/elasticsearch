@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-resume-follow.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/resume_follow",
       "paths": [ "/{index}/_ccr/resume_follow" ],
       "parts": {
         "index": {

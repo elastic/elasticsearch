@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-upgrade.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_upgrade",
       "paths": ["/_upgrade", "/{index}/_upgrade"],
       "parts": {
         "index": {

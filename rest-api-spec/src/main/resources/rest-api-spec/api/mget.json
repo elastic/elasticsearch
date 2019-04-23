@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_mget",
       "paths": ["/_mget", "/{index}/_mget"],
       "deprecated_paths" : [
         {

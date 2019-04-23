@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-license.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_license",
       "paths": ["/_license"],
       "parts" : {
       },

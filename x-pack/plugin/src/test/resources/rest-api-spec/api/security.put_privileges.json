@@ -3,7 +3,6 @@
     "documentation": "TODO",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_security/privilege/",
       "paths": [
         "/_security/privilege/"
       ],

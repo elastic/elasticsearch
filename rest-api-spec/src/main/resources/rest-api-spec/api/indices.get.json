@@ -3,7 +3,6 @@
     "documentation":"http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-index.html",
     "methods":[ "GET" ],
     "url":{
-      "path":"/{index}",
       "paths":[ "/{index}" ],
       "parts":{
         "index":{

@@ -3,7 +3,6 @@
     "documentation": "",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_rollup/job/{id}/_start",
       "paths": [ "/_rollup/job/{id}/_start" ],
       "parts": {
         "id": {

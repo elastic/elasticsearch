@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_security/oauth2/token",
       "paths": [
         "/_security/oauth2/token"
       ],

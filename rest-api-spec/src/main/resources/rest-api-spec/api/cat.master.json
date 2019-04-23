@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-master.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/master",
       "paths": ["/_cat/master"],
       "parts": {
       },

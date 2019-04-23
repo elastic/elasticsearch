@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_watcher/stats",
       "paths": [ "/_watcher/stats", "/_watcher/stats/{metric}" ],
       "parts": {
         "metric": {

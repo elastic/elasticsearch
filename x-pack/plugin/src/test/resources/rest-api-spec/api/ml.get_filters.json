@@ -2,7 +2,6 @@
   "ml.get_filters": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ml/filters/{filter_id}",
       "paths": [ "/_ml/filters", "/_ml/filters/{filter_id}" ],
       "parts": {
         "filter_id": {

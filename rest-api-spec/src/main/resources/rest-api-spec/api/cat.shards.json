@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-shards.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/shards",
       "paths": ["/_cat/shards", "/_cat/shards/{index}"],
       "parts": {
         "index": {

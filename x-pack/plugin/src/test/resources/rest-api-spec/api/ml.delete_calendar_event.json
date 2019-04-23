@@ -2,7 +2,6 @@
   "ml.delete_calendar_event": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ml/calendars/{calendar_id}/events/{event_id}",
       "paths": [ "/_ml/calendars/{calendar_id}/events/{event_id}" ],
       "parts": {
         "calendar_id": {

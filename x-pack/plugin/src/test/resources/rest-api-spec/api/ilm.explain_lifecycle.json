@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-explain-lifecycle.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/{index}/_ilm/explain",
       "paths": ["/{index}/_ilm/explain"],
       "parts": {
         "index": {

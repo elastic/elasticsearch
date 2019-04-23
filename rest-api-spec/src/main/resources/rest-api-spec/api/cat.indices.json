@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-indices.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/indices",
       "paths": ["/_cat/indices", "/_cat/indices/{index}"],
       "parts": {
         "index": {

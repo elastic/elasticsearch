@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes/hot_threads",
       "paths": ["/_nodes/hot_threads",  "/_nodes/{node_id}/hot_threads"],
       "deprecated_paths" : [
         {

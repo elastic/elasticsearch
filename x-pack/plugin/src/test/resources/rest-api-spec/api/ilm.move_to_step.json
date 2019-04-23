@@ -4,7 +4,6 @@
     "description": "Triggers execution of a specific step in the lifecycle policy. Since this action is designed to only be run in emergency situations, clients should not implement this API",
     "methods": [ "POST" ],
     "url": {
-      "path": "/_ilm/move/{index}",
       "paths": ["/_ilm/move/{index}"],
       "parts": {
         "index": {

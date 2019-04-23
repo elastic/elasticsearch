@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/{index}/_ccr/follow",
       "paths": [ "/{index}/_ccr/follow" ],
       "parts": {
         "index": {

@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-basic-status.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_license/basic_status",
       "paths": ["/_license/basic_status"],
       "parts" : {
       },

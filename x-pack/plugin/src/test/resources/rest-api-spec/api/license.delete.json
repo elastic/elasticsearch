@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-license.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_license",
       "paths": ["/_license"],
       "parts" : {}
     },

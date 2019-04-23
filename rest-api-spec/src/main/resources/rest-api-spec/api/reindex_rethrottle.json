@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
     "methods": ["POST"],
     "url": {
-      "path": "/_reindex/{task_id}/_rethrottle",
       "paths": ["/_reindex/{task_id}/_rethrottle"],
       "parts": {
         "task_id": {

@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_snapshot/_status",
       "paths": ["/_snapshot/_status", "/_snapshot/{repository}/_status", "/_snapshot/{repository}/{snapshot}/_status"],
       "parts": {
         "repository": {

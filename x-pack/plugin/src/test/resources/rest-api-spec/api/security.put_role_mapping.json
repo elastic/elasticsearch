@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role-mapping.html",
     "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_security/role_mapping/{name}",
       "paths": [
         "/_security/role_mapping/{name}"
       ],

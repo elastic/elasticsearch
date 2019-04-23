@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shrink-index.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/{index}/_shrink/{target}",
       "paths": ["/{index}/_shrink/{target}"],
       "parts": {
         "index": {

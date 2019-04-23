@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/es-monitoring.html",
     "methods": ["POST", "PUT"],
     "url": {
-      "path": "/_monitoring/bulk",
       "paths": ["/_monitoring/bulk"],
       "deprecated_paths" : [
         {

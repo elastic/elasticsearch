@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-post-pause-follow.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ccr/pause_follow",
       "paths": [ "/{index}/_ccr/pause_follow" ],
       "parts": {
         "index": {

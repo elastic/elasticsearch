@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-stats.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_nodes/stats",
       "paths": [
         "/_nodes/stats",
         "/_nodes/{node_id}/stats",

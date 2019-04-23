@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_mapping",
       "paths": ["/_mapping", "/{index}/_mapping"],
       "deprecated_paths" : [
         {

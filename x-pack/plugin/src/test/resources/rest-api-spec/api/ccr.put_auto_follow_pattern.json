@@ -3,7 +3,6 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-auto-follow-pattern.html",
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_ccr/auto_follow/{name}",
       "paths": [ "/_ccr/auto_follow/{name}" ],
       "parts": {
         "name": {

@@ -2,7 +2,6 @@
   "ml.delete_filter": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_ml/filters/{filter_id}",
       "paths": [ "/_ml/filters/{filter_id}" ],
       "parts": {
         "filter_id": {

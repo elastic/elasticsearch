@@ -3,7 +3,6 @@
     "documentation": "Clear SQL cursor",
     "methods": [ "POST"],
     "url": {
-      "path": "/_sql/close",
       "paths": [ "/_sql/close" ],
       "parts": {}
     },

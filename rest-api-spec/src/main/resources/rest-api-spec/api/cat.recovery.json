@@ -3,7 +3,6 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-recovery.html",
     "methods": ["GET"],
     "url": {
-      "path": "/_cat/recovery",
       "paths": ["/_cat/recovery", "/_cat/recovery/{index}"],
       "parts": {
         "index": {

@@ -2,7 +2,6 @@
   "scripts_painless_context": {
     "methods": ["GET"],
     "url": {
-      "path": "/_scripts/painless/_context",
       "paths": ["/_scripts/painless/_context"],
       "parts": {
       },

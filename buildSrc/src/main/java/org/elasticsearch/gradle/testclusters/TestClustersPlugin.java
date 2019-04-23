@@ -118,7 +118,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 } else {
                                     throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
                                 }
-                                logger.lifecycle("extracting: {} to {}", file, resolvedArtifact.getModuleVersion().getId().getGroup());
+
                                 spec.from(files)
                                     .into(
                                         new File(
@@ -351,7 +351,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                         project.getDependencies().project(projectNotation)
                     );
                 } else {
-                    logger.lifecycle("dependency {} @ {}", distribution, version);
                     rootProject.getDependencies().add(
                         HELPER_CONFIGURATION_NAME,
                         distribution.getGroup() + ":" +

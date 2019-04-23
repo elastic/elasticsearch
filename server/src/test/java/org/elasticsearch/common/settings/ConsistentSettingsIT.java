@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting.AffixSetting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -31,16 +32,17 @@ import java.util.List;
 
 public class ConsistentSettingsIT extends ESIntegTestCase {
 
-    static final Setting<SecureString> DUMMY_STRING_CONSISTENT_SETTING = SecureSetting.secureString("dummy.consistent.secure.string.setting",
-            null, Setting.Property.Consistent);
-//    static final AffixSetting<SecureString> DUMMY_AFIX_STRING_CONSISTENT_SETTING = Setting.affixKeySetting(
-//            "dummy.consistent.secure.string.afix.setting.", "suffix",
-//            key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
+    static final Setting<SecureString> DUMMY_STRING_CONSISTENT_SETTING = SecureSetting
+            .secureString("dummy.consistent.secure.string.setting", null, Setting.Property.Consistent);
+    static final AffixSetting<SecureString> DUMMY_AFIX_STRING_CONSISTENT_SETTING = Setting.affixKeySetting(
+            "dummy.consistent.secure.string.afix.setting.", "suffix",
+            key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
 
     public void testAllConsistent() throws Exception {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
+                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
     }
 
     @Override
@@ -48,8 +50,8 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
-//        secureSettings.setString("dummy.consistent.secure.string.afix.setting." + "afix1" + ".sufix", "afix_value_1");
-//        secureSettings.setString("dummy.consistent.secure.string.afix.setting." + "afix2" + ".sufix", "afix_value_2");
+        secureSettings.setString("dummy.consistent.secure.string.afix.setting." + "afix1" + ".suffix", "afix_value_1");
+        secureSettings.setString("dummy.consistent.secure.string.afix.setting." + "afix2" + ".suffix", "afix_value_2");
         assert builder.getSecureSettings() == null : "Deal with the settings merge";
         builder.setSecureSettings(secureSettings);
         return builder.build();
@@ -71,7 +73,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         public List<Setting<?>> getSettings() {
             List<Setting<?>> settings = new ArrayList<>(super.getSettings());
             settings.add(DUMMY_STRING_CONSISTENT_SETTING);
-            //settings.add(DUMMY_AFIX_STRING_CONSISTENT_SETTING);
+            settings.add(DUMMY_AFIX_STRING_CONSISTENT_SETTING);
             return settings;
         }
     }

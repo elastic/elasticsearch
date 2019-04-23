@@ -76,6 +76,35 @@ GET my_index/_analyze <4>
 <3> This returns the tokens: [ `the`, `quick`, `brown`, `foxes` ].
 <4> This returns the tokens: [ `quick`, `brown`, `fox` ].
 
+[[index-default-analyzer]]
+=== `index_default_analyzer`
+This is how to specify a default analyzer for an index:
+
+[source,js]
+--------------------------------------------------
+PUT /my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": { <1>
+          "type": "english" <2>
+        }
+      }
+    }
+  }
+}
+
+GET my_index/_analyze <3>
+{
+  "field": "anything",
+  "text": "The quick Brown Foxes."
+}
+--------------------------------------------------
+// CONSOLE
+<1> The name `default` is what's important in order for this analyzer to be set as the index default.
+<2> The type `english` is specified. Since no stop words or stemming are specified, it will use the default stop words for the `english` analyzer.
+<3> This returns the tokens: [ `quick`, `brown`, `fox` ].
 
 [[search-quote-analyzer]]
 ==== `search_quote_analyzer`

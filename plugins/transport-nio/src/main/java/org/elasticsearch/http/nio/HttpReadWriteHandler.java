@@ -30,12 +30,14 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
@@ -43,6 +45,7 @@ import org.elasticsearch.nio.WriteOperation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 public class HttpReadWriteHandler implements ReadWriteHandler {
@@ -50,11 +53,15 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     private final NettyAdaptor adaptor;
     private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
+    private final long readTimeoutNanos;
+    private boolean requestSinceReadTimeoutTrigger = false;
+    private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
                                 NioCorsConfig corsConfig) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
+        this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
         List<ChannelHandler> handlers = new ArrayList<>(5);
         HttpRequestDecoder decoder = new HttpRequestDecoder(settings.getMaxInitialLineLength(), settings.getMaxHeaderSize(),
@@ -76,11 +83,17 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         adaptor.addCloseListener((v, e) -> nioHttpChannel.close());
     }
 
+    public void channelRegistered() {
+        scheduleReadTimeout();
+    }
+
     @Override
-    public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
+    public int consumeReads(InboundChannelBuffer channelBuffer) {
         int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
         Object message;
         while ((message = adaptor.pollInboundMessage()) != null) {
+            ++inFlightRequests;
+            requestSinceReadTimeoutTrigger = true;
             handleRequest(message);
         }
 
@@ -96,6 +109,9 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
+        assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
+            + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
+        --inFlightRequests;
         adaptor.write(writeOperation);
         return pollFlushOperations();
     }
@@ -151,5 +167,19 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
             // As we have copied the buffer, we can release the request
             request.release();
         }
+    }
+
+    private void maybeReadTimeout() {
+        if (requestSinceReadTimeoutTrigger == false && inFlightRequests == 0) {
+            nioHttpChannel.close();
+        } else {
+            scheduleReadTimeout();
+        }
+    }
+
+    private void scheduleReadTimeout() {
+        NioSelector selector = nioHttpChannel.getContext().getSelector();
+        selector.assertOnSelectorThread();
+        selector.getTaskScheduler().scheduleAtRelativeTime(this::maybeReadTimeout, System.nanoTime() + readTimeoutNanos);
     }
 }

@@ -69,6 +69,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,6 +107,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             SETTING_HTTP_COMPRESSION_LEVEL.getDefault(settings),
             SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
             SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
+            SETTING_HTTP_READ_TIMEOUT.getDefault(settings).getMillis(),
             SETTING_CORS_ENABLED.getDefault(settings));
         nioHttpChannel = mock(NioHttpChannel.class);
         handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, NioCorsConfigBuilder.forAnyOrigin().build());

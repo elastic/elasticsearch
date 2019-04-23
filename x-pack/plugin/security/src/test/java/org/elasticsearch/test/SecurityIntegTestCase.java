@@ -243,8 +243,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
-        builder.put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->

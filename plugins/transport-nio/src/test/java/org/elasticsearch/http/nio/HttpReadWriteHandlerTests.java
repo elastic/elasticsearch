@@ -33,10 +33,10 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpRequest;
@@ -48,6 +48,7 @@ import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -63,22 +64,17 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CR
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -87,6 +83,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     private HttpReadWriteHandler handler;
     private NioHttpChannel nioHttpChannel;
     private NioHttpServerTransport transport;
+    private TaskScheduler taskScheduler;
 
     private final RequestEncoder requestEncoder = new RequestEncoder();
     private final ResponseDecoder responseDecoder = new ResponseDecoder();
@@ -94,23 +91,13 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     @Before
     public void setMocks() {
         transport = mock(NioHttpServerTransport.class);
-        Settings settings = Settings.EMPTY;
-        ByteSizeValue maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.getDefault(settings);
-        ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.getDefault(settings);
-        ByteSizeValue maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.getDefault(settings);
-        HttpHandlingSettings httpHandlingSettings = new HttpHandlingSettings(1024,
-            Math.toIntExact(maxChunkSize.getBytes()),
-            Math.toIntExact(maxHeaderSize.getBytes()),
-            Math.toIntExact(maxInitialLineLength.getBytes()),
-            SETTING_HTTP_RESET_COOKIES.getDefault(settings),
-            SETTING_HTTP_COMPRESSION.getDefault(settings),
-            SETTING_HTTP_COMPRESSION_LEVEL.getDefault(settings),
-            SETTING_HTTP_DETAILED_ERRORS_ENABLED.getDefault(settings),
-            SETTING_PIPELINING_MAX_EVENTS.getDefault(settings),
-            SETTING_HTTP_READ_TIMEOUT.getDefault(settings).getMillis(),
-            SETTING_CORS_ENABLED.getDefault(settings));
+        Settings settings = Settings.builder().put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(1024)).build();
+        HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         nioHttpChannel = mock(NioHttpChannel.class);
-        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, NioCorsConfigBuilder.forAnyOrigin().build());
+        taskScheduler = mock(TaskScheduler.class);
+
+        NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
+        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -337,10 +324,64 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testReadTimeout() throws IOException {
+        TimeValue timeValue = TimeValue.timeValueNanos(500 * 1000 * 1000);
+        Settings settings = Settings.builder().put(SETTING_HTTP_READ_TIMEOUT.getKey(), timeValue).build();
+        HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
+        DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+        NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, 0);
+        NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+        httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
+
+        NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
+        TaskScheduler taskScheduler = mock(TaskScheduler.class);
+        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
+        handler.channelRegistered();
+        ArgumentCaptor<Runnable> timeoutTask = ArgumentCaptor.forClass(Runnable.class);
+        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+
+        prepareHandlerForResponse(handler);
+        SocketChannelContext context = mock(SocketChannelContext.class);
+        HttpWriteOperation writeOperation = new HttpWriteOperation(context, httpResponse, mock(BiConsumer.class));
+        handler.writeToBytes(writeOperation);
+
+        reset(taskScheduler);
+        timeoutTask.getAllValues().get(0).run();
+        // There was a read. Do not close.
+        verify(nioHttpChannel, times(0)).close();
+        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+
+        prepareHandlerForResponse(handler);
+        prepareHandlerForResponse(handler);
+
+        reset(taskScheduler);
+        timeoutTask.getAllValues().get(1).run();
+        // There was a read. Do not close.
+        verify(nioHttpChannel, times(0)).close();
+        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+
+        handler.writeToBytes(writeOperation);
+
+        reset(taskScheduler);
+        timeoutTask.getAllValues().get(2).run();
+        // There has not been a read, however there is still an inflight request. Do not close.
+        verify(nioHttpChannel, times(0)).close();
+        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+
+        handler.writeToBytes(writeOperation);
+
+        reset(taskScheduler);
+        timeoutTask.getAllValues().get(3).run();
+        // No reads and no inflight requests, close
+        verify(nioHttpChannel, times(1)).close();
+        verify(taskScheduler, times(0)).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+    }
+
     private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
-        NioCorsConfig nioCorsConfig = NioHttpServerTransport.buildCorsConfig(settings);
-        HttpReadWriteHandler handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, nioCorsConfig);
+        NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        HttpReadWriteHandler handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
         prepareHandlerForResponse(handler);
         DefaultFullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         if (originValue != null) {
@@ -362,7 +403,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
 
 
-    private NioHttpRequest prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
+    private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
@@ -387,7 +428,6 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             assertEquals(HttpRequest.HttpVersion.HTTP_1_0, nioHttpRequest.protocolVersion());
         }
         assertEquals(nioHttpRequest.uri(), uri);
-        return nioHttpRequest;
     }
 
     private InboundChannelBuffer toChannelBuffer(ByteBuf buf) {

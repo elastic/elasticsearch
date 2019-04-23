@@ -36,9 +36,9 @@ import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
+import org.elasticsearch.nio.TaskScheduler;
 import org.elasticsearch.nio.WriteOperation;
 
 import java.io.IOException;
@@ -52,14 +52,16 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     private final NettyAdaptor adaptor;
     private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
+    private final TaskScheduler taskScheduler;
     private final long readTimeoutNanos;
     private boolean requestSinceReadTimeoutTrigger = false;
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                NioCorsConfig corsConfig) {
+                                NioCorsConfig corsConfig, TaskScheduler taskScheduler) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
+        this.taskScheduler = taskScheduler;
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
         List<ChannelHandler> handlers = new ArrayList<>(5);
@@ -175,13 +177,12 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         if (requestSinceReadTimeoutTrigger == false && inFlightRequests == 0) {
             nioHttpChannel.close();
         } else {
+            requestSinceReadTimeoutTrigger = false;
             scheduleReadTimeout();
         }
     }
 
     private void scheduleReadTimeout() {
-        NioSelector selector = nioHttpChannel.getContext().getSelector();
-        selector.assertOnSelectorThread();
-        selector.getTaskScheduler().scheduleAtRelativeTime(this::maybeReadTimeout, System.nanoTime() + readTimeoutNanos);
+        taskScheduler.scheduleAtRelativeTime(this::maybeReadTimeout, System.nanoTime() + readTimeoutNanos);
     }
 }

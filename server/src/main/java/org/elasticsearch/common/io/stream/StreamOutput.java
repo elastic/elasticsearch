@@ -619,7 +619,8 @@ public abstract class StreamOutput extends OutputStream {
                         o.writeByte((byte) 3);
                         o.writeFloat((float) v);
                     }),
-            entry(Double.class,
+            entry(
+                    Double.class,
                     (o, v) -> {
                         o.writeByte((byte) 4);
                         o.writeDouble((double) v);

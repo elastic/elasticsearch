@@ -757,7 +757,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
      */
     public static final Set<String> VALID_ACTION_PREFIXES = Set.of(
             "indices:admin",
-            "indices:monitor", "indices:data/write",
+            "indices:monitor",
+            "indices:data/write",
             "indices:data/read",
             "indices:internal",
             "cluster:admin",

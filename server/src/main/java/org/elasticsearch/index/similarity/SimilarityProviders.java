@@ -72,12 +72,14 @@ final class SimilarityProviders {
             "if", new BasicModelIF(),
             "in", new BasicModelIn(),
             "ine", new BasicModelIne());
+
     // TODO: be and g and both based on the bose-einstein model.
     // Is there a better replacement for d and p which use the binomial model?
     private static final Map<String, String> LEGACY_BASIC_MODELS = Map.of(
             "be", "g",
             "d", "ine",
             "p", "ine");
+
     private static final Map<String, AfterEffect> AFTER_EFFECTS = Map.of(
             "b", new AfterEffectB(),
             "l", new AfterEffectL());
@@ -89,14 +91,13 @@ final class SimilarityProviders {
             "saturated", new IndependenceSaturated(),
             "chisquared", new IndependenceChiSquared());
 
-    private static final Map<String, Distribution> DISTRIBUTIONS;
-    private static final Map<String, Lambda> LAMBDAS;
+    private static final Map<String, Distribution> DISTRIBUTIONS = Map.of(
+            "ll", new DistributionLL(),
+            "spl", new DistributionSPL());
 
-    static {
-        DISTRIBUTIONS = Map.of("ll", new DistributionLL(), "spl", new DistributionSPL());
-
-        LAMBDAS = Map.of("df", new LambdaDF(), "ttf", new LambdaTTF());
-    }
+    private static final Map<String, Lambda> LAMBDAS = Map.of(
+            "df", new LambdaDF(),
+            "ttf", new LambdaTTF());
 
     /**
      * Parses the given Settings and creates the appropriate {@link BasicModel}

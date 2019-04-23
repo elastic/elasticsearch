@@ -3,8 +3,7 @@
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
  * ownership. Elasticsearch licenses this file to you under
- * the Apache License,
-Version 2.0 (the "License"); you may
+ * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -12,10 +11,8 @@ Version 2.0 (the "License"); you may
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
- * "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND,
-either express or implied.  See the License for the
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
  */
@@ -153,7 +150,7 @@ public class AggregationsTests extends ESTestCase {
             new InternalTopHitsTests(),
             new InternalCompositeTests(),
             new InternalMedianAbsoluteDeviationTests());
-    
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(InternalAggregationTestCase.getDefaultNamedXContents());
@@ -179,8 +176,7 @@ public class AggregationsTests extends ESTestCase {
     }
 
     public void testAllAggsAreBeingTested() {
-        assertEquals(InternalAggregationTestCase.getDefaultNamedXContents().size(),
-aggsTests.size());
+        assertEquals(InternalAggregationTestCase.getDefaultNamedXContents().size(), aggsTests.size());
         Set<String> aggs = aggsTests.stream().map((testCase) -> testCase.createTestInstance().getType()).collect(Collectors.toSet());
         for (NamedXContentRegistry.Entry entry : InternalAggregationTestCase.getDefaultNamedXContents()) {
             assertTrue(aggs.contains(entry.name.getPreferredName()));
@@ -198,47 +194,36 @@ aggsTests.size());
     /**
      * Test that parsing works for a randomly created Aggregations object with a
      * randomized aggregation tree. The test randomly chooses an
-     * {@link XContentType},
-randomizes the order of the {@link XContent} fields
+     * {@link XContentType}, randomizes the order of the {@link XContent} fields
      * and randomly sets the `humanReadable` flag when rendering the
      * {@link XContent}.
      *
      * @param addRandomFields
-     *            if set,
-this will also add random {@link XContent} fields to
+     *            if set, this will also add random {@link XContent} fields to
      *            tests that the parsers are lenient to future additions to rest
      *            responses
      */
     private void parseAndAssert(boolean addRandomFields) throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
-        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM,
-"true"));
+        final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         Aggregations aggregations = createTestInstance();
-        BytesReference originalBytes = toShuffledXContent(aggregations,
-xContentType,
-params,
-randomBoolean());
+        BytesReference originalBytes = toShuffledXContent(aggregations, xContentType, params, randomBoolean());
         BytesReference mutated;
         if (addRandomFields) {
             /*
              * - don't insert into the root object because it should only contain the named aggregations to test
              *
-             * - don't insert into the "meta" object,
-because we pass on everything we find there
+             * - don't insert into the "meta" object, because we pass on everything we find there
              *
-             * - we don't want to directly insert anything random into "buckets"  objects,
-they are used with
+             * - we don't want to directly insert anything random into "buckets"  objects, they are used with
              * "keyed" aggregations and contain named bucket objects. Any new named object on this level should
              * also be a bucket and be parsed as such.
              *
-             * - we cannot insert randomly into VALUE or VALUES objects e.g. in Percentiles,
-the keys need to be numeric there
+             * - we cannot insert randomly into VALUE or VALUES objects e.g. in Percentiles, the keys need to be numeric there
              *
-             * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields,
-their syntax is strict
+             * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
              *
-             * - exclude "key",
-it can be an array of objects and we need strict values
+             * - exclude "key", it can be an array of objects and we need strict values
              */
             Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
                     || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
@@ -246,30 +231,18 @@ it can be an array of objects and we need strict values
                     || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
                     || path.contains(CommonFields.VALUE.getPreferredName())
                     || path.endsWith(CommonFields.KEY.getPreferredName()));
-            mutated = insertRandomFields(xContentType,
-originalBytes,
-excludes,
-random());
+            mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
         } else {
             mutated = originalBytes;
         }
-        try (XContentParser parser = createParser(xContentType.xContent(),
-mutated)) {
-            assertEquals(XContentParser.Token.START_OBJECT,
-parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME,
-parser.nextToken());
-            assertEquals(Aggregations.AGGREGATIONS_FIELD,
-parser.currentName());
-            assertEquals(XContentParser.Token.START_OBJECT,
-parser.nextToken());
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(Aggregations.AGGREGATIONS_FIELD, parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             Aggregations parsedAggregations = Aggregations.fromXContent(parser);
-            BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations,
-xContentType,
-randomBoolean());
-            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes,
-parsedBytes,
-xContentType);
+            BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
+            ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
         }
     }
 
@@ -282,28 +255,19 @@ xContentType);
         }
         builder.endObject();
         BytesReference originalBytes = BytesReference.bytes(builder);
-        try (XContentParser parser = createParser(builder.contentType().xContent(),
-originalBytes)) {
-            assertEquals(XContentParser.Token.START_OBJECT,
-parser.nextToken());
-            ParsingException ex = expectThrows(ParsingException.class,
-() -> Aggregations.fromXContent(parser));
-            assertEquals("Could not parse aggregation keyed as [unknownAggregation]",
-ex.getMessage());
+        try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            ParsingException ex = expectThrows(ParsingException.class, () -> Aggregations.fromXContent(parser));
+            assertEquals("Could not parse aggregation keyed as [unknownAggregation]", ex.getMessage());
         }
     }
 
     public final InternalAggregations createTestInstance() {
-        return createTestInstance(1,
-0,
-5);
+        return createTestInstance(1, 0, 5);
     }
 
-    private static InternalAggregations createTestInstance(final int minNumAggs,
-final int currentDepth,
-final int maxDepth) {
-        int numAggs = randomIntBetween(minNumAggs,
-4);
+    private static InternalAggregations createTestInstance(final int minNumAggs, final int currentDepth, final int maxDepth) {
+        int numAggs = randomIntBetween(minNumAggs, 4);
         List<InternalAggregation> aggs = new ArrayList<>(numAggs);
         for (int i = 0; i < numAggs; i++) {
             InternalAggregationTestCase<?> testCase = randomFrom(aggsTests);
@@ -311,9 +275,7 @@ final int maxDepth) {
                 InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
                     multiBucketAggTestCase.setSubAggregationsSupplier(
-                        () -> createTestInstance(0,
-currentDepth + 1,
-maxDepth)
+                        () -> createTestInstance(0, currentDepth + 1, maxDepth)
                     );
                 } else {
                     multiBucketAggTestCase.setSubAggregationsSupplier(
@@ -323,9 +285,7 @@ maxDepth)
             } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
                 InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;
                 if (currentDepth < maxDepth) {
-                    singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0,
-currentDepth + 1,
-maxDepth);
+                    singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0, currentDepth + 1, maxDepth);
                 } else {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> InternalAggregations.EMPTY;
                 }

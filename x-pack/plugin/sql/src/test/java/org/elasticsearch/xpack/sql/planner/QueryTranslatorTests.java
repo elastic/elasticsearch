@@ -587,6 +587,21 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=int}, {v=10}]", scriptTemplate.params().toString());
     }
 
+    public void testTranslateCase_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT CASE WHEN int > 10 THEN 'foo' WHEN int > 20 THEN 'bar' ELSE 'default' END FROM test GROUP BY 1");
+        assertTrue(p instanceof Aggregate);
+        Expression condition = ((Aggregate) p).groupings().get(0);
+        assertFalse(condition.foldable());
+        QueryTranslator.GroupingContext groupingContext = QueryTranslator.groupBy(((Aggregate) p).groupings());
+        assertNotNull(groupingContext);
+        ScriptTemplate scriptTemplate = groupingContext.tail.script();
+        assertEquals("InternalSqlScriptUtils.caseFunction([InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(" + "" +
+                "doc,params.v0),params.v1),params.v2,InternalSqlScriptUtils.gt(InternalSqlScriptUtils.docValue(doc,params.v3)," +
+                "params.v4),params.v5,params.v6])",
+            scriptTemplate.toString());
+        assertEquals("[{v=int}, {v=10}, {v=foo}, {v=int}, {v=20}, {v=bar}, {v=default}]", scriptTemplate.params().toString());
+    }
+
     public void testGroupByDateHistogram() {
         LogicalPlan p = plan("SELECT MAX(int) FROM test GROUP BY HISTOGRAM(int, 1000)");
         assertTrue(p instanceof Aggregate);
@@ -764,6 +779,18 @@ public class QueryTranslatorTests extends ESTestCase {
                         "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
         {
+            PhysicalPlan p = optimizeAndPlan("SELECT MIN(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("MIN(keyword)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"keyword\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
+        }
+        {
             PhysicalPlan p = optimizeAndPlan("SELECT LAST(date) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());
             EsQueryExec eqe = (EsQueryExec) p;
@@ -774,6 +801,18 @@ public class QueryTranslatorTests extends ESTestCase {
                 endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
                     "\"explain\":false,\"docvalue_fields\":[{\"field\":\"date\",\"format\":\"epoch_millis\"}]," +
                     "\"sort\":[{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
+        }
+        {
+            PhysicalPlan p = optimizeAndPlan("SELECT MAX(keyword) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+            assertEquals("MAX(keyword)", eqe.output().get(0).qualifiedName());
+            assertEquals(DataType.KEYWORD, eqe.output().get(0).dataType());
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"top_hits\":{\"from\":0,\"size\":1,\"version\":false,\"seq_no_primary_term\":false," +
+                    "\"explain\":false,\"docvalue_fields\":[{\"field\":\"keyword\"}]," +
+                    "\"sort\":[{\"keyword\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"keyword\"}}]}}}}}"));
         }
     }
 

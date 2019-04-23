@@ -850,14 +850,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public synchronized     void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
-
         // refresh indexAnalyzers and search analyzers
-        this.indexAnalyzers = registry.reloadIndexAnalyzers(this.indexAnalyzers, indexSettings);
+        IndexAnalyzers reloadedIndexAnalyzers = registry.reloadIndexAnalyzers(this.indexAnalyzers);
+        if (indexAnalyzers == reloadedIndexAnalyzers) {
+            // nothing changed, so we can simply return;
+            return;
+        }
+        this.indexAnalyzers = reloadedIndexAnalyzers;
         this.searchAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
                 p -> p.searchQuoteAnalyzer());
 
-        // also reload search time analyzers in MappedFieldTypes
         // refresh search time analyzers in MappedFieldTypes
         List<MappedFieldType> mftsToRefresh = StreamSupport.stream(fieldTypes.spliterator(), false)
                 .filter(mft -> (mft.searchAnalyzer() != null && mft.searchAnalyzer().getAnalysisMode() == AnalysisMode.SEARCH_TIME)

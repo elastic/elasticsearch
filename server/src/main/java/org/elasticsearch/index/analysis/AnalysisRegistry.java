@@ -539,7 +539,8 @@ public final class AnalysisRegistry implements Closeable {
      * the same instance of {@link IndexAnalyzers} is returned. Otherwise, analyzers that are in {@link AnalysisMode#SEARCH_TIME} are tried
      * to be reloaded. All other analyzers are reused from the old {@link IndexAnalyzers} instance.
      */
-    public IndexAnalyzers reloadIndexAnalyzers(IndexAnalyzers indexAnalyzers, IndexSettings indexSettings) throws IOException {
+    public IndexAnalyzers reloadIndexAnalyzers(IndexAnalyzers indexAnalyzers) throws IOException {
+        IndexSettings indexSettings = indexAnalyzers.getIndexSettings();
         // scan analyzers to collect token filters that we need to reload
         Map<String, NamedAnalyzer> oldAnalyzers = indexAnalyzers.getAnalyzers();
         List<NamedAnalyzer> analyzers = new ArrayList<>(oldAnalyzers.values());
@@ -578,9 +579,7 @@ public final class AnalysisRegistry implements Closeable {
 
         IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(currentTokenizerFactories, currentCharFilterFactories,
                 newTokenFilterFactories);
-        return new IndexAnalyzers(indexSettings, indexAnalyzers.getDefaultIndexAnalyzer(), newDefaultSearchAnalyzer,
-                newDefaultSearchQuoteAnalyzer, newAnalyzers, indexAnalyzers.getNormalizers(), indexAnalyzers.getWhitespaceNormalizers(),
-                analysisProviders);
+        return new IndexAnalyzers(indexAnalyzers, newDefaultSearchAnalyzer, newDefaultSearchQuoteAnalyzer, newAnalyzers, analysisProviders);
     }
 
     static Set<String> filtersThatNeedReloading(List<NamedAnalyzer> analyzers) {

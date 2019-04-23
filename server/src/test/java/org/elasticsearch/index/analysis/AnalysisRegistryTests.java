@@ -352,6 +352,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
         IndexSettings indexSettings = new IndexSettings(IndexMetaData.builder("testIndex").settings(settings).build(), settings);
 
+        int initialFilterCreationCount = MyReloadableFilter.constructorCounter.get();
         NamedAnalyzer rebuilt = AnalysisRegistry.rebuildIfNecessary(reloadableAnalyzer, indexSettings, testAnalysis.charFilter,
                 testAnalysis.tokenizer, testAnalysis.tokenFilter);
         assertEquals(reloadableAnalyzer.name(), rebuilt.name());
@@ -359,7 +360,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertEquals(2, factoryCounter.get()); // once on intialization, once again for reloading
         TokenFilterFactory reloadedFactory = ((CustomAnalyzer) rebuilt.analyzer()).tokenFilters()[0];
         assertThat(reloadedFactory, instanceOf(MyReloadableFilter.class));
-        assertEquals(2, MyReloadableFilter.constructorCounter);
+        // the filter factories should not be used at this poing since the function only re-creates the analyzer
+        assertEquals(initialFilterCreationCount, MyReloadableFilter.constructorCounter.get());
     }
 
     public void testRebuildIndexAnalyzers() throws IOException {
@@ -393,31 +395,33 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexAnalyzers oldIndexAnalyzers = registry.build(indexSettings);
         assertEquals(1, factoryCounter.get());
 
-        IndexAnalyzers rebuildAnalyzers = registry.reloadIndexAnalyzers(oldIndexAnalyzers, indexSettings);
+        IndexAnalyzers rebuildAnalyzers = registry.reloadIndexAnalyzers(oldIndexAnalyzers);
         assertNotSame(oldIndexAnalyzers, rebuildAnalyzers);
         assertEquals(2, factoryCounter.get());
         assertSame(oldIndexAnalyzers.getDefaultIndexAnalyzer(), rebuildAnalyzers.getDefaultIndexAnalyzer());
         assertSame(oldIndexAnalyzers.getDefaultSearchAnalyzer(), rebuildAnalyzers.getDefaultSearchAnalyzer());
         assertSame(oldIndexAnalyzers.getDefaultSearchQuoteAnalyzer(), rebuildAnalyzers.getDefaultSearchQuoteAnalyzer());
+        assertSame(oldIndexAnalyzers.getNormalizers(), rebuildAnalyzers.getNormalizers());
+        assertSame(oldIndexAnalyzers.getWhitespaceNormalizers(), rebuildAnalyzers.getWhitespaceNormalizers());
         assertNotSame(oldIndexAnalyzers.getAnalyzers(), rebuildAnalyzers.getAnalyzers());
         assertEquals(oldIndexAnalyzers.getAnalyzers().size(), rebuildAnalyzers.getAnalyzers().size());
         NamedAnalyzer oldVersion = oldIndexAnalyzers.get("reloadableAnalyzer");
         NamedAnalyzer newVersion = rebuildAnalyzers.get("reloadableAnalyzer");
         assertNotSame(oldVersion, newVersion);
         assertThat(((CustomAnalyzer) oldVersion.analyzer()).tokenFilters()[0], instanceOf(MyReloadableFilter.class));
-        assertEquals(1, ((MyReloadableFilter) ((CustomAnalyzer) oldVersion.analyzer()).tokenFilters()[0]).generation);
+        int oldGeneration = ((MyReloadableFilter) ((CustomAnalyzer) oldVersion.analyzer()).tokenFilters()[0]).generation.get();
         assertThat(((CustomAnalyzer) newVersion.analyzer()).tokenFilters()[0], instanceOf(MyReloadableFilter.class));
-        assertEquals(2, ((MyReloadableFilter) ((CustomAnalyzer) newVersion.analyzer()).tokenFilters()[0]).generation);
+        assertEquals(oldGeneration + 1, ((MyReloadableFilter) ((CustomAnalyzer) newVersion.analyzer()).tokenFilters()[0]).generation.get());
     }
 
     static class MyReloadableFilter implements TokenFilterFactory {
 
-        static int constructorCounter = 0;
-        private final int generation;
+        private static AtomicInteger constructorCounter = new AtomicInteger();
+        private final AtomicInteger generation;
 
         MyReloadableFilter() {
-            constructorCounter++;
-            generation = constructorCounter;
+            constructorCounter.getAndIncrement();
+            generation = new AtomicInteger(constructorCounter.get());
         }
 
         @Override

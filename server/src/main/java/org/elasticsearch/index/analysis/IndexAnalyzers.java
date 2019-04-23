@@ -72,6 +72,22 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
+     * Partial copy-constructor that keeps references to settings, default index analyzer and normalizers from original
+     * {@link IndexAnalyzers} passed in but takes other search time analyzers as inputs.
+     */
+    IndexAnalyzers(IndexAnalyzers original, NamedAnalyzer defaultSearchAnalyzer, NamedAnalyzer defaultSearchQuoteAnalyzer,
+            Map<String, NamedAnalyzer> analyzers, IndexAnalysisProviders analysisProviders) {
+        super(original.getIndexSettings());
+        this.defaultIndexAnalyzer = original.defaultIndexAnalyzer;
+        this.defaultSearchAnalyzer = defaultSearchAnalyzer;
+        this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
+        this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
+        this.normalizers = original.normalizers;
+        this.whitespaceNormalizers = original.whitespaceNormalizers;
+        this.analysisProviders = analysisProviders;
+    }
+
+    /**
      * Returns an analyzer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer get(String name) {
@@ -134,15 +150,15 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
         return defaultSearchQuoteAnalyzer;
     }
 
-    public Map<String, TokenizerFactory> getTokenizerFactoryFactories() {
+    Map<String, TokenizerFactory> getTokenizerFactoryFactories() {
         return analysisProviders.tokenizerFactoryFactories;
     }
 
-    public Map<String, CharFilterFactory> getCharFilterFactoryFactories() {
+    Map<String, CharFilterFactory> getCharFilterFactoryFactories() {
         return analysisProviders.charFilterFactoryFactories;
     }
 
-    public Map<String, TokenFilterFactory> getTokenFilterFactoryFactories() {
+    Map<String, TokenFilterFactory> getTokenFilterFactoryFactories() {
         return analysisProviders.tokenFilterFactoryFactories;
     }
 

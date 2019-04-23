@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.HashMap;
@@ -16,15 +18,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * A components that provides access and stores an enrich policy.
+ * Helper methods for access and storage of an enrich policy.
  */
 public final class EnrichStore {
 
-    private final ClusterService clusterService;
-
-    EnrichStore(ClusterService clusterService) {
-        this.clusterService = clusterService;
-    }
+    private EnrichStore() {}
 
     /**
      * Adds a new enrich policy or overwrites an existing policy if there is already a policy with the same name.
@@ -34,20 +32,73 @@ public final class EnrichStore {
      * @param policy    The policy to store
      * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
      */
-    public void putPolicy(String name, EnrichPolicy policy, Consumer<Exception> handler) {
+    public static void putPolicy(String name, EnrichPolicy policy, ClusterService clusterService, Consumer<Exception> handler) {
         assert clusterService.localNode().isMasterNode();
 
-        // TODO: add validation
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+        if (policy == null) {
+            throw new IllegalArgumentException("policy is missing");
+        }
+        // TODO: add policy validation
 
+        final Map<String, EnrichPolicy> policies = getPolicies(clusterService.state());
+        policies.put(name, policy);
+        updateClusterState(policies, clusterService, handler);
+    }
+
+    /**
+     * Removes an enrich policy from the policies in the cluster state. This method can only be invoked on the
+     * elected master node.
+     *
+     * @param name      The unique name of the policy
+     * @param handler   The handler that gets invoked if policy has been stored or a failure has occurred.
+     */
+    public static void deletePolicy(String name, ClusterService clusterService, Consumer<Exception> handler) {
+        assert clusterService.localNode().isMasterNode();
+
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+
+        final Map<String, EnrichPolicy> policies = getPolicies(clusterService.state());
+        if (policies.containsKey(name) == false) {
+            throw new ResourceNotFoundException("policy [{}] not found", name);
+        }
+
+        policies.remove(name);
+        updateClusterState(policies, clusterService, handler);
+    }
+
+    /**
+     * Gets an enrich policy for the provided name if exists or otherwise returns <code>null</code>.
+     *
+     * @param name  The name of the policy to fetch
+     * @return enrich policy if exists or <code>null</code> otherwise
+     */
+    public static EnrichPolicy getPolicy(String name, ClusterState state) {
+        if (Strings.isNullOrEmpty(name)) {
+            throw new IllegalArgumentException("name is missing or empty");
+        }
+
+        return getPolicies(state).get(name);
+    }
+
+    private static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
+        final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
             policies = new HashMap<>(enrichMetadata.getPolicies());
         } else {
             policies = new HashMap<>();
         }
-        policies.put(name, policy);
+        return policies;
+    }
+
+    private static void updateClusterState(Map<String, EnrichPolicy> policies, ClusterService clusterService,
+                                                 Consumer<Exception> handler) {
         clusterService.submitStateUpdateTask("update-enrich-policy", new ClusterStateUpdateTask() {
 
             @Override
@@ -71,19 +122,4 @@ public final class EnrichStore {
             }
         });
     }
-
-    /**
-     * Gets an enrich policy for the provided name if exists or otherwise returns <code>null</code>.
-     *
-     * @param name  The name of the policy to fetch
-     * @return enrich policy if exists or <code>null</code> otherwise
-     */
-    public EnrichPolicy getPolicy(String name) {
-        EnrichMetadata enrichMetadata = clusterService.state().metaData().custom(EnrichMetadata.TYPE);
-        if (enrichMetadata == null) {
-            return null;
-        }
-        return enrichMetadata.getPolicies().get(name);
-    }
-
 }

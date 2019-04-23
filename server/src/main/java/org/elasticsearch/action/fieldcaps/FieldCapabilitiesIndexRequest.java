@@ -28,8 +28,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-public class FieldCapabilitiesIndexRequest
-    extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
+public class FieldCapabilitiesIndexRequest extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
 
     private String[] fields;
     private OriginalIndices originalIndices;

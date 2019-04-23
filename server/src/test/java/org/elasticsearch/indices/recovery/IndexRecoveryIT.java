@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -83,7 +82,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -92,7 +90,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
@@ -122,7 +119,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
-                RecoverySettingsChunkSizePlugin.class, TestAnalysisPlugin.class, AssertionPlugin.class);
+                RecoverySettingsChunkSizePlugin.class, TestAnalysisPlugin.class);
     }
 
     @After
@@ -878,7 +875,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     }
 
     public void testDoNotInfinitelyWaitForMapping() {
-        internalCluster().startNodes(3, Settings.builder().put("assertion.disabled", RecoveryTarget.class.getName()).build());
+        internalCluster().ensureAtLeastNumDataNodes(3);
         createIndex("test", Settings.builder()
             .put("index.analysis.analyzer.test_analyzer.type", "custom")
             .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
@@ -927,15 +924,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                         return tokenStream;
                     }
                 });
-        }
-    }
-
-    public static final class AssertionPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(
-                Setting.listSetting("assertion.disabled", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
-            );
         }
     }
 }

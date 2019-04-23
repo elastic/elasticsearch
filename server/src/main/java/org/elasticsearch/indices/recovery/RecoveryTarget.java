@@ -33,7 +33,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.index.engine.Engine;
@@ -354,10 +353,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 }
                 if (result.getFailure() != null) {
                     if (Assertions.ENABLED) {
-                        final Settings settings = indexShard.indexSettings().getSettings();
-                        if (settings.getAsList("assertion.disabled").contains(getClass().getName()) == false) {
-                            throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
-                        }
+                        throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
                     }
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
                 }

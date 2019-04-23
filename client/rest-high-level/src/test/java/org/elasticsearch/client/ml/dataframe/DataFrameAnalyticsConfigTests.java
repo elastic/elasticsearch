@@ -26,11 +26,14 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSourceTests.randomSourceConfig;
 import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDestTests.randomDestConfig;
+import static org.elasticsearch.client.ml.dataframe.OutlierDetectionTests.randomOutlierDetection;
 
 public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<DataFrameAnalyticsConfig> {
 
@@ -39,7 +42,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
             randomDestConfig(),
-            Collections.emptyList(),
+            randomOutlierDetection(),
             null,
             null);
     }
@@ -67,7 +70,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME, (p, c) -> OutlierDetection.fromXContent(p)));
+        return new NamedXContentRegistry(namedXContent);
     }
 }

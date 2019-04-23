@@ -34,6 +34,9 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
+    private static final ParseField INDEX = new ParseField("index");
+    private static final ParseField QUERY = new ParseField("query");
+
     private static ConstructingObjectParser<DataFrameAnalyticsSource, Void> PARSER =
         new ConstructingObjectParser<>("data_frame_analytics_source", true,
             (args) -> {
@@ -41,9 +44,6 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
                 QueryConfig queryConfig = (QueryConfig) args[1];
                 return new DataFrameAnalyticsSource(index, queryConfig);
             });
-
-    private static final ParseField INDEX = new ParseField("index");
-    private static final ParseField QUERY = new ParseField("query");
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);

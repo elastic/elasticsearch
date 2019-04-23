@@ -34,14 +34,14 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
+    private static final ParseField INDEX = new ParseField("index");
+
     private static ConstructingObjectParser<DataFrameAnalyticsDest, Void> PARSER =
         new ConstructingObjectParser<>("data_frame_analytics_dest", true,
             (args) -> {
                 String index = (String) args[0];
                 return new DataFrameAnalyticsDest(index);
             });
-
-    private static final ParseField INDEX = new ParseField("index");
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);

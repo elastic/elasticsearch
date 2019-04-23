@@ -83,6 +83,18 @@ public class SettingsModuleTests extends ModuleTestCase {
                 assertEquals("Failed to parse value [false] for setting [some.custom.setting]", ex.getMessage());
             }
         }
+        {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            if (randomBoolean()) {
+                secureSettings.setString("some.custom.secure.consistent.setting", "secure_value");
+            } else {
+                secureSettings.setFile("some.custom.secure.consistent.setting", new byte[] {0, 1, 1, 0});
+            }
+            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+            SettingsModule module = new SettingsModule(settings,
+                    SecureSetting.secureString("some.custom.secure.consistent.setting", null, Setting.Property.Consistent));
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+        }
     }
 
     public void testLoggerSettings() {

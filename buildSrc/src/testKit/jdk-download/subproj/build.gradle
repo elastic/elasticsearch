@@ -1,0 +1,31 @@
+plugins {
+    id 'elasticsearch.jdk-download'
+}
+
+String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
+task getLinuxJdk {
+    usesJdk fakeJdkVersion, 'linux'
+    doLast {
+        println "JDK HOME: " + jdkHome
+    }
+}
+
+task getDarwinJdk {
+    usesJdk fakeJdkVersion, 'darwin'
+    doLast {
+        println "JDK HOME: " + jdkHome
+    }
+}
+
+task getWindowsJdk {
+    usesJdk fakeJdkVersion, 'windows'
+    doLast {
+        println "JDK HOME: " + jdkHome
+    }
+}
+
+// wire the jdk repo to wiremock
+String fakeJdkRepo = Objects.requireNonNull(System.getProperty('tests.jdk_repo'))
+println rootProject.repositories.asMap.keySet()
+IvyArtifactRepository repository = (IvyArtifactRepository) rootProject.repositories.getByName("jdk_repo_${fakeJdkVersion}")
+repository.setUrl(fakeJdkRepo)

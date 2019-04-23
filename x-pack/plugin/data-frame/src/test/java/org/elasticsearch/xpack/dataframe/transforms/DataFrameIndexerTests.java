@@ -21,12 +21,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 import org.junit.Before;
 
@@ -66,7 +65,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Executor executor,
                 DataFrameTransformConfig transformConfig,
                 Map<String, String> fieldMappings,
-                Auditor<DataFrameAuditMessage> auditor,
+                DataFrameAuditor auditor,
                 AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition,
                 DataFrameIndexerTransformStats jobStats,
@@ -202,8 +201,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
-            Auditor<DataFrameAuditMessage> auditor = new Auditor<>(client, "node_1", TEST_INDEX, TEST_ORIGIN,
-                    DataFrameAuditMessage.builder());
+            DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                     new DataFrameIndexerTransformStats(config.getId()), searchFunction, bulkFunction, failureConsumer);

@@ -188,24 +188,3 @@ setup:
         from: 0
         size: 10000
 
----
-"Verify put transform creates destination index with appropriate mapping":
-  - do:
-      data_frame.put_data_frame_transform:
-        transform_id: "airline-transform"
-        body: >
-          {
-            "source": { "index": "airline-data" },
-            "dest": { "index": "airline-data-by-airline" },
-            "pivot": {
-              "group_by": { "airline": {"terms": {"field": "airline"}}},
-              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}, "time": {"max": {"field": "time"}}}
-            }
-          }
-  - match: { acknowledged: true }
-  - do:
-      indices.get_mapping:
-        index: airline-data-by-airline
-  - match: { airline-data-by-airline.mappings.properties.airline.type: keyword }
-  - match: { airline-data-by-airline.mappings.properties.avg_response.type: double }
-  - match: { airline-data-by-airline.mappings.properties.time.type: date }

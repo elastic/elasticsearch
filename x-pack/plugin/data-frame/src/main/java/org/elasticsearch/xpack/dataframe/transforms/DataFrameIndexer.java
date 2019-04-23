@@ -19,15 +19,14 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -47,13 +46,13 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
-    protected final Auditor<DataFrameAuditMessage> auditor;
+    protected final DataFrameAuditor auditor;
 
     private Pivot pivot;
     private int pageSize = 0;
 
     public DataFrameIndexer(Executor executor,
-                            Auditor<DataFrameAuditMessage> auditor,
+                            DataFrameAuditor auditor,
                             AtomicReference<IndexerState> initialState,
                             Map<String, Object> initialPosition,
                             DataFrameIndexerTransformStats jobStats) {

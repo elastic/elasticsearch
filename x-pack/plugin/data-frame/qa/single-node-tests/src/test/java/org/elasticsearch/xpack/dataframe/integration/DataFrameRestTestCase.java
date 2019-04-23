@@ -164,7 +164,6 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
     }
 
     protected void startDataframeTransform(String transformId, boolean force) throws IOException {
@@ -195,6 +194,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
         // start the transform
         startDataframeTransform(transformId, false, authHeader);
+        assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
         refreshIndex(dataFrameIndex);

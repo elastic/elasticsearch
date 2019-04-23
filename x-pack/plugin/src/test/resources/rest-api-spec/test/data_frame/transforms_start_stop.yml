@@ -64,6 +64,31 @@ teardown:
         transform_id: "airline-transform-start-stop"
 
 ---
+"Verify start transform creates destination index with appropriate mapping":
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-start-stop
+  - match: { airline-data-by-airline-start-stop.mappings.properties.airline.type: keyword }
+  - match: { airline-data-by-airline-start-stop.mappings.properties.avg_response.type: double }
+
+---
+"Verify start transform reuses destination index":
+  - do:
+      indices.create:
+        index: airline-data-by-airline-start-stop
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline-transform-start-stop"
+  - match: { started: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-start-stop
+  - match: { airline-data-by-airline-start-stop.mappings: {} }
+---
 "Test start/stop/start transform":
   - do:
       data_frame.start_data_frame_transform:

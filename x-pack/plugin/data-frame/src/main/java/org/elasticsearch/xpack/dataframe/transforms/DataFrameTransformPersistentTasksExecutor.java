@@ -18,15 +18,14 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Map;
@@ -40,13 +39,13 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
-    private final Auditor<DataFrameAuditMessage> auditor;
+    private final DataFrameAuditor auditor;
 
     public DataFrameTransformPersistentTasksExecutor(Client client,
                                                      DataFrameTransformsConfigManager transformsConfigManager,
                                                      DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService,
                                                      SchedulerEngine schedulerEngine,
-                                                     Auditor<DataFrameAuditMessage> auditor,
+                                                     DataFrameAuditor auditor,
                                                      ThreadPool threadPool) {
         super(DataFrameField.TASK_NAME, DataFrame.TASK_THREAD_POOL_NAME);
         this.client = client;

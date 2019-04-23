@@ -115,9 +115,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 3 documents as there shall be 5 unique star values and we are bucketing every 2 starting at 0
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -174,9 +174,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 27 documents as there shall be 27 user_id's
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -228,9 +228,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -301,9 +301,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -351,9 +351,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         createDataframeTransformRequest.setJsonEntity(config);
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertTrue(indexExists(dataFrameIndex));
 
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
 
         // we expect 27 documents as there shall be 27 user_id's
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");

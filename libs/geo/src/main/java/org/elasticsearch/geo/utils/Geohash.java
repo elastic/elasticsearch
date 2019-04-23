@@ -41,15 +41,22 @@ public class Geohash {
 
     private static final String BASE_32_STRING = new String(BASE_32);
     /** maximum precision for geohash strings */
-    private static final int PRECISION = 12;
+    public static final int PRECISION = 12;
     /** number of bits used for quantizing latitude and longitude values */
-    private static final short BITS = 31;
-    private static final double LAT_SCALE = (0x1L<<BITS)/180.0D;
-    private static final double LON_SCALE = (0x1L<<BITS)/360.0D;
+    private static final short BITS = 32;
+    private static final double LAT_SCALE = (0x1L<<(BITS-1))/180.0D;
+    private static final double LAT_DECODE = 180.0D/(0x1L<<BITS);
+    private static final double LON_SCALE = (0x1L<<(BITS-1))/360.0D;
+    private static final double LON_DECODE = 360.0D/(0x1L<<BITS);
+
     private static final short MORTON_OFFSET = (BITS<<1) - (PRECISION*5);
     /** Bit encoded representation of the latitude of north pole */
     private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
+
+    // no instance:
+    private Geohash() {
+    }
 
     /** Returns a {@link Point} instance from a geohash string */
     public static Point toPoint(final String geohash) throws IllegalArgumentException {
@@ -73,14 +80,19 @@ public class Geohash {
         // deinterleave
         long lon = BitUtil.deinterleave(ghLong >>> 1);
         long lat = BitUtil.deinterleave(ghLong);
+        final int shift = (12 - len) * 5 + 2;
         if (lat < MAX_LAT_BITS) {
             // add 1 to lat and lon to get topRight
-            Point topRight = new Point(unscaleLat((lat + 1) << 2), unscaleLon((lon + 1) << 2));
+            ghLong = BitUtil.interleave((int)(lat + 1), (int)(lon + 1)) << 4 | len;
+            final long mortonHash = BitUtil.flipFlop((ghLong >>> 4) << shift);
+            Point topRight = new Point(decodeLatitude(mortonHash), decodeLongitude(mortonHash));
             return new Rectangle(bottomLeft.getLat(), topRight.getLat(), bottomLeft.getLon(), topRight.getLon());
         } else {
             // We cannot go north of north pole, so just using 90 degrees instead of calculating it using
             // add 1 to lon to get lon of topRight, we are going to use 90 for lat
-            Point topRight = new Point(unscaleLat(lat << 2), unscaleLon((lon + 1) << 2));
+            ghLong = BitUtil.interleave((int)lat, (int)(lon + 1)) << 4 | len;
+            final long mortonHash = BitUtil.flipFlop((ghLong >>> 4) << shift);
+            Point topRight = new Point(decodeLatitude(mortonHash), decodeLongitude(mortonHash));
             return new Rectangle(bottomLeft.getLat(), 90D, bottomLeft.getLon(), topRight.getLon());
         }
     }
@@ -189,6 +201,48 @@ public class Geohash {
         }
     }
 
+    /**
+     * Encode lon/lat to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
+     */
+    public static final long longEncode(final double lon, final double lat, final int level) {
+        // shift to appropriate level
+        final short msf = (short)(((12 - level) * 5) + (MORTON_OFFSET - 2));
+        return ((encodeLatLon(lat, lon) >>> msf) << 4) | level;
+    }
+
+    /**
+     * Encode to a geohash string from full resolution longitude, latitude)
+     */
+    public static final String stringEncode(final double lon, final double lat) {
+        return stringEncode(lon, lat, 12);
+    }
+
+    /**
+     * Encode to a level specific geohash string from full resolution longitude, latitude
+     */
+    public static final String stringEncode(final double lon, final double lat, final int level) {
+        // convert to geohashlong
+        long interleaved = encodeLatLon(lat, lon);
+        interleaved >>>= (((PRECISION - level) * 5) + (MORTON_OFFSET - 2));
+        final long geohash = (interleaved << 4) | level;
+        return stringEncode(geohash);
+    }
+
+    /**
+     * Encode to a geohash string from the geohash based long format
+     */
+    public static final String stringEncode(long geoHashLong) {
+        int level = (int)geoHashLong&15;
+        geoHashLong >>>= 4;
+        char[] chars = new char[level];
+        do {
+            chars[--level] = BASE_32[(int) (geoHashLong&31L)];
+            geoHashLong>>>=5;
+        } while(level > 0);
+
+        return new String(chars);
+    }
+
     /** base32 encode at the given grid coordinate */
     private static char encodeBase32(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
@@ -215,7 +269,7 @@ public class Geohash {
     /**
      * Encode to a morton long value from a given geohash string
      */
-    private static final long mortonEncode(final String hash) {
+    public static long mortonEncode(final String hash) {
         if (hash.isEmpty()) {
             throw new IllegalArgumentException("empty geohash");
         }
@@ -227,7 +281,7 @@ public class Geohash {
             if (b < 0) {
                 throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
             }
-            l |= (b<<((level--*5) + MORTON_OFFSET));
+            l |= (b<<((level--*5) + (MORTON_OFFSET - 2)));
             if (level < 0) {
                 // We cannot handle more than 12 levels
                 break;
@@ -236,13 +290,49 @@ public class Geohash {
         return BitUtil.flipFlop(l);
     }
 
+    private static long encodeLatLon(final double lat, final double lon) {
+        // encode lat/lon flipping the sign bit so negative ints sort before positive ints
+        final int latEnc = encodeLatitude(lat) ^ 0x80000000;
+        final int lonEnc = encodeLongitude(lon) ^ 0x80000000;
+        return BitUtil.interleave(latEnc, lonEnc) >>> 2;
+    }
+
+
+    /** encode latitude to integer */
+    public static int encodeLatitude(double latitude) {
+        // the maximum possible value cannot be encoded without overflow
+        if (latitude == 90.0D) {
+            latitude = Math.nextDown(latitude);
+        }
+        return (int) Math.floor(latitude / LAT_DECODE);
+    }
+
+    /** encode longitude to integer */
+    public static int encodeLongitude(double longitude) {
+        // the maximum possible value cannot be encoded without overflow
+        if (longitude == 180.0D) {
+            longitude = Math.nextDown(longitude);
+        }
+        return (int) Math.floor(longitude / LON_DECODE);
+    }
+
+    /** returns the latitude value from the string based geohash */
+    public static final double decodeLatitude(final String geohash) {
+        return decodeLatitude(Geohash.mortonEncode(geohash));
+    }
+
+    /** returns the latitude value from the string based geohash */
+    public static final double decodeLongitude(final String geohash) {
+        return decodeLongitude(Geohash.mortonEncode(geohash));
+    }
+
     /** decode longitude value from morton encoded geo point */
-    private static final double decodeLongitude(final long hash) {
+    public static double decodeLongitude(final long hash) {
         return unscaleLon(BitUtil.deinterleave(hash));
     }
 
     /** decode latitude value from morton encoded geo point */
-    private static final double decodeLatitude(final long hash) {
+    public static double decodeLatitude(final long hash) {
         return unscaleLat(BitUtil.deinterleave(hash >>> 1));
     }
 

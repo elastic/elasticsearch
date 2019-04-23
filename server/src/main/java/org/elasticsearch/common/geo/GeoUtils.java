@@ -541,7 +541,7 @@ public class GeoUtils {
                 case TOP_LEFT:
                     return point.reset(rectangle.getMaxLat(), rectangle.getMinLon());
                 case TOP_RIGHT:
-                    return point.reset(rectangle.getMaxLat(), rectangle.getMinLon());
+                    return point.reset(rectangle.getMaxLat(), rectangle.getMaxLon());
                 case BOTTOM_RIGHT:
                     return point.reset(rectangle.getMinLat(), rectangle.getMaxLon());
                 default:

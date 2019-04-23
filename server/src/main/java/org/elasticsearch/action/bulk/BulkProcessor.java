@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -219,12 +221,13 @@ public class BulkProcessor implements Closeable {
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
-    private BulkRequest bulkRequest;
+    volatile private BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
     private final BulkRequestHandler bulkRequestHandler;
     private final Runnable onClose;
 
     private volatile boolean closed = false;
+    private final ReentrantLock lock = new ReentrantLock();
 
     BulkProcessor(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy, Listener listener,
                   int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval,
@@ -315,10 +318,22 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(DocWriteRequest<?> request) {
-        ensureOpen();
-        bulkRequest.add(request);
-        executeIfNeeded();
+    private void internalAdd(DocWriteRequest<?> request) {
+        //bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
+        //once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
+        Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        try {
+            lock.lock();
+            ensureOpen();
+            bulkRequest.add(request);
+            bulkRequestToExecute = newBulkRequestIfNeeded();
+        } finally {
+            lock.unlock();
+        }
+        //execute sending the local reference outside the lock to allow handler to control the concurrency via it's configuration.
+        if (bulkRequestToExecute != null) {
+            execute(bulkRequestToExecute.v1(), bulkRequestToExecute.v2());
+        }
     }
 
     /**
@@ -366,13 +381,30 @@ public class BulkProcessor implements Closeable {
         execute();
     }
 
-    // (currently) needs to be executed under a lock
+    // needs to be executed under a lock
+    private Tuple<BulkRequest,Long> newBulkRequestIfNeeded(){
+        ensureOpen();
+        if (!isOverTheLimit()) {
+            return null;
+        }
+        final BulkRequest bulkRequest = this.bulkRequest;
+        this.bulkRequest = bulkRequestSupplier.get();
+        return new Tuple<>(bulkRequest,executionIdGen.incrementAndGet()) ;
+    }
+
+
+    private void execute(BulkRequest bulkRequest, long executionId ){
+        this.bulkRequestHandler.execute(bulkRequest, executionId);
+    }
+
+
+    // needs to be executed under a lock
     private void execute() {
         final BulkRequest bulkRequest = this.bulkRequest;
         final long executionId = executionIdGen.incrementAndGet();
 
         this.bulkRequest = bulkRequestSupplier.get();
-        this.bulkRequestHandler.execute(bulkRequest, executionId);
+        execute(bulkRequest, executionId);
     }
 
     private boolean isOverTheLimit() {

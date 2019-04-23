@@ -185,7 +185,6 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[greatestReturnNonNull]
 include-tagged::{sql-specs}/docs/docs.csv-spec[greatestReturnNull]
 ----
 
-
 [[sql-functions-conditional-ifnull]]
 ==== `IFNULL`
 

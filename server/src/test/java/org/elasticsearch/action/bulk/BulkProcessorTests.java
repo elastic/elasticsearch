@@ -122,13 +122,11 @@ public class BulkProcessorTests extends ESTestCase {
                 fail("failed to find random values that allows test to run quickly"); //extremely unlikely
             }
             maxBatchSize = randomIntBetween(1, 100);
-            maxDocuments = randomIntBetween(maxBatchSize, 100_000);
-            concurrentClients = 1;
-            randomIntBetween(1, 20);
-            concurrentBulkRequests = 0;
-            randomIntBetween(0, 20);
+            maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
+            concurrentClients = randomIntBetween(1, 20);
+            concurrentBulkRequests = randomIntBetween(0, 20);
             expectedExecutions = maxDocuments / maxBatchSize;
-            estimatedTimeForTest = expectedExecutions * simulateWorkTimeInMillis;
+            estimatedTimeForTest = (expectedExecutions * simulateWorkTimeInMillis) / Math.min(concurrentBulkRequests, concurrentClients);
         }
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);

@@ -46,24 +46,24 @@ public class FiltersAggsRewriteIT extends ESSingleNodeTestCase {
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-            builder.startObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+        builder.startObject();
+        {
+            builder.startObject("terms");
             {
-                builder.startObject("terms");
-                {
-                    builder.array("title", "foo");
-                }
-                builder.endObject();
+                builder.array("title", "foo");
             }
             builder.endObject();
-            bytesReference = BytesReference.bytes(builder);
         }
-        FiltersAggregationBuilder builder = new FiltersAggregationBuilder("titles", new FiltersAggregator.KeyedFilter("titleterms",
+        builder.endObject();
+        bytesReference = BytesReference.bytes(builder);
+
+        FiltersAggregationBuilder filterBuilder = new FiltersAggregationBuilder("titles", new FiltersAggregator.KeyedFilter("titleterms",
                 new WrapperQueryBuilder(bytesReference)));
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        builder.setMetaData(metadata);
-        SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
+        filterBuilder.setMetaData(metadata);
+        SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(filterBuilder).get();
         assertEquals(3, searchResponse.getHits().getTotalHits().value);
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());

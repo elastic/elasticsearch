@@ -92,39 +92,44 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
     public void testOtherBucket() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.startObject();
-        builder.startArray("filters").endArray();
+        builder.startArray("filters")
+            .startObject().startObject("term").field("field", "foo").endObject().endObject()
+            .endArray();
         builder.endObject();
-        try (XContentParser parser = createParser(shuffleXContent(builder))) {
-            parser.nextToken();
-            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
-            // The other bucket is disabled by default
-            assertFalse(filters.otherBucket());
+        XContentParser parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
+        // The other bucket is disabled by default
+        assertFalse(filters.otherBucket());
 
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject();
-            builder.startArray("filters").endArray();
-            builder.field("other_bucket_key", "some_key");
-            builder.endObject();
-        }
-        try (XContentParser parser = createParser(shuffleXContent(builder))) {
-            parser.nextToken();
-            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
-            // but setting a key enables it automatically
-            assertTrue(filters.otherBucket());
+        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject();
+        builder.startArray("filters")
+            .startObject().startObject("term").field("field", "foo").endObject().endObject()
+            .endArray();
+        builder.field("other_bucket_key", "some_key");
+        builder.endObject();
 
-            builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-            builder.startObject();
-            builder.startArray("filters").endArray();
-            builder.field("other_bucket", false);
-            builder.field("other_bucket_key", "some_key");
-            builder.endObject();
-        }
-        try (XContentParser parser = createParser(shuffleXContent(builder))) {
-            parser.nextToken();
-            FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
-            // unless the other bucket is explicitly disabled
-            assertFalse(filters.otherBucket());
-        }
+        parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        filters = FiltersAggregationBuilder.parse("agg_name", parser);
+        // but setting a key enables it automatically
+        assertTrue(filters.otherBucket());
+
+        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject();
+        builder.startArray("filters")
+            .startObject().startObject("term").field("field", "foo").endObject().endObject()
+            .endArray();
+        builder.field("other_bucket", false);
+        builder.field("other_bucket_key", "some_key");
+        builder.endObject();
+
+        parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        filters = FiltersAggregationBuilder.parse("agg_name", parser);
+        // unless the other bucket is explicitly disabled
+        assertFalse(filters.otherBucket());
     }
 
     public void testRewrite() throws IOException {
@@ -191,5 +196,31 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         FiltersAggregationBuilder rewrittenFilters = (FiltersAggregationBuilder) rewritten;
         assertEquals(originalFilters.otherBucket(), rewrittenFilters.otherBucket());
         assertEquals(originalFilters.otherBucketKey(), rewrittenFilters.otherBucketKey());
+    }
+
+    public void testEmptyFilters() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startArray("filters").endArray();  // unkeyed array
+            builder.endObject();
+            XContentParser parser = createParser(shuffleXContent(builder));
+            parser.nextToken();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
+        }
+
+        {
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            builder.startObject();
+            builder.startObject("filters").endObject(); // keyed object
+            builder.endObject();
+            XContentParser parser = createParser(shuffleXContent(builder));
+            parser.nextToken();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> FiltersAggregationBuilder.parse("agg_name", parser));
+            assertThat(e.getMessage(), equalTo("[filters] cannot be empty."));
+        }
     }
 }

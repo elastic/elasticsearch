@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -96,11 +97,13 @@ public class RollupJobIdentifierUtils {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
                         DateHistogramInterval interval = new DateHistogramInterval((String)agg.get(RollupField.INTERVAL));
 
-                        String thisTimezone  = (String)agg.get(DateHistogramGroupConfig.TIME_ZONE);
-                        String sourceTimeZone = source.timeZone() == null ? "UTC" : source.timeZone().toString();
+                        ZoneId thisTimezone = ZoneId.of(((String) agg.get(DateHistogramGroupConfig.TIME_ZONE)), ZoneId.SHORT_IDS);
+                        ZoneId sourceTimeZone = source.timeZone() == null
+                            ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE
+                            : ZoneId.of(source.timeZone().toString(), ZoneId.SHORT_IDS);
 
                         // Ensure we are working on the same timezone
-                        if (thisTimezone.equalsIgnoreCase(sourceTimeZone) == false) {
+                        if (thisTimezone.getRules().equals(sourceTimeZone.getRules()) == false) {
                             continue;
                         }
                         if (source.dateHistogramInterval() != null) {

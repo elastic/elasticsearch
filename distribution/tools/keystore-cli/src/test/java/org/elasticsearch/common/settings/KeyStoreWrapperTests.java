@@ -128,8 +128,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final KeyStoreWrapper keystore = KeyStoreWrapper.create();
         final String stringSettingKeyName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + "1";
         final String stringSettingValue = randomAlphaOfLength(32);
-        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray(Locale.ROOT));
-        final String fileSettingKeyName = randomAlphaOfLength(5).toLowerCase() + "2";
+        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray());
+        final String fileSettingKeyName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT) + "2";
         final byte[] fileSettingValue = randomByteArrayOfLength(32);
         keystore.setFile(fileSettingKeyName, fileSettingValue);
 

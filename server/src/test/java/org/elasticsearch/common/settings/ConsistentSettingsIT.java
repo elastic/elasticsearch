@@ -39,10 +39,16 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
             key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
 
     public void testAllConsistent() throws Exception {
-        final Environment environment = internalCluster().getInstance(Environment.class);
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
-                Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        internalCluster().getInstances(Environment.class).forEach(environment -> {
+            ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService, Collections.emptyList()).areAllConsistent());
+            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
+                    Collections.singletonList(DUMMY_STRING_CONSISTENT_SETTING)).areAllConsistent());
+            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
+                    Collections.singletonList(DUMMY_AFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+            assertTrue(new ConsistentSettingsService(environment.settings(), clusterService,
+                    List.of(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
+        });
     }
 
     @Override

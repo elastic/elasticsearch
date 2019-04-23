@@ -112,7 +112,7 @@ public final class Sets {
      * @param <T>   the type of the elements of the sets
      * @return the unmodifiable sorted relative complement of the left set with respect to the right set
      */
-    public static <T> Set<T> unmodifiableSortedDifference(final Set<T> left, final Set<T> right) {
+    public static <T> SortedSet<T> unmodifiableSortedDifference(final Set<T> left, final Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
         return left.stream().filter(k -> right.contains(k) == false).collect(toUnmodifiableSortedSet());
@@ -135,11 +135,11 @@ public final class Sets {
      * @param <T> the type of the input elements
      * @return an unmodifiable set where the underlying set is sorted
      */
-    public static <T> Collector<T, SortedSet<T>, Set<T>> toUnmodifiableSortedSet() {
+    public static <T> Collector<T, SortedSet<T>, SortedSet<T>> toUnmodifiableSortedSet() {
         return new UnmodifiableSortedSetCollector<>();
     }
 
-    abstract static class AbstractSortedSetCollector<T, R extends Set<T>> implements Collector<T, SortedSet<T>, R> {
+    abstract static class AbstractSortedSetCollector<T> implements Collector<T, SortedSet<T>, SortedSet<T>> {
 
         @Override
         public Supplier<SortedSet<T>> supplier() {
@@ -159,13 +159,13 @@ public final class Sets {
             };
         }
 
-        public abstract Function<SortedSet<T>, R> finisher();
+        public abstract Function<SortedSet<T>, SortedSet<T>> finisher();
 
         public abstract Set<Characteristics> characteristics();
 
     }
 
-    private static class SortedSetCollector<T> extends AbstractSortedSetCollector<T, SortedSet<T>> {
+    private static class SortedSetCollector<T> extends AbstractSortedSetCollector<T> {
 
         @Override
         public Function<SortedSet<T>, SortedSet<T>> finisher() {
@@ -182,11 +182,11 @@ public final class Sets {
 
     }
 
-    private static class UnmodifiableSortedSetCollector<T> extends AbstractSortedSetCollector<T, Set<T>> {
+    private static class UnmodifiableSortedSetCollector<T> extends AbstractSortedSetCollector<T> {
 
         @Override
-        public Function<SortedSet<T>, Set<T>> finisher() {
-            return Collections::unmodifiableSet;
+        public Function<SortedSet<T>, SortedSet<T>> finisher() {
+            return Collections::unmodifiableSortedSet;
         }
 
         @Override

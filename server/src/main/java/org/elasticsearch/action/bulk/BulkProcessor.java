@@ -358,6 +358,7 @@ public class BulkProcessor implements Closeable {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         try {
             lock.lock();
+            ensureOpen();
             bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline,
                 true, xContentType);
             bulkRequestToExecute = newBulkRequestIfNeeded();

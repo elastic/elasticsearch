@@ -267,21 +267,26 @@ public class BulkProcessor implements Closeable {
      * completed
      * @throws InterruptedException If the current thread is interrupted
      */
-    public synchronized boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-        if (closed) {
-            return true;
-        }
-        closed = true;
-
-        this.cancellableFlushTask.cancel();
-
-        if (bulkRequest.numberOfActions() > 0) {
-            execute();
-        }
+    public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
         try {
-            return this.bulkRequestHandler.awaitClose(timeout, unit);
-        } finally {
-            onClose.run();
+            lock.lock();
+            if (closed) {
+                return true;
+            }
+            closed = true;
+
+            this.cancellableFlushTask.cancel();
+
+            if (bulkRequest.numberOfActions() > 0) {
+                execute();
+            }
+            try {
+                return this.bulkRequestHandler.awaitClose(timeout, unit);
+            } finally {
+                onClose.run();
+            }
+        }finally {
+            lock.unlock();
         }
     }
 
@@ -347,12 +352,17 @@ public class BulkProcessor implements Closeable {
     /**
      * Adds the data from the bytes to be processed by the bulk processor
      */
-    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                                           @Nullable String defaultPipeline,
                                           XContentType xContentType) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, true, xContentType);
-        executeIfNeeded();
-        return this;
+        try {
+            lock.lock();
+            bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, true, xContentType);
+            executeIfNeeded();
+            return this;
+        } finally {
+            lock.unlock();
+        }
     }
 
     private Scheduler.Cancellable startFlushTask(TimeValue flushInterval, Scheduler scheduler) {
@@ -420,18 +430,23 @@ public class BulkProcessor implements Closeable {
     /**
      * Flush pending delete or index requests.
      */
-    public synchronized void flush() {
-        ensureOpen();
-        if (bulkRequest.numberOfActions() > 0) {
-            execute();
+    public void flush() {
+        try {
+            lock.lock();
+            ensureOpen();
+            if (bulkRequest.numberOfActions() > 0) {
+                execute();
+            }
+        }finally {
+            lock.unlock();
         }
     }
 
     class Flush implements Runnable {
-
         @Override
         public void run() {
-            synchronized (BulkProcessor.this) {
+            try {
+                lock.lock();
                 if (closed) {
                     return;
                 }
@@ -439,6 +454,8 @@ public class BulkProcessor implements Closeable {
                     return;
                 }
                 execute();
+            } finally {
+                lock.unlock();
             }
         }
     }

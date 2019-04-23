@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTask
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -39,8 +38,6 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer.getInitialProgress;
 
 public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksExecutor<DataFrameTransform> {
 
@@ -84,6 +81,11 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 .setClient(client)
                 .setIndexerState(transformState == null ? IndexerState.STOPPED : transformState.getIndexerState())
                 .setInitialPosition(transformState == null ? null : transformState.getPosition())
+                // If the state is `null` that means this is a "first run". We can safely assume the
+                // task will attempt to gather the initial progress information
+                // if we have state, this may indicate the previous execution node crashed, so we should attempt to retrieve
+                // the progress from state to keep an accurate measurement of our progress
+                .setProgress(transformState == null ? null : transformState.getProgress())
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
                 .setTransformsConfigManager(transformsConfigManager)
                 .setTransformId(transformId);
@@ -93,42 +95,22 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
         );
 
-        // <4> Set the progress in the indexer (if it exists), set the task's indexer, and attempt to start the task (if it is STOPPED)
+        // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<DataFrameTransformProgress> progressActionListener = ActionListener.wrap(
-            progress -> {
-                indexerBuilder.setProgress(progress);
-                buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
-            },
-            error -> {
-                logger.error("Unable to gather transform progress[" + transformId + "]", error);
-                buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
-            }
-        );
-
-        // <3> Set the previous stats (if they exist), attempt to get the progress of the task
         ActionListener<DataFrameIndexerTransformStats> transformStatsActionListener = ActionListener.wrap(
             stats -> {
                 indexerBuilder.setInitialStats(stats);
-                if (transformState == null) {
-                    getInitialProgress(client, indexerBuilder.getTransformConfig(), progressActionListener);
-                }  else {
-                    progressActionListener.onResponse(transformState.getProgress());
-                }
+                buildTask.initializeIndexer(indexerBuilder);
+                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
                     logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
                 }
                 indexerBuilder.setInitialStats(new DataFrameIndexerTransformStats(transformId));
-                if (transformState == null) {
-                    getInitialProgress(client, indexerBuilder.getTransformConfig(), progressActionListener);
-                } else {
-                    progressActionListener.onResponse(transformState.getProgress());
-                }
+                buildTask.initializeIndexer(indexerBuilder);
+                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
             }
         );
 

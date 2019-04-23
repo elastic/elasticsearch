@@ -50,9 +50,6 @@ teardown:
   - match: { transforms.0.state.indexer_state: "started" }
   - match: { transforms.0.state.task_state: "started" }
   - match: { transforms.0.state.checkpoint: 0 }
-  - match: { transforms.0.state.progress.total_docs: 0 }
-  - match: { transforms.0.state.progress.docs_remaining: 0 }
-  - match: { transforms.0.state.progress.percent_complete: 100.0 }
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }

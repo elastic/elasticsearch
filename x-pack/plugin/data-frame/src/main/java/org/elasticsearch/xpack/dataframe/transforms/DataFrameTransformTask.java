@@ -490,11 +490,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onStart(long now, ActionListener<Void> listener) {
             // Reset our failure count as we are starting again
             failureCount.set(0);
-            // There is a chance that we attempt to gather the progress twice.
-            // Once in the executor and once here.
-            // There is really no way to determine if the progress that was previously gathered and set in memory is still
-            // valid. Especially if the `onStart` is being called for a later checkpoint and we still have the
-            // progress from the previous checkpoint.
+            // On each run, we need to get the total number of docs and reset the count of processed docs
+            // Since multiple checkpoints can be executed in the task while it is running on the same node, we need to gather
+            // the progress here, and not in the executor.
             if (initialRun()) {
                 TransformProgressGatherer.getInitialProgress(this.client, getConfig(), ActionListener.wrap(
                     newProgress -> {

@@ -105,11 +105,11 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testReleased() {
-        BuildResult result = getTestClustersRunner(":testArtifacts").build();
+        BuildResult result = getTestClustersRunner("dependencies").build();
         assertTaskSuccessful(result, ":testArtifacts");
         assertStartedAndStoppedOnce(result, "releasedVersionDefault-1");
-        assertStartedAndStoppedOnce(result, "releasedVersionOSS-2");
-        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-3");
+        assertStartedAndStoppedOnce(result, "releasedVersionOSS-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-1");
     }
 
     public void testIncremental() {

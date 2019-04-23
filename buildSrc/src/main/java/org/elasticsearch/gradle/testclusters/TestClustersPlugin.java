@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
+import com.perforce.p4java.Log;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Distribution;
@@ -117,9 +118,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                                 } else {
                                     throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
                                 }
-                                spec.from(files).into(new File(project.getRootProject().getBuildDir(), "testclusters/extract") + "/" +
-                                    resolvedArtifact.getModuleVersion().getId().getGroup()
-                                );
+                                logger.lifecycle("extracting: {} to {}", file, resolvedArtifact.getModuleVersion().getId().getGroup());
+                                spec.from(files)
+                                    .into(
+                                        new File(
+                                            project.getRootProject().getBuildDir(), "testclusters/extract") + "/" +
+                                            resolvedArtifact.getModuleVersion().getId().getGroup()
+                                    );
                             }));
                     }
                 });
@@ -346,6 +351,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         project.getDependencies().project(projectNotation)
                     );
                 } else {
+                    logger.lifecycle("dependency {} @ {}", distribution, version);
                     rootProject.getDependencies().add(
                         HELPER_CONFIGURATION_NAME,
                         distribution.getGroup() + ":" +

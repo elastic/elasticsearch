@@ -49,6 +49,7 @@ public class BulkRejectionIT extends ESIntegTestCase {
         return 5;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41363")
     public void testBulkRejectionAfterDynamicMappingUpdate() throws Exception {
         final String index = "test";
         assertAcked(prepareCreate(index));

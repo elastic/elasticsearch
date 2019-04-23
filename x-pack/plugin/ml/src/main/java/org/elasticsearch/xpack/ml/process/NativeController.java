@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -43,14 +41,7 @@ public class NativeController {
     private static final String START_COMMAND = "start";
     private static final String KILL_COMMAND = "kill";
 
-    public static final Map<String, Object> UNKNOWN_NATIVE_CODE_INFO;
-
-    static {
-        Map<String, Object> unknownInfo = new HashMap<>(2);
-        unknownInfo.put("version", "N/A");
-        unknownInfo.put("build_hash", "N/A");
-        UNKNOWN_NATIVE_CODE_INFO = Collections.unmodifiableMap(unknownInfo);
-    }
+    public static final Map<String, Object> UNKNOWN_NATIVE_CODE_INFO = Map.of("version", "N/A", "build_hash", "N/A");
 
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;

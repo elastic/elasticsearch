@@ -177,7 +177,7 @@ For instance
 
 [source,sh]
 ----
-bin/elasticsearch-keystore add xpack.security.authc.realms.oidc.oidc1.client_secret
+bin/elasticsearch-keystore add xpack.security.authc.realms.oidc.oidc1.rp.client_secret
 ----
 
 

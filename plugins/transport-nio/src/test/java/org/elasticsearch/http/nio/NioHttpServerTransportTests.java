@@ -40,15 +40,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.nio.EventHandler;
+import org.elasticsearch.nio.NioSelectorGroup;
+import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -66,10 +71,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
@@ -309,52 +317,47 @@ public class NioHttpServerTransportTests extends ESTestCase {
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
     }
 
-//    public void testReadTimeout() throws Exception {
-//        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-//
-//            @Override
-//            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-//                throw new AssertionError("Should not have received a dispatched request");
-//            }
-//
-//            @Override
-//            public void dispatchBadRequest(final RestRequest request,
-//                                           final RestChannel channel,
-//                                           final ThreadContext threadContext,
-//                                           final Throwable cause) {
-//                throw new AssertionError("Should not have received a dispatched request");
-//            }
-//
-//        };
-//
-//        Settings settings = Settings.builder()
-//            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
-//            .build();
-//
-//
-//        NioEventLoopGroup group = new NioEventLoopGroup();
-//        try (NioHttpServerTransport transport =
-//                 new NioHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
-//            transport.start();
-//            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-//
-//            AtomicBoolean channelClosed = new AtomicBoolean(false);
-//
-//            Bootstrap clientBootstrap = new Bootstrap().channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
-//
-//                @Override
-//                protected void initChannel(SocketChannel ch) {
-//                    ch.pipeline().addLast(new ChannelHandlerAdapter() {});
-//
-//                }
-//            }).group(group);
-//            ChannelFuture connect = clientBootstrap.connect(remoteAddress.address());
-//            connect.channel().closeFuture().addListener(future -> channelClosed.set(true));
-//
-//            assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()), 5, TimeUnit.SECONDS);
-//
-//        } finally {
-//            group.shutdownGracefully().await();
-//        }
-//    }
+    public void testReadTimeout() throws Exception {
+        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                throw new AssertionError("Should not have received a dispatched request");
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestRequest request,
+                                           final RestChannel channel,
+                                           final ThreadContext threadContext,
+                                           final Throwable cause) {
+                throw new AssertionError("Should not have received a dispatched request");
+            }
+
+        };
+
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
+            .build();
+
+
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
+            threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger))) {
+            transport.start();
+            final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
+
+            try (NioHttpClient client = new NioHttpClient()) {
+                NioSocketChannel channel = null;
+                try {
+                    AtomicBoolean channelClosed = new AtomicBoolean(false);
+                    channel = client.connect(remoteAddress.address());
+                    channel.addCloseListener((r, t) -> channelClosed.set(true));
+                    assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()));
+                } finally {
+                    if (channel != null) {
+                        channel.close();
+                    }
+                }
+            }
+        }
+    }
 }

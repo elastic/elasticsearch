@@ -83,8 +83,11 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
         adaptor.addCloseListener((v, e) -> nioHttpChannel.close());
     }
 
+    @Override
     public void channelRegistered() {
-        scheduleReadTimeout();
+        if (readTimeoutNanos > 0) {
+            scheduleReadTimeout();
+        }
     }
 
     @Override

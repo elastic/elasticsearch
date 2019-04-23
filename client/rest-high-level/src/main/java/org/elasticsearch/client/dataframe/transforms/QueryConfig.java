@@ -40,10 +40,6 @@ public class QueryConfig implements ToXContentObject {
         return new QueryConfig(query);
     }
 
-    public QueryConfig(QueryConfig queryConfig) {
-        this(queryConfig.query);
-    }
-
     public QueryConfig(QueryBuilder query) {
         this.query = query;
     }

@@ -38,11 +38,9 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -56,8 +54,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // tracking, just needed for dedup during configuration
-        Set<String> versions = new HashSet<>();
 
         // create usesJdk task "method"
         project.getTasks().all(task ->
@@ -78,9 +74,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     }
 
                     // ensure a root level jdk download task exists
-                    if (versions.add(platform + version)) {
-                        createRootJdkDownload(project.getRootProject(), platform, version);
-                    }
+                    setupRootJdkDownload(project.getRootProject(), platform, version);
 
                     // setup a configuration for just this version of the jdk
                     final ConfigurationContainer configurations = project.getConfigurations();
@@ -111,8 +105,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         );
     }
 
-    // precondition: only called once per version/platform combo
-    private static void createRootJdkDownload(Project rootProject, String platform, String version) {
+    private static void setupRootJdkDownload(Project rootProject, String platform, String version) {
         String extractTaskName = "extract" + capitalize(platform) + "Jdk" + version;
         if (rootProject.getTasks().findByName(extractTaskName) != null) {
             // already setup this version

@@ -18,7 +18,7 @@ public class PutEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
     @Override
     protected PutEnrichPolicyAction.Request createTestInstance() {
         final EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
-        return new PutEnrichPolicyAction.Request("foo", policy);
+        return new PutEnrichPolicyAction.Request(randomAlphaOfLength(3), policy);
     }
 
     @Override

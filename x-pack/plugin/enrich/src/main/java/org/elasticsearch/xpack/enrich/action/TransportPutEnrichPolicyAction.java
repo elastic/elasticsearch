@@ -14,8 +14,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
@@ -23,11 +26,14 @@ import java.util.function.Supplier;
 
 public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
 
-    protected TransportPutEnrichPolicyAction(String actionName, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<PutEnrichPolicyAction.Request> request) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+    @Inject
+    public TransportPutEnrichPolicyAction(TransportService transportService,
+                                          ClusterService clusterService,
+                                          ThreadPool threadPool,
+                                          ActionFilters actionFilters,
+                                          IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(PutEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutEnrichPolicyAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override

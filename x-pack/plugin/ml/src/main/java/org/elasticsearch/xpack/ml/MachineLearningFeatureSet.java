@@ -216,13 +216,16 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
             Map<JobState, StatsAccumulator> detectorStatsByState = new HashMap<>();
             Map<JobState, StatsAccumulator> modelSizeStatsByState = new HashMap<>();
             Map<JobState, ForecastStats> forecastStatsByState = new HashMap<>();
+            Map<JobState, Map<String, Long>> createdByByState = new HashMap<>();
 
             List<GetJobsStatsAction.Response.JobStats> jobsStats = response.getResponse().results();
             Map<String, Job> jobMap = jobs.stream().collect(Collectors.toMap(Job::getId, item -> item));
+            Map<String, Long> allJobsCreatedBy = jobs.stream().map(this::jobCreatedBy)
+                    .collect(Collectors.groupingBy(item -> item, Collectors.counting()));;
             for (GetJobsStatsAction.Response.JobStats jobStats : jobsStats) {
                 ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-                int detectorsCount = jobMap.get(jobStats.getJobId()).getAnalysisConfig()
-                        .getDetectors().size();
+                Job job = jobMap.get(jobStats.getJobId());
+                int detectorsCount = job.getAnalysisConfig().getDetectors().size();
                 double modelSize = modelSizeStats == null ? 0.0
                         : jobStats.getModelSizeStats().getModelBytes();
 
@@ -237,27 +240,41 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
                 modelSizeStatsByState.computeIfAbsent(jobState,
                         js -> new StatsAccumulator()).add(modelSize);
                 forecastStatsByState.merge(jobState, jobStats.getForecastStats(), (f1, f2) -> f1.merge(f2));
+                createdByByState.computeIfAbsent(jobState, js -> new HashMap<>())
+                        .compute(jobCreatedBy(job), (k, v) -> (v == null) ? 1L : (v + 1));
             }
 
             jobsUsage.put(MachineLearningFeatureSetUsage.ALL, createJobUsageEntry(jobs.size(), allJobsDetectorsStats,
-                    allJobsModelSizeStats, allJobsForecastStats));
+                    allJobsModelSizeStats, allJobsForecastStats, allJobsCreatedBy));
             for (JobState jobState : jobCountByState.keySet()) {
                 jobsUsage.put(jobState.name().toLowerCase(Locale.ROOT), createJobUsageEntry(
                         jobCountByState.get(jobState).get(),
                         detectorStatsByState.get(jobState),
                         modelSizeStatsByState.get(jobState),
-                        forecastStatsByState.get(jobState)));
+                        forecastStatsByState.get(jobState),
+                        createdByByState.get(jobState)));
             }
+        }
+
+        private String jobCreatedBy(Job job) {
+            Map<String, Object> customSettings = job.getCustomSettings();
+            if (customSettings == null || customSettings.containsKey(MachineLearningFeatureSetUsage.CREATED_BY) == false) {
+                return "unknown";
+            }
+            // Replace non-alpha-numeric characters with underscores because
+            // the values from custom settings become keys in the usage data
+            return customSettings.get(MachineLearningFeatureSetUsage.CREATED_BY).toString().replaceAll("\\W", "_");
         }
 
         private Map<String, Object> createJobUsageEntry(long count, StatsAccumulator detectorStats,
                                                         StatsAccumulator modelSizeStats,
-                                                        ForecastStats forecastStats) {
+                                                        ForecastStats forecastStats, Map<String, Long> createdBy) {
             Map<String, Object> usage = new HashMap<>();
             usage.put(MachineLearningFeatureSetUsage.COUNT, count);
             usage.put(MachineLearningFeatureSetUsage.DETECTORS, detectorStats.asMap());
             usage.put(MachineLearningFeatureSetUsage.MODEL_SIZE, modelSizeStats.asMap());
             usage.put(MachineLearningFeatureSetUsage.FORECASTS, forecastStats.asMap());
+            usage.put(MachineLearningFeatureSetUsage.CREATED_BY, createdBy);
             return usage;
         }
 

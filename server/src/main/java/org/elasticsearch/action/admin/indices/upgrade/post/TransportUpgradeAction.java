@@ -25,7 +25,6 @@ import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -104,7 +103,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                 versions.put(index, new Tuple<>(version, luceneVersion));
             }
         }
-        Map<String, Tuple<org.elasticsearch.Version, String>> updatedVersions = new HashMap<>();
+        Map<String, Tuple<Version, String>> updatedVersions = new HashMap<>();
         MetaData metaData = clusterState.metaData();
         for (Map.Entry<String, Tuple<Version, org.apache.lucene.util.Version>> versionEntry : versions.entrySet()) {
             String index = versionEntry.getKey();
@@ -209,16 +208,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, new ActionListener<AcknowledgedResponse>() {
-            @Override
-            public void onResponse(AcknowledgedResponse updateSettingsResponse) {
-                listener.onResponse(upgradeResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest, ActionListener.delegateFailure(
+            listener, (delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
     }
 }

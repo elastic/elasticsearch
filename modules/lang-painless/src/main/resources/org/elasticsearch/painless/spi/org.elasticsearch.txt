@@ -240,30 +240,3 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getEnd()
   int getGaps()
 }
-
-# for testing
-class org.elasticsearch.painless.FeatureTest no_import {
-  int z
-  ()
-  (int,int)
-  int getX()
-  int getY()
-  Integer getI()
-  void setX(int)
-  void setY(int)
-  void setI(Integer)
-  boolean overloadedStatic()
-  boolean overloadedStatic(boolean)
-  int staticNumberTest(Number)
-  Double mixedAdd(int, Byte, char, Float)
-  Object twoFunctionsOfX(Function,Function)
-  void listInput(List)
-  int org.elasticsearch.painless.FeatureTestAugmentation getTotal()
-  int org.elasticsearch.painless.FeatureTestAugmentation addToTotal(int)
-}
-
-# for testing
-static_import {
-  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTest
-  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTest
-}

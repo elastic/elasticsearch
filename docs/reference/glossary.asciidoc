@@ -132,20 +132,19 @@ more primary shards to scale the number of <<glossary-document,documents>>
 that your index can handle.
 +
 You cannot change the number of primary shards in an index, once the index is
-index is created. However, an index can be split into a new index using the
+created. However, an index can be split into a new index using the
 <<indices-split-index, split API>>.
 +
 See also <<glossary-routing,routing>>
 
 [[glossary-query]] query ::
 
-A query is the basic component of a search. A search can be defined by one or more queries 
-which can be mixed and matched in endless combinations. While <<glossary-filter,filters>> are
-queries that only determine if a document matches, those queries that also calculate how well
-the document matches are known as "scoring queries". Those queries assign it a score, which is 
-later used to sort matched documents. Scoring queries take more resources than <<glossary-filter,non scoring queries>> 
-and their query results are not cacheable. As a general rule, use query clauses for full-text 
-search or for any condition that requires scoring, and use filters for everything else.
+A request for information from {es}. You can think of a query as a question,
+written in a way {es} understands. A search consists of one or more queries
+combined.
++
+There are two types of queries: _scoring queries_ and _filters_. For more
+information about query types, see <<query-filter-context>>.
 
 [[glossary-recovery]] recovery ::
 The process of syncing a shard copy from a source shard. Upon completion, the recovery process makes the shard copy available for queries.

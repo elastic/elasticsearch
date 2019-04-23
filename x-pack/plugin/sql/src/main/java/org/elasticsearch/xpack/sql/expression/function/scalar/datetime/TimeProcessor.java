@@ -16,7 +16,6 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
 public class TimeProcessor extends DateTimeProcessor {
 
-
     public static final String NAME = "time";
 
     public TimeProcessor(DateTimeExtractor extractor, ZoneId zoneId) {
@@ -25,6 +24,11 @@ public class TimeProcessor extends DateTimeProcessor {
 
     public TimeProcessor(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override

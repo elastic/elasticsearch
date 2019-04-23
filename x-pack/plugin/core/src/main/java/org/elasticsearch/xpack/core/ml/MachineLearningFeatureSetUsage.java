@@ -25,6 +25,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String DETECTORS = "detectors";
     public static final String FORECASTS = "forecasts";
     public static final String MODEL_SIZE = "model_size";
+    public static final String CREATED_BY = "created_by";
     public static final String NODE_COUNT = "node_count";
 
     private final Map<String, Object> jobsUsage;

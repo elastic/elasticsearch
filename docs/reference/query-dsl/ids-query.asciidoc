@@ -1,8 +1,9 @@
 [[query-dsl-ids-query]]
 === Ids Query
+Returns documents based on their IDs. This query uses document IDs stored in
+the <<mapping-id-field,`_id`>> field.
 
-Filters documents that only have the provided ids. Note, this query
-uses the <<mapping-id-field,_id>> field.
+==== Example request
 
 [source,js]
 --------------------------------------------------
@@ -16,3 +17,11 @@ GET /_search
 }    
 --------------------------------------------------
 // CONSOLE
+
+==== Top-level parameters for `ids`
+
+[cols="v,v",options="header"]
+|======
+|Parameter  |Description
+|`values`   |An array of <<mapping-id-field, document IDs>>.
+|======

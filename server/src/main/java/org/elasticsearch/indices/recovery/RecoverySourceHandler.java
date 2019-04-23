@@ -177,7 +177,7 @@ public class RecoverySourceHandler {
                 startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getGlobalCheckpoint(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -253,9 +253,8 @@ public class RecoverySourceHandler {
 
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
-        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-            "incoming target history N/A but index was created after or on 6.0.0-rc1";
-        return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
+        assert targetHistoryUUID != null : "incoming target history missing";
+        return targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
     static void runUnderPrimaryPermit(CancellableThreads.Interruptible runnable, String reason,
@@ -332,7 +331,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+    public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -422,7 +421,7 @@ public class RecoverySourceHandler {
                 // are deleted
                 try {
                     cancellableThreads.executeIO(() ->
-                        recoveryTarget.cleanFiles(translogOps.get(), recoverySourceMetadata));
+                        recoveryTarget.cleanFiles(translogOps.get(), globalCheckpoint, recoverySourceMetadata));
                 } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery

@@ -35,9 +35,11 @@ import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
 import org.elasticsearch.search.aggregations.metrics.ParsedExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ParsedMax;
 import org.elasticsearch.search.aggregations.metrics.ParsedMin;
+import org.elasticsearch.search.aggregations.metrics.ParsedScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.ParsedStats;
 import org.elasticsearch.search.aggregations.metrics.ParsedSum;
 import org.elasticsearch.search.aggregations.metrics.ParsedValueCount;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -76,6 +78,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         map.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
         map.put(SumAggregationBuilder.NAME, (p, c) -> ParsedSum.fromXContent(p, (String) c));
         map.put(AvgAggregationBuilder.NAME, (p, c) -> ParsedAvg.fromXContent(p, (String) c));
+        map.put(ScriptedMetricAggregationBuilder.NAME, (p, c) -> ParsedScriptedMetric.fromXContent(p, (String) c));
         map.put(ValueCountAggregationBuilder.NAME, (p, c) -> ParsedValueCount.fromXContent(p, (String) c));
         map.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
         map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
@@ -403,6 +406,92 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Map<String, String> fieldTypeMap = asStringMap(
             aggName, "double",
             aggName2, "keyword", // If the second aggregation was some non-numeric mapped field
+            targetField, "keyword",
+            targetField2, "keyword"
+        );
+        executeTest(groupBy, aggregationBuilders, input, fieldTypeMap, expected, 10);
+    }
+
+    public void testExtractCompositeAggregationResultsWithDynamicType() throws IOException {
+        String targetField = randomAlphaOfLengthBetween(5, 10);
+        String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
+
+        GroupConfig groupBy = parseGroupConfig("{"
+            + "\"" + targetField + "\" : {"
+            + "  \"terms\" : {"
+            + "     \"field\" : \"doesn't_matter_for_this_test\""
+            + "  } },"
+            + "\"" + targetField2 + "\" : {"
+            + "  \"terms\" : {"
+            + "     \"field\" : \"doesn't_matter_for_this_test\""
+            + "  } }"
+            + "}");
+
+        String aggName = randomAlphaOfLengthBetween(5, 10);
+        String aggTypedName = "scripted_metric#" + aggName;
+
+        Collection<AggregationBuilder> aggregationBuilders = asList(AggregationBuilders.scriptedMetric(aggName));
+
+        Map<String, Object> input = asMap(
+            "buckets",
+            asList(
+                asMap(
+                    KEY, asMap(
+                        targetField, "ID1",
+                        targetField2, "ID1_2"
+                    ),
+                    aggTypedName, asMap(
+                        "value", asMap("field", 123.0)),
+                    DOC_COUNT, 1),
+                asMap(
+                    KEY, asMap(
+                        targetField, "ID1",
+                        targetField2, "ID2_2"
+                    ),
+                    aggTypedName, asMap(
+                        "value", asMap("field", 1.0)),
+                    DOC_COUNT, 2),
+                asMap(
+                    KEY, asMap(
+                        targetField, "ID2",
+                        targetField2, "ID1_2"
+                    ),
+                    aggTypedName, asMap(
+                        "value", asMap("field", 2.13)),
+                    DOC_COUNT, 3),
+                asMap(
+                    KEY, asMap(
+                        targetField, "ID3",
+                        targetField2, "ID2_2"
+                    ),
+                    aggTypedName, asMap(
+                        "value", asMap("field", 12.0)),
+                    DOC_COUNT, 4)
+            ));
+
+        List<Map<String, Object>> expected = asList(
+            asMap(
+                targetField, "ID1",
+                targetField2, "ID1_2",
+                aggName,  asMap("field", 123.0)
+            ),
+            asMap(
+                targetField, "ID1",
+                targetField2, "ID2_2",
+                aggName, asMap("field", 1.0)
+            ),
+            asMap(
+                targetField, "ID2",
+                targetField2, "ID1_2",
+                aggName, asMap("field", 2.13)
+            ),
+            asMap(
+                targetField, "ID3",
+                targetField2, "ID2_2",
+                aggName, asMap("field", 12.0)
+            )
+        );
+        Map<String, String> fieldTypeMap = asStringMap(
             targetField, "keyword",
             targetField2, "keyword"
         );

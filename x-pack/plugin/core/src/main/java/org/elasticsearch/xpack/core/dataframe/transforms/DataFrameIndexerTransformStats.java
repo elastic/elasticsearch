@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataFrameIndexerTransformStats extends IndexerJobStats {
-    private static final String DEFAULT_TRANSFORM_ID = "_all";
+    public static final String DEFAULT_TRANSFORM_ID = "_all";
 
     public static final String NAME = "data_frame_indexer_transform_stats";
     public static ParseField NUM_PAGES = new ParseField("pages_processed");
@@ -37,23 +37,25 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     public static ParseField SEARCH_FAILURES = new ParseField("search_failures");
     public static ParseField INDEX_FAILURES = new ParseField("index_failures");
 
-    public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> PARSER = new ConstructingObjectParser<>(
-            NAME, args -> new DataFrameIndexerTransformStats((String) args[0], (long) args[1], (long) args[2], (long) args[3],
-            (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9], (long) args[10]));
+    private static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+            NAME, true,
+            args -> new DataFrameIndexerTransformStats(args[0] != null ? (String) args[0] : DEFAULT_TRANSFORM_ID,
+                    (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7],
+                    (long) args[8], (long) args[9], (long) args[10]));
 
     static {
-        PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
-        PARSER.declareLong(constructorArg(), NUM_PAGES);
-        PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
-        PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
-        PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
-        PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
-        PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
-        PARSER.declareLong(constructorArg(), INDEX_TOTAL);
-        PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
-        PARSER.declareLong(constructorArg(), INDEX_FAILURES);
-        PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
-        PARSER.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
+        LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.ID);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
+        LENIENT_PARSER.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
     }
 
     private final String transformId;
@@ -197,7 +199,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
     public static DataFrameIndexerTransformStats fromXContent(XContentParser parser) {
         try {
-            return PARSER.parse(parser, null);
+            return LENIENT_PARSER.parse(parser, null);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

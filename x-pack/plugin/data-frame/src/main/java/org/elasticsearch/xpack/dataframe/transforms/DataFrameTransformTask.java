@@ -24,12 +24,10 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -41,6 +39,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.Arrays;
@@ -61,7 +60,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameTransform transform;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
-    private final Auditor<DataFrameAuditMessage> auditor;
+    private final DataFrameAuditor auditor;
     private final Map<String, Object> initialPosition;
     private final IndexerState initialIndexerState;
 
@@ -74,7 +73,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final AtomicLong currentCheckpoint;
 
     public DataFrameTransformTask(long id, String type, String action, TaskId parentTask, DataFrameTransform transform,
-                                  DataFrameTransformState state, SchedulerEngine schedulerEngine, Auditor<DataFrameAuditMessage> auditor,
+                                  DataFrameTransformState state, SchedulerEngine schedulerEngine, DataFrameAuditor auditor,
                                   ThreadPool threadPool, Map<String, String> headers) {
         super(id, type, action, DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
         this.transform = transform;
@@ -357,7 +356,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private DataFrameTransformsConfigManager transformsConfigManager;
         private DataFrameTransformsCheckpointService transformsCheckpointService;
         private String transformId;
-        private Auditor<DataFrameAuditMessage> auditor;
+        private DataFrameAuditor auditor;
         private Map<String, String> fieldMappings;
         private DataFrameTransformConfig transformConfig;
         private DataFrameIndexerTransformStats initialStats;
@@ -400,7 +399,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return this;
         }
 
-        ClientDataFrameIndexerBuilder setAuditor(Auditor<DataFrameAuditMessage> auditor) {
+        ClientDataFrameIndexerBuilder setAuditor(DataFrameAuditor auditor) {
             this.auditor = auditor;
             return this;
         }
@@ -445,7 +444,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
-        private final Auditor<DataFrameAuditMessage> auditor;
+        private final DataFrameAuditor auditor;
         private final DataFrameTransformTask transformTask;
         private final Map<String, String> fieldMappings;
         private final DataFrameTransformConfig transformConfig;
@@ -461,7 +460,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                AtomicReference<IndexerState> initialState,
                                Map<String, Object> initialPosition,
                                Client client,
-                               Auditor<DataFrameAuditMessage> auditor,
+                               DataFrameAuditor auditor,
                                DataFrameIndexerTransformStats initialStats,
                                DataFrameTransformConfig transformConfig,
                                Map<String, String> fieldMappings,

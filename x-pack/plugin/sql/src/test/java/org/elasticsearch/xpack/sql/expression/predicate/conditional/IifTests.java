@@ -26,57 +26,60 @@ import static org.elasticsearch.xpack.sql.tree.SourceTests.randomSource;
  * Needed to override tests in {@link NodeSubclassTests} as If is special since its children are not usual
  * expressions but {@link IfConditional}s.
  */
-public class IfTests extends AbstractNodeTestCase<If, Expression> {
+public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
-    public static If randomIf() {
-        return new If(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
+    public static Iif randomIif() {
+        return new Iif(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
             randomIntLiteral(), randomIntLiteral());
     }
 
     @Override
-    protected If randomInstance() {
-        return randomIf();
+    protected Iif randomInstance() {
+        return randomIif();
     }
 
     @Override
-    protected If mutate(If instance) {
-        If iif = randomIf();
+    protected Iif mutate(Iif instance) {
+        Iif iif = randomIif();
         List<Expression> mutatedChildren = mutateChildren(iif);
-        return new If(iif.source(), mutatedChildren.get(0), mutatedChildren.get(1), mutatedChildren.get(2));
+        return new Iif(iif.source(), mutatedChildren.get(0), mutatedChildren.get(1), mutatedChildren.get(2));
     }
 
     @Override
-    protected If copy(If instance) {
-        return new If(instance.source(), instance.conditions().get(0).condition(), instance.conditions().get(0).result(),
+    protected Iif copy(Iif instance) {
+        return new Iif(instance.source(), instance.conditions().get(0).condition(), instance.conditions().get(0).result(),
             instance.elseResult());
     }
 
     @Override
     public void testTransform() {
-        If iif = randomIf();
+        Iif iif = randomIif();
 
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
-        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
+        assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
             iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
 
         String newName = randomValueOtherThan(iif.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
+        assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
             iif.transformPropertiesOnly(p -> Objects.equals(p, iif.name()) ? newName : p, Object.class));
     }
 
     @Override
     public void testReplaceChildren() {
-        If iif = randomIf();
+        Iif iif = randomIif();
 
         List<Expression> newChildren = mutateChildren(iif);
-        assertEquals(new If(iif.source(), newChildren.get(0), newChildren.get(1), newChildren.get(2)),
+        assertEquals(new Iif(iif.source(), newChildren.get(0), newChildren.get(1), newChildren.get(2)),
             iif.replaceChildren(Arrays.asList(new IfConditional(iif.source(), newChildren.get(0), newChildren.get(1)),
                 newChildren.get(2))));
     }
 
-    private List<Expression> mutateChildren(If iif) {
+    private List<Expression> mutateChildren(Iif iif) {
         List<Expression> expressions = new ArrayList<>(3);
-        expressions.add(new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()));
+        Equals eq = (Equals) iif.conditions().get(0).condition();
+        expressions.add(new Equals(randomSource(),
+            randomValueOtherThan(eq.left(), FunctionTestUtils::randomStringLiteral),
+            randomValueOtherThan(eq.right(), FunctionTestUtils::randomStringLiteral)));
         expressions.add(randomValueOtherThan(iif.conditions().get(0).result(), FunctionTestUtils::randomIntLiteral));
         expressions.add(randomValueOtherThan(iif.elseResult(), FunctionTestUtils::randomIntLiteral));
         return expressions;

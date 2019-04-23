@@ -602,8 +602,8 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=int}, {v=10}, {v=foo}, {v=int}, {v=20}, {v=bar}, {v=default}]", scriptTemplate.params().toString());
     }
 
-    public void testTranslateIf_GroupBy_Painless() {
-        LogicalPlan p = plan("SELECT IF(int > 20, 'foo', 'bar') FROM test GROUP BY 1");
+    public void testTranslateIif_GroupBy_Painless() {
+        LogicalPlan p = plan("SELECT IIF(int > 20, 'foo', 'bar') FROM test GROUP BY 1");
         assertTrue(p instanceof Aggregate);
         Expression condition = ((Aggregate) p).groupings().get(0);
         assertFalse(condition.foldable());

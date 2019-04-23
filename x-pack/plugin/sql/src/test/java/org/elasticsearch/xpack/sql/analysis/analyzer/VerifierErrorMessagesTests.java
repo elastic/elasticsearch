@@ -618,14 +618,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT CASE WHEN int > 20 THEN null WHEN int > 10 THEN null WHEN int > 5 THEN 'foo' ELSE date END FROM test"));
     }
 
-    public void testIfWithNonBooleanConditionExpression() {
-        assertEquals("1:8: first argument of [IF(int, 'one', 'zero')] must be [boolean], found value [int] type [integer]",
-            error("SELECT IF(int, 'one', 'zero') FROM test"));
+    public void testIifWithNonBooleanConditionExpression() {
+        assertEquals("1:8: first argument of [IIF(int, 'one', 'zero')] must be [boolean], found value [int] type [integer]",
+            error("SELECT IIF(int, 'one', 'zero') FROM test"));
     }
 
-    public void testIfWithDifferentResultAndDefaultValueDataTypes() {
-        assertEquals("1:8: third argument of [IF(int > 20, 'foo', date)] must be [keyword], found value [date] type [datetime]",
-            error("SELECT IF(int > 20, 'foo', date) FROM test"));
+    public void testIifWithDifferentResultAndDefaultValueDataTypes() {
+        assertEquals("1:8: third argument of [IIF(int > 20, 'foo', date)] must be [keyword], found value [date] type [datetime]",
+            error("SELECT IIF(int > 20, 'foo', date) FROM test"));
     }
 
     public void testAggsInWhere() {

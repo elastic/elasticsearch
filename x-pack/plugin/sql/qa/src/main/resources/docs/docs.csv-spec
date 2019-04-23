@@ -205,7 +205,6 @@ HISTOGRAM        |GROUPING
 CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
-IF               |CONDITIONAL
 IFNULL           |CONDITIONAL
 IIF              |CONDITIONAL
 ISNULL           |CONDITIONAL
@@ -2097,32 +2096,10 @@ elastic
 ;
 
 
-ifWithDefaultValue
-schema::result1:s|result2:s
-// tag::ifWithDefaultValue
-SELECT IF(1 = 1, 'TRUE', 'FALSE') AS result1, IF(1 > 2, 'TRUE', 'FALSE') AS result2;
-
-    result1    |    result2
----------------+---------------
-TRUE           |FALSE
-// end::ifWithDefaultValue
-;
-
-ifWithoutDefaultValue
-schema::result1:s|result2:s
-// tag::ifWithoutDefaultValue
-SELECT IF(1 = 1, 'TRUE') AS result1, IF(1 > 2, 'TRUE') AS result2;
-
-    result1    |    result2
----------------+---------------
-TRUE           |null
-// end::ifWithoutDefaultValue
-;
-
 iifWithDefaultValue
 schema::result1:s|result2:s
 // tag::iifWithDefaultValue
-SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IF(1 > 2, 'TRUE', 'FALSE') AS result2;
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
 
     result1    |    result2
 ---------------+---------------
@@ -2133,7 +2110,7 @@ TRUE           |FALSE
 iifWithoutDefaultValue
 schema::result1:s|result2:s
 // tag::iifWithoutDefaultValue
-SELECT IIF(1 < 2, 'TRUE') AS result1, IF(1 > 2 , 'TRUE') AS result2;
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
 
     result1    |    result2
 ---------------+---------------

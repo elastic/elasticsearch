@@ -126,7 +126,8 @@ public class BulkProcessorTests extends ESTestCase {
             concurrentClients = randomIntBetween(1, 20);
             concurrentBulkRequests = randomIntBetween(0, 20);
             expectedExecutions = maxDocuments / maxBatchSize;
-            estimatedTimeForTest = (expectedExecutions * simulateWorkTimeInMillis) / Math.min(concurrentBulkRequests, concurrentClients);
+            estimatedTimeForTest = (expectedExecutions * simulateWorkTimeInMillis) /
+                Math.min(concurrentBulkRequests + 1, concurrentClients);
         }
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);

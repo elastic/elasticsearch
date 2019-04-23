@@ -106,8 +106,8 @@ public abstract class AbstractIndicesPrivileges {
         @SuppressWarnings("unchecked")
         private static FieldSecurity buildObjectFromParserArgs(Object[] args) {
             return new FieldSecurity(
-                (Collection<String>) args[0],
-                (Collection<String>) args[1]
+                (List<String>) args[0],
+                (List<String>) args[1]
             );
         }
 
@@ -121,15 +121,15 @@ public abstract class AbstractIndicesPrivileges {
         }
 
         // null or singleton '*' means all fields are granted, empty means no fields are granted
-        private final Set<String> grantedFields;
+        private final List<String> grantedFields;
         // null or empty means no fields are denied
-        private final Set<String> deniedFields;
+        private final List<String> deniedFields;
 
         FieldSecurity(Collection<String> grantedFields, Collection<String> deniedFields) {
             // unspecified granted fields means no restriction
-            this.grantedFields = grantedFields == null ? null : Set.copyOf(grantedFields);
+            this.grantedFields = grantedFields == null ? null : List.copyOf(grantedFields);
             // unspecified denied fields means no restriction
-            this.deniedFields = deniedFields == null ? null : Set.copyOf(deniedFields);
+            this.deniedFields = deniedFields == null ? null : List.copyOf(deniedFields);
         }
 
         /**
@@ -137,7 +137,7 @@ public abstract class AbstractIndicesPrivileges {
          * all the document's fields are granted access to. Can also be empty, in which
          * case no fields are granted access to.
          */
-        public Set<String> getGrantedFields() {
+        public List<String> getGrantedFields() {
             return grantedFields;
         }
 
@@ -145,7 +145,7 @@ public abstract class AbstractIndicesPrivileges {
          * The document fields that cannot be accessed or queried. Can be null or empty,
          * in which case no fields are denied.
          */
-        public Set<String> getDeniedFields() {
+        public List<String> getDeniedFields() {
             return deniedFields;
         }
 

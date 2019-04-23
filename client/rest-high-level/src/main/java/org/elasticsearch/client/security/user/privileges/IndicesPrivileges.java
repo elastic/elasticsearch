@@ -170,9 +170,9 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
         private @Nullable
         List<String> privileges = null;
         private @Nullable
-        Collection<String> grantedFields = null;
+        List<String> grantedFields = null;
         private @Nullable
-        Collection<String> deniedFields = null;
+        List<String> deniedFields = null;
         private @Nullable
         String query = null;
         boolean allowRestrictedIndices = false;
@@ -206,7 +206,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return grantedFields(Arrays.asList(grantedFields));
         }
 
-        public Builder grantedFields(@Nullable Collection<String> grantedFields) {
+        public Builder grantedFields(@Nullable List<String> grantedFields) {
             this.grantedFields = grantedFields;
             return this;
         }
@@ -219,7 +219,7 @@ public final class IndicesPrivileges extends AbstractIndicesPrivileges implement
             return deniedFields(Arrays.asList(deniedFields));
         }
 
-        public Builder deniedFields(@Nullable Collection<String> deniedFields) {
+        public Builder deniedFields(@Nullable List<String> deniedFields) {
             this.deniedFields = deniedFields;
             return this;
         }

@@ -42,8 +42,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
 
-    private final Set<IndicesPrivileges.FieldSecurity> fieldSecurity;
-    private final Set<String> query;
+    private final List<IndicesPrivileges.FieldSecurity> fieldSecurity;
+    private final List<String> query;
 
     private static final ConstructingObjectParser<UserIndicesPrivileges, Void> PARSER = new ConstructingObjectParser<>(
         "user_indices_privilege", true, UserIndicesPrivileges::buildObjectFromParserArgs);
@@ -72,17 +72,17 @@ public class UserIndicesPrivileges extends AbstractIndicesPrivileges {
     }
 
     public UserIndicesPrivileges(Collection<String> indices, Collection<String> privileges, boolean allowRestrictedIndices,
-                                 Collection<IndicesPrivileges.FieldSecurity> fieldSecurity, Collection<String> query) {
+                                 List<IndicesPrivileges.FieldSecurity> fieldSecurity, List<String> query) {
         super(indices, privileges, allowRestrictedIndices);
-        this.fieldSecurity = fieldSecurity == null ? Collections.emptySet() : Set.copyOf(fieldSecurity);
-        this.query = query == null ? Collections.emptySet() : Set.copyOf(query);
+        this.fieldSecurity = fieldSecurity == null ? Collections.emptyList() : List.copyOf(fieldSecurity);
+        this.query = query == null ? Collections.emptyList() : List.copyOf(query);
     }
 
-    public Set<IndicesPrivileges.FieldSecurity> getFieldSecurity() {
+    public List<IndicesPrivileges.FieldSecurity> getFieldSecurity() {
         return fieldSecurity;
     }
 
-    public Set<String> getQueries() {
+    public List<String> getQueries() {
         return query;
     }
 

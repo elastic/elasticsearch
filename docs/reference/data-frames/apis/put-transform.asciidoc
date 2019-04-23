@@ -25,9 +25,10 @@ Instantiates a {dataframe-transform}.
 
 ==== Request Body
 
-`source`:: The source index or index pattern.
+`source`:: (object) The source configuration, consisting of `index` and optionally
+a `query`.
 
-`dest`:: The destination index.
+`dest`:: (object) The destination configuration, consisting of `index`.
 
 `pivot`:: Defines the pivot function `group by` fields and the aggregation to
 reduce the data.
@@ -44,8 +45,19 @@ sample data:
 --------------------------------------------------
 PUT _data_frame/transforms/ecommerce_transform
 {
-  "source": "kibana_sample_data_ecommerce",
-  "dest": "kibana_sample_data_ecommerce_transform",
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform"
+  },
   "pivot": {
     "group_by": {
       "customer_id": {

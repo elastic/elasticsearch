@@ -48,7 +48,7 @@ public class IfTests extends AbstractNodeTestCase<If, Expression> {
     @Override
     protected If copy(If instance) {
         return new If(instance.source(), instance.conditions().get(0).condition(), instance.conditions().get(0).result(),
-            instance.defaultElse());
+            instance.elseResult());
     }
 
     @Override
@@ -56,11 +56,11 @@ public class IfTests extends AbstractNodeTestCase<If, Expression> {
         If iif = randomIf();
 
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
-        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.defaultElse()),
+        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
             iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
 
         String newName = randomValueOtherThan(iif.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.defaultElse()),
+        assertEquals(new If(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
             iif.transformPropertiesOnly(p -> Objects.equals(p, iif.name()) ? newName : p, Object.class));
     }
 
@@ -78,7 +78,7 @@ public class IfTests extends AbstractNodeTestCase<If, Expression> {
         List<Expression> expressions = new ArrayList<>(3);
         expressions.add(new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()));
         expressions.add(randomValueOtherThan(iif.conditions().get(0).result(), FunctionTestUtils::randomIntLiteral));
-        expressions.add(randomValueOtherThan(iif.defaultElse(), FunctionTestUtils::randomIntLiteral));
+        expressions.add(randomValueOtherThan(iif.elseResult(), FunctionTestUtils::randomIntLiteral));
         return expressions;
     }
 }

@@ -21,8 +21,8 @@ import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isBoolean;
 
 public class If extends Case {
 
-    public If(Source source, Expression condition, Expression result, Expression defaultValue) {
-        super(source, Arrays.asList(new IfConditional(source, condition, result), defaultValue != null ? defaultValue : Literal.NULL));
+    public If(Source source, Expression condition, Expression thenResult, Expression elseResult) {
+        super(source, Arrays.asList(new IfConditional(source, condition, thenResult), elseResult != null ? elseResult : Literal.NULL));
     }
 
     private If(Source source, List<Expression> expressions) {
@@ -31,9 +31,10 @@ public class If extends Case {
 
     @Override
     protected NodeInfo<? extends If> info() {
-        return NodeInfo.create(this, If::new, conditions().get(0).condition(), conditions().get(0).result(), defaultElse());
+        return NodeInfo.create(this, If::new, conditions().get(0).condition(), conditions().get(0).result(), elseResult());
     }
 
+    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new If(source(), newChildren);
     }
@@ -46,12 +47,12 @@ public class If extends Case {
         }
 
         DataType resultDataType = conditions().get(0).dataType();
-        if (DataTypes.areTypesCompatible(resultDataType, defaultElse().dataType()) == false) {
+        if (DataTypes.areTypesCompatible(resultDataType, elseResult().dataType()) == false) {
             return new TypeResolution(format(null, "third argument of [{}] must be [{}], found value [{}] type [{}]",
                 sourceText(),
                 resultDataType.typeName,
-                Expressions.name(defaultElse()),
-                defaultElse().dataType().typeName));
+                Expressions.name(elseResult()),
+                elseResult().dataType().typeName));
         }
         return TypeResolution.TYPE_RESOLVED;
     }

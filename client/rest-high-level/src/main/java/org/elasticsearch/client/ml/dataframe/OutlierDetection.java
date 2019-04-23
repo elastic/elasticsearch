@@ -21,7 +21,6 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -83,11 +82,6 @@ public class OutlierDetection implements DataFrameAnalysis {
      */
     public OutlierDetection() {
         this(null, null);
-    }
-
-    public OutlierDetection(StreamInput in) throws IOException {
-        nNeighbors = in.readOptionalVInt();
-        method = in.readBoolean() ? in.readEnum(Method.class) : null;
     }
 
     @Override

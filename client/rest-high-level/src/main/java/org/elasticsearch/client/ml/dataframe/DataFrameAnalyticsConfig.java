@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -81,9 +82,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final FetchSourceContext analyzedFields;
     private final ByteSizeValue modelMemoryLimit;
 
-    public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
-                                    DataFrameAnalysis analysis, ByteSizeValue modelMemoryLimit,
-                                    FetchSourceContext analyzedFields) {
+    public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
+                                    @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.dest = Objects.requireNonNull(dest);
@@ -112,7 +112,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return analyzedFields;
     }
 
-    public ByteSizeValue getModelMemoryLimit() { return modelMemoryLimit; }
+    public ByteSizeValue getModelMemoryLimit() {
+        return modelMemoryLimit;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -143,13 +145,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analysis, other.analysis)
-            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
-            && Objects.equals(analyzedFields, other.analyzedFields);
+            && Objects.equals(analyzedFields, other.analyzedFields)
+            && Objects.equals(modelMemoryLimit, other.modelMemoryLimit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, getModelMemoryLimit(), analyzedFields);
+        return Objects.hash(id, source, dest, analysis, analyzedFields, getModelMemoryLimit());
     }
 
     public static String documentId(String id) {
@@ -176,10 +178,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             this.source = new DataFrameAnalyticsSource(config.source);
             this.dest = new DataFrameAnalyticsDest(config.dest);
             this.analysis = config.analysis;
-            this.modelMemoryLimit = config.modelMemoryLimit;
             if (config.analyzedFields != null) {
                 this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
+            this.modelMemoryLimit = config.modelMemoryLimit;
         }
 
         public String getId() {
@@ -217,7 +219,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         }
 
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, modelMemoryLimit, analyzedFields);
+            return new DataFrameAnalyticsConfig(id, source, dest, analysis, analyzedFields, modelMemoryLimit);
         }
     }
 }

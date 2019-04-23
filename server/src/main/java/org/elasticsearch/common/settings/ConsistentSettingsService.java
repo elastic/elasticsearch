@@ -115,14 +115,28 @@ public final class ConsistentSettingsService {
         final AtomicBoolean allConsistent = new AtomicBoolean(true);
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
             final String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(concreteSecureSetting.getKey());
-            if (publishedSaltAndHash == null) {
-                logger.warn("no published hash for consistent secure setting [{}]", concreteSecureSetting.getKey());
+            final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
+            if (publishedSaltAndHash == null && localHash == null) {
+                // consistency of missing
+                logger.debug("no published hash for the consistent secure setting [{}] but also it does NOT exist on the local node",
+                        concreteSecureSetting.getKey());
+            } else if (publishedSaltAndHash == null && localHash != null) {
+                // setting missing on master but present locally
+                logger.warn("no published hash for the consistent secure setting [{}] but it exists on the local node",
+                        concreteSecureSetting.getKey());
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     throw new IllegalStateException("Master node cannot validate consistent setting. No published hash for ["
-                            + concreteSecureSetting.getKey() + "].");
+                            + concreteSecureSetting.getKey() + "] but setting exists.");
                 }
                 allConsistent.set(false);
+            } else if (publishedSaltAndHash != null && localHash == null) {
+                // setting missing locally but present on master
+                logger.warn("the consistent secure setting [{}] does not exist on the local node but there is published hash for it",
+                        concreteSecureSetting.getKey());
+                allConsistent.set(false);
             } else {
+                assert publishedSaltAndHash != null;
+                assert localHash != null;
                 final String[] parts = publishedSaltAndHash.split(":");
                 if (parts == null || parts.length != 2) {
                     throw new IllegalArgumentException("published hash [" + publishedSaltAndHash + " ] for secure setting ["
@@ -130,7 +144,6 @@ public final class ConsistentSettingsService {
                 }
                 final String publishedSalt = parts[0];
                 final String publishedHash = parts[1];
-                final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
                 final byte[] computedSaltedHashBytes = computeSaltedPBKDF2Hash(localHash, publishedSalt.getBytes(StandardCharsets.UTF_8));
                 final String computedSaltedHash = new String(Base64.getEncoder().encode(computedSaltedHashBytes), StandardCharsets.UTF_8);
                 if (false == publishedHash.equals(computedSaltedHash)) {
@@ -165,17 +178,17 @@ public final class ConsistentSettingsService {
     }
 
     private Map<String, String> computeHashesOfConsistentSecureSettings() {
-        final Map<String, String> result = new HashMap<>();
+        final Map<String, String> hashesBySettingKey = new HashMap<>();
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
             final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
             if (localHash != null) {
                 final String salt = UUIDs.randomBase64UUID();
                 final byte[] publicHash = computeSaltedPBKDF2Hash(localHash, salt.getBytes(StandardCharsets.UTF_8));
                 final String encodedPublicHash = new String(Base64.getEncoder().encode(publicHash), StandardCharsets.UTF_8);
-                result.put(concreteSecureSetting.getKey(), salt + ":" + encodedPublicHash);
+                hashesBySettingKey.put(concreteSecureSetting.getKey(), salt + ":" + encodedPublicHash);
             }
         });
-        return result;
+        return hashesBySettingKey;
     }
 
     private byte[] computeSaltedPBKDF2Hash(byte[] bytes, byte[] salt) {

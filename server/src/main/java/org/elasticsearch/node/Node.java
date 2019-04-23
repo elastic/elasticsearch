@@ -351,8 +351,8 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final ConsistentSettingsService consistentSecureSettingsValidatorService =
-                    new ConsistentSettingsService(settings, clusterService, settingsModule.getConsistentSecureSettings());
+            final ConsistentSettingsService consistentSettingsService = new ConsistentSettingsService(settings, clusterService,
+                    settingsModule.getConsistentSecureSettings());
             final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final DiskThresholdMonitor listener = new DiskThresholdMonitor(settings, clusterService::state,
@@ -527,7 +527,6 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
-                    b.bind(ConsistentSettingsService.class).toInstance(consistentSecureSettingsValidatorService);
                     b.bind(UsageService.class).toInstance(usageService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);

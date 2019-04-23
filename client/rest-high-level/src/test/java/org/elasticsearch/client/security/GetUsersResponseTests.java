@@ -91,8 +91,8 @@ public class GetUsersResponseTests extends ESTestCase {
     }
 
     private static GetUsersResponse createTestInstance() {
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 5), randomInt());
 
@@ -113,8 +113,8 @@ public class GetUsersResponseTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 1);
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
@@ -140,8 +140,8 @@ public class GetUsersResponseTests extends ESTestCase {
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {
         if (randomBoolean()) {
-            final Set<User> users = new HashSet<>();
-            final Set<User> enabledUsers = new HashSet<>();
+            final List<User> users = new ArrayList<>();
+            final List<User> enabledUsers = new ArrayList<>();
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("intelligence", 1);
             final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
@@ -154,8 +154,8 @@ public class GetUsersResponseTests extends ESTestCase {
         metadata.put("intelligence", 5);  // change intelligence
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
             metadata, "Test User 1", null);
-        Set<User> newUsers = original.getUsers().stream().collect(Collectors.toSet());
-        Set<User> enabledUsers = original.getEnabledUsers().stream().collect(Collectors.toSet());
+        List<User> newUsers = new ArrayList<>(original.getUsers());
+        List<User> enabledUsers = new ArrayList<>(original.getEnabledUsers());
         newUsers.clear();
         enabledUsers.clear();
         newUsers.add(user1);

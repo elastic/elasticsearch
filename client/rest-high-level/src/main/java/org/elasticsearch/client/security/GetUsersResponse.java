@@ -27,12 +27,11 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,26 +41,27 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Returns a List of {@link User} objects
  */
 public class GetUsersResponse {
-    private final Set<User> users;
-    private final Set<User> enabledUsers;
 
-    public GetUsersResponse(Set<User> users, Set<User> enabledUsers) {
-        this.users = Collections.unmodifiableSet(users);
-        this.enabledUsers = Collections.unmodifiableSet(enabledUsers);
+    private final List<User> users;
+    private final List<User> enabledUsers;
+
+    GetUsersResponse(List<User> users, List<User> enabledUsers) {
+        this.users = List.copyOf(users);
+        this.enabledUsers = List.copyOf(enabledUsers);
     }
 
-    public Set<User> getUsers() {
+    public List<User> getUsers() {
         return users;
     }
 
-    public Set<User> getEnabledUsers() {
+    public List<User> getEnabledUsers() {
         return enabledUsers;
     }
 
     public static GetUsersResponse fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Token token;
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);

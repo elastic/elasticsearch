@@ -124,7 +124,7 @@ public class GetUsersResponse {
                           @Nullable String fullName, @Nullable String email) {
             String checkedUsername = Objects.requireNonNull(username, "`username` is required, cannot be null");
             List<String> checkedRoles =
-                    List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."));
+                    List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty list instead."));
             Map<String, Object> checkedMetadata = Collections.unmodifiableMap(
                     Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
             this.user = new User(checkedUsername, checkedRoles, checkedMetadata, fullName, email);

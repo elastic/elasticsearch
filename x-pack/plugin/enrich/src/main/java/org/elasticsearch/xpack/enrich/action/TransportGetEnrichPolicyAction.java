@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -56,6 +57,9 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
         final EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
+        if (policy == null) {
+            throw new ResourceNotFoundException("Policy [{}] was not found", request.getName());
+        }
         listener.onResponse(new GetEnrichPolicyAction.Response(policy));
     }
 

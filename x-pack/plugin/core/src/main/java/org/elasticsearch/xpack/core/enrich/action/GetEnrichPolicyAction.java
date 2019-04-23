@@ -88,7 +88,7 @@ public class GetEnrichPolicyAction extends Action<GetEnrichPolicyAction.Response
         private final EnrichPolicy policy;
 
         public Response(EnrichPolicy policy) {
-            this.policy = policy;
+            this.policy = Objects.requireNonNull(policy, "policy cannot be null");
         }
 
         public Response(StreamInput in) throws IOException {

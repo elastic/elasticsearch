@@ -39,7 +39,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermsQuery() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
-        Version indexVersionCreated = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
+        Version indexVersionCreated = VersionUtils.randomIndexCompatibleVersion(random());
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)

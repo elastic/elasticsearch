@@ -4,7 +4,14 @@
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_count",
-      "paths": ["/_count", "/{index}/_count", "/{index}/{type}/_count"],
+      "paths": ["/_count", "/{index}/_count"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_count",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",

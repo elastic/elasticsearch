@@ -37,6 +37,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -111,12 +113,22 @@ public class BulkProcessorTests extends ESTestCase {
         final int concurrentClients = randomIntBetween(1, 20);
         final int concurrentBulkRequests = randomIntBetween(0, 20);
         final int expectedExecutions = maxDocuments / maxBatchSize;
+        final int simulateWorkTimeInMillis = 5;
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
         AtomicInteger docCount = new AtomicInteger(0);
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> listener.onResponse(bulkResponse);
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) ->
+        {
+            try {
+                Thread.sleep(simulateWorkTimeInMillis); //simulate work
+            } catch (InterruptedException e) {
+                failureCount.getAndIncrement();
+                logger.error("interrupted while sleeping. There is likely something wrong with this test!", e);
+            }
+            listener.onResponse(bulkResponse);
+        };
         BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
             countingListener(requestCount, successCount, failureCount, docCount),
             concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE), null,
@@ -173,8 +185,9 @@ public class BulkProcessorTests extends ESTestCase {
     public void testConcurrentExecutionsWithFlush() throws Exception {
         final int maxDocuments = 100000;
         final int concurrentClients = 2;
-        final int maxBatchSize = maxDocuments / (concurrentClients * 2); //maybe flush at least once based on size
+        final int maxBatchSize = Integer.MAX_VALUE; //don't flush based on size
         final int concurrentBulkRequests = randomIntBetween(0, 20);
+        final int simulateWorkTimeInMillis = 5;
         BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
@@ -183,9 +196,8 @@ public class BulkProcessorTests extends ESTestCase {
         BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) ->
         {
             try {
-                //sleep for 2 ms to simulate work and maybe get flushed
+                Thread.sleep(simulateWorkTimeInMillis); //simulate work
                 listener.onResponse(bulkResponse);
-                Thread.sleep(2);
             } catch (InterruptedException e) {
                 failureCount.getAndIncrement();
                 logger.error("interrupted while sleeping. There is likely something wrong with this test!", e);
@@ -194,7 +206,8 @@ public class BulkProcessorTests extends ESTestCase {
         ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(1);
         BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
             countingListener(requestCount, successCount, failureCount, docCount),
-            concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE), TimeValue.timeValueMillis(1),
+            concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE),
+            TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             (command, delay, executor) ->
                 Scheduler.wrapAsScheduledCancellable(flushExecutor
                     .schedule(command, delay.millis(), TimeUnit.MILLISECONDS)), flushExecutor::shutdownNow, BulkRequest::new);
@@ -203,7 +216,8 @@ public class BulkProcessorTests extends ESTestCase {
 
         IndexRequest indexRequest = new IndexRequest();
         String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" +  "{ \"field1\" : \"value1\" }\n";
-        BytesReference bytesReference = BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes())});
+        BytesReference bytesReference =
+            BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
         List<Future> futures = new ArrayList<>();
         for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
             //alternate between ways to add to the bulk processor

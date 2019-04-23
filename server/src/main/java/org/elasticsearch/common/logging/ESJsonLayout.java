@@ -25,7 +25,6 @@ import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
-import org.apache.logging.log4j.core.config.plugins.PluginElement;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
@@ -85,15 +84,15 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-    protected ESJsonLayout(String typeName, Charset charset, KeyValuePair[] additionalFields, String[] esmessagefields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-            .withPattern(pattern(typeName, additionalFields, esmessagefields))
+            .withPattern(pattern(typeName, esmessagefields))
             .withAlwaysWriteExceptions(false)
             .build();
     }
 
-    private String pattern(String type, KeyValuePair[] additionalFields, String[] esmessagefields) {
+    private String pattern(String type, String[] esmessagefields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -108,10 +107,6 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         for (String key : esmessagefields) {
             map.put(key, "%ESMessageField{" + key + "}");
-        }
-
-        for (KeyValuePair keyValuePair : additionalFields) {
-            map.put(keyValuePair.getKey(), keyValuePair.getValue());
         }
 
         return createPattern(map);
@@ -150,9 +145,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     @PluginFactory
     public static ESJsonLayout createLayout(String type,
                                             Charset charset,
-                                            KeyValuePair[] additionalFields,
                                             String[] esmessagefields) {
-        return new ESJsonLayout(type, charset, additionalFields, esmessagefields);
+        return new ESJsonLayout(type, charset, esmessagefields);
     }
 
     public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
@@ -167,9 +161,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginAttribute("esmessagefields")
         private String esMessageFields;
 
-        @PluginElement("AdditionalField")
-        private KeyValuePair[] additionalFields;
-
         public Builder() {
             super();
             setCharset(StandardCharsets.UTF_8);
@@ -178,7 +169,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @Override
         public ESJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, additionalFields, split);
+            return ESJsonLayout.createLayout(type, charset, split);
         }
 
         public Charset getCharset() {
@@ -196,15 +187,6 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         public B setType(final String type) {
             this.type = type;
-            return asBuilder();
-        }
-
-        public KeyValuePair[] getAdditionalFields() {
-            return additionalFields;
-        }
-
-        public B setAdditionalFields(KeyValuePair[] additionalFields) {
-            this.additionalFields = additionalFields;
             return asBuilder();
         }
 

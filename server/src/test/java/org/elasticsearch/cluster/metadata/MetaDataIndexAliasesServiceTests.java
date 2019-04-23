@@ -102,14 +102,14 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
     public void testMultipleIndices() {
         final var length = randomIntBetween(2, 8);
         final var indices = new HashSet<String>(length);
-        var before = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState before = ClusterState.builder(ClusterName.DEFAULT).build();
         final var addActions = new ArrayList<AliasAction>(length);
         for (int i = 0; i < length; i++) {
             final String index = randomValueOtherThanMany(v -> indices.add(v) == false, () -> randomAlphaOfLength(8));
             before = createIndex(before, index);
             addActions.add(new AliasAction.Add(index, "alias-" + index, null, null, null, null));
         }
-        final var afterAddingAliasesToAll = service.innerExecute(before, addActions);
+        final ClusterState afterAddingAliasesToAll = service.innerExecute(before, addActions);
         assertAliasesVersionIncreased(indices.toArray(new String[0]), before, afterAddingAliasesToAll);
 
         // now add some aliases randomly
@@ -121,7 +121,7 @@ public class MetaDataIndexAliasesServiceTests extends ESTestCase {
                 randomIndices.add(index);
             }
         }
-        final var afterAddingRandomAliases = service.innerExecute(afterAddingAliasesToAll, randomAddActions);
+        final ClusterState afterAddingRandomAliases = service.innerExecute(afterAddingAliasesToAll, randomAddActions);
         assertAliasesVersionIncreased(randomIndices.toArray(new String[0]), afterAddingAliasesToAll, afterAddingRandomAliases);
         assertAliasesVersionUnchanged(
                 Sets.difference(indices, randomIndices).toArray(new String[0]),

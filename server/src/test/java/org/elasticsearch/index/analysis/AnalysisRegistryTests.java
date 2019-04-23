@@ -310,7 +310,6 @@ public class AnalysisRegistryTests extends ESTestCase {
 
     /**
      * test helper function that rebuilds an input {@link NamedAnalyzer} if it is reloadable
-     * @throws IOException
      */
     public void testRebuildIfNecessary() throws IOException {
         NamedAnalyzer noReloading = new NamedAnalyzer("noReloading", AnalyzerScope.INDEX, new StandardAnalyzer());

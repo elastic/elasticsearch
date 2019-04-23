@@ -40,7 +40,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
 import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
@@ -49,7 +48,6 @@ import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
@@ -60,6 +58,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransform
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.rest.action.RestDeleteDataFrameTransformAction;
@@ -85,7 +84,6 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 
 public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
@@ -102,7 +100,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final Settings settings;
     private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
-    private final SetOnce<Auditor<DataFrameAuditMessage>> dataFrameAuditor = new SetOnce<>();
+    private final SetOnce<DataFrameAuditor> dataFrameAuditor = new SetOnce<>();
     private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
 
@@ -184,11 +182,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
-        dataFrameAuditor.set(new Auditor<>(client,
-            clusterService.getNodeName(),
-            DataFrameInternalIndex.AUDIT_INDEX,
-            DATA_FRAME_ORIGIN,
-            DataFrameAuditMessage.builder()));
+        dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
         dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
 

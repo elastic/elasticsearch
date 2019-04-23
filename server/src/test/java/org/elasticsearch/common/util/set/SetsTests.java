@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -54,11 +55,11 @@ public class SetsTests extends ESTestCase {
     }
 
     private void runSortedDifferenceTest(
-        final BiFunction<Set<Integer>, Set<Integer>, Set<Integer>> sortedDifference,
+        final BiFunction<Set<Integer>, Set<Integer>, SortedSet<Integer>> sortedDifference,
         final Consumer<Set<Integer>> asserter) {
         final int endExclusive = randomIntBetween(0, 256);
         final Tuple<Set<Integer>, Set<Integer>> sets = randomSets(endExclusive);
-        final Set<Integer> difference = sortedDifference.apply(sets.v1(), sets.v2());
+        final SortedSet<Integer> difference = sortedDifference.apply(sets.v1(), sets.v2());
         assertDifference(endExclusive, sets, difference);
         final Iterator<Integer> it = difference.iterator();
         if (it.hasNext()) {

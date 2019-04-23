@@ -35,8 +35,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
@@ -119,6 +121,27 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> keystore.getString(KeyStoreWrapper.SEED_SETTING.getKey()));
         assertThat(exception.getMessage(), containsString("closed"));
+    }
+
+    public void testValueSHA256Digest() throws Exception {
+        final KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        final String stringSettingKeyName = randomAlphaOfLength(5).toLowerCase() + "1";
+        final String stringSettingValue = randomAlphaOfLength(32);
+        keystore.setString(stringSettingKeyName, stringSettingValue.toCharArray());
+        final String fileSettingKeyName = randomAlphaOfLength(5).toLowerCase() + "2";
+        final byte[] fileSettingValue = randomByteArrayOfLength(32);
+        keystore.setFile(fileSettingKeyName, fileSettingValue);
+
+        final byte[] stringSettingHash = MessageDigest.getInstance("SHA-256").digest(stringSettingValue.getBytes(StandardCharsets.UTF_8));
+        assertTrue(Arrays.equals(keystore.getSHA256Digest(stringSettingKeyName), stringSettingHash));
+        final byte[] fileSettingHash = MessageDigest.getInstance("SHA-256").digest(fileSettingValue);
+        assertTrue(Arrays.equals(keystore.getSHA256Digest(fileSettingKeyName), fileSettingHash));
+
+        keystore.close();
+
+        // value hashes accessible even when the keystore is closed
+        assertTrue(Arrays.equals(keystore.getSHA256Digest(stringSettingKeyName), stringSettingHash));
+        assertTrue(Arrays.equals(keystore.getSHA256Digest(fileSettingKeyName), fileSettingHash));
     }
 
     public void testUpgradeNoop() throws Exception {

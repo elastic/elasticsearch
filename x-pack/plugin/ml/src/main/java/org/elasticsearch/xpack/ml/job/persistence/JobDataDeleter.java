@@ -33,7 +33,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class JobDataDeleter {
 
@@ -115,7 +114,7 @@ public class JobDataDeleter {
         QueryBuilder qb = QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true);
         deleteByQueryHolder.dbqRequest.setQuery(new ConstantScoreQueryBuilder(qb));
 
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryHolder.dbqRequest).get();
         } catch (Exception e) {
             LOGGER.error("[" + jobId + "] An error occurred while deleting interim results", e);

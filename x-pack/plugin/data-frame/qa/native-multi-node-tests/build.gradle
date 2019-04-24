@@ -23,7 +23,7 @@ sourceSets.test.resources.srcDir(keystoreDir)
 processTestResources.dependsOn(copyKeyCerts)
 
 integTestCluster {
-    dependsOn copyKeyCerts
+  dependsOn copyKeyCerts
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.monitoring.enabled', 'false'

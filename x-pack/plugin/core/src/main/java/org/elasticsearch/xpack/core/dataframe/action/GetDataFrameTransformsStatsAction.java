@@ -70,7 +70,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = in.readStringList();
+            expandedIds = Collections.unmodifiableList(in.readStringList());
             pageParams = new PageParams(in);
         }
 
@@ -90,7 +90,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
 
         public void setExpandedIds(List<String> expandedIds) {
-            this.expandedIds = new ArrayList<>(expandedIds);
+            this.expandedIds = Collections.unmodifiableList(new ArrayList<>(expandedIds));
         }
 
         public final void setPageParams(PageParams pageParams) {

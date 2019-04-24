@@ -104,18 +104,14 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     public void testRegisterRejectsInvalidRepositoryNames() {
-        List<String> invalidRepoNames = new ArrayList<>();
-        invalidRepoNames.add("");
-        invalidRepoNames.add("contains#InvalidCharacter");
+        assertThrowsOnRegister("");
+        assertThrowsOnRegister("contains#InvalidCharacter");
         for (char c : Strings.INVALID_FILENAME_CHARS) {
-            invalidRepoNames.add("contains" + c + "InvalidCharacters");
-        }
-        for (String repoName : invalidRepoNames) {
-            doTestRegisterRejectsInvalidRepositoryNames(repoName);
+            assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
     }
 
-    private void doTestRegisterRejectsInvalidRepositoryNames(String repoName) {
+    private void assertThrowsOnRegister(String repoName) {
         PutRepositoryRequest request = new PutRepositoryRequest(repoName);
         expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
     }

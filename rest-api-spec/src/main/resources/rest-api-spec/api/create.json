@@ -4,7 +4,14 @@
     "methods": ["PUT","POST"],
     "url": {
       "path": "/{index}/_create/{id}",
-      "paths": ["/{index}/_create/{id}", "/{index}/{type}/{id}/_create"],
+      "paths": ["/{index}/_create/{id}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/{id}/_create",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "id": {
           "type" : "string",

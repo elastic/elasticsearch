@@ -82,7 +82,7 @@ public class TransportStartDataFrameTransformAction extends
 
     @Override
     protected StartDataFrameTransformAction.Response newResponse() {
-        return new StartDataFrameTransformAction.Response();
+        return new StartDataFrameTransformAction.Response(false);
     }
 
     @Override

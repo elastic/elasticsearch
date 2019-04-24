@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,18 +111,9 @@ public class ModelPlot implements ToXContentObject, Writeable {
         modelLower = in.readDouble();
         modelUpper = in.readDouble();
         modelMedian = in.readDouble();
-        if (in.getVersion().before(Version.V_6_0_0_rc1)) {
-            actual = in.readDouble();
-        } else {
-            actual = in.readOptionalDouble();
-        }
+        actual = in.readOptionalDouble();
         bucketSpan = in.readLong();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            detectorIndex = in.readInt();
-        } else {
-            // default to -1 as marker for no detector index
-            detectorIndex = -1;
-        }
+        detectorIndex = in.readInt();
     }
 
     @Override
@@ -140,21 +130,9 @@ public class ModelPlot implements ToXContentObject, Writeable {
         out.writeDouble(modelLower);
         out.writeDouble(modelUpper);
         out.writeDouble(modelMedian);
-        if (out.getVersion().before(Version.V_6_0_0_rc1)) {
-            if (actual == null) {
-                // older versions cannot accommodate null, so we have no choice but to propagate the bug of
-                // https://github.com/elastic/x-pack-elasticsearch/issues/2528
-                out.writeDouble(0.0);
-            } else {
-                out.writeDouble(actual);
-            }
-        } else {
-            out.writeOptionalDouble(actual);
-        }
+        out.writeOptionalDouble(actual);
         out.writeLong(bucketSpan);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeInt(detectorIndex);
-        }
+        out.writeInt(detectorIndex);
     }
 
     @Override

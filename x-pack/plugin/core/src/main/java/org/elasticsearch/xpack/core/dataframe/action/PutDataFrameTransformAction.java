@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAction.Response> {
+public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
@@ -30,8 +30,8 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -98,13 +98,4 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
 }

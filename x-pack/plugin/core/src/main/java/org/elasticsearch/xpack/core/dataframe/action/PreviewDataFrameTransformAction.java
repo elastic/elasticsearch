@@ -16,6 +16,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -44,7 +45,12 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -152,15 +158,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         public void setDocs(List<Map<String, Object>> docs) {
             this.docs = new ArrayList<>(docs);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            int size = in.readInt();
-            this.docs = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                this.docs.add(in.readMap());
-            }
         }
 
         @Override

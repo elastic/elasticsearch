@@ -33,7 +33,12 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -94,13 +99,9 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
         private boolean started;
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
-
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            started = in.readBoolean();
         }
 
         public Response(boolean started) {
@@ -110,12 +111,6 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
         public boolean isStarted() {
             return started;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            started = in.readBoolean();
         }
 
         @Override

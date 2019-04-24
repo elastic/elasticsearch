@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
+import org.elasticsearch.client.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.client.dataframe.transforms.DestConfigTests.randomDestConfig;
@@ -37,7 +39,11 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig() {
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), SyncConfigTests.randomSyncConfig(), PivotConfigTests.randomPivotConfig());
+                randomDestConfig(), randomBoolean() ? randomSyncConfig() : null, PivotConfigTests.randomPivotConfig());
+    }
+
+    public static SyncConfig randomSyncConfig() {
+        return TimeSyncConfigTests.randomTimeSyncConfig();
     }
 
     @Override
@@ -64,6 +70,9 @@ public class DataFrameTransformConfigTests extends AbstractXContentTestCase<Data
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 }

@@ -7,11 +7,12 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
@@ -22,16 +23,18 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
-    /**
-     * Test case that ensures aggregation named objects are registered
-     */
+public abstract class AbstractStreamableXContentDataFrameTestCase<T extends ToXContent & Streamable>
+        extends AbstractStreamableXContentTestCase<T> {
+
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
 
+    public AbstractStreamableXContentDataFrameTestCase() {
+        super();
+    }
+
     @Before
-    public void registerAggregationNamedObjects() throws Exception {
-     // register aggregations as NamedWriteable
+    public void registerNamedObjects() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
@@ -54,4 +57,5 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
     protected NamedXContentRegistry xContentRegistry() {
         return namedXContentRegistry;
     }
+
 }

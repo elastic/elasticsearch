@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
@@ -90,7 +91,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), DataFrameField.SOURCE);
         parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), DataFrameField.DESTINATION);
 
-        parser.declareObject(optionalConstructorArg(), (p, c) -> SyncConfig.fromXContent(p, lenient), DataFrameField.SYNC);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p, lenient), DataFrameField.SYNC);
 
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
 
@@ -98,6 +99,14 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
 
         return parser;
+    }
+
+    private static SyncConfig parseSyncConfig(XContentParser parser, boolean ignoreUnknownFields) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), ignoreUnknownFields);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return syncConfig;
     }
 
     public static String documentId(String transformId) {
@@ -127,7 +136,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         id = in.readString();
         source = new SourceConfig(in);
         dest = new DestConfig(in);
-        syncConfig = in.readOptionalWriteable(SyncConfig::new);
+        syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
     }
@@ -177,7 +186,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         out.writeString(id);
         source.writeTo(out);
         dest.writeTo(out);
-        out.writeOptionalWriteable(syncConfig);
+        out.writeOptionalNamedWriteable(syncConfig);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
     }
@@ -189,7 +198,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         builder.field(DataFrameField.SOURCE.getPreferredName(), source);
         builder.field(DataFrameField.DESTINATION.getPreferredName(), dest);
         if (syncConfig != null) {
-            builder.field(DataFrameField.SYNC.getPreferredName(), syncConfig);
+            builder.startObject(DataFrameField.SYNC.getPreferredName());
+            builder.field(syncConfig.getWriteableName(), syncConfig);
+            builder.endObject();
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -64,9 +65,18 @@ public class DataFrameTransformConfig implements ToXContentObject {
         PARSER.declareString(constructorArg(), ID);
         PARSER.declareObject(constructorArg(), (p, c) -> SourceConfig.PARSER.apply(p, null), SOURCE);
         PARSER.declareObject(constructorArg(), (p, c) -> DestConfig.PARSER.apply(p, null), DEST);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SyncConfig.fromXContent(p), SYNC);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), SYNC);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p), PIVOT_TRANSFORM);
     }
+
+    private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        SyncConfig syncConfig = parser.namedObject(SyncConfig.class, parser.currentName(), true);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return syncConfig;
+    }
+
 
     public static DataFrameTransformConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -118,7 +128,9 @@ public class DataFrameTransformConfig implements ToXContentObject {
             builder.field(DEST.getPreferredName(), dest);
         }
         if (syncConfig != null) {
-            builder.field(SYNC.getPreferredName(), syncConfig);
+            builder.startObject(SYNC.getPreferredName());
+            builder.field(syncConfig.getName(), syncConfig);
+            builder.endObject();
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);

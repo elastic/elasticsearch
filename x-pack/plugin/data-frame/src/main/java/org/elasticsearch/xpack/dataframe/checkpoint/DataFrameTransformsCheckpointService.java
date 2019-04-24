@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformCheckpoint;
 
@@ -201,12 +202,12 @@ public class DataFrameTransformsCheckpointService {
     }
 
     private long getTimeStampForTimeBasedSynchronization(SyncConfig syncConfig, long timestamp) {
-        if (syncConfig == null || syncConfig.getTimeSyncConfig() == null) {
-            // time based sync is not configured
-            return 0L;
+        if (syncConfig instanceof TimeSyncConfig) {
+            TimeSyncConfig timeSyncConfig = (TimeSyncConfig) syncConfig;
+            return timestamp - timeSyncConfig.getDelay().millis();
         }
 
-        return timestamp - syncConfig.getTimeSyncConfig().getDelay().millis();
+        return 0L;
     }
 
     static Map<String, long[]> extractIndexCheckPoints(ShardStats[] shards, Set<String> userIndices) {

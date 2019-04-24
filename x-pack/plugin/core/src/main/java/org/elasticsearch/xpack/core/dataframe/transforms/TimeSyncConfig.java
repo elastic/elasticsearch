@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.core.dataframe.transforms;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
@@ -25,7 +23,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TimeSyncConfig  implements Writeable, ToXContentObject {
+public class TimeSyncConfig  implements SyncConfig {
 
     private static final String NAME = "data_frame_transform_pivot_sync_time";
 
@@ -52,6 +50,10 @@ public class TimeSyncConfig  implements Writeable, ToXContentObject {
                     return parser;
                 }
 
+    public TimeSyncConfig() {
+        this(null, null);
+    }
+
     public TimeSyncConfig(final String field, final TimeValue delay) {
         this.field = ExceptionsHelper.requireNonNull(field, DataFrameField.FIELD.getPreferredName());
         this.delay = ExceptionsHelper.requireNonNull(delay, DataFrameField.DELAY.getPreferredName());
@@ -70,6 +72,7 @@ public class TimeSyncConfig  implements Writeable, ToXContentObject {
         return delay;
     }
 
+    @Override
     public boolean isValid() {
         return true;
     }
@@ -117,7 +120,16 @@ public class TimeSyncConfig  implements Writeable, ToXContentObject {
         return Strings.toString(this, true, true);
     }
 
+    public static TimeSyncConfig parse(final XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null);
+    }
+
     public static TimeSyncConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return DataFrameField.TIME_BASED_SYNC.getPreferredName();
     }
 }

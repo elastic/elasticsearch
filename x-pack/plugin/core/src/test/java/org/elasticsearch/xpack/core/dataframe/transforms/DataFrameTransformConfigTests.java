@@ -41,21 +41,25 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(),
-                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, null, PivotConfigTests.randomPivotConfig());
+                randomBoolean() ? randomSyncConfig() : null, null, PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(),
-                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
+                randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
             return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
-                    randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
+                    randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig());
         } // else
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(), randomDestConfig(),
-                randomBoolean() ? SyncConfigTests.randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
+                randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
+    }
+
+    public static SyncConfig randomSyncConfig() {
+        return TimeSyncConfigTests.randomTimeSyncConfig();
     }
 
     @Before

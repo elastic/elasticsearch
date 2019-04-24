@@ -17,32 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.client.dataframe.transforms;
+package org.elasticsearch.client.dataframe;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.client.dataframe.transforms.SyncConfig;
+import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
-import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
-public class SyncConfigTests extends AbstractXContentTestCase<SyncConfig> {
-
-    public static SyncConfig randomSyncConfig() {
-        return new SyncConfig(TimeSyncConfigTests.randomTimeSyncConfig());
-    }
-
-    @Override
-    protected SyncConfig createTestInstance() {
-        return randomSyncConfig();
-    }
+public class DataFrameNamedXContentProvider implements NamedXContentProvider {
 
     @Override
-    protected SyncConfig doParseInstance(XContentParser parser) throws IOException {
-        return SyncConfig.fromXContent(parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
+    public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
+        return Arrays.asList(
+                new NamedXContentRegistry.Entry(SyncConfig.class,
+                        new ParseField(TimeSyncConfig.NAME),
+                        TimeSyncConfig::fromXContent));
     }
 
 }

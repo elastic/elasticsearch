@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +52,10 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+
+        return new NamedXContentRegistry(namedXContents);
     }
 
     public void testPutDataFrameTransform() throws IOException {

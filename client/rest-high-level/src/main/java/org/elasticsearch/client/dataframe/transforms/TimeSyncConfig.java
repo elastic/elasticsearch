@@ -23,7 +23,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -33,7 +32,9 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TimeSyncConfig implements ToXContentObject {
+public class TimeSyncConfig implements SyncConfig {
+
+    public static final String NAME = "time";
 
     private static final ParseField FIELD = new ParseField("field");
     private static final ParseField DELAY = new ParseField("delay");
@@ -50,7 +51,7 @@ public class TimeSyncConfig implements ToXContentObject {
                 ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    public static TimeSyncConfig fromXContent(final XContentParser parser) {
+    public static TimeSyncConfig fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -97,6 +98,11 @@ public class TimeSyncConfig implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(field, delay);
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
     }
 
 }

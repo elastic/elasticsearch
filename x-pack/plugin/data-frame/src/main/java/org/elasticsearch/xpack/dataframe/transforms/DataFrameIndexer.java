@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -158,9 +160,28 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         sourceBuilder.aggregation(pivot.buildAggregation(getPosition(), pageSize));
         sourceBuilder.size(0);
 
-        QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
+        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
-        sourceBuilder.query(queryBuilder);
+        DataFrameTransformConfig config = getConfig();
+        if (config.getSyncConfig() != null) {
+
+
+            if (config.getSyncConfig() instanceof TimeSyncConfig) {
+                TimeSyncConfig timeSyncConfig = (TimeSyncConfig) config.getSyncConfig();
+
+                String timeField = timeSyncConfig.getField();
+                TimeValue delay = timeSyncConfig.getDelay();
+
+                // QueryBuilder timeQuery = new RangeQueryBuilder(timeField).lt();
+
+                //config.getSyncConfig().getTimeSyncConfig().getField()
+                // BoolQueryBuilder().filter(pivotQueryBuilder).filter(timeQuery);
+                sourceBuilder.query(pivotQueryBuilder);
+            }
+        } else {
+            sourceBuilder.query(pivotQueryBuilder);
+        }
+
         searchRequest.source(sourceBuilder);
         return searchRequest;
     }

@@ -16,32 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class DataFrameAnalyticsDestTests extends AbstractXContentTestCase<DataFrameAnalyticsDest> {
-
-    public static DataFrameAnalyticsDest randomDestConfig() {
-        return new DataFrameAnalyticsDest(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-    }
+public class MlDataFrameAnalysisNamedXContentProvider implements NamedXContentProvider {
 
     @Override
-    protected DataFrameAnalyticsDest doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameAnalyticsDest.fromXContent(parser);
-    }
+    public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
+        namedXContent.add(new NamedXContentRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME, (p, c) -> {
+            return OutlierDetection.fromXContent(p);
+        }));
 
-    @Override
-    protected DataFrameAnalyticsDest createTestInstance() {
-        return randomDestConfig();
+        return namedXContent;
     }
 }

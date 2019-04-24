@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.is;
 public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
 
     public static OutlierDetection randomOutlierDetection() {
-        Integer numberNeighbors = randomBoolean() ? null : randomIntBetween(1, 20);
-        OutlierDetection.Method method = randomBoolean() ? null : randomFrom(OutlierDetection.Method.values());
-        return new OutlierDetection(numberNeighbors, method);
+        return new OutlierDetection(
+            randomBoolean() ? null : randomIntBetween(1, 20),
+            randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()));
     }
 
     @Override

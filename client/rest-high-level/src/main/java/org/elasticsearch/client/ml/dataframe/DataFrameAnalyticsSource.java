@@ -60,15 +60,16 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     }
 
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
-        this.index = other.index;
-        this.queryConfig = new QueryConfig(other.queryConfig);
+        this(other.index, new QueryConfig(other.queryConfig));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX.getPreferredName(), index);
-        builder.field(QUERY.getPreferredName(), queryConfig.getQuery());
+        if (queryConfig != null) {
+            builder.field(QUERY.getPreferredName(), queryConfig.getQuery());
+        }
         builder.endObject();
         return builder;
     }

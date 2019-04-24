@@ -35,7 +35,9 @@ import static org.elasticsearch.client.ml.dataframe.QueryConfigTests.randomQuery
 public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<DataFrameAnalyticsSource> {
 
     public static DataFrameAnalyticsSource randomSourceConfig() {
-        return new DataFrameAnalyticsSource(randomAlphaOfLengthBetween(1, 10), randomQueryConfig());
+        return new DataFrameAnalyticsSource(
+            randomAlphaOfLengthBetween(1, 10),
+            randomBoolean() ? null : randomQueryConfig());
     }
 
     @Override

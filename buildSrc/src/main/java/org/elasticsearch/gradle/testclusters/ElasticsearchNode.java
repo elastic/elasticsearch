@@ -176,12 +176,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void keystore(String key, File value) {
-        addSupplier("Keystore", keystoreFiles, key, () -> value);
+        requireNonNull(value, "keystore value was null when configuring test cluster`" + this + "`");
+        keystore(key, () -> value);
     }
 
     @Override
     public void keystore(String key, FileSupplier valueSupplier) {
-        addSupplier("Keystore", keystoreFiles, key, valueSupplier);
+        requireNonNull(key, "Keystore" + " key was null when configuring test cluster `" + this + "`");
+        requireNonNull(valueSupplier, "Keystore" + " value supplier was null when configuring test cluster `" + this + "`");
+        keystoreFiles.put(key, valueSupplier);
     }
 
     @Override
@@ -215,20 +218,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, Supplier<CharSequence> valueSupplier) {
-        requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
-        requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
-        collector.put(key, valueSupplier);
-    }
-
-    private void addSupplier(String name, Map<String, FileSupplier> collector, String key, File actualValue) {
-        requireNonNull(actualValue, name + " value was null when configuring test cluster `" + this + "`");
-        if (actualValue.exists()) {
-            throw new TestClustersException("Found a non existent file " + actualValue + " while configuring " + this);
-        }
-        addSupplier(name, collector, key, () -> actualValue);
-    }
-
-    private void addSupplier(String name, Map<String, FileSupplier> collector, String key, FileSupplier valueSupplier) {
         requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
         requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
         collector.put(key, valueSupplier);
@@ -316,16 +305,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key)
             );
 
-            keystoreFiles.values().stream()
-                .map(each -> each.get())
-                .filter(each -> each == null || each.exists() == false)
-                .forEach(each -> {
-                    requireNonNull("supplied keystoreFile was null when configuring test cluster `" + this + "`");
-                    throw new TestClustersException("supplied keystore file " + each + " does not exist, require for " + this);
-                });
-            keystoreFiles.forEach((key, value) ->
-                runElaticsearchBinScript("elasticsearch-keystore", "add-file", key, value.get().toString())
-            );
+            for (Map.Entry<String, FileSupplier> entry : keystoreFiles.entrySet()) {
+                File file = entry.getValue().get();
+                requireNonNull(file, "supplied keystoreFile was null when configuring " + this);
+                if (file.exists() == false) {
+                    throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
+                }
+                runElaticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
+            }
         }
 
         installModules();

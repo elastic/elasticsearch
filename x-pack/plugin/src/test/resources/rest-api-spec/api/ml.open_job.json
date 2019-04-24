@@ -1,7 +1,7 @@
 {
   "ml.open_job": {
-    "stability": "stable",
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-open-job.html",
+    "stability": "stable",
     "methods": [ "POST" ],
     "url": {
       "path": "/_ml/anomaly_detectors/{job_id}/_open",

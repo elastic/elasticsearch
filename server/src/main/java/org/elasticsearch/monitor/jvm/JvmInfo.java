@@ -158,10 +158,29 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
         final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
 
-        INSTANCE = new JvmInfo(JvmPid.getPid(), System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
-                runtimeMXBean.getVmVendor(), bundledJdk, usingBundledJdk, runtimeMXBean.getStartTime(), configuredInitialHeapSize,
-                configuredMaxHeapSize, mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError,
-                onOutOfMemoryError, useCompressedOops, useG1GC, useSerialGC);
+        INSTANCE = new JvmInfo(
+                ProcessHandle.current().pid(),
+                System.getProperty("java.version"),
+                runtimeMXBean.getVmName(),
+                runtimeMXBean.getVmVersion(),
+                runtimeMXBean.getVmVendor(),
+                bundledJdk,
+                usingBundledJdk,
+                runtimeMXBean.getStartTime(),
+                configuredInitialHeapSize,
+                configuredMaxHeapSize,
+                mem,
+                inputArguments,
+                bootClassPath,
+                classPath,
+                systemProperties,
+                gcCollectors,
+                memoryPools,
+                onError,
+                onOutOfMemoryError,
+                useCompressedOops,
+                useG1GC,
+                useSerialGC);
     }
 
     @SuppressForbidden(reason = "PathUtils#get")

@@ -1,0 +1,16 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-analysis]]
+=== Analysis API
+
+The following specialized API is available in the Analysis context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== org.elasticsearch.analysis.common
+<<painless-api-reference-analysis-org-elasticsearch-analysis-common, Expand details for org.elasticsearch.analysis.common>>
+
+* <<painless-api-reference-analysis-AnalysisPredicateScript-Token, AnalysisPredicateScript.Token>>
+
+include::packages.asciidoc[]
+

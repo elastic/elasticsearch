@@ -23,8 +23,8 @@ import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.client.utils.URIUtils;
-import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -65,10 +65,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -314,33 +317,32 @@ public class HttpClient implements Closeable {
     }
 
     private Tuple<HttpHost, URI> createURI(HttpRequest request) {
-        // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
-        // url path escaping, and we have done this already, so this would result in double escaping
         try {
             List<NameValuePair> qparams = new ArrayList<>(request.params.size());
             request.params.forEach((k, v) -> qparams.add(new BasicNameValuePair(k, v)));
-            String format = URLEncodedUtils.format(qparams, "UTF-8");
-            URI uri = URIUtils.createURI(request.scheme.scheme(), request.host, request.port, request.path,
-                    Strings.isNullOrEmpty(format) ? null : format, null);
-
-            if (uri.isAbsolute() == false) {
-                throw new IllegalStateException("URI [" + uri.toASCIIString() + "] must be absolute");
-            }
-            final HttpHost httpHost = URIUtils.extractHost(uri);
-            // what a mess that we need to do this to workaround https://issues.apache.org/jira/browse/HTTPCLIENT-1968
-            // in some cases the HttpClient will re-write the URI which drops the escaping for
-            // slashes within a path. This rewriting is done to obtain a relative URI when
-            // a proxy is not being used. To avoid this we can handle making it relative ourselves
-            if (request.path != null && request.path.contains("%2F")) {
-                final boolean isUsingProxy = (request.proxy != null && request.proxy.equals(HttpProxy.NO_PROXY) == false) ||
-                    HttpProxy.NO_PROXY.equals(settingsProxy) == false;
-                if (isUsingProxy == false) {
-                    // we need a relative uri
-                    uri = URIUtils.createURI(null, null, -1, request.path, Strings.isNullOrEmpty(format) ? null : format, null);
+            // this could be really simple, as the apache http client has a UriBuilder class, however this class is always doing
+            // url path escaping, and we have done this already, so this would result in double escaping
+            final List<String> unescapedPathParts;
+            if (Strings.isEmpty(request.path)) {
+                unescapedPathParts = Collections.emptyList();
+            } else {
+                final String[] pathParts = request.path.split("/");
+                unescapedPathParts = new ArrayList<>(pathParts.length);
+                for (String part : pathParts) {
+                    unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
                 }
             }
+
+            final URI uri =  new URIBuilder()
+                .setScheme(request.scheme().scheme())
+                .setHost(request.host)
+                .setPort(request.port)
+                .setPathSegments(unescapedPathParts)
+                .setParameters(qparams)
+                .build();
+            final HttpHost httpHost = URIUtils.extractHost(uri);
             return new Tuple<>(httpHost, uri);
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException | UnsupportedEncodingException e) {
             throw new IllegalArgumentException(e);
         }
     }

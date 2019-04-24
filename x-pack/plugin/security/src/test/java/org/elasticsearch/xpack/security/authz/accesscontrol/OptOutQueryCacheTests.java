@@ -136,6 +136,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(false);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         cache.doCache(weight, policy);
@@ -154,6 +155,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         final Weight w = cache.doCache(weight, policy);
@@ -178,6 +180,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isAuthAllowed()).thenReturn(true);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        cache.listenForLicenseStateChanges();
         final Weight weight = mock(Weight.class);
         final QueryCachingPolicy policy = mock(QueryCachingPolicy.class);
         cache.doCache(weight, policy);
@@ -195,6 +198,7 @@ public class OptOutQueryCacheTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final OptOutQueryCache cache = new OptOutQueryCache(indexSettings, indicesQueryCache, threadContext, licenseState);
+        cache.listenForLicenseStateChanges();
         verify(licenseState).addListener(cache);
         cache.close();
         verify(licenseState).removeListener(cache);

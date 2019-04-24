@@ -35,7 +35,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BuildTests extends ESTestCase {
 
@@ -223,4 +226,43 @@ public class BuildTests extends ESTestCase {
         assertThat(post67pre70.build.getQualifiedVersion(), equalTo(post67Pre70Version.toString()));
         assertThat(post70.build.getQualifiedVersion(), equalTo(dockerBuild.build.getQualifiedVersion()));
     }
+
+    public void testFlavorParsing() {
+        for (final Build.Flavor flavor : Build.Flavor.values()) {
+            // strict or not should not impact parsing at all here
+            assertThat(Build.Flavor.fromDisplayName(flavor.displayName(), randomBoolean()), sameInstance(flavor));
+        }
+    }
+
+    public void testTypeParsing() {
+        for (final Build.Type type : Build.Type.values()) {
+            // strict or not should not impact parsing at all here
+            assertThat(Build.Type.fromDisplayName(type.displayName(), randomBoolean()), sameInstance(type));
+        }
+    }
+
+    public void testLenientFlavorParsing() {
+        final String displayName = randomAlphaOfLength(8);
+        assertThat(Build.Flavor.fromDisplayName(displayName, false), equalTo(Build.Flavor.UNKNOWN));
+    }
+
+    public void testStrictFlavorParsing() {
+        final String displayName = randomAlphaOfLength(8);
+        @SuppressWarnings("ResultOfMethodCallIgnored") final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> Build.Flavor.fromDisplayName(displayName, true));
+        assertThat(e, hasToString(containsString("unexpected distribution flavor [" + displayName + "]; your distribution is broken")));
+    }
+
+    public void testLenientTypeParsing() {
+        final String displayName = randomAlphaOfLength(8);
+        assertThat(Build.Type.fromDisplayName(displayName, false), equalTo(Build.Type.UNKNOWN));
+    }
+
+    public void testStrictTypeParsing() {
+        final String displayName = randomAlphaOfLength(8);
+        @SuppressWarnings("ResultOfMethodCallIgnored") final IllegalStateException e =
+                expectThrows(IllegalStateException.class, () -> Build.Type.fromDisplayName(displayName, true));
+        assertThat(e, hasToString(containsString("unexpected distribution type [" + displayName + "]; your distribution is broken")));
+    }
+
 }

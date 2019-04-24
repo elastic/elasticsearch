@@ -155,7 +155,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        Job opened1 = buildJob("opened1", Arrays.asList(buildMinDetector("foo")));
+        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
+                Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
         GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         Job opened2 = buildJob("opened2", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar")));
         GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
@@ -200,6 +201,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(source.getValue("jobs._all.model_size.max"), equalTo(300.0));
             assertThat(source.getValue("jobs._all.model_size.total"), equalTo(600.0));
             assertThat(source.getValue("jobs._all.model_size.avg"), equalTo(200.0));
+            assertThat(source.getValue("jobs._all.created_by.a_cool_module"), equalTo(1));
+            assertThat(source.getValue("jobs._all.created_by.unknown"), equalTo(2));
 
             assertThat(source.getValue("jobs.opened.count"), equalTo(2));
             assertThat(source.getValue("jobs.opened.detectors.min"), equalTo(1.0));
@@ -210,6 +213,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.model_size.max"), equalTo(200.0));
             assertThat(source.getValue("jobs.opened.model_size.total"), equalTo(300.0));
             assertThat(source.getValue("jobs.opened.model_size.avg"), equalTo(150.0));
+            assertThat(source.getValue("jobs.opened.created_by.a_cool_module"), equalTo(1));
+            assertThat(source.getValue("jobs.opened.created_by.unknown"), equalTo(1));
 
             assertThat(source.getValue("jobs.closed.count"), equalTo(1));
             assertThat(source.getValue("jobs.closed.detectors.min"), equalTo(3.0));
@@ -220,6 +225,8 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             assertThat(source.getValue("jobs.closed.model_size.max"), equalTo(300.0));
             assertThat(source.getValue("jobs.closed.model_size.total"), equalTo(300.0));
             assertThat(source.getValue("jobs.closed.model_size.avg"), equalTo(300.0));
+            assertThat(source.getValue("jobs.closed.created_by.a_cool_module"), is(nullValue()));
+            assertThat(source.getValue("jobs.closed.created_by.unknown"), equalTo(1));
 
             assertThat(source.getValue("jobs.opening"), is(nullValue()));
             assertThat(source.getValue("jobs.closing"), is(nullValue()));
@@ -359,6 +366,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         }).when(jobManager).expandJobs(eq(MetaData.ALL), eq(true), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<GetJobsStatsAction.Response> listener =
                     (ActionListener<GetJobsStatsAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(new GetJobsStatsAction.Response(
@@ -400,6 +408,7 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
 
     private void givenDatafeeds(List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedStats) {
         doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
             ActionListener<GetDatafeedsStatsAction.Response> listener =
                     (ActionListener<GetDatafeedsStatsAction.Response>) invocationOnMock.getArguments()[2];
             listener.onResponse(new GetDatafeedsStatsAction.Response(
@@ -416,10 +425,15 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
     }
 
     private static Job buildJob(String jobId, List<Detector> detectors) {
+        return buildJob(jobId, detectors, null);
+    }
+
+    private static Job buildJob(String jobId, List<Detector> detectors, Map<String, Object> customSettings) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         return new Job.Builder(jobId)
                 .setAnalysisConfig(analysisConfig)
                 .setDataDescription(new DataDescription.Builder())
+                .setCustomSettings(customSettings)
                 .build(new Date(randomNonNegativeLong()));
     }
 

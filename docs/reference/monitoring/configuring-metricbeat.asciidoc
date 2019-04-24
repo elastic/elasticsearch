@@ -81,7 +81,7 @@ run the following command:
 
 ["source","sh",subs="attributes,callouts"]
 ----------------------------------------------------------------------
-metricbeat modules enable elasticsearch
+metricbeat modules enable elasticsearch-xpack
 ----------------------------------------------------------------------
 
 For more information, see 
@@ -89,45 +89,22 @@ For more information, see
 {metricbeat-ref}/metricbeat-module-elasticsearch.html[{es} module]. 
 --
 
-.. Configure the {es} module in {metricbeat}. +
-+
---
-You must specify the following settings in the `modules.d/elasticsearch.yml` file:
+.. By default the module will collect {es} monitoring metrics from `http://localhost:9200`.
+If the local {es} node has a different address, you must specify it via the `hosts` setting
+in the `modules.d/elasticsearch-xpack.yml` file.
 
-[source,yaml]
-----------------------------------
-- module: elasticsearch
-  metricsets:
-    - ccr
-    - cluster_stats
-    - index
-    - index_recovery
-    - index_summary
-    - ml_job
-    - node_stats
-    - shard
-  period: 10s
-  hosts: ["http://localhost:9200"] <1>
-  xpack.enabled: true <2>
-----------------------------------
-<1> This setting identifies the host and port number that are used to access {es}.
-<2> This setting ensures that {kib} can read this monitoring data successfully. 
-That is to say, it's stored in the same location and format as monitoring data 
-that is sent by <<es-monitoring-exporters,exporters>>. 
---
-
-.. If Elastic {security-features} are enabled, you must also provide a user ID 
+.. If Elastic {security-features} are enabled, you must also provide a user ID
 and password so that {metricbeat} can collect metrics successfully. 
 
-... Create a user on the production cluster that has the 
+... Create a user on the production cluster that has the
 {stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
 Alternatively, use the {stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
 
-... Add the `username` and `password` settings to the {es} module configuration 
+... Add the `username` and `password` settings to the {es} module configuration
 file.
 +
 --
-For example, add the following settings in the `modules.d/elasticsearch.yml` file:
+For example, add the following settings in the `modules.d/elasticsearch-xpack.yml` file:
 
 [source,yaml]
 ----------------------------------
@@ -140,7 +117,7 @@ For example, add the following settings in the `modules.d/elasticsearch.yml` fil
 
 .. If you configured {es} to use <<configuring-tls,encrypted communications>>, 
 you must access it via HTTPS. For example, use a `hosts` setting like 
-`https://localhost:9200` in the `modules.d/elasticsearch.yml` file.
+`https://localhost:9200` in the `modules.d/elasticsearch-xpack.yml` file.
 
 .. Identify where to send the monitoring data. +
 +

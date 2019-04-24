@@ -35,7 +35,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
 
     private final DataFrameTransformTaskState taskState;
     private final IndexerState indexerState;
-    private final long generation;
+    private final long checkpoint;
 
     @Nullable
     private final SortedMap<String, Object> currentPosition;
@@ -45,7 +45,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     private static final ParseField TASK_STATE = new ParseField("task_state");
     private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
-    private static final ParseField GENERATION = new ParseField("generation");
+    private static final ParseField CHECKPOINT = new ParseField("checkpoint");
     private static final ParseField REASON = new ParseField("reason");
 
     @SuppressWarnings("unchecked")
@@ -80,19 +80,19 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, CURRENT_POSITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
-        PARSER.declareLong(constructorArg(), GENERATION);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }
 
     public DataFrameTransformState(DataFrameTransformTaskState taskState,
                                    IndexerState indexerState,
                                    @Nullable Map<String, Object> position,
-                                   long generation,
+                                   long checkpoint,
                                    @Nullable String reason) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
-        this.generation = generation;
+        this.checkpoint = checkpoint;
         this.reason = reason;
     }
 
@@ -100,7 +100,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         taskState = DataFrameTransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
         currentPosition = in.readBoolean() ? Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap())) : null;
-        generation = in.readLong();
+        checkpoint = in.readLong();
         reason = in.readOptionalString();
     }
 
@@ -116,8 +116,17 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return currentPosition;
     }
 
-    public long getGeneration() {
-        return generation;
+    public long getCheckpoint() {
+        return checkpoint;
+    }
+
+    /**
+     * Get the in-progress checkpoint
+     *
+     * @return checkpoint in progress or 0 if task/indexer is not active
+     */
+    public long getInProgressCheckpoint() {
+        return indexerState.equals(IndexerState.INDEXING) ? checkpoint + 1L : 0;
     }
 
     public String getReason() {
@@ -140,7 +149,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         if (currentPosition != null) {
             builder.field(CURRENT_POSITION.getPreferredName(), currentPosition);
         }
-        builder.field(GENERATION.getPreferredName(), generation);
+        builder.field(CHECKPOINT.getPreferredName(), checkpoint);
         if (reason != null) {
             builder.field(REASON.getPreferredName(), reason);
         }
@@ -161,7 +170,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         if (currentPosition != null) {
             out.writeMap(currentPosition);
         }
-        out.writeLong(generation);
+        out.writeLong(checkpoint);
         out.writeOptionalString(reason);
     }
 
@@ -180,13 +189,13 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&
             Objects.equals(this.currentPosition, that.currentPosition) &&
-            this.generation == that.generation &&
+            this.checkpoint == that.checkpoint &&
             Objects.equals(this.reason, that.reason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskState, indexerState, currentPosition, generation, reason);
+        return Objects.hash(taskState, indexerState, currentPosition, checkpoint, reason);
     }
 
     @Override

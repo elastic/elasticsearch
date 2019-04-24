@@ -123,18 +123,19 @@ public class PemTrustConfigTests extends ESTestCase {
 
     private void assertEmptyFile(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
+        logger.info("failure", exception);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), Matchers.containsString("failed to parse any certificates"));
     }
 
     private void assertInvalidFileFormat(PemTrustConfig trustConfig, Path file) {
-        if (inFipsJvm()) {
-            // When running on BC-FIPS, an invalid file format behaves like an empty file
-            assertEmptyFile(trustConfig, file);
-            return;
-        }
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
+        // When running on BC-FIPS, an invalid file format *might* just fail to parse, without any errors (just like an empty file)
+        // or it might behave per the SUN provider, and throw a GSE (depending on exactly what was invalid)
+        if (inFipsJvm() && exception.getMessage().contains("failed to parse any certificates")) {
+            return;
+        }
         assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
         assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));

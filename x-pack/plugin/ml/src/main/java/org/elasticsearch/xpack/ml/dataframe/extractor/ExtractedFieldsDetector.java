@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedFields;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class ExtractedFieldsDetector {
     }
 
     public ExtractedFields detect() {
-        Set<String> fields = fieldCapabilitiesResponse.get().keySet();
+        Set<String> fields = new HashSet<>(fieldCapabilitiesResponse.get().keySet());
         fields.removeAll(IGNORE_FIELDS);
 
         checkResultsFieldIsNotPresent(fields, index);

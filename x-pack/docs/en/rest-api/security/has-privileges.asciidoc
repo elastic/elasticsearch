@@ -33,7 +33,9 @@ privilege is assigned to the user.
 is `false`) if using wildcards or regexps for patterns that cover restricted
 indices. Implicitly, restricted indices do not match index patterns because
 restricted indices usually have limited privileges and including them in
-pattern tests would render most such tests `false`.
+pattern tests would render most such tests `false`. If restricted indices are
+explicitly included in the `names` list, privileges will be checked against
+them regardless of the value of `allow_restricted_indices`.
 `privileges`::: (list) A list of the privileges that you want to check for the
 specified indices.
 

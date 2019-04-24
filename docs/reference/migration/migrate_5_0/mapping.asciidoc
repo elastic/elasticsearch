@@ -93,6 +93,7 @@ current timestamp on application side. For `_ttl`, you should either use
 time-based indices when applicable, or cron a delete-by-query with a range
 query on a timestamp field
 
+[[_literal_index_literal_property]]
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`

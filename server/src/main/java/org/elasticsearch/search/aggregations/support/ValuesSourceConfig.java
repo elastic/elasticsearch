@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
@@ -244,6 +245,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             } else if (valueSourceType() == ValuesSourceType.ANY || valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else {
+                // TODO: Do we need a missing case for Range values type?
                 throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
             }
         } else {
@@ -285,6 +287,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             if (valueSourceType() == ValuesSourceType.BYTES) {
                 return (VS) bytesScript();
             }
+            // TODO: Do we need a range script case?
             throw new AggregationExecutionException("value source of type [" + valueSourceType().name()
                     + "] is not supported by scripts");
         }
@@ -294,6 +297,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
         if (valueSourceType() == ValuesSourceType.GEOPOINT) {
             return (VS) geoPointField();
+        }
+        if (valueSourceType() == ValuesSourceType.RANGE) {
+            return (VS) rangeField();
         }
         // falling back to bytes values
         return (VS) bytesField();
@@ -343,5 +349,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         }
 
         return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext().indexFieldData());
+    }
+
+    private ValuesSource rangeField() {
+        MappedFieldType fieldType = fieldContext.fieldType();
+
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
+            throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
+        }
+        RangeFieldMapper.RangeFieldType rangeFieldType = (RangeFieldMapper.RangeFieldType)fieldType;
+        return new ValuesSource.Bytes.FieldData.RangeFieldData(fieldContext().indexFieldData(), rangeFieldType.rangeType());
     }
 }

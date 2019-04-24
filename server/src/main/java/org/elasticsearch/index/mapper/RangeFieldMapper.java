@@ -228,6 +228,8 @@ public class RangeFieldMapper extends FieldMapper {
             }
         }
 
+        public RangeType rangeType() { return rangeType; }
+
         @Override
         public MappedFieldType clone() {
             return new RangeFieldType(this);

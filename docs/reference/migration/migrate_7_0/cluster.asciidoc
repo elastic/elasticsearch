@@ -10,6 +10,7 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[_literal_literal_is_no_longer_allowed_in_cluster_name]]
 ==== `:` is no longer allowed in cluster name
 
 Due to cross-cluster search using `:` to separate a cluster and index name,

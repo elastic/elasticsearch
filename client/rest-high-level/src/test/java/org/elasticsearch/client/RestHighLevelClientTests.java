@@ -46,6 +46,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
+import org.elasticsearch.client.dataframe.transforms.SyncConfig;
+import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.indexlifecycle.AllocateAction;
 import org.elasticsearch.client.indexlifecycle.DeleteAction;
 import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
@@ -664,7 +666,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(20, namedXContents.size());
+        assertEquals(21, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -674,7 +676,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 4, categories.size());
+        assertEquals("Had: " + categories, 5, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -698,6 +700,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(ShrinkAction.NAME));
         assertTrue(names.contains(FreezeAction.NAME));
         assertTrue(names.contains(SetPriorityAction.NAME));
+        assertEquals(Integer.valueOf(1), categories.get(SyncConfig.class));
+        assertTrue(names.contains(TimeSyncConfig.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {

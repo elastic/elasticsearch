@@ -27,7 +27,7 @@ import java.io.IOException;
 public class DataFrameAnalyticsDestTests extends AbstractXContentTestCase<DataFrameAnalyticsDest> {
 
     public static DataFrameAnalyticsDest randomDestConfig() {
-        return new DataFrameAnalyticsDest(randomAlphaOfLengthBetween(1, 10));
+        return new DataFrameAnalyticsDest(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override

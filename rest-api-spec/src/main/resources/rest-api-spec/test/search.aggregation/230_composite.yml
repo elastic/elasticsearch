@@ -487,7 +487,7 @@ setup:
 ---
 "Missing source":
   - skip:
-      version: " - 7.99.99" # TODO change after backport
+      version: " - 7.0.99"
       reason:  null/empty sources disallowed in 7.1
 
   - do:
@@ -516,7 +516,7 @@ setup:
 ---
 "Duplicate sources":
   - skip:
-      version: " - 7.99.99" # TODO change after backport
+      version: " - 7.0.99"
       reason:  duplicate names disallowed in 7.1
 
   - do:

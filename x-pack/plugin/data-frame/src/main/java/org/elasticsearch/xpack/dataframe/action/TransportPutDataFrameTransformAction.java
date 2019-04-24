@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -55,7 +55,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
+        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameTransformAction.class);
 
@@ -69,8 +69,8 @@ public class TransportPutDataFrameTransformAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
-        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                PutDataFrameTransformAction.Request::new);
+        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
@@ -84,12 +84,13 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected PutDataFrameTransformAction.Response newResponse() {
-        return new PutDataFrameTransformAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
 
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
@@ -169,7 +170,7 @@ public class TransportPutDataFrameTransformAction
     private void handlePrivsResponse(String username,
                                      DataFrameTransformConfig config,
                                      HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<Response> listener) throws IOException {
+                                     ActionListener<AcknowledgedResponse> listener) throws IOException {
         if (privilegesResponse.isCompleteMatch()) {
             putDataFrame(config, listener);
         } else {
@@ -187,7 +188,7 @@ public class TransportPutDataFrameTransformAction
         }
     }
 
-    private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
+    private void putDataFrame(DataFrameTransformConfig config, ActionListener<AcknowledgedResponse> listener) {
 
         final Pivot pivot = new Pivot(config.getSource().getIndex(),
             config.getSource().getQueryConfig().getQuery(),
@@ -196,7 +197,7 @@ public class TransportPutDataFrameTransformAction
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new Response(true)),
+            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
             listener::onFailure
         );
 

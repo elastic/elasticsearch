@@ -36,11 +36,16 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
@@ -91,10 +96,12 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean acknowledged;
+
+        private final boolean acknowledged;
+
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            acknowledged = in.readBoolean();
         }
 
         public Response(boolean acknowledged, List<TaskOperationFailure> taskFailures, List<FailedNodeException> nodeFailures) {
@@ -106,18 +113,8 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
             this(acknowledged, Collections.emptyList(), Collections.emptyList());
         }
 
-        public Response() {
-            this(false, Collections.emptyList(), Collections.emptyList());
-        }
-
         public boolean isDeleted() {
             return acknowledged;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            acknowledged = in.readBoolean();
         }
 
         @Override

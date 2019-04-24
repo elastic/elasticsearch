@@ -42,11 +42,16 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private PageParams pageParams = PageParams.defaultParams();
 
         public static final int MAX_SIZE_RETURN = 1000;
@@ -145,24 +150,13 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             this.transformsStateAndStats = transformsStateAndStats;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = Collections.emptyList();
-        }
-
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
         }
 
         public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
             return transformsStateAndStats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
         }
 
         @Override

@@ -250,7 +250,7 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
 
         static class TestLeafReader extends FilterLeafReader {
 
-            public TestLeafReader(LeafReader in) {
+            TestLeafReader(LeafReader in) {
                 super(in);
             }
 

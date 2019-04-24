@@ -965,7 +965,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     Arrays.asList(
                         new TermsValuesSourceBuilder("keyword").field("keyword"),
                         new TermsValuesSourceBuilder("long").field("long"),
-                        new TermsValuesSourceBuilder("long").field("double")
+                        new TermsValuesSourceBuilder("double").field("double")
                     )
                 ).aggregateAfter(createAfterKey("keyword", "z", "long", 100L, "double", 0.4d))
             , (result) -> {
@@ -1639,6 +1639,38 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testRandomInts() throws IOException {
         testRandomTerms("price", () -> randomInt(), (v) -> ((Number) v).intValue());
+    }
+
+    public void testDuplicateNames() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            builders.add(new TermsValuesSourceBuilder("duplicate1").field("bar"));
+            builders.add(new TermsValuesSourceBuilder("duplicate1").field("baz"));
+            builders.add(new TermsValuesSourceBuilder("duplicate2").field("bar"));
+            builders.add(new TermsValuesSourceBuilder("duplicate2").field("baz"));
+           new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite source names must be unique, found duplicates: [duplicate2, duplicate1]"));
+    }
+
+    public void testMissingSources() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite [sources] cannot be null or empty"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> new CompositeAggregationBuilder("foo", null));
+        assertThat(e.getMessage(), equalTo("Composite [sources] cannot be null or empty"));
+    }
+
+    public void testNullSourceNonNullCollection() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
+            builders.add(null);
+            new CompositeAggregationBuilder("foo", builders);
+        });
+        assertThat(e.getMessage(), equalTo("Composite source cannot be null"));
     }
 
     private <T extends Comparable<T>, V extends Comparable<T>> void testRandomTerms(String field,

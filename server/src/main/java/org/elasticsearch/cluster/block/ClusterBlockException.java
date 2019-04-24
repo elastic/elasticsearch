@@ -38,6 +38,11 @@ public class ClusterBlockException extends ElasticsearchException {
         this.blocks = blocks;
     }
 
+    public ClusterBlockException(Set<ClusterBlock> blocks, String indexName) {
+        super(buildMessage(blocks, indexName));
+        this.blocks = blocks;
+    }
+
     public ClusterBlockException(StreamInput in) throws IOException {
         super(in);
         int totalBlocks = in.readVInt();
@@ -78,6 +83,14 @@ public class ClusterBlockException extends ElasticsearchException {
         StringBuilder sb = new StringBuilder("blocked by: ");
         for (ClusterBlock block : blocks) {
             sb.append("[").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
+        }
+        return sb.toString();
+    }
+
+    private static String buildMessage(Set<ClusterBlock> blocks, String indexName) {
+        StringBuilder sb = new StringBuilder("blocked by: ");
+        for (ClusterBlock block : blocks) {
+            sb.append("[").append(indexName).append("/").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
         }
         return sb.toString();
     }

@@ -61,7 +61,6 @@ public class EnrichStore {
         if (Strings.isNullOrEmpty(name)) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        // TODO: add policy validation
 
         final Map<String, EnrichPolicy> policies = getPolicies(clusterService.state());
         if (policies.containsKey(name) == false) {

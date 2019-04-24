@@ -104,7 +104,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters").endArray();
+            builder.startArray("filters")
+                .startObject().startObject("term").field("field", "foo").endObject().endObject()
+                .endArray();
             builder.field("other_bucket_key", "some_key");
             builder.endObject();
         }
@@ -116,7 +118,9 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
 
             builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject();
-            builder.startArray("filters").endArray();
+            builder.startArray("filters")
+                .startObject().startObject("term").field("field", "foo").endObject().endObject()
+                .endArray();
             builder.field("other_bucket", false);
             builder.field("other_bucket_key", "some_key");
             builder.endObject();

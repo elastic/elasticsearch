@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
@@ -16,7 +15,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class PutDataFrameTransformActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PutDataFrameTransformActionRequestTests extends AbstractSerializingDataFrameTestCase<Request> {
     private String transformId;
 
     @Before

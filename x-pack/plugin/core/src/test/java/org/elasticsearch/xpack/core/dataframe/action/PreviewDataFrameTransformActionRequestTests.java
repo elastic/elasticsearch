@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
@@ -22,7 +21,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 
-public class PreviewDataFrameTransformActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class PreviewDataFrameTransformActionRequestTests extends AbstractSerializingDataFrameTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {

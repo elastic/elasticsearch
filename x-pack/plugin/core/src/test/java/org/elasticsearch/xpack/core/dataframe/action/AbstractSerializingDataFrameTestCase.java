@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameNamedXContentProvider;
 import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
@@ -23,15 +23,11 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractStreamableXContentDataFrameTestCase<T extends ToXContent & Streamable>
-        extends AbstractStreamableXContentTestCase<T> {
+public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent & Writeable>
+        extends AbstractSerializingTestCase<T> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
-
-    public AbstractStreamableXContentDataFrameTestCase() {
-        super();
-    }
 
     @Before
     public void registerNamedObjects() {

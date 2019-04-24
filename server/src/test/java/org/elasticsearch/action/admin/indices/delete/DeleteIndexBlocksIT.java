@@ -65,13 +65,19 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
     }
 
     public void testClusterBlockMessageHasIndexName() {
-        createIndex("test");
-        ensureGreen("test");
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
-        ClusterBlockException e = expectThrows(ClusterBlockException.class, () ->
-            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get());
-        assertEquals("blocked by: [test/FORBIDDEN/12/index read-only / allow delete (api)];", e.getMessage());
+        try {
+            createIndex("test");
+            ensureGreen("test");
+            Settings settings = Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
+            client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+            ClusterBlockException e = expectThrows(ClusterBlockException.class, () ->
+                client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get());
+            assertEquals("blocked by: [test/FORBIDDEN/12/index read-only / allow delete (api)];", e.getMessage());
+        } finally {
+            Settings settings = Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();
+            assertAcked(client().admin().indices().prepareUpdateSettings("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).
+                setSettings(settings).get());
+        }
     }
 
     public void testDeleteIndexOnReadOnlyAllowDeleteSetting() {

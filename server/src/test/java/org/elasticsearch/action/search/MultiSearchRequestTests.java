@@ -194,7 +194,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(searchRequest.indices().length, equalTo(0));
             assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
         }
-        assertWarnings("support for empty first line in msearch API is deprecated and will be removed");
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed");
     }
 
     public void testEmptyFirstLine2() throws Exception {
@@ -204,7 +204,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             assertThat(searchRequest.indices().length, equalTo(0));
             assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
         }
-        assertWarnings("support for empty first line in msearch API is deprecated and will be removed");
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed");
     }
 
     public void testResponseErrorToXContent() {

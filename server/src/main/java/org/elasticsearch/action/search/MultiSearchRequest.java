@@ -188,7 +188,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
-                deprecationLogger.deprecated("support for empty first line in msearch API is deprecated and will be removed");
+                deprecationLogger.deprecated("support for empty first line before any action metadata in msearch API is deprecated and " +
+                    "will be removed");
                 continue;
             }
 

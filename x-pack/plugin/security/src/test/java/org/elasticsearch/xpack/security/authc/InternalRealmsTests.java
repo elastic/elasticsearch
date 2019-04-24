@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -61,7 +62,7 @@ public class InternalRealmsTests extends ESTestCase {
         String type = randomFrom(NativeRealmSettings.TYPE, FileRealmSettings.TYPE, LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE,
                 PkiRealmSettings.TYPE);
         assertThat(InternalRealms.isStandardRealm(type), is(true));
-        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE);
+        type = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
         assertThat(InternalRealms.isStandardRealm(type), is(false));
     }
 }

@@ -324,7 +324,7 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
         // Delete Multiple Objects
         //
         // https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
-        handlers.insert(nonAuthPath(HttpPost.METHOD_NAME, "/"), (request) -> {
+        final RequestHandler bulkDeleteHandler = request -> {
             final List<String> deletes = new ArrayList<>();
             final List<String> errors = new ArrayList<>();
 
@@ -344,7 +344,6 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                             if (closingOffset != -1) {
                                 offset = offset + startMarker.length();
                                 final String objectName = requestBody.substring(offset, closingOffset);
-
                                 boolean found = false;
                                 for (Bucket bucket : buckets.values()) {
                                     if (bucket.objects.containsKey(objectName)) {
@@ -369,7 +368,9 @@ public class AmazonS3Fixture extends AbstractHttpFixture {
                 }
             }
             return newInternalError(request.getId(), "Something is wrong with this POST multiple deletes request");
-        });
+        };
+        handlers.insert(nonAuthPath(HttpPost.METHOD_NAME, "/"), bulkDeleteHandler);
+        handlers.insert(nonAuthPath(HttpPost.METHOD_NAME, "/{bucket}"), bulkDeleteHandler);
 
         // non-authorized requests
 

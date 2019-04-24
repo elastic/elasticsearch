@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -310,14 +309,6 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
             }
         }
         return Collections.unmodifiableList(builders);
-    }
-
-    private static DateTimeZone toDateTimeZone(final String timezone) {
-        try {
-            return DateTimeZone.forOffsetHours(Integer.parseInt(timezone));
-        } catch (NumberFormatException e) {
-            return DateTimeZone.forID(timezone);
-        }
     }
 }
 

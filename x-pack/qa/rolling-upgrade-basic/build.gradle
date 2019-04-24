@@ -4,9 +4,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts') // to be moved in a later commit
+    testCompile project(':x-pack:qa')
 }
 
 // This is a top level task which we will add dependencies to below.
@@ -141,14 +139,7 @@ task copyXPackRestSpec(type: Copy) {
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
-
-task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)
 
 repositories {
     maven {

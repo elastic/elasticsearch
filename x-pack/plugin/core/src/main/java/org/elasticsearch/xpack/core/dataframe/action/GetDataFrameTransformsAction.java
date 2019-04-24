@@ -63,7 +63,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public String getId() {
@@ -100,7 +100,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Response(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public List<DataFrameTransformConfig> getTransformConfigurations() {

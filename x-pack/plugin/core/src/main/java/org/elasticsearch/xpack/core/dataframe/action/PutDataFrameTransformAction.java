@@ -42,8 +42,9 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
             this.setConfig(config);
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new DataFrameTransformConfig(in);
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -66,12 +67,6 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
         public void setConfig(DataFrameTransformConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new DataFrameTransformConfig(in);
         }
 
         @Override

@@ -10,8 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -61,7 +59,10 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             this.setConfig(config);
         }
 
-        public Request() { }
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new DataFrameTransformConfig(in);
+        }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
             Map<String, Object> content = parser.map();
@@ -97,12 +98,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new DataFrameTransformConfig(in);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
@@ -123,13 +118,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
             }
             Request other = (Request) obj;
             return Objects.equals(config, other.config);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PreviewDataFrameTransformAction action) {
-            super(client, action, new Request());
         }
     }
 

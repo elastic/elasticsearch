@@ -69,8 +69,8 @@ public class TransportPutDataFrameTransformAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
-        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                PutDataFrameTransformAction.Request::new);
+        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;

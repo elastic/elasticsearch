@@ -19,11 +19,6 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTimeZone;
-
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
 import static org.elasticsearch.common.rounding.DateTimeUnit.DAY_OF_MONTH;
 import static org.elasticsearch.common.rounding.DateTimeUnit.HOUR_OF_DAY;
@@ -33,7 +28,6 @@ import static org.elasticsearch.common.rounding.DateTimeUnit.QUARTER;
 import static org.elasticsearch.common.rounding.DateTimeUnit.SECOND_OF_MINUTE;
 import static org.elasticsearch.common.rounding.DateTimeUnit.WEEK_OF_WEEKYEAR;
 import static org.elasticsearch.common.rounding.DateTimeUnit.YEAR_OF_CENTURY;
-import static org.hamcrest.Matchers.is;
 
 public class DateTimeUnitTests extends ESTestCase {
 

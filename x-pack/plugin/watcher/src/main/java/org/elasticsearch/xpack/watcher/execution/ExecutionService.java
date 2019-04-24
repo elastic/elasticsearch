@@ -420,6 +420,7 @@ public class ExecutionService {
             //BulkProcessor which can cause a deadlock see #41390
             genericExecutor.execute(new WatchExecutionTask(ctx, () -> {
                 String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
+                logger.warn(message);
                 WatchRecord record = ctx.abortBeforeExecution(ExecutionState.THREADPOOL_REJECTION, message);
                 try {
                     forcePutHistory(record);

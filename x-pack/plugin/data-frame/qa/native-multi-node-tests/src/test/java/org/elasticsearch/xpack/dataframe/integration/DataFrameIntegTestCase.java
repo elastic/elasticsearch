@@ -5,6 +5,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -106,7 +107,7 @@ public class DataFrameIntegTestCase extends ESIntegTestCase {
         return client().execute(DeleteDataFrameTransformAction.INSTANCE, new DeleteDataFrameTransformAction.Request(id)).actionGet();
     }
 
-    protected PutDataFrameTransformAction.Response putDataFrameTransform(DataFrameTransformConfig config) {
+    protected AcknowledgedResponse putDataFrameTransform(DataFrameTransformConfig config) {
         if (transformConfigs.keySet().contains(config.getId())) {
             throw new IllegalArgumentException("data frame transform [" + config.getId() + "] is already registered");
         }
@@ -333,53 +334,5 @@ public class DataFrameIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
-    }
-
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
-        if (cluster() != null && cluster().size() > 0) {
-            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
-            entries.addAll(new SearchModule(Settings.EMPTY, true, Collections.emptyList()).getNamedWriteables());
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DataFrameTransform.NAME,
-                DataFrameTransform::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class,
-                DataFrameTransformState.NAME,
-                DataFrameTransformState::new));
-            entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetaData.TYPE, TokenMetaData::new));
-            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
-            byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
-            // remove local node reference
-            masterClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
-            Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-            int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
-            String masterId = masterClusterState.nodes().getMasterNodeId();
-            for (Client client : cluster().getClients()) {
-                ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
-                byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
-                // remove local node reference
-                localClusterState = ClusterState.Builder.fromBytes(localClusterStateBytes, null, namedWriteableRegistry);
-                final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
-                // Check that the non-master node has the same version of the cluster state as the master and
-                // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() &&
-                    masterId.equals(localClusterState.nodes().getMasterNodeId())) {
-                    try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                        // but we can compare serialization sizes - they should be the same
-                        assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
-                        // Compare JSON serialization
-                        assertNull("clusterstate JSON serialization does not match",
-                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                    } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                            masterClusterState.toString(), localClusterState.toString());
-                        throw error;
-                    }
-                }
-            }
-        }
     }
 }

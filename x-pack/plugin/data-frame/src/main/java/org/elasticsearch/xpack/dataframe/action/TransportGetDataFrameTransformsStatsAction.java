@@ -16,6 +16,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
@@ -76,14 +77,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
                                                       ClusterService clusterService, Client client,
                                                       DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                       DataFrameTransformsCheckpointService transformsCheckpointService) {
-        super(GetDataFrameTransformsStatsAction.NAME,
-            clusterService,
-            transportService,
-            actionFilters,
-            Request::new,
-            Response::new,
-            Response::new,
-            ThreadPool.Names.SAME);
+        super(GetDataFrameTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+            Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformsCheckpointService = transformsCheckpointService;
@@ -114,7 +109,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
                                 task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
                         Collections.emptyList(),
-                        Collections.singletonList(new ElasticsearchException("Failed to retrieve checkpointing info", e))));
+                        Collections.singletonList(new FailedNodeException("", "Failed to retrieve checkpointing info", e))));
             }));
         } else {
             listener.onResponse(new Response(Collections.emptyList()));
@@ -163,10 +158,16 @@ public class TransportGetDataFrameTransformsStatsAction extends
             searchResponse -> {
                 List<ElasticsearchException> nodeFailures = new ArrayList<>(response.getNodeFailures());
                 if (searchResponse.getShardFailures().length > 0) {
+                    for(ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                        String nodeId = "";
+                        if (shardSearchFailure.shard() != null) {
+                            nodeId = shardSearchFailure.shard().getNodeId();
+                        }
+                        nodeFailures.add(new FailedNodeException(nodeId, shardSearchFailure.toString(), shardSearchFailure.getCause()));
+                    }
                     String msg = "transform statistics document search returned shard failures: " +
                         Arrays.toString(searchResponse.getShardFailures());
                     logger.error(msg);
-                    nodeFailures.add(new ElasticsearchException(msg));
                 }
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
                 for(SearchHit hit : searchResponse.getHits().getHits()) {

@@ -1,14 +1,10 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -44,15 +40,14 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             "reviews-by-user-business-day",
             REVIEWS_INDEX_NAME);
 
-        putDataFrameTransform(config);
+        assertTrue(putDataFrameTransform(config).isAcknowledged());
         registerTransform(config);
-        startDataFrameTransform(config.getId());
+        assertTrue(startDataFrameTransform(config.getId()).isStarted());
 
         waitUntilCheckpoint(config.getId(), 1L);
 
         DataFrameTransformStateAndStats stats = getDataFrameTransformStats(config.getId()).getTransformsStateAndStats().get(0);
 
-        System.out.println("GOT MAH STATSTESS!!!!!" + Strings.toString(stats, true, true));
         assertThat(stats.getTransformState().getIndexerState(), equalTo(IndexerState.STARTED));
     }
 

@@ -6,9 +6,6 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
-import jdk.jshell.execution.StreamingExecutionControl;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;

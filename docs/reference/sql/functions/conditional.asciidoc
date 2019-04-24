@@ -223,6 +223,52 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnFirst]
 include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 ----
 
+[[sql-functions-conditional-iif]]
+==== `IFF`
+
+.Synopsis:
+[source, sql]
+----
+IIF(expression<1>, expression<2>, [expression<3>])
+----
+
+*Input*:
+
+<1> boolean condition to check
+
+<2> return value if the boolean condition evaluates to `true`
+
+<3> return value if the boolean condition evaluates `false`; optional
+
+*Output*: 2nd expression if 1st expression (condition) evaluates to `true`. If it evaluates to `false`
+return 3rd expression. If 3rd expression is not provided return `null`.
+
+.Description
+
+Conditional function that implements the standard _IF <condition> THEN <result1> ELSE <result2>_
+logic of programming languages. If the 3rd expression is not provided and the condition evaluates to `false`,
+`null` is returned.
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithDefaultValue]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithoutDefaultValue]
+----
+
+[TIP]
+=================
+*IIF* functions can be combined to implement more complex logic simulating the <<sql-functions-conditional-case>>
+expression. E.g.:
+
+[source, sql]
+IIF(a = 1, 'one', IIF(a = 2, 'two', IIF(a = 3, 'three', 'many')))
+=================
+
 
 [[sql-functions-conditional-isnull]]
 ==== `ISNULL`

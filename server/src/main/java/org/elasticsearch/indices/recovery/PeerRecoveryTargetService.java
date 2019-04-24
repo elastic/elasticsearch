@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -119,8 +120,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
-                new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
+            new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(
@@ -501,16 +502,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
+                final IndexMetaData indexMetaData = clusterService.state().metaData().index(request.shardId().getIndex());
+                final long mappingVersionOnTarget = indexMetaData != null ? indexMetaData.getMappingVersion() : 0L;
                 recoveryTarget.indexTranslogOperations(
                         request.operations(),
                         request.totalTranslogOps(),
                         request.maxSeenAutoIdTimestampOnPrimary(),
                         request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
                         request.retentionLeases(),
+                        request.mappingVersionOnPrimary(),
                         ActionListener.wrap(
                                 checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
-                                    if (e instanceof MapperException) {
+                                    // do not retry if the mapping on replica is at least as recent as the mapping
+                                    // that the primary used to index the operations in the request.
+                                    if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
                                         retryOnMappingException.accept(e);
                                     } else {
                                         listener.onFailure(e);

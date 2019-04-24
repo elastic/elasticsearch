@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -80,14 +79,16 @@ public class MockEventuallyConsistentRepository extends FsRepository {
      */
     public static final class Context {
 
-        /**
-         * Map of blob path to a tuple of cached non-existent blobs in them and a map of child blob name to {@link Runnable} that when
-         * executed will create the blob.
-         */
-        private final Map<BlobPath, Tuple<Set<String>, Map<String, Runnable>>> state = new HashMap<>();
+        private final Map<BlobPath, Set<String>> cachedMisses = new HashMap<>();
 
-        public Tuple<Set<String>, Map<String, Runnable>> getState(BlobPath path) {
-            return state.computeIfAbsent(path, p -> new Tuple<>(new HashSet<>(), new HashMap<>()));
+        private final Map<BlobPath, Map<String, Runnable>> pendingWriteActions = new HashMap<>();
+
+        private Map<String, Runnable> pendingActions(BlobPath path) {
+            return pendingWriteActions.computeIfAbsent(path, p -> new HashMap<>());
+        }
+
+        private Set<String> cachedMisses(BlobPath path) {
+            return cachedMisses.computeIfAbsent(path, p -> new HashSet<>());
         }
     }
 
@@ -99,7 +100,7 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            return new MockBlobContainer(super.blobContainer(path), context.getState(path));
+            return new MockBlobContainer(super.blobContainer(path), context.cachedMisses(path), context.pendingActions(path));
         }
 
         private class MockBlobContainer extends BlobContainerWrapper {
@@ -108,10 +109,10 @@ public class MockEventuallyConsistentRepository extends FsRepository {
 
             private final Map<String, Runnable> pendingWrites;
 
-            MockBlobContainer(BlobContainer delegate, Tuple<Set<String>, Map<String, Runnable>> state) {
+            MockBlobContainer(BlobContainer delegate, Set<String> cachedMisses, Map<String, Runnable> pendingWrites) {
                 super(delegate);
-                cachedMisses = state.v1();
-                pendingWrites = state.v2();
+                this.cachedMisses = cachedMisses;
+                this.pendingWrites = pendingWrites;
             }
 
             @Override
@@ -170,6 +171,7 @@ public class MockEventuallyConsistentRepository extends FsRepository {
                     try {
                         super.writeBlob(blobName, new ByteArrayInputStream(baos.toByteArray()), blobSize, failIfAlreadyExists);
                         if (cachedMisses.contains(blobName)) {
+                            // Remove cached missing blob later to simulate inconsistency between list and get calls.
                             deterministicTaskQueue.scheduleNow(() -> cachedMisses.remove(blobName));
                         }
                     } catch (NoSuchFileException | FileAlreadyExistsException e) {

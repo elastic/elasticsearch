@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,16 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).
                 setSettings(settings).get());
         }
+    }
+
+    public void testClusterBlockMessageHasIndexName() {
+        createIndex("test");
+        ensureGreen("test");
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE, true).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settings).get();
+        ClusterBlockException e = expectThrows(ClusterBlockException.class, () ->
+            client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get());
+        assertEquals("blocked by: [test/FORBIDDEN/12/index read-only / allow delete (api)];", e.getMessage());
     }
 
     public void testDeleteIndexOnReadOnlyAllowDeleteSetting() {

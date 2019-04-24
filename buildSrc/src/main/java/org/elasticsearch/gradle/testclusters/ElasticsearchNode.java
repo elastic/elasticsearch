@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
@@ -63,7 +64,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final int NODE_UP_TIMEOUT = 60;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
-        "path.repo"
+        "path.repo",
+        "discovery.seed_providers"
     );
 
     private final String path;
@@ -79,6 +81,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final List<File> modules = new ArrayList<>();
     private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
+    private final Map<String, FileSupplier> keystoreFiles = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
     private final Map<String, File> extraConfigFiles = new HashMap<>();
@@ -172,6 +175,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void keystore(String key, File value) {
+        addSupplier("Keystore", keystoreFiles, key, () -> value);
+    }
+
+    @Override
+    public void keystore(String key, FileSupplier valueSupplier) {
+        addSupplier("Keystore", keystoreFiles, key, valueSupplier);
+    }
+
+    @Override
     public void setting(String key, String value) {
         addSupplier("Settings", settings, key, value);
     }
@@ -202,6 +215,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, Supplier<CharSequence> valueSupplier) {
+        requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
+        requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
+        collector.put(key, valueSupplier);
+    }
+
+    private void addSupplier(String name, Map<String, FileSupplier> collector, String key, File actualValue) {
+        requireNonNull(actualValue, name + " value was null when configuring test cluster `" + this + "`");
+        if (actualValue.exists()) {
+            throw new TestClustersException("Found a non existent file " + actualValue + " while configuring " + this);
+        }
+        addSupplier(name, collector, key, () -> actualValue);
+    }
+
+    private void addSupplier(String name, Map<String, FileSupplier> collector, String key, FileSupplier valueSupplier) {
         requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
         requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
         collector.put(key, valueSupplier);
@@ -281,12 +308,24 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             "install", "--batch", plugin.toString())
         );
 
-        if (keystoreSettings.isEmpty() == false) {
-            checkSuppliers("Keystore", keystoreSettings);
+        if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
-            keystoreSettings.forEach((key, value) -> {
-                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key);
-            });
+
+            checkSuppliers("Keystore", keystoreSettings);
+            keystoreSettings.forEach((key, value) ->
+                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key)
+            );
+
+            keystoreFiles.values().stream()
+                .map(each -> each.get())
+                .filter(each -> each == null || each.exists() == false)
+                .forEach(each -> {
+                    requireNonNull("supplied keystoreFile was null when configuring test cluster `" + this + "`");
+                    throw new TestClustersException("supplied keystore file " + each + " does not exist, require for " + this);
+                });
+            keystoreFiles.forEach((key, value) ->
+                runElaticsearchBinScript("elasticsearch-keystore", "add-file", key, value.get().toString())
+            );
         }
 
         installModules();

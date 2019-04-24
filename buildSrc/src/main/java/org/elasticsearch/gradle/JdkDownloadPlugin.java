@@ -56,7 +56,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
     public void apply(Project project) {
 
         // create usesJdk task "method"
-        project.getTasks().all(task ->
+        project.getTasks().configureEach(task -> {
             task.getExtensions().findByType(ExtraPropertiesExtension.class).set("usesJdk", new Closure<Void>(project, task) {
                 public void doCall(String version, String platform) {
                     if (version == null) {
@@ -68,8 +68,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     if (ALLOWED_PLATFORMS.contains(platform) == false) {
                         throw new IllegalArgumentException("platform must be one of " + ALLOWED_PLATFORMS);
                     }
-                    ExtraPropertiesExtension extraProperties = task.getExtensions().findByType(ExtraPropertiesExtension.class);
-                    if (extraProperties.has("jdkHome")) {
+                    if (task.getExtensions().findByName(("jdkHome")) != null) {
                         throw new IllegalArgumentException("jdk version already set for task");
                     }
 
@@ -99,10 +98,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                             return configurations.getByName(configurationName).getSingleFile().toString();
                         }
                     };
-                    extraProperties.set("jdkHome", jdkHomeGetter);
+                    task.getExtensions().create("jdkHome", Object.class, jdkHomeGetter);
                 }
-            })
-        );
+            });
+        });
     }
 
     private static void setupRootJdkDownload(Project rootProject, String platform, String version) {
@@ -131,6 +130,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 ivyRepo.patternLayout(layout -> {
                     layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]");
                 });
+                ivyRepo.content(content -> content.includeGroup("jdk"));
             });
         }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -217,14 +216,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
 
             final long minGenerationToRecoverFrom;
-            if (checkpoint.minTranslogGeneration < 0) {
-                final Version indexVersionCreated = indexSettings().getIndexVersionCreated();
-                assert indexVersionCreated.before(Version.V_6_0_0_beta1) :
-                    "no minTranslogGeneration in checkpoint, but index was created with version [" + indexVersionCreated + "]";
-                minGenerationToRecoverFrom = deletionPolicy.getMinTranslogGenerationForRecovery();
-            } else {
-                minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
-            }
+            assert checkpoint.minTranslogGeneration > 0 : "minTranslogGeneration < 0 should not happen if index was created with version"
+                    + " > 7.0, but version created was [" + indexSettings().getIndexVersionCreated() + "]";
+            minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
 
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
             // we open files in reverse order in order to validate tranlsog uuid before we start traversing the translog based on
@@ -882,6 +876,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.size = size;
         }
 
+        @Override
         public String toString() {
             return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
         }

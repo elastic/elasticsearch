@@ -483,3 +483,65 @@ setup:
   - match: { aggregations.test.buckets.0.key.long: 1000 }
   - match: { aggregations.test.buckets.0.key.kw: "bar" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
+
+---
+"Missing source":
+  - skip:
+      version: " - 7.99.99" # TODO change after backport
+      reason:  null/empty sources disallowed in 7.1
+
+  - do:
+        catch: /Composite \[sources\] cannot be null or empty/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: []
+
+  - do:
+        catch: /Required \[sources\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  size: 1
+
+
+---
+"Duplicate sources":
+  - skip:
+      version: " - 7.99.99" # TODO change after backport
+      reason:  duplicate names disallowed in 7.1
+
+  - do:
+        catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
+        search:
+          rest_total_hits_as_int: true
+          index: test
+          body:
+            aggregations:
+              test:
+                composite:
+                  sources: [
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    },
+                    {
+                      "keyword": {
+                        "terms": {
+                          "field": "keyword",
+                        }
+                      }
+                    }
+                  ]
+

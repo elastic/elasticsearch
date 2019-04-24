@@ -213,16 +213,17 @@ valueExpression
     ;
 
 primaryExpression
-    : castExpression                                                                 #cast
-    | primaryExpression CAST_OP dataType                                             #castOperatorExpression
-    | extractExpression                                                              #extract
-    | builtinDateTimeFunction                                                        #currentDateTimeFunction
-    | constant                                                                       #constantDefault
-    | (qualifiedName DOT)? ASTERISK                                                  #star
-    | functionExpression                                                             #function
-    | '(' query ')'                                                                  #subqueryExpression
-    | qualifiedName                                                                  #dereference
-    | '(' expression ')'                                                             #parenthesizedExpression
+    : castExpression                                                                           #cast
+    | primaryExpression CAST_OP dataType                                                       #castOperatorExpression
+    | extractExpression                                                                        #extract
+    | builtinDateTimeFunction                                                                  #currentDateTimeFunction
+    | constant                                                                                 #constantDefault
+    | (qualifiedName DOT)? ASTERISK                                                            #star
+    | functionExpression                                                                       #function
+    | '(' query ')'                                                                            #subqueryExpression
+    | qualifiedName                                                                            #dereference
+    | '(' expression ')'                                                                       #parenthesizedExpression
+    | CASE (operand=booleanExpression)? whenClause+ (ELSE elseClause=booleanExpression)? END   #case
     ;
 
 builtinDateTimeFunction
@@ -337,6 +338,10 @@ string
     | STRING
     ;
 
+whenClause
+    : WHEN condition=expression THEN result=expression
+    ;
+
 // http://developer.mimer.se/validator/sql-reserved-words.tml
 nonReserved
     : ANALYZE | ANALYZED 
@@ -368,6 +373,7 @@ AS: 'AS';
 ASC: 'ASC';
 BETWEEN: 'BETWEEN';
 BY: 'BY';
+CASE: 'CASE';
 CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
@@ -382,6 +388,8 @@ DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
 DISTINCT: 'DISTINCT';
+ELSE: 'ELSE';
+END: 'END';
 ESCAPE: 'ESCAPE';
 EXECUTABLE: 'EXECUTABLE';
 EXISTS: 'EXISTS';
@@ -437,12 +445,14 @@ SYS: 'SYS';
 TABLE: 'TABLE';
 TABLES: 'TABLES';
 TEXT: 'TEXT';
+THEN: 'THEN';
 TRUE: 'TRUE';
 TO: 'TO';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
 VERIFY: 'VERIFY';
+WHEN: 'WHEN';
 WHERE: 'WHERE';
 WITH: 'WITH';
 YEAR: 'YEAR';

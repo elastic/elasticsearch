@@ -84,10 +84,8 @@ sourceSets {
   }
 }
 compileMinimumRuntimeGroovy {
-  // We can't use BuildPlugin here, so read from file
-  String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
-  targetCompatibility = minimumRuntimeVersion
-  sourceCompatibility = minimumRuntimeVersion
+  targetCompatibility = 8
+  sourceCompatibility = 8
 }
 dependencies {
   if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {

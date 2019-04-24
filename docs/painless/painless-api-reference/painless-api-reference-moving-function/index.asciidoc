@@ -1,0 +1,16 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-moving-function]]
+=== Moving Function API
+
+The following specialized API is available in the Moving Function context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== org.elasticsearch.search.aggregations.pipeline
+<<painless-api-reference-moving-function-org-elasticsearch-search-aggregations-pipeline, Expand details for org.elasticsearch.search.aggregations.pipeline>>
+
+* <<painless-api-reference-moving-function-MovingFunctions, MovingFunctions>>
+
+include::packages.asciidoc[]
+

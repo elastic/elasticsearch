@@ -6,21 +6,21 @@ String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_ver
 task getLinuxJdk {
     usesJdk fakeJdkVersion, 'linux'
     doLast {
-        println "JDK HOME: " + jdkHome
+        println "JDK HOME: " + jdk.home
     }
 }
 
 task getDarwinJdk {
     usesJdk fakeJdkVersion, 'darwin'
     doLast {
-        println "JDK HOME: " + jdkHome
+        println "JDK HOME: " + jdk.home
     }
 }
 
 task getWindowsJdk {
     usesJdk fakeJdkVersion, 'windows'
     doLast {
-        println "JDK HOME: " + jdkHome
+        println "JDK HOME: " + jdk.home
     }
 }
 

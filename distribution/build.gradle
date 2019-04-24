@@ -17,18 +17,16 @@
  * under the License.
  */
 
+
+import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.ConcatFilesTask
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
-import org.apache.tools.ant.filters.FixCrLfFilter
 
 import java.nio.file.Files
-import java.nio.file.Path
-import java.util.regex.Matcher
-import java.util.regex.Pattern
-
+import java.nio.file.Path 
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -379,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         } 
       }
       return copySpec {
-        from { getJdkTask.jdkHome.toString() }
+        from getJdkTask.jdk.configuration
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755

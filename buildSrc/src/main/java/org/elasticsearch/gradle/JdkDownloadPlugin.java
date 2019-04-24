@@ -70,7 +70,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     if (ALLOWED_PLATFORMS.contains(platform) == false) {
                         throw new IllegalArgumentException("platform must be one of " + ALLOWED_PLATFORMS);
                     }
-                    if (extraProperties.has("jdkHome")) {
+                    if (extraProperties.has("jdk")) {
                         throw new IllegalArgumentException("jdk version already set for task");
                     }
 
@@ -93,14 +93,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     depConfig.put("configuration", configName("localjdk", version, platform));
                     dependencies.add(configurationName, dependencies.project(depConfig));
 
-                    // add jdkHome runtime property to the task
-                    Object jdkHomeGetter = new Object() {
-                        @Override
-                        public String toString() {
-                            return configurations.getByName(configurationName).getSingleFile().toString();
-                        }
-                    };
-                    extraProperties.set("jdkHome", jdkHomeGetter);
+                    // add extension to access the resolved jdk
+                    extraProperties.set("jdk", new JdkDownloadExtension(configurations.getByName(configurationName)));
                 }
             });
         });

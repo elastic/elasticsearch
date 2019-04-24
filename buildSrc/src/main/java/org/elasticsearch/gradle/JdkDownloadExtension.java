@@ -19,5 +19,24 @@
 
 package org.elasticsearch.gradle;
 
+import org.gradle.api.artifacts.Configuration;
+
+import java.io.File;
+import java.util.function.Supplier;
+
 public class JdkDownloadExtension {
+
+    private final Configuration configuration;
+
+    JdkDownloadExtension(Configuration configuration) {
+        this.configuration = configuration;
+    }
+
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
+    public Supplier<File> getHomeDir() {
+        return configuration::getSingleFile;
+    }
 }

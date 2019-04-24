@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.gradle.tool;
 
-import org.gradle.api.*;
+import org.gradle.api.Action;
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSetContainer;
 

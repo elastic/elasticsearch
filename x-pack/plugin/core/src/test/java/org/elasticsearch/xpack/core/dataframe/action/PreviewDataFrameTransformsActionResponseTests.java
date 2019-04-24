@@ -6,8 +6,9 @@
 
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Response;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PreviewDataFrameTransformsActionResponseTests extends AbstractStreamableXContentTestCase<Response> {
+public class PreviewDataFrameTransformsActionResponseTests extends AbstractSerializingTestCase<Response> {
 
 
     @Override
@@ -25,8 +26,8 @@ public class PreviewDataFrameTransformsActionResponseTests extends AbstractStrea
     }
 
     @Override
-    protected Response createBlankInstance() {
-        return new Response();
+    protected Writeable.Reader<Response> instanceReader() {
+        return Response::new;
     }
 
     @Override

@@ -253,6 +253,16 @@ setup:
 "Bad params":
 
   - do:
+      catch: /\[filters\] cannot be empty/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters: {}
+
+  - do:
+      catch: /\[filters\] cannot be empty/
       search:
         rest_total_hits_as_int: true
         body:

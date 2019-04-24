@@ -22,6 +22,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse.AnalyzeToken;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -82,8 +83,8 @@ public class SynonymAnalyzerIT extends ESIntegTestCase {
         }
         assertTrue(Files.exists(synonymsFile));
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", cluster().numDataNodes() * 2)
+                .put("index.number_of_replicas", 1)
                 .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
                 .put("analysis.analyzer.my_synonym_analyzer.filter", "my_synonym_filter")
                 .put("analysis.filter.my_synonym_filter.type", "synonym")
@@ -108,8 +109,9 @@ public class SynonymAnalyzerIT extends ESIntegTestCase {
                 new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
             out.println("foo, baz, buzz");
         }
-        // TODO don't use refresh here but something more specific
-        assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
+        ReloadAnalyzersResponse reloadResponse = client().admin().indices().prepareReloadAnalyzers("test").execute().actionGet();
+        assertNoFailures(reloadResponse);
+        assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
 
         analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(3, analyzeResponse.getTokens().size());

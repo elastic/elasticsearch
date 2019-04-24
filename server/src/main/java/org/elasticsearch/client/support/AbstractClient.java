@@ -207,6 +207,10 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzerAction;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzerRequestBuilder;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
@@ -1521,6 +1525,11 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ReloadAnalyzerRequestBuilder prepareReloadAnalyzers(String... indices) {
+            return new ReloadAnalyzerRequestBuilder(this, ReloadAnalyzerAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
         public ActionFuture<IndicesStatsResponse> stats(final IndicesStatsRequest request) {
             return execute(IndicesStatsAction.INSTANCE, request);
         }
@@ -1724,6 +1733,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void getSettings(GetSettingsRequest request, ActionListener<GetSettingsResponse> listener) {
             execute(GetSettingsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<ReloadAnalyzersResponse> reloadAnalyzers(ReloadAnalyzersRequest request) {
+            return execute(ReloadAnalyzerAction.INSTANCE, request);
+        }
+
+        @Override
+        public void reloadAnalyzers(final ReloadAnalyzersRequest request, final ActionListener<ReloadAnalyzersResponse> listener) {
+            execute(ReloadAnalyzerAction.INSTANCE, request, listener);
         }
     }
 

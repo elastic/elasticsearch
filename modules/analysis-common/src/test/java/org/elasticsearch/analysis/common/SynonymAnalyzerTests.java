@@ -67,7 +67,7 @@ public class SynonymAnalyzerTests extends ESSingleNodeTestCase {
         }
 
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-                .put("index.number_of_shards", 1)
+                .put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.analyzer.my_synonym_analyzer.tokenizer", "standard")
                 .putList("analysis.analyzer.my_synonym_analyzer.filter", "lowercase", "my_synonym_filter")
@@ -93,8 +93,7 @@ public class SynonymAnalyzerTests extends ESSingleNodeTestCase {
                 new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
             out.println("foo, baz, buzz");
         }
-        // TODO don't use refresh here but something more specific
-        assertNoFailures(client().admin().indices().prepareRefresh("test").execute().actionGet());
+        assertNoFailures(client().admin().indices().prepareReloadAnalyzers("test").execute().actionGet());
 
         analyzeResponse = client().admin().indices().prepareAnalyze("test", "Foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(3, analyzeResponse.getTokens().size());

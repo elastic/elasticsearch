@@ -38,7 +38,9 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -46,6 +48,11 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
+/**
+ * Used to publish secure setting hashes in the cluster state and to validate those hashes against the local values of those same settings.
+ * This is colloquially referred to as the secure setting consistency check. It will publish and verify hashes only for the collection
+ * of settings passed in the constructor. The settings have to have the {@link Setting.Property#Consistent} property. 
+ */
 public final class ConsistentSettingsService {
     private static final Logger logger = LogManager.getLogger(ConsistentSettingsService.class);
 
@@ -67,6 +74,10 @@ public final class ConsistentSettingsService {
         }
     }
 
+    /**
+     * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
+     * published by the master node only. Note that this is not designed for {@link SecureStrings} implementations that are mutable.
+     */
     public LocalNodeMasterListener newHashPublisher() {
         return new LocalNodeMasterListener() {
 
@@ -109,9 +120,16 @@ public final class ConsistentSettingsService {
         };
     }
 
+    /**
+     * Verifies that the hashes of consistent secure settings in the latest {@code ClusterState} verify for the values of those same
+     * settings on the local node. The settings to be checked are passed in the constructor. Also, validates that a missing local
+     * value is also missing in the published set, and vice-versa.  
+     */
     public boolean areAllConsistent() {
         final ClusterState state = clusterService.state();
         final Map<String, String> publishedHashesOfConsistentSettings = state.metaData().hashesOfConsistentSettings();
+        final Set<String> publishedSettingKeysToVerify = new HashSet<>();
+        publishedSettingKeysToVerify.addAll(publishedHashesOfConsistentSettings.keySet());
         final AtomicBoolean allConsistent = new AtomicBoolean(true);
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
             final String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(concreteSecureSetting.getKey());
@@ -131,7 +149,7 @@ public final class ConsistentSettingsService {
                 allConsistent.set(false);
             } else if (publishedSaltAndHash != null && localHash == null) {
                 // setting missing locally but present on master
-                logger.warn("the consistent secure setting [{}] does not exist on the local node but there is published hash for it",
+                logger.warn("the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
                         concreteSecureSetting.getKey());
                 allConsistent.set(false);
             } else {
@@ -157,10 +175,26 @@ public final class ConsistentSettingsService {
                     allConsistent.set(false);
                 }
             }
+            publishedSettingKeysToVerify.remove(concreteSecureSetting.getKey());
         });
+        // another case of settings missing locally, when group settings have not expanded to all the keys published
+        for (String publishedSettingKey : publishedSettingKeysToVerify) {
+            for (Setting<?> setting : secureSettingsCollection) {
+                if (setting.match(publishedSettingKey)) {
+                    // setting missing locally but present on master
+                    logger.warn("the consistent secure setting [{}] does not exist on the local node but there is a published hash for it",
+                            publishedSettingKey);
+                    allConsistent.set(false);
+                }
+            }
+        }
         return allConsistent.get();
     }
 
+    /**
+     * Iterate over the passed in secure settings, expanding {@link Setting.AffixSetting} to concrete settings, in the scope of the local
+     * settings.
+     */
     private void forEachConcreteSecureSettingDo(Consumer<SecureSetting<?>> secureSettingConsumer) {
         for (Setting<?> setting : secureSettingsCollection) {
             assert setting.isConsistent() : "[" + setting.getKey() + "] is not a consistent setting";

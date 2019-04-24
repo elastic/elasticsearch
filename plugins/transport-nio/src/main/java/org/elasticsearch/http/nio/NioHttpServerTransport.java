@@ -152,6 +152,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         return nioGroup.bindServerChannel(socketAddress, channelFactory);
     }
 
+    @Override
+    protected void onException(HttpChannel channel, Exception cause) {
+        super.onException(channel, cause);
+    }
+
     protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
         return new HttpChannelFactory();
     }

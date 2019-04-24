@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -72,6 +73,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -349,7 +351,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         reset(taskScheduler);
         timeoutTask.getAllValues().get(0).run();
         // There was a read. Do not close.
-        verify(nioHttpChannel, times(0)).close();
+        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
         verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
 
         prepareHandlerForResponse(handler);
@@ -358,7 +360,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         reset(taskScheduler);
         timeoutTask.getAllValues().get(1).run();
         // There was a read. Do not close.
-        verify(nioHttpChannel, times(0)).close();
+        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
         verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
 
         handler.writeToBytes(writeOperation);
@@ -366,7 +368,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         reset(taskScheduler);
         timeoutTask.getAllValues().get(2).run();
         // There has not been a read, however there is still an inflight request. Do not close.
-        verify(nioHttpChannel, times(0)).close();
+        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
         verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
 
         handler.writeToBytes(writeOperation);
@@ -374,7 +376,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         reset(taskScheduler);
         timeoutTask.getAllValues().get(3).run();
         // No reads and no inflight requests, close
-        verify(nioHttpChannel, times(1)).close();
+        verify(transport, times(1)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
         verify(taskScheduler, times(0)).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
     }
 

@@ -30,8 +30,10 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.http.nio.cors.NioCorsHandler;
 import org.elasticsearch.nio.FlushOperation;
@@ -175,7 +177,8 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     private void maybeReadTimeout() {
         if (requestSinceReadTimeoutTrigger == false && inFlightRequests == 0) {
-            nioHttpChannel.close();
+            String message = "http read time after " + TimeValue.nsecToMSec(readTimeoutNanos) + "ms";
+            transport.onException(nioHttpChannel, new HttpReadTimeoutException(message));
         } else {
             requestSinceReadTimeoutTrigger = false;
             scheduleReadTimeout();

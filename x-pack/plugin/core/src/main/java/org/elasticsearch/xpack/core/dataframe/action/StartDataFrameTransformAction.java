@@ -43,20 +43,18 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String id;
-        private boolean force;
+        private final String id;
+        private final boolean force;
 
         public Request(String id, boolean force) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
             this.force = force;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            force = in.readBoolean();
         }
 
         public String getId() {
@@ -71,6 +69,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeBoolean(force);
         }
 
         @Override

@@ -10,7 +10,6 @@
 // end::notable-breaking-changes[]
 
 [float]
-[[ilm-poll-interval-limit]]
 ==== StartRollupJob endpoint returns success if job already started
 
 Previously, attempting to start an already-started rollup job would

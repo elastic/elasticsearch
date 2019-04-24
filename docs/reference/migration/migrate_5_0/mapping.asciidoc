@@ -1,6 +1,7 @@
 [[breaking_50_mapping_changes]]
 === Mapping changes
 
+[[_literal_string_literal_fields_replaced_by_literal_text_literal_literal_keyword_literal_fields]]
 ==== `string` fields replaced by `text`/`keyword` fields
 
 The `string` field datatype has been replaced by the `text` field for full

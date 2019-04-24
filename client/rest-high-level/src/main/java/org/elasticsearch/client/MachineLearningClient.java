@@ -25,6 +25,7 @@ import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -47,6 +48,8 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -78,6 +81,8 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -1872,6 +1877,125 @@ public final class MachineLearningClient {
     public void setUpgradeModeAsync(SetUpgradeModeRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::setUpgradeMode,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Create a new data frame analytics config
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html">
+     * ML create calendar documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutDataFrameAnalyticsResponse} containing the config
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Create a new machine learning calendar, notifies listener with the created calendar
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html">
+     * ML create calendar documentation</a>
+     *
+     * @param request  The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<PutDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple calendars.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDataFrameAnalyticsResponse} response object containing the {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * objects
+     */
+    public GetDataFrameAnalyticsResponse getDataFrameAnalytics(GetDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple calendars, notifies listener once the requested records are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameAnalyticsAsync(GetDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<GetDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+
+    /**
+     * Deletes the given Machine Learning Calendar
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info see
+     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
+     *     ML Delete calendar documentation</a>
+     *
+     * @param request The request
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
             options,
             AcknowledgedResponse::fromXContent,
             listener,

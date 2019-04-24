@@ -31,6 +31,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetFiltersRequest;
@@ -60,6 +62,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -572,6 +575,38 @@ final class MLRequestConverters {
             .addPathPart(deleteCalendarEventRequest.getCalendarId())
             .addPathPartAsIs("events")
             .addPathPart(deleteCalendarEventRequest.getEventId())
+            .build();
+        return new Request(HttpDelete.METHOD_NAME, endpoint);
+    }
+
+    static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("data_frame")
+            .addPathPartAsIs("analytics")
+            .addPathPart(putRequest.getConfig().getId())
+            .build();
+        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getDataFrameAnalytics(GetDataFrameAnalyticsRequest getRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("data_frame")
+            .addPathPartAsIs("analytics")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
+            .build();
+        return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest deleteRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("data_frame")
+            .addPathPartAsIs("analytics")
+            .addPathPart(deleteRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }

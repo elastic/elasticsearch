@@ -707,6 +707,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
+        System.out.println("source xxx = " + source.utf8ToString());
         return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 

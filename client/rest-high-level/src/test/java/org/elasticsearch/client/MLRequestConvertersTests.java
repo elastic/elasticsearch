@@ -154,7 +154,6 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(Boolean.toString(true), request.getParameters().get("allow_no_jobs"));
     }
 
-
     public void testOpenJob() throws Exception {
         String jobId = "some-job-id";
         OpenJobRequest openJobRequest = new OpenJobRequest(jobId);

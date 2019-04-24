@@ -21,12 +21,20 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Encapsulates an accumulation of validation errors
  */
 public class ValidationException extends IllegalArgumentException {
+
+    public static ValidationException withError(String error) {
+        ValidationException e = new ValidationException();
+        e.addValidationError(error);
+        return e;
+    }
+
     private final List<String> validationErrors = new ArrayList<>();
 
     /**

@@ -993,7 +993,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @TestLogging(value = "org.elasticsearch.transport.TransportService.tracer:trace")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40586")
     public void testTracerLog() throws Exception {
         TransportRequestHandler<TransportRequest> handler = (request, channel, task) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler<StringMessageRequest> handlerWithError = (request, channel, task) -> {

@@ -1895,7 +1895,8 @@ public final class MachineLearningClient {
      * @return The {@link PutDataFrameAnalyticsResponse} containing the config
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+    public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::putDataFrameAnalytics,
             options,
@@ -1914,7 +1915,8 @@ public final class MachineLearningClient {
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<PutDataFrameAnalyticsResponse> listener) {
+    public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<PutDataFrameAnalyticsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::putDataFrameAnalytics,
             options,
@@ -1931,10 +1933,11 @@ public final class MachineLearningClient {
      *
      * @param request The request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return {@link GetDataFrameAnalyticsResponse} response object containing the {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
-     * objects
+     * @return {@link GetDataFrameAnalyticsResponse} response object containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig} objects
      */
-    public GetDataFrameAnalyticsResponse getDataFrameAnalytics(GetDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+    public GetDataFrameAnalyticsResponse getDataFrameAnalytics(GetDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::getDataFrameAnalytics,
             options,
@@ -1952,7 +1955,8 @@ public final class MachineLearningClient {
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void getDataFrameAnalyticsAsync(GetDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<GetDataFrameAnalyticsResponse> listener) {
+    public void getDataFrameAnalyticsAsync(GetDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<GetDataFrameAnalyticsResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::getDataFrameAnalytics,
             options,
@@ -1974,7 +1978,8 @@ public final class MachineLearningClient {
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest request,
+                                                         RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request,
             MLRequestConverters::deleteDataFrameAnalytics,
             options,
@@ -1993,7 +1998,8 @@ public final class MachineLearningClient {
      * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
-    public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+    public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options,
+                                              ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::deleteDataFrameAnalytics,
             options,

@@ -21,7 +21,6 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**

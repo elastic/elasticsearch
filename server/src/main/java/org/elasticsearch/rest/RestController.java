@@ -293,8 +293,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         if (contentTypeHeader == null) {
             errorMessage = "Content-Type header is missing";
         } else {
-            errorMessage = "Content-Type header [" +
-                Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
+            errorMessage = "Content-Type header [" + Strings.collectionToCommaDelimitedString(contentTypeHeader) + "] is not supported";
         }
 
         channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));

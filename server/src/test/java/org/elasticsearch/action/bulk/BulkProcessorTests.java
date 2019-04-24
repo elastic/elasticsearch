@@ -152,7 +152,8 @@ public class BulkProcessorTests extends ESTestCase {
 
         IndexRequest indexRequest = new IndexRequest();
         String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" +  "{ \"field1\" : \"value1\" }\n";
-        BytesReference bytesReference = BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes())});
+        BytesReference bytesReference =
+            BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
         List<Future> futures = new ArrayList<>();
         for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
             //alternate between ways to add to the bulk processor

@@ -28,6 +28,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 /**
  * Object for encapsulating the desired Query for a DataFrameAnalysis
  */
@@ -40,12 +42,12 @@ public class QueryConfig implements ToXContentObject {
 
     private final QueryBuilder query;
 
-    public QueryConfig(QueryConfig queryConfig) {
-        this(queryConfig.query);
+    public QueryConfig(QueryBuilder query) {
+        this.query = requireNonNull(query);
     }
 
-    public QueryConfig(QueryBuilder query) {
-        this.query = query;
+    public QueryConfig(QueryConfig queryConfig) {
+        this(requireNonNull(queryConfig).query);
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 public class DataFrameAnalyticsDest implements ToXContentObject {
 
     public static DataFrameAnalyticsDest fromXContent(XContentParser parser) {
@@ -35,32 +38,40 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
     }
 
     private static final ParseField INDEX = new ParseField("index");
+    private static final ParseField RESULTS_FIELD = new ParseField("results_field");
 
     private static ConstructingObjectParser<DataFrameAnalyticsDest, Void> PARSER =
         new ConstructingObjectParser<>("data_frame_analytics_dest", true,
             (args) -> {
                 String index = (String) args[0];
-                return new DataFrameAnalyticsDest(index);
+                String resultsField = (String) args[1];
+                return new DataFrameAnalyticsDest(index, resultsField);
             });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
     }
 
     private final String index;
+    private final String resultsField;
 
-    public DataFrameAnalyticsDest(String index) {
-        this.index = Objects.requireNonNull(index);
+    public DataFrameAnalyticsDest(String index, @Nullable String resultsField) {
+        this.index = requireNonNull(index);
+        this.resultsField = resultsField;
     }
 
     public DataFrameAnalyticsDest(DataFrameAnalyticsDest other) {
-        this.index = other.index;
+        this(other.index, other.resultsField);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX.getPreferredName(), index);
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
         builder.endObject();
         return builder;
     }
@@ -71,15 +82,20 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         DataFrameAnalyticsDest other = (DataFrameAnalyticsDest) o;
-        return Objects.equals(index, other.index);
+        return Objects.equals(index, other.index)
+            && Objects.equals(resultsField, other.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index);
+        return Objects.hash(index, resultsField);
     }
 
     public String getIndex() {
         return index;
+    }
+
+    public String getResultsField() {
+        return resultsField;
     }
 }

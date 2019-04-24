@@ -41,6 +41,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return PARSER.apply(parser, null).build();
     }
 
+    public static Builder builder(String id) {
+        return new Builder(id);
+    }
+
     private static final String NAME = "data_frame_analytics_config";
 
     private static final ParseField ID = new ParseField("id");
@@ -50,7 +54,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
+    public static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);

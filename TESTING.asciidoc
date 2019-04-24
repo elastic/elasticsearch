@@ -71,7 +71,7 @@ password: `elastic-password`.
 ==== Other useful arguments
 
 In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
-In order to disable annotations add: `-Dtests.asserts=false`
+In order to disable assertions add: `-Dtests.asserts=false`
 In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 
 === Test case filtering.

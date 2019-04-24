@@ -24,7 +24,6 @@ import java.io.OutputStream;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 /**
  * A {@code StateStreamer} fetches the various state documents and
@@ -73,7 +72,7 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
 
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setTypes(ElasticsearchMappings.DOC_TYPE)
                     .setSize(1)
@@ -100,7 +99,7 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
 
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setTypes(ElasticsearchMappings.DOC_TYPE)
                     .setSize(1)

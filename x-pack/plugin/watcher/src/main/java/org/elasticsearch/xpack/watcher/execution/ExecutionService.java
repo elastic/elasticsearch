@@ -70,7 +70,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class ExecutionService extends AbstractComponent {
@@ -360,7 +359,7 @@ public class ExecutionService extends AbstractComponent {
         } else {
             updateRequest.version(watch.version());
         }
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
@@ -504,7 +503,7 @@ public class ExecutionService extends AbstractComponent {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);

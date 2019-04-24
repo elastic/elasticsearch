@@ -80,7 +80,7 @@ task multiNode {
     }
 }
 
-task testArtifacts {
+task testReleased {
     useCluster testClusters.releasedVersionDefault
     useCluster testClusters.releasedVersionOSS
     useCluster testClusters.releasedVersionIntegTest

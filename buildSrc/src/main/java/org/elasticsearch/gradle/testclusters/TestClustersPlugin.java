@@ -18,18 +18,16 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import com.perforce.p4java.Log;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.BwcVersions;
-import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.execution.TaskActionListener;
@@ -73,6 +71,10 @@ public class TestClustersPlugin implements Plugin<Project> {
     private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
+    public static String getHelperConfigurationName(String version) {
+        return HELPER_CONFIGURATION_NAME + "-" + version;
+    }
+
     @Override
     public void apply(Project project) {
         Project rootProject = project.getRootProject();
@@ -85,51 +87,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         // create DSL for tasks to mark clusters these use
         createUseClusterTaskExtension(project, container);
-
-        if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
-            // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
-            // at once, only once without the need to repeat it for each project. This pays off assuming that most
-            // projects use the same dependencies.
-            Configuration helperConfiguration = project.getRootProject().getConfigurations().create(HELPER_CONFIGURATION_NAME);
-            helperConfiguration.setDescription(
-                "Internal helper configuration used by cluster configuration to download " +
-                    "ES distributions and plugins."
-            );
-
-            // We have a single task to sync the helper configuration to "artifacts dir"
-            // the clusters will look for artifacts there based on the naming conventions.
-            // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
-            // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, sync -> {
-                sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
-                sync.getOutputs().dir(new File(project.getRootProject().getBuildDir(), "testclusters/extract"));
-                // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
-                sync.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.sync(spec ->
-                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
-                                final FileTree files;
-                                File file = resolvedArtifact.getFile();
-                                if (file.getName().endsWith(".zip")) {
-                                    files = project.zipTree(file);
-                                } else if (file.getName().endsWith("tar.gz")) {
-                                    files = project.tarTree(file);
-                                } else {
-                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                }
-
-                                spec.from(files)
-                                    .into(
-                                        new File(
-                                            project.getRootProject().getBuildDir(), "testclusters/extract") + "/" +
-                                            resolvedArtifact.getModuleVersion().getId().getGroup()
-                                    );
-                            }));
-                    }
-                });
-            });
-        }
 
         // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
         // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -149,6 +106,10 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Since we have everything modeled in the DSL, add all the required dependencies e.x. the distribution to the
         // configuration so the user doesn't have to repeat this.
         autoConfigureClusterDependencies(project, rootProject, container);
+    }
+
+    private static File getExtractDir(Project project) {
+        return new File(project.getRootProject().getBuildDir(), "testclusters/extract/");
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
@@ -317,12 +278,41 @@ public class TestClustersPlugin implements Plugin<Project> {
             })
         );
 
+        // We have a single task to sync the helper configuration to "artifacts dir"
+        // the clusters will look for artifacts there based on the naming conventions.
+        // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
+        // the build.
+        Task sync = Boilerplate.findOrCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
+            onCreate.getOutputs().dir(getExtractDir(rootProject));
+            // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
+            onCreate.doFirst(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    // Clean up the extract dir first to make sure we have no stale files from older
+                    // previous builds of the same distribution
+                    project.delete(getExtractDir(rootProject));
+                }
+            });
+        });
+
         // When the project evaluated we know of all tasks that use clusters.
         // Each of these have to depend on the artifacts being synced.
         // We need afterEvaluate here despite the fact that container is a domain object, we can't implement this with
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esCluster ->
             esCluster.eachVersionedDistribution((version, distribution) -> {
+                Configuration helperConfiguration = Boilerplate.findOrCreate(
+                    rootProject.getConfigurations(),
+                    getHelperConfigurationName(version),
+                    onCreate ->
+                        // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
+                        // at once, only once without the need to repeat it for each project. This pays off assuming that most
+                        // projects use the same dependencies.
+                        onCreate.setDescription(
+                            "Internal helper configuration used by cluster configuration to download " +
+                                "ES distributions and plugins for " + version
+                        )
+                );
                 BwcVersions.UnreleasedVersionInfo unreleasedInfo;
                 final List<Version> unreleased;
                 {
@@ -347,12 +337,12 @@ public class TestClustersPlugin implements Plugin<Project> {
                     projectNotation.put("path", unreleasedInfo.gradleProjectPath);
                     projectNotation.put("configuration", distribution.getLiveConfiguration());
                     rootProject.getDependencies().add(
-                        HELPER_CONFIGURATION_NAME,
+                        helperConfiguration.getName(),
                         project.getDependencies().project(projectNotation)
                     );
                 } else {
                     rootProject.getDependencies().add(
-                        HELPER_CONFIGURATION_NAME,
+                        helperConfiguration.getName(),
                         distribution.getGroup() + ":" +
                             distribution.getArtifactName() + ":" +
                             version +
@@ -360,6 +350,29 @@ public class TestClustersPlugin implements Plugin<Project> {
                             distribution.getFileExtension());
 
                 }
+
+                sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
+                // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
+                sync.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.copy(spec ->
+                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
+                                final FileTree files;
+                                File file = resolvedArtifact.getFile();
+                                if (file.getName().endsWith(".zip")) {
+                                    files = project.zipTree(file);
+                                } else if (file.getName().endsWith("tar.gz")) {
+                                    files = project.tarTree(file);
+                                } else {
+                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                }
+
+                                spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
+                                spec.into(getExtractDir(project));
+                            }));
+                    }
+                });
             })));
     }
 

@@ -20,7 +20,7 @@ import java.util.function.Consumer;
 /**
  * Helper methods for access and storage of an enrich policy.
  */
-public class EnrichStore {
+public final class EnrichStore {
 
     private EnrichStore() {}
 

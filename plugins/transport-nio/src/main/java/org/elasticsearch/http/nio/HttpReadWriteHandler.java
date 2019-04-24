@@ -177,7 +177,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     private void maybeReadTimeout() {
         if (requestSinceReadTimeoutTrigger == false && inFlightRequests == 0) {
-            String message = "http read time after " + TimeValue.nsecToMSec(readTimeoutNanos) + "ms";
+            String message = "http read timeout after " + TimeValue.nsecToMSec(readTimeoutNanos) + "ms";
             transport.onException(nioHttpChannel, new HttpReadTimeoutException(message));
         } else {
             requestSinceReadTimeoutTrigger = false;

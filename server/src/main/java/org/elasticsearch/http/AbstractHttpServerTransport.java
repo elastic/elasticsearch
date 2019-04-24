@@ -264,7 +264,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 "connect exception caught while handling client http traffic, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof HttpReadTimeoutException) {
-            logger.error(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
+            logger.trace(() -> new ParameterizedMessage("http read timeout, closing connection {}", channel), e);
             CloseableChannel.closeChannel(channel);
         } else if (e instanceof CancelledKeyException) {
             logger.trace(() -> new ParameterizedMessage(

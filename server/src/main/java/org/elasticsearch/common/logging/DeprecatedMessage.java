@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
- * Carries x-opaque-id field if provided on header, will populate the x-opaque-id field in JSON logs
+ * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage extends ESLogMessage {
 

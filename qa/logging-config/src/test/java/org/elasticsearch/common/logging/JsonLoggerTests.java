@@ -80,6 +80,7 @@ public class JsonLoggerTests extends ESTestCase {
         testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
         testLogger.info(new DeprecatedMessage("deprecated message2", ""));
         testLogger.info(new DeprecatedMessage("deprecated message3", null));
+        testLogger.info("deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -112,6 +113,15 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
+                    hasEntry("x-opaque-id", "")
+                ),
+                allOf(
+                    hasEntry("type", "deprecated"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "deprecated message4"),
                     hasEntry("x-opaque-id", "")
                 )
                 )

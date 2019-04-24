@@ -29,7 +29,8 @@ import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Strings;
 
 /**
- * Pattern converter to populate ESMessageField in a pattern. It will only populate these if the event have <code>ESLogMessage</code>
+ * Pattern converter to populate ESMessageField in a pattern.
+ * It will only populate these if the event have message of type <code>ESLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "ESMessageField")
 @ConverterKeys({"ESMessageField"})
@@ -58,9 +59,9 @@ public final class ESMessageFieldConverter extends LogEventPatternConverter {
             final String value = ESLogMessage.getValueFor(key);
             if (Strings.isNullOrEmpty(value) == false) {
                 StringBuilders.appendValue(toAppendTo, value);
-            } else {
-                StringBuilders.appendValue(toAppendTo, "\"\"");
+                return;
             }
         }
+        StringBuilders.appendValue(toAppendTo, "\"\"");
     }
 }

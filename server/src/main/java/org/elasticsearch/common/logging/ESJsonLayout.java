@@ -42,29 +42,28 @@ import java.util.Map;
  * The class is wrapping the {@link PatternLayout} with a pattern to format into json. This gives more flexibility and control over how the
  * log messages are formatted in {@link org.apache.logging.log4j.core.layout.JsonLayout}
  * There are fields which are always present in the log line:
- *  <ul>
- *  <li>type - the type of logs. These represent appenders and help docker distinguish log streams.</li>
- *  <li>timestamp - ISO8601 with additional timezone ID</li>
- *  <li>level - INFO, WARN etc</li>
- *  <li>component - logger name, most of the times class name</li>
- *  <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
- *  <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
- *  <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
- *  once clusterStateUpdate is first received</li>
- *  <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
- *  replaced to \n</li>
- *  <li>exceptionAsJson - in json as a stacktrace field. Only present when throwable is passed as a parameter when using a logger.
- *  Taken from JsonThrowablePatternConverter</li>
- *  </ul>
- *
- *  It is possible to add more or override them with <code>esmessagefield</code>
- *  <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
- *  Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
- *  <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
- *  the message passed to a logger will be overriden with a value from %ESMessageField{message}
- *
- *  The value taken from %ESMessageField{message} has to be a correct JSON and is populated in subclasses of <code>ESLogMessage</code>
- *
+ * <ul>
+ * <li>type - the type of logs. These represent appenders and help docker distinguish log streams.</li>
+ * <li>timestamp - ISO8601 with additional timezone ID</li>
+ * <li>level - INFO, WARN etc</li>
+ * <li>component - logger name, most of the times class name</li>
+ * <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
+ * <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
+ * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeAndClusterIdConverter and present
+ * once clusterStateUpdate is first received</li>
+ * <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
+ * replaced to \n</li>
+ * <li>exceptionAsJson - in json as a stacktrace field. Only present when throwable is passed as a parameter when using a logger.
+ * Taken from JsonThrowablePatternConverter</li>
+ * </ul>
+ * <p>
+ * It is possible to add more or override them with <code>esmessagefield</code>
+ * <code>appender.logger.layout.esmessagefields=message,took,took_millis,total_hits,types,stats,search_type,total_shards,source,id</code>
+ * Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
+ * <code>... "message":  %ESMessageField{message}, "took": %ESMessageField{took} ...</code>
+ * the message passed to a logger will be overriden with a value from %ESMessageField{message}
+ * <p>
+ * The value taken from %ESMessageField{message} has to be a correct JSON and is populated in subclasses of <code>ESLogMessage</code>
  */
 @Plugin(name = "ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ESJsonLayout extends AbstractStringLayout {
@@ -74,9 +73,9 @@ public class ESJsonLayout extends AbstractStringLayout {
     protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-            .withPattern(pattern(typeName, esmessagefields))
-            .withAlwaysWriteExceptions(false)
-            .build();
+                                          .withPattern(pattern(typeName, esmessagefields))
+                                          .withAlwaysWriteExceptions(false)
+                                          .build();
     }
 
     private String pattern(String type, String[] esmessagefields) {

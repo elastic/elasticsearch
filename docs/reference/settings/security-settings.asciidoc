@@ -278,10 +278,13 @@ Defaults to `true`.
 The `type` setting must be set to `ldap`. In addition to the 
 <<ref-realm-settings>>, you can specify the following settings: 
 
-`url`:: Specifies one or more LDAP URLs in the format  
-`ldap[s]://<server>:<port>`. Multiple URLs can be defined using a comma 
-separated value or array syntax: `[ "ldaps://server1:636", "ldaps://server2:636" ]`. 
-`ldaps` and `ldap` URL protocols cannot be mixed in the same realm. Required.
+`url`::
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Required.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported
@@ -547,11 +550,18 @@ The `type` setting must be set to `active_directory`. In addition to the
 the following settings: 
 
 `url`::
-An LDAP URL of the form `ldap[s]://<server>:<port>`. {es} attempts to 
-authenticate against this URL. If the URL is not specified, it is derived from 
-the `domain_name` setting and assumes an unencrypted connection to port 389. 
-Defaults to `ldap://<domain_name>:389`. This setting is required when connecting 
-using SSL/TLS or when using a custom port.
+One or more LDAP URLs in the `ldap[s]://<server>:<port>` format. Defaults to
+`ldap://<domain_name>:389`. This setting is required when connecting using
+SSL/TLS or when using a custom port.
++
+To provide multiple URLs, use a YAML array (`["ldap://server1:636", "ldap://server2:636"]`)
+or comma-separated string (`"ldap://server1:636, ldap://server2:636"`).
++
+While both are supported, you can't mix the `ldap` and `ldaps` protocols.
++
+If no URL is provided, {es} uses a default of `ldap://<domain_name>:389`. This
+default uses the `domain_name` setting value and assumes an unencrypted
+connection to port 389. 
 
 `load_balance.type`::
 The behavior to use when there are multiple LDAP URLs defined. For supported

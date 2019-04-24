@@ -21,11 +21,13 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class SettingsModuleTests extends ModuleTestCase {
 
@@ -85,15 +87,36 @@ public class SettingsModuleTests extends ModuleTestCase {
         }
         {
             MockSecureSettings secureSettings = new MockSecureSettings();
-            if (randomBoolean()) {
-                secureSettings.setString("some.custom.secure.consistent.setting", "secure_value");
-            } else {
-                secureSettings.setFile("some.custom.secure.consistent.setting", new byte[] {0, 1, 1, 0});
-            }
-            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-            SettingsModule module = new SettingsModule(settings,
-                    SecureSetting.secureString("some.custom.secure.consistent.setting", null, Setting.Property.Consistent));
+            secureSettings.setString("some.custom.secure.consistent.setting", "secure_value");
+            final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+            final Setting<?> concreteConsistentSetting = SecureSetting.secureString("some.custom.secure.consistent.setting", null,
+                    Setting.Property.Consistent);
+            SettingsModule module = new SettingsModule(settings, concreteConsistentSetting);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+            assertThat(module.getConsistentSecureSettings(), Matchers.containsInAnyOrder(concreteConsistentSetting));
+
+            final Setting<?> concreteUnsecureConsistentSetting = Setting.simpleString("some.custom.UNSECURE.consistent.setting",
+                    Property.Consistent, Property.NodeScope);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentSetting));
+            assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.UNSECURE.consistent.setting]"));
+
+            secureSettings = new MockSecureSettings();
+            secureSettings.setString("some.custom.secure.consistent.afix.wow.setting", "secure_value");
+            final Settings settings2 = Settings.builder().setSecureSettings(secureSettings).build();
+            final Setting<?> afixConcreteConsistentSetting = Setting.affixKeySetting(
+                    "some.custom.secure.consistent.afix.", "setting",
+                    key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
+            module = new SettingsModule(settings2,afixConcreteConsistentSetting);
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings2);
+            assertThat(module.getConsistentSecureSettings(), Matchers.containsInAnyOrder(afixConcreteConsistentSetting));
+
+            final Setting<?> concreteUnsecureConsistentAfixSetting = Setting.affixKeySetting(
+                    "some.custom.secure.consistent.afix.", "setting",
+                    key -> Setting.simpleString(key, Setting.Property.Consistent, Property.NodeScope));
+            e = expectThrows(IllegalArgumentException.class,
+                    () -> new SettingsModule(Settings.builder().build(), concreteUnsecureConsistentAfixSetting));
+            assertThat(e.getMessage(), is("Invalid consistent secure setting [some.custom.secure.consistent.afix.*.setting]"));
         }
     }
 

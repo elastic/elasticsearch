@@ -57,7 +57,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         // create usesJdk task "method"
         project.getTasks().configureEach(task -> {
-            task.getExtensions().findByType(ExtraPropertiesExtension.class).set("usesJdk", new Closure<Void>(project, task) {
+
+            ExtraPropertiesExtension extraProperties = task.getExtensions().findByType(ExtraPropertiesExtension.class);
+            extraProperties.set("usesJdk", new Closure<Void>(project, task) {
                 public void doCall(String version, String platform) {
                     if (version == null) {
                         throw new IllegalArgumentException("version must be specified to usesJdk");
@@ -68,7 +70,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     if (ALLOWED_PLATFORMS.contains(platform) == false) {
                         throw new IllegalArgumentException("platform must be one of " + ALLOWED_PLATFORMS);
                     }
-                    if (task.getExtensions().findByName(("jdkHome")) != null) {
+                    if (extraProperties.has("jdkHome")) {
                         throw new IllegalArgumentException("jdk version already set for task");
                     }
 
@@ -98,7 +100,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                             return configurations.getByName(configurationName).getSingleFile().toString();
                         }
                     };
-                    task.getExtensions().create("jdkHome", Object.class, jdkHomeGetter);
+                    extraProperties.set("jdkHome", jdkHomeGetter);
                 }
             });
         });

@@ -76,7 +76,7 @@ public final class ConsistentSettingsService {
 
     /**
      * Returns a {@link LocalNodeMasterListener} that will publish hashes of all the settings passed in the constructor. These hashes are
-     * published by the master node only. Note that this is not designed for {@link SecureStrings} implementations that are mutable.
+     * published by the master node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
      */
     public LocalNodeMasterListener newHashPublisher() {
         return new LocalNodeMasterListener() {

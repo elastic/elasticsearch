@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -46,12 +48,18 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -78,10 +86,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -109,7 +119,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
-                RecoverySettingsChunkSizePlugin.class);
+                RecoverySettingsChunkSizePlugin.class, TestAnalysisPlugin.class);
     }
 
     @After
@@ -862,5 +872,58 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryStates, hasSize(1));
         assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
         assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
+    }
+
+    public void testDoNotInfinitelyWaitForMapping() {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        createIndex("test", Settings.builder()
+            .put("index.analysis.analyzer.test_analyzer.type", "custom")
+            .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
+            .put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build());
+        client().admin().indices().preparePutMapping("test")
+            .setType("_doc").setSource("test_field", "type=text,analyzer=test_analyzer").get();
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "_doc", "u" + i)
+                .setSource(singletonMap("test_field", Integer.toString(i)), XContentType.JSON).get();
+        }
+        Semaphore recoveryBlocked = new Semaphore(1);
+        for (DiscoveryNode node : clusterService().state().nodes()) {
+            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class, node.getName());
+            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
+                    if (recoveryBlocked.tryAcquire()) {
+                        PluginsService pluginService = internalCluster().getInstance(PluginsService.class, node.getName());
+                        for (TestAnalysisPlugin plugin : pluginService.filterPlugins(TestAnalysisPlugin.class)) {
+                            plugin.throwParsingError.set(true);
+                        }
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
+        ensureGreen("test");
+        client().admin().indices().prepareRefresh("test").get();
+        assertHitCount(client().prepareSearch().get(), numDocs);
+    }
+
+    public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
+        final AtomicBoolean throwParsingError = new AtomicBoolean();
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+            return singletonMap("test_token_filter",
+                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(indexSettings, name, settings) {
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        if (throwParsingError.get()) {
+                            throw new MapperParsingException("simulate mapping parsing error");
+                        }
+                        return tokenStream;
+                    }
+                });
+        }
     }
 }

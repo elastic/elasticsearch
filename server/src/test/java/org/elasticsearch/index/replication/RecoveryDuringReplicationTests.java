@@ -564,6 +564,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                 final long maxAutoIdTimestamp,
                                 final long maxSeqNoOfUpdates,
                                 final RetentionLeases retentionLeases,
+                                final long mappingVersion,
                                 final ActionListener<Long> listener) {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
@@ -597,6 +598,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                     maxAutoIdTimestamp,
                                     maxSeqNoOfUpdates,
                                     retentionLeases,
+                                    mappingVersion,
                                     listener);
                         }
                     });
@@ -845,11 +847,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final long maxAutoIdTimestamp,
                 final long maxSeqNoOfUpdates,
                 final RetentionLeases retentionLeases,
+                final long mappingVersion,
                 final ActionListener<Long> listener) {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, retentionLeases, listener);
+            super.indexTranslogOperations(
+                operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, retentionLeases, mappingVersion, listener);
         }
 
         @Override

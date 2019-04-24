@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
@@ -28,11 +29,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNotSame(oneMapping, sameMapping);
         assertEquals(oneMapping, sameMapping);
 
-        String wildcard = "*";
-        
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fromMappings(
-                new EsIndex("a", oneMapping),
-                new EsIndex("b", sameMapping)));
+        IndexResolution resolution = merge(new EsIndex("a", oneMapping), new EsIndex("b", sameMapping));
 
         assertTrue(resolution.isValid());
         assertEqualsMaps(oneMapping, resolution.get().mapping());
@@ -44,10 +41,7 @@ public class IndexResolverTests extends ESTestCase {
 
         assertNotEquals(basicMapping, numericMapping);
 
-        String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fromMappings(
-                new EsIndex("basic", basicMapping),
-                new EsIndex("numeric", numericMapping)));
+        IndexResolution resolution = merge(new EsIndex("basic", basicMapping), new EsIndex("numeric", numericMapping));
 
         assertTrue(resolution.isValid());
         assertEquals(basicMapping.size() + numericMapping.size(), resolution.get().mapping().size());
@@ -60,8 +54,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNotEquals(basicMapping, incompatible);
 
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard,
-                fromMappings(new EsIndex("basic", basicMapping), new EsIndex("incompatible", incompatible)));
+        IndexResolution resolution = merge(new EsIndex("basic", basicMapping), new EsIndex("incompatible", incompatible));
 
         assertTrue(resolution.isValid());
 
@@ -82,8 +75,7 @@ public class IndexResolverTests extends ESTestCase {
         assertNotEquals(basicMapping, incompatible);
 
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard,
-                fromMappings(new EsIndex("basic", basicMapping), new EsIndex("incompatible", incompatible)));
+        IndexResolution resolution = merge(new EsIndex("basic", basicMapping), new EsIndex("incompatible", incompatible));
 
         assertTrue(resolution.isValid());
 
@@ -97,8 +89,7 @@ public class IndexResolverTests extends ESTestCase {
     public void testMultiLevelObjectMappings() throws Exception {
         Map<String, EsField> dottedMapping = TypesTests.loadMapping("mapping-dotted-field.json", true);
 
-        String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fromMappings(new EsIndex("a", dottedMapping)));
+        IndexResolution resolution = merge(new EsIndex("a", dottedMapping));
 
         assertTrue(resolution.isValid());
         assertEqualsMaps(dottedMapping, resolution.get().mapping());
@@ -107,8 +98,7 @@ public class IndexResolverTests extends ESTestCase {
     public void testMultiLevelNestedMappings() throws Exception {
         Map<String, EsField> nestedMapping = TypesTests.loadMapping("mapping-nested.json", true);
         
-        String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fromMappings(new EsIndex("a", nestedMapping)));
+        IndexResolution resolution = merge(new EsIndex("a", nestedMapping));
 
         assertTrue(resolution.isValid());
         assertEqualsMaps(nestedMapping, resolution.get().mapping());
@@ -122,7 +112,7 @@ public class IndexResolverTests extends ESTestCase {
         addFieldCaps(fieldCaps, "text", "keyword", true, true);
         
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fieldCaps);
+        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "index" }, fieldCaps);
         assertTrue(resolution.isValid());
 
         EsIndex esIndex = resolution.get();
@@ -157,7 +147,7 @@ public class IndexResolverTests extends ESTestCase {
 
 
         String wildcard = "*";
-        IndexResolution resolution = IndexResolver.mergedMapping(wildcard, fieldCaps);
+        IndexResolution resolution = IndexResolver.mergedMappings(wildcard, new String[] { "one-index" }, fieldCaps);
 
         assertTrue(resolution.isValid());
 
@@ -175,8 +165,40 @@ public class IndexResolverTests extends ESTestCase {
     }
 
 
+
+    public void testSeparateSameMappingDifferentIndices() throws Exception {
+        Map<String, EsField> oneMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        Map<String, EsField> sameMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        assertNotSame(oneMapping, sameMapping);
+        assertEquals(oneMapping, sameMapping);
+
+        List<EsIndex> indices = separate(new EsIndex("a", oneMapping), new EsIndex("b", sameMapping));
+
+        assertEquals(2, indices.size());
+        assertEqualsMaps(oneMapping, indices.get(0).mapping());
+        assertEqualsMaps(sameMapping, indices.get(1).mapping());
+    }
+
+    public void testSeparateIncompatibleTypes() throws Exception {
+        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+
+        assertNotEquals(basicMapping, incompatible);
+
+        List<EsIndex> indices = separate(new EsIndex("basic", basicMapping), new EsIndex("incompatible", incompatible));
+
+        assertEquals(2, indices.size());
+        assertEqualsMaps(basicMapping, indices.get(0).mapping());
+        assertEqualsMaps(incompatible, indices.get(1).mapping());
+    }
+
     public static IndexResolution merge(EsIndex... indices) {
-        return IndexResolver.mergedMapping("*", fromMappings(indices));
+        return IndexResolver.mergedMappings("*", Stream.of(indices).map(EsIndex::name).toArray(String[]::new), fromMappings(indices));
+    }
+
+    public static List<EsIndex> separate(EsIndex... indices) {
+        return IndexResolver.separateMappings("*", null, Stream.of(indices).map(EsIndex::name).toArray(String[]::new),
+                fromMappings(indices));
     }
 
     public static Map<String, Map<String, FieldCapabilities>> fromMappings(EsIndex... indices) {
@@ -215,7 +237,7 @@ public class IndexResolverTests extends ESTestCase {
         }
         FieldCapabilities caps = map.computeIfAbsent(field.getDataType().typeName,
                 esType -> new UpdateableFieldCapabilities(fieldName, esType,
-                isSearchable(field.getDataType()),
+                        isSearchable(field.getDataType()),
                         isAggregatable(field.getDataType())));
 
         if (!field.isAggregatable()) {

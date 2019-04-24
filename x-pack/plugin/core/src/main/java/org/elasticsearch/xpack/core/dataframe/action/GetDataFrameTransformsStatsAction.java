@@ -51,7 +51,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private PageParams pageParams = PageParams.defaultParams();
 
         public static final int MAX_SIZE_RETURN = 1000;

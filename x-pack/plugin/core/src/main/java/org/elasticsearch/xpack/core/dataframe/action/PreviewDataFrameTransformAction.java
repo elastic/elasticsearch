@@ -53,10 +53,10 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private DataFrameTransformConfig config;
+        private final DataFrameTransformConfig config;
 
         public Request(DataFrameTransformConfig config) {
-            this.setConfig(config);
+            this.config = config;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -91,10 +91,6 @@ public class PreviewDataFrameTransformAction extends Action<PreviewDataFrameTran
 
         public DataFrameTransformConfig getConfig() {
             return config;
-        }
-
-        public void setConfig(DataFrameTransformConfig config) {
-            this.config = config;
         }
 
         @Override

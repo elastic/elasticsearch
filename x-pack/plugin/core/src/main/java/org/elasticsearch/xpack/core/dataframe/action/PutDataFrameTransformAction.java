@@ -36,10 +36,10 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private DataFrameTransformConfig config;
+        private final DataFrameTransformConfig config;
 
         public Request(DataFrameTransformConfig config) {
-            this.setConfig(config);
+            this.config = config;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -63,10 +63,6 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
         public DataFrameTransformConfig getConfig() {
             return config;
-        }
-
-        public void setConfig(DataFrameTransformConfig config) {
-            this.config = config;
         }
 
         @Override

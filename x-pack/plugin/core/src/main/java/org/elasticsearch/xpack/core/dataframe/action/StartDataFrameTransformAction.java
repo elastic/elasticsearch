@@ -97,7 +97,7 @@ public class StartDataFrameTransformAction extends Action<StartDataFrameTransfor
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
+        private final boolean started;
 
         public Response(StreamInput in) throws IOException {
             super(in);

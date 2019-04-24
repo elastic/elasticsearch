@@ -45,7 +45,7 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());

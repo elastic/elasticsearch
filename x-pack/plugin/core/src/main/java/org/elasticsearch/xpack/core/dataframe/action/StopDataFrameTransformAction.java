@@ -50,7 +50,7 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
         private Set<String> expandedIds;
@@ -76,10 +76,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public String getId() {
             return id;
-        }
-
-        public void setId(String id) {
-            this.id = id;
         }
 
         public boolean waitForCompletion() {

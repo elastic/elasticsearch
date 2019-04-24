@@ -48,12 +48,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class CorsHandler {
 
-    public static final String ANY_ORIGIN = "*";
+    static final String ANY_ORIGIN = "*";
     private static final String ORIGIN = "origin";
     private static final String HOST = "host";
+    private static final String VARY = "vary";
     private static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
     private static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
     private static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
@@ -102,9 +104,9 @@ public class CorsHandler {
             if (originHeaderVal != null) {
                 resp.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, originHeaderVal);
             }
-        }
-        if (config.isCredentialsAllowed()) {
-            resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+            if (config.isCredentialsAllowed()) {
+                resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+            }
         }
     }
 
@@ -128,8 +130,59 @@ public class CorsHandler {
     }
 
     private HttpResponse createPreflightResponse(HttpRequest request) {
-        return null;
+        final String origin = request.getHeaders().get(ORIGIN).get(0);
+        if (Strings.isNullOrEmpty(origin) == false) {
+            HttpResponse response = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            setOrigin(request, response, origin);
+//            setAllowMethods(response);
+//            setAllowHeaders(response);
+//            setAllowCredentials(response);
+//            setMaxAge(response);
+            // TODO: Builder automatically adds some headers
+//            setPreflightHeaders(response);
+            return response;
+        } else {
+            return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+        }
     }
+
+    private void setOrigin(final HttpRequest request, final HttpResponse response, final String origin) {
+        if (!Strings.isNullOrEmpty(origin)) {
+            if (config.isAnyOriginSupported()) {
+                if (config.isCredentialsAllowed()) {
+                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                    response.addHeader(VARY, ORIGIN);
+                } else {
+                    response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, ANY_ORIGIN);
+                }
+            }
+            if (config.isOriginAllowed(origin)) {
+                response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                response.addHeader(VARY, ORIGIN);;
+            }
+        }
+    }
+
+//    private void setAllowMethods(final HttpResponse response) {
+//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, config.allowedRequestMethods().stream()
+//            .map(m -> m.name().trim())
+//            .collect(Collectors.toList()));
+//    }
+//
+//    private void setAllowHeaders(final HttpResponse response) {
+//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, config.allowedRequestHeaders());
+//    }
+//
+//    private void setAllowCredentials(final HttpResponse response) {
+//        if (config.isCredentialsAllowed()
+//            && !response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN).equals(ANY_ORIGIN)) {
+//            response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+//        }
+//    }
+//
+//    private void setMaxAge(final HttpResponse response) {
+//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE, config.maxAge());
+//    }
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         Map<String, List<String>> headers = request.getHeaders();

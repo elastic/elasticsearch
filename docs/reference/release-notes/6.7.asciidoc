@@ -9,6 +9,9 @@ Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 [float]
 === Enhancements
 
+CCR::
+* Reduce security permissions in CCR plugin {pull}41391[#41391]
+
 Distributed::
 * Avoid background sync on relocated primary {pull}40800[#40800] (issue: {issue}40731[#40731])
 
@@ -31,6 +34,7 @@ Allocation::
 * Short-circuit rebalancing when disabled {pull}40966[#40966] (issue: {issue}40942[#40942])
 
 Authorization::
+* Fix role mapping DN field wildcards for users with NULL DNs {pull}41343[#41343] (issue: {issue}41305[#41305])
 * put mapping authorization for alias with write-index and multiple read indices {pull}40834[#40834] (issue: {issue}40831[#40831])
 * Use alias name from rollover request to query indices stats {pull}40774[#40774] (issue: {issue}40771[#40771])
 
@@ -50,6 +54,7 @@ Features/Watcher::
 * Use setIfSeqNo(...) and setIfPrimaryTerm(...) for updating watch status if all nodes are at least on 6.7.0 {pull}40888[#40888] (issue: {issue}40841[#40841])
 
 Highlighting::
+* Unified highlighter should ignore terms that target the _id field {pull}41275[#41275] (issue: {issue}37525[#37525])
 * Unified highlighter should respect no_match_size with number_of_fragments set to 0 {pull}41069[#41069] (issue: {issue}41066[#41066])
 
 Infra/Core::
@@ -59,6 +64,9 @@ Infra/Core::
 Infra/Scripting::
 * Correct bug in ScriptDocValues {pull}40864[#40864] (issue: {issue}40488[#40488])
 * Correct bug in ScriptDocValues {pull}40488[#40488]
+
+Infra/Settings::
+* Always check for archiving broken index settings {pull}41209[#41209]
 
 Machine Learning::
 * [ML] checking if p-tasks metadata is null before updating state {pull}41091[#41091] (issue: {issue}41090[#41090])
@@ -75,6 +83,8 @@ Rollup::
 * Remove timezone validation on rollup range queries {pull}40647[#40647]
 
 SQL::
+* SQL: Fix bug with optimization of null related conditionals {pull}41355[#41355]
+* SQL: Predicate diff takes into account all values {pull}41346[#41346] (issue: {issue}40835[#40835])
 * SQL: Fix LIMIT bug in agg sorting {pull}41258[#41258] (issue: {issue}40984[#40984])
 * SQL: Allow current_date/time/timestamp to be also used as a function escape pattern {pull}41254[#41254] (issue: {issue}41240[#41240])
 * SQL: Translate MIN/MAX on keyword fields as FIRST/LAST {pull}41247[#41247] (issues: {issue}37936[#37936], {issue}41195[#41195])

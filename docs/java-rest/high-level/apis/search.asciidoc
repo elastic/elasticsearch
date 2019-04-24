@@ -462,7 +462,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-
 <4> Retrieve the profile results for the sub-queries (if any)
 
 The Rest API documentation contains more information about {ref}/_profiling_queries.html[Profiling Queries] with
-a description of the {ref}/_profiling_queries.html#_literal_query_literal_section[query profiling information]
+a description of the {ref}/_profiling_queries.html#profile-query-section[query profiling information]
 
 The `QueryProfileShardResult` also gives access to the profiling information for the Lucene collectors:
 
@@ -476,7 +476,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-profiling-
 <4> Retrieve the profile results for the sub-collectors (if any)
 
 The Rest API documentation contains more information about profiling information
-{ref}/_profiling_queries.html#_literal_collectors_literal_section[for Lucene collectors].
+{ref}/_profiling_queries.html#profile-collectors-section[for Lucene collectors].
 
 In a very similar manner to the query tree execution, the `QueryProfileShardResult` objects gives access
 to the detailed aggregations tree execution:

@@ -20,6 +20,9 @@ package org.elasticsearch.ingest;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -42,18 +45,13 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 
 public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
-
-    private static final AtomicBoolean SET_SEARCH_WRAPPER = new AtomicBoolean(false);
-    private static final AtomicBoolean SEARCH_WRAPPER_APPLIED = new AtomicBoolean(false);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -73,7 +71,6 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
         Map<String, Object> result = client().get(new GetRequest("my-index", "1")).actionGet().getSourceAsMap();
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("id"), equalTo("1"));
-        assertThat(SEARCH_WRAPPER_APPLIED.get(), is(false));
     }
 
     public void testMultipleIndicesAreResolved() throws Exception {
@@ -135,25 +132,18 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
     }
 
     public void testSearchWrapperIsApplied() throws Exception {
-        try {
-            SET_SEARCH_WRAPPER.set(true);
-            client().index(new IndexRequest("reference-index").id("1").source("{}", XContentType.JSON)).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("reference-index")).actionGet();
+        client().index(new IndexRequest("reference-index").id("1").source("{}", XContentType.JSON)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("reference-index")).actionGet();
 
-            PutPipelineRequest putPipelineRequest = new PutPipelineRequest("my-pipeline", createPipelineSource(), XContentType.JSON);
-            client().admin().cluster().putPipeline(putPipelineRequest).get();
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("my-pipeline", createPipelineSource(), XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
 
-            client().index(new IndexRequest("my-index").id("1").source("{}", XContentType.JSON).setPipeline("my-pipeline")).actionGet();
-            client().admin().indices().refresh(new RefreshRequest("my-index")).actionGet();
+        client().index(new IndexRequest("my-index").id("1").source("{}", XContentType.JSON).setPipeline("my-pipeline")).actionGet();
+        client().admin().indices().refresh(new RefreshRequest("my-index")).actionGet();
 
-            Map<String, Object> result = client().get(new GetRequest("my-index", "1")).actionGet().getSourceAsMap();
-            assertThat(result.size(), equalTo(1));
-            assertThat(result.get("id"), equalTo("1"));
-            assertThat(SEARCH_WRAPPER_APPLIED.get(), is(true));
-        } finally {
-            SET_SEARCH_WRAPPER.set(false);
-            SEARCH_WRAPPER_APPLIED.set(false);
-        }
+        Map<String, Object> result = client().get(new GetRequest("my-index", "1")).actionGet().getSourceAsMap();
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get("id"), equalTo("1"));
     }
 
     private static BytesReference createPipelineSource() throws IOException {
@@ -176,16 +166,13 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            if (SET_SEARCH_WRAPPER.get()) {
-                indexModule.setSearcherWrapper(indexService -> new IndexSearcherWrapper() {
+            indexModule.setSearcherWrapper(indexService -> new IndexSearcherWrapper() {
 
-                    @Override
-                    protected DirectoryReader wrap(DirectoryReader reader) throws IOException {
-                        SEARCH_WRAPPER_APPLIED.set(true);
-                        return super.wrap(reader);
-                    }
-                });
-            }
+                @Override
+                protected DirectoryReader wrap(DirectoryReader reader) throws IOException {
+                    return new TestDirectyReader(reader);
+                }
+            });
         }
     }
 
@@ -204,6 +191,12 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
             String indexExpression = "reference-index";
             try (Engine.Searcher engineSearcher = localShardSearcher.apply(indexExpression)) {
+                // Ensure that search wrapper has been invoked by checking the directory instance type:
+                if ((engineSearcher.getDirectoryReader() instanceof TestDirectyReader) == false) {
+                    // asserting or throwing a AssertionError makes this test hang:
+                    // so just throw a runtime exception here:
+                    throw new RuntimeException("unexpected directory instance type");
+                }
                 Document document = engineSearcher.searcher().doc(0);
                 ingestDocument.setFieldValue("id", Uid.decodeId(document.getBinaryValue("_id").bytes));
             }
@@ -230,6 +223,47 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
             }
         }
 
+    }
+
+    static class TestDirectyReader extends FilterDirectoryReader {
+
+        TestDirectyReader(DirectoryReader in) throws IOException {
+            super(in, new TestSubReaderWrapper());
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new TestDirectyReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
+        static class TestSubReaderWrapper extends SubReaderWrapper {
+            @Override
+            public LeafReader wrap(LeafReader reader) {
+                return new TestLeafReader(reader);
+            }
+        }
+
+        static class TestLeafReader extends FilterLeafReader {
+
+            public TestLeafReader(LeafReader in) {
+                super(in);
+            }
+
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return in.getCoreCacheHelper();
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        }
     }
 
 }

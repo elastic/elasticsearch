@@ -1,0 +1,6 @@
+---
+"Test enrich crud apis":
+
+  - do:
+      enrich.list_policy: {}
+  - length: { policies: 0 }

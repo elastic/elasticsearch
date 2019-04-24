@@ -31,6 +31,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
+    static final ParseField NAME = new ParseField("name");
     static final ParseField TYPE = new ParseField("type");
     static final ParseField QUERY = new ParseField("query");
     static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
@@ -43,16 +44,18 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         args -> {
             return new EnrichPolicy(
                 (String) args[0],
-                (QuerySource) args[1],
-                (String) args[2],
+                (String) args[1],
+                (QuerySource) args[2],
                 (String) args[3],
-                (List<String>) args[4],
-                (String) args[5]
+                (String) args[4],
+                (List<String>) args[5],
+                (String) args[6]
             );
         }
     );
 
     static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
@@ -69,6 +72,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return PARSER.parse(parser, null);
     }
 
+    private final String name;
     private final String type;
     private final QuerySource query;
     private final String indexPattern;
@@ -79,6 +83,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
             in.readString(),
+            in.readString(),
             in.readOptionalWriteable(QuerySource::new),
             in.readString(),
             in.readString(),
@@ -87,18 +92,24 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         );
     }
 
-    public EnrichPolicy(String type,
+    public EnrichPolicy(String name,
+                        String type,
                         QuerySource query,
                         String indexPattern,
                         String enrichKey,
                         List<String> enrichValues,
                         String schedule) {
+        this.name = name;
         this.type = type;
         this.query= query;
         this.schedule = schedule;
         this.indexPattern = indexPattern;
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public String getType() {
@@ -127,6 +138,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
         out.writeString(type);
         out.writeOptionalWriteable(query);
         out.writeString(indexPattern);
@@ -137,6 +149,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(NAME.getPreferredName(), name);
         builder.field(TYPE.getPreferredName(), type);
         if (query != null) {
             builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
@@ -153,7 +166,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnrichPolicy policy = (EnrichPolicy) o;
-        return type.equals(policy.type) &&
+        return name.equals(policy.name) &&
+            type.equals(policy.type) &&
             Objects.equals(query, policy.query) &&
             indexPattern.equals(policy.indexPattern) &&
             enrichKey.equals(policy.enrichKey) &&
@@ -164,6 +178,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(
+            name,
             type,
             query,
             indexPattern,

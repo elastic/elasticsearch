@@ -43,7 +43,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         return randomEnrichPolicy(xContentType);
     }
 
-    static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
+    public static EnrichPolicy randomEnrichPolicy(XContentType xContentType) {
         final QueryBuilder queryBuilder;
         if (randomBoolean()) {
             queryBuilder = new MatchAllQueryBuilder();
@@ -57,6 +57,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             content.flush();
             EnrichPolicy.QuerySource querySource = new EnrichPolicy.QuerySource(new BytesArray(out.toByteArray()), content.contentType());
             return new EnrichPolicy(
+                randomAlphaOfLength(4),
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
                 randomAlphaOfLength(4),
@@ -81,7 +82,8 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         assertEqualPolicies(expectedInstance, newInstance);
     }
 
-    static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
+    public static void assertEqualPolicies(EnrichPolicy expectedInstance, EnrichPolicy newInstance) {
+        assertThat(newInstance.getName(), equalTo(expectedInstance.getName()));
         assertThat(newInstance.getType(), equalTo(expectedInstance.getType()));
         if (newInstance.getQuery() != null) {
             // testFromXContent, always shuffles the xcontent and then byte wise the query is different, so we check the parsed version:

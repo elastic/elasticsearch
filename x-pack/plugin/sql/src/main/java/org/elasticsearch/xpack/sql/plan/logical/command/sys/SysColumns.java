@@ -116,7 +116,7 @@ public class SysColumns extends Command {
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
 
-        // special case fo '%' (translated to *)
+        // special case for '%' (translated to *)
         if ("*".equals(idx)) {
             session.indexResolver().resolveAsSeparateMappings(idx, regex, ActionListener.wrap(esIndices -> {
                 List<List<?>> rows = new ArrayList<>();

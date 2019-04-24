@@ -10,9 +10,9 @@ Retrieves information about users in the native realm.
 
 ==== Request
 
-`GET /_security/user` +
+`GET /security/user` +
 
-`GET /_security/user/<username>` 
+`GET /security/user/<username>` 
 
 ==== Description
 
@@ -34,12 +34,12 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 ==== Examples
 
-To retrieve a native user, submit a GET request to the `/_security/user/<username>`
+To retrieve a native user, submit a GET request to the `/security/user/<username>`
 endpoint:
 
 [source,js]
 --------------------------------------------------
-GET /_security/user/jacknich
+GET /security/user/jacknich
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:jacknich_user]

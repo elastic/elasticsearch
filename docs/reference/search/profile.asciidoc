@@ -169,6 +169,7 @@ a `query` array and a `collector` array.  In the future, more sections may be ad
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
+[[_literal_query_literal_section]]
 === `query` Section
 
 The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.
@@ -302,7 +303,7 @@ The meaning of the stats are as follows:
 
     This records the time taken to score a particular document via it's Scorer
 
-
+[[_literal_collectors_literal_section]]
 === `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
@@ -378,7 +379,7 @@ For reference, the various collector reason's are:
     match_all query (which you will see added to the Query section) to collect your entire dataset
 
 
-
+[[_literal_rewrite_literal_section]]
 === `rewrite` Section
 
 All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or

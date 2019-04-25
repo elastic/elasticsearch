@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class GetEnrichPolicyAction extends Action<GetEnrichPolicyAction.Response> {
+
     public static final GetEnrichPolicyAction INSTANCE = new GetEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/get";
 

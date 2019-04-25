@@ -18,6 +18,7 @@ import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolici
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 
 public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestCase<GetEnrichPolicyAction.Response> {
+
     @Override
     protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
         EnrichPolicy policy = EnrichPolicy.fromXContent(parser);

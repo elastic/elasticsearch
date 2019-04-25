@@ -10,6 +10,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 public class GetEnrichPolicyActionRequestTests extends AbstractWireSerializingTestCase<GetEnrichPolicyAction.Request> {
+
     @Override
     protected GetEnrichPolicyAction.Request createTestInstance() {
         return new GetEnrichPolicyAction.Request(randomAlphaOfLength(5));

@@ -134,7 +134,7 @@ dependencies {
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
 processTestResources {
     from(project(xpackModule('core')).file('src/main/config'))

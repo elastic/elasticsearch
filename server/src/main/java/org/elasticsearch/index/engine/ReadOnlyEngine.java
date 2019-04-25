@@ -108,11 +108,13 @@ public class ReadOnlyEngine extends Engine {
                 searcherManager = new SearcherManager(reader, searcherFactory);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
-                    ensureNoUncommittedOperation(seqNoStats, lastCommittedSegmentInfos);
                 }
                 this.seqNoStats = seqNoStats;
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
+                if (obtainLock) {
+                    ensureNoUncommittedOperation(this.seqNoStats, lastCommittedSegmentInfos);
+                }
                 success = true;
             } finally {
                 if (success == false) {
@@ -129,8 +131,13 @@ public class ReadOnlyEngine extends Engine {
      * so peer recovery of closed indices can skip phase 2 (i.e., not replaying translog operations) without losing data.
      */
     private void ensureNoUncommittedOperation(SeqNoStats seqNoStats, SegmentInfos segmentInfos) throws IOException {
-        // we can't enforce this check on an old index - should we prevent this engine as a recovery source?
+        assert indexWriterLock != null;
         if (config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_7_0)) {
+            // we can't enforce this check on an old index
+            return;
+        }
+        if (seqNoStats.getGlobalCheckpoint() == seqNoStats.getMaxSeqNo()) {
+            // we are good - no need to open translog
             return;
         }
         final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -139,13 +146,13 @@ public class ReadOnlyEngine extends Engine {
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(Long.MAX_VALUE, Long.MAX_VALUE);
         translogDeletionPolicy.setTranslogGenerationOfLastCommit(recoverTranslogGeneration.translogFileGeneration);
         translogDeletionPolicy.setMinTranslogGenerationForRecovery(recoverTranslogGeneration.translogFileGeneration);
-        final LocalCheckpointTracker localCheckpointTracker;
-        try (DirectoryReader reader = DirectoryReader.open(indexCommit)) {
-            localCheckpointTracker = createLocalCheckpointTracker(engineConfig, segmentInfos, logger,
-                () -> new Searcher("build_checkpoint_tracker", new IndexSearcher(reader), () -> {}), LocalCheckpointTracker::new);
-        }
         try (Translog translog = new Translog(engineConfig.getTranslogConfig(), translogUUID, translogDeletionPolicy,
             engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier())) {
+            final LocalCheckpointTracker localCheckpointTracker;
+            try (DirectoryReader reader = DirectoryReader.open(indexCommit)) {
+                localCheckpointTracker = createLocalCheckpointTracker(engineConfig, segmentInfos, logger,
+                    () -> new Searcher("build_checkpoint_tracker", new IndexSearcher(reader), () -> {}), LocalCheckpointTracker::new);
+            }
             try (Translog.Snapshot snapshot = translog.newSnapshotFromGen(recoverTranslogGeneration, Long.MAX_VALUE)) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {

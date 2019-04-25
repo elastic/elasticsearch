@@ -25,7 +25,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -140,29 +139,26 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
-            boolean hasPendingOps = false;
             List<Engine.Operation> ops = generateHistoryOnReplica(between(10, 500), randomBoolean(), false, randomBoolean());
             Randomness.shuffle(ops);
-            final DocsStats docStats;
+            List<Engine.Operation> uncommittedOps = randomSubsetOf(ops);
+            ops.removeAll(uncommittedOps);
             try (InternalEngine engine = createEngine(config)) {
                 for (Engine.Operation op : ops) {
-                    hasPendingOps = true;
                     applyOperation(engine, op);
-                    if (rarely()) {
-                        engine.flush(true, true);
-                        hasPendingOps = false;
-                    }
                 }
-                engine.refresh("test");
-                docStats = engine.docStats();
+                engine.flush(true, true);
+                globalCheckpoint.set(engine.getLocalCheckpoint());
+                for (Engine.Operation op : uncommittedOps) {
+                    applyOperation(engine, op);
+                }
             }
-            if (hasPendingOps) {
+            if (uncommittedOps.isEmpty() == false) {
                 AssertionError error = expectThrows(AssertionError.class,
-                    () -> new ReadOnlyEngine(config, null, null, randomBoolean(), Function.identity()));
+                    () -> new ReadOnlyEngine(config, null, null, true, Function.identity()));
                 assertThat(error.getMessage(), containsString("does not contain operation"));
             } else {
-                try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, randomBoolean(), Function.identity())) {
-                    assertThat(readOnlyEngine.docStats(), equalTo(docStats));
+                try (ReadOnlyEngine ignored = new ReadOnlyEngine(config, null, null, randomBoolean(), Function.identity())) {
                 }
             }
         }

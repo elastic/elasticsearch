@@ -30,8 +30,7 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
-    public void registerAggregationNamedObjects() throws Exception {
-     // register aggregations as NamedWriteable
+    public void registerNamedObjects() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();

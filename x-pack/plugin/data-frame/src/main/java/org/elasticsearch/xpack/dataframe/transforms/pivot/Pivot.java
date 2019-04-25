@@ -37,6 +37,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class Pivot {
     public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
+    public static final int TEST_QUERY_PAGE_SIZE = 50;
 
     private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
 
@@ -118,18 +119,7 @@ public class Pivot {
     }
 
     private void runTestQuery(Client client, SourceConfig sourceConfig, final ActionListener<Boolean> listener) {
-        // no after key
-        cachedCompositeAggregation.aggregateAfter(null);
-
-        QueryBuilder queryBuilder = sourceConfig.getQueryConfig().getQuery();
-
-        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(cachedCompositeAggregation);
-        sourceBuilder.size(0);
-        sourceBuilder.query(queryBuilder);
-        searchRequest.source(sourceBuilder);
-
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, null, TEST_QUERY_PAGE_SIZE);
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {

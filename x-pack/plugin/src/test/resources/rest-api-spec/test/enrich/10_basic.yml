@@ -1,7 +1,21 @@
 ---
 "Test enrich crud apis":
+  - do:
+      enrich.put_policy:
+        name: policy-crud
+        body:
+          type: exact_match
+          index_pattern: "bar*"
+          enrich_key: baz
+          enrich_values: ["a", "b"]
+          schedule: "*/120"
+  - is_true: acknowledged
 
   - do:
-      catch: missing
       enrich.get_policy:
         name: policy-crud
+  - match: { type: exact_match }
+  - match: { index_pattern: "bar*" }
+  - match: { enrich_key: baz }
+  - match: { enrich_values: ["a", "b"] }
+  - match: { schedule: "*/120" }

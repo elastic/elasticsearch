@@ -298,7 +298,7 @@ setup:
 ---
 "Field caps with include_unmapped":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.0.99"
       reason: include_unmapped has been added in 7.1.0
 
   - do:

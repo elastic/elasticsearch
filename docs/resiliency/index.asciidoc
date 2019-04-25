@@ -125,7 +125,7 @@ that no failures are found.
 == Completed
 
 [float]
-=== There is no way to uniquely identify a document version during a network partition (STATUS: DONE, v7.0.0)
+=== Documents indexed during a network partition cannot be uniquely identified (STATUS: DONE, v7.0.0)
 
 When a primary has been partitioned away from the cluster there is a short
 period of time until it detects this. During that time it will continue

@@ -301,7 +301,7 @@ public final class DataFrameClient {
      * Get one or more data frame transform configurations
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
      *     Get data frame transform documentation</a>
      *
      * @param request The get data frame transform request
@@ -322,7 +322,7 @@ public final class DataFrameClient {
      * Get one or more data frame transform configurations asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
      *     Get data frame transform documentation</a>
      *
      * @param request The get data frame transform request

@@ -94,9 +94,7 @@
 
 ---
 "Create index with write aliases":
-  - skip:
-      version: " - 6.99.99"
-      reason: is_write_index is not implemented in ES <= 6.x
+
   - do:
       indices.create:
         include_type_name: true

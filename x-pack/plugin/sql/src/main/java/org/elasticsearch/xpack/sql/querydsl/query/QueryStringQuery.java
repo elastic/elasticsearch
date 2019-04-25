@@ -37,7 +37,7 @@ public class QueryStringQuery extends LeafQuery {
         appliers.put("default_operator", (qb, s) -> qb.defaultOperator(Operator.fromString(s)));
         appliers.put("enable_position_increments", (qb, s) -> qb.enablePositionIncrements(Booleans.parseBoolean(s)));
         appliers.put("escape", (qb, s) -> qb.escape(Booleans.parseBoolean(s)));
-        appliers.put("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.build(s)));
+        appliers.put("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s)));
         appliers.put("fuzzy_max_expansions", (qb, s) -> qb.fuzzyMaxExpansions(Integer.valueOf(s)));
         appliers.put("fuzzy_prefix_length", (qb, s) -> qb.fuzzyPrefixLength(Integer.valueOf(s)));
         appliers.put("fuzzy_rewrite", (qb, s) -> qb.fuzzyRewrite(s));

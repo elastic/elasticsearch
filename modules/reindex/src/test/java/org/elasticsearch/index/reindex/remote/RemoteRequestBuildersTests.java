@@ -68,19 +68,24 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.indices("a", "b");
         searchRequest.types("c", "d");
         assertEquals("/a,b/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
-
         searchRequest.indices("cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("cat,", "dog");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("dog", "cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
+        assertEquals("/cat%2C/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/", "dog");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
-        searchRequest.indices("dog", "cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F,dog/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        // test a specific date math + all characters that need escaping.
+        searchRequest.indices("<cat{now/d}>", "<>/{}|+:,");
+        assertEquals("/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/c,d/_search",
+            initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+
+        // re-escape already escaped (no special handling).
+        searchRequest.indices("%2f", "%3a");
+        assertEquals("/%252f,%253a/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        searchRequest.indices("%2fcat,");
+        assertEquals("/%252fcat%2C/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        searchRequest.indices("%3ccat/");
+        assertEquals("/%253ccat%2F/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
         searchRequest.indices("ok");
         searchRequest.types("cat,");

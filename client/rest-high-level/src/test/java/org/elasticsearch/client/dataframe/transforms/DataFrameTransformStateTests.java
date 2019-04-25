@@ -36,7 +36,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformStateTests::randomDataFrameTransformState,
                 DataFrameTransformStateTests::toXContent,
                 DataFrameTransformState::fromXContent)
-                .supportsUnknownFields(false)
+                .supportsUnknownFields(true)
+                .randomFieldsExcludeFilter(field -> field.equals("current_position"))
                 .test();
     }
 
@@ -44,7 +45,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
         return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
             randomFrom(IndexerState.values()),
             randomPositionMap(),
-            randomLongBetween(0,10));
+            randomLongBetween(0,10),
+            randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
@@ -54,7 +56,10 @@ public class DataFrameTransformStateTests extends ESTestCase {
         if (state.getPosition() != null) {
             builder.field("current_position", state.getPosition());
         }
-        builder.field("generation", state.getGeneration());
+        builder.field("checkpoint", state.getCheckpoint());
+        if (state.getReason() != null) {
+            builder.field("reason", state.getReason());
+        }
         builder.endObject();
     }
 

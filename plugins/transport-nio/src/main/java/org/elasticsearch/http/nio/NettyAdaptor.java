@@ -36,7 +36,7 @@ import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.function.BiConsumer;
 
-public class NettyAdaptor implements AutoCloseable {
+class NettyAdaptor {
 
     private final EmbeddedChannel nettyChannel;
     private final LinkedList<FlushOperation> flushOperations = new LinkedList<>();
@@ -64,7 +64,6 @@ public class NettyAdaptor implements AutoCloseable {
         nettyChannel.pipeline().addLast(handlers);
     }
 
-    @Override
     public void close() throws Exception {
         assert flushOperations.isEmpty() : "Should close outbound operations before calling close";
 

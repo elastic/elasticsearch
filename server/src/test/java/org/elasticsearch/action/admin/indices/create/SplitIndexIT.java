@@ -77,7 +77,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-
 public class SplitIndexIT extends ESIntegTestCase {
 
     @Override

@@ -80,8 +80,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final String type;
 
-            private final IndexAnalyzers indexAnalyzers;
-
             private final Function<String, SimilarityProvider> similarityLookupService;
 
             private final MapperService mapperService;
@@ -92,11 +90,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
-            public ParserContext(String type, IndexAnalyzers indexAnalyzers, Function<String, SimilarityProvider> similarityLookupService,
+            public ParserContext(String type, Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
                 this.type = type;
-                this.indexAnalyzers = indexAnalyzers;
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -109,7 +106,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
-                return indexAnalyzers;
+                return mapperService.getIndexAnalyzers();
             }
 
             public SimilarityProvider getSimilarity(String name) {
@@ -147,7 +144,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
-                    super(in.type(), in.indexAnalyzers, in.similarityLookupService(), in.mapperService(), in.typeParsers(),
+                    super(in.type(), in.similarityLookupService(), in.mapperService(), in.typeParsers(),
                             in.indexVersionCreated(), in.queryShardContextSupplier());
                 }
             }

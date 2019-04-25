@@ -11,9 +11,7 @@ setup:
 
 ---
 "Nested inner hits":
-    - skip:
-        version: " - 6.1.99"
-        reason: "<= 6.1 nodes don't always include index or id in nested inner hits"
+
     - do:
         index:
           index: test
@@ -42,10 +40,6 @@ setup:
 
 ---
 "Nested doc version and seqIDs":
-
-    - skip:
-        version: " - 6.99.99"
-        reason:  "Triggers warnings before 7.0"
 
     - do:
         index:

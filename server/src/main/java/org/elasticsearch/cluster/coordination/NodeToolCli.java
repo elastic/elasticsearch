@@ -36,9 +36,9 @@ public class NodeToolCli extends MultiCommand {
         super("A CLI tool to do unsafe cluster and index manipulations on current node",
             ()->{});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
+        subcommands.put("repurpose", new NodeRepurposeCommand());
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
         subcommands.put("detach-cluster", new DetachClusterCommand());
-        subcommands.put("repurpose", new NodeRepurposeCommand());
     }
 
     public static void main(String[] args) throws Exception {

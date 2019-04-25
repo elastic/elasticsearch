@@ -42,7 +42,12 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -58,7 +63,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Request(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public String getId() {
@@ -95,7 +100,7 @@ public class GetDataFrameTransformsAction extends Action<GetDataFrameTransformsA
         }
 
         public Response(StreamInput in) throws IOException {
-            readFrom(in);
+            super(in);
         }
 
         public List<DataFrameTransformConfig> getTransformConfigurations() {

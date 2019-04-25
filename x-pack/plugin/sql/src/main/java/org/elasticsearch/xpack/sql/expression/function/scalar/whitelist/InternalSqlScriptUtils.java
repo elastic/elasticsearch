@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeF
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProce
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.CaseProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalProcessor.ConditionalOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIfProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -144,8 +147,12 @@ public final class InternalSqlScriptUtils {
     }
 
     //
-    // Null
+    // Conditional
     //
+    public static Object caseFunction(List<Object> expressions) {
+        return CaseProcessor.apply(expressions);
+    }
+
     public static Object coalesce(List<Object> expressions) {
         return ConditionalOperation.COALESCE.apply(expressions);
     }
@@ -316,6 +323,9 @@ public final class InternalSqlScriptUtils {
         if (dateTime == null || tzId == null || chronoName == null) {
             return null;
         }
+        if (dateTime instanceof OffsetTime) {
+            return TimeFunction.dateTimeChrono((OffsetTime) dateTime, tzId, chronoName);
+        }
         return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
     }
     
@@ -394,6 +404,10 @@ public final class InternalSqlScriptUtils {
         }
 
         return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+    }
+
+    public static OffsetTime asTime(String time) {
+        return OffsetTime.parse(time);
     }
 
     //

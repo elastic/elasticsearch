@@ -139,6 +139,63 @@ is used for relative date filtering:
 include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
 --------------------------------------------------
 
+[[sql-functions-current-time]]
+==== `CURRENT_TIME/CURTIME`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+CURRENT_TIME
+CURRENT_TIME([precision]) <1>
+CURTIME
+--------------------------------------------------
+
+*Input*:
+
+<1> fractional digits; optional
+
+*Output*: time
+
+.Description:
+
+Returns the time when the current query reached the server.
+As a function, `CURRENT_TIME()` accepts _precision_ as an optional
+parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
+meaning a milliseconds precision current time will be returned.
+
+This method always returns the same value for its every occurrence within the same query.
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTime]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunction]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[curTimeFunction]
+--------------------------------------------------
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[currentTimeFunctionPrecision]
+--------------------------------------------------
+
+Typically, this function is used for relative date/time filtering:
+
+["source","sql",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[filterCurrentTime]
+--------------------------------------------------
+
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
 [[sql-functions-current-timestamp]]
 ==== `CURRENT_TIMESTAMP`
 
@@ -146,7 +203,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
 [source, sql]
 --------------------------------------------------
 CURRENT_TIMESTAMP
-CURRENT_TIMESTAMP(precision <1>)
+CURRENT_TIMESTAMP([precision]) <1>
 --------------------------------------------------
 
 *Input*:
@@ -187,13 +244,17 @@ relative date/time filtering:
 include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 --------------------------------------------------
 
+[IMPORTANT]
+Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
+function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`
 
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_MONTH(datetime_exp<1>)
+DAY_OF_MONTH(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -217,7 +278,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfMonth]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_WEEK(datetime_exp<1>)
+DAY_OF_WEEK(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -241,7 +302,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfWeek]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_OF_YEAR(datetime_exp<1>)
+DAY_OF_YEAR(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -265,7 +326,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dayOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-DAY_NAME(datetime_exp<1>)
+DAY_NAME(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -289,7 +350,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dayName]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-HOUR_OF_DAY(datetime_exp<1>)
+HOUR_OF_DAY(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -313,7 +374,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[hourOfDay]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ISO_DAY_OF_WEEK(datetime_exp<1>)
+ISO_DAY_OF_WEEK(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -338,7 +399,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[isoDayOfWeek]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-ISO_WEEK_OF_YEAR(datetime_exp<1>)
+ISO_WEEK_OF_YEAR(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -363,7 +424,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[isoWeekOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MINUTE_OF_DAY(datetime_exp<1>)
+MINUTE_OF_DAY(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -387,7 +448,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[minuteOfDay]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MINUTE_OF_HOUR(datetime_exp<1>)
+MINUTE_OF_HOUR(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -411,7 +472,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[minuteOfHour]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MONTH(datetime_exp<1>)
+MONTH(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -435,7 +496,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[monthOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-MONTH_NAME(datetime_exp<1>)
+MONTH_NAME(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -491,7 +552,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-SECOND_OF_MINUTE(datetime_exp<1>)
+SECOND_OF_MINUTE(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -515,7 +576,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[secondOfMinute]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-QUARTER(datetime_exp<1>)
+QUARTER(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -571,7 +632,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterToday]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-WEEK_OF_YEAR(datetime_exp<1>)
+WEEK_OF_YEAR(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -595,7 +656,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[weekOfYear]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-YEAR(datetime_exp<1>)
+YEAR(datetime_exp) <1>
 --------------------------------------------------
 
 *Input*:
@@ -619,7 +680,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[year]
 .Synopsis:
 [source, sql]
 --------------------------------------------------
-EXTRACT(datetime_function<1> FROM datetime_exp<2>)
+EXTRACT(
+    datetime_function  <1>
+    FROM datetime_exp) <2>
 --------------------------------------------------
 
 *Input*:

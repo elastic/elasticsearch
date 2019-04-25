@@ -636,7 +636,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
                 // no shard operation permits are being held here, move state from started to relocated
-                assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
+                assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED :
                         "in-flight operations in progress while moving shard state to relocated";
                 /*
                  * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
@@ -961,9 +961,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public DocsStats docStats() {
         readAllowed();
-        DocsStats docsStats = getEngine().docStats();
-        markSearcherAccessed();
-        return docsStats;
+        return getEngine().docStats();
     }
 
     /**
@@ -1042,11 +1040,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public CompletionStats completionStats(String... fields) {
         readAllowed();
         try {
-            CompletionStats stats = getEngine().completionStats(fields);
-            // we don't wait for a pending refreshes here since it's a stats call instead we mark it as accessed only which will cause
-            // the next scheduled refresh to go through and refresh the stats as well
-            markSearcherAccessed();
-            return stats;
+            return getEngine().completionStats(fields);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -1235,6 +1229,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
+        markSearcherAccessed();
         final Engine engine = getEngine();
         final Engine.Searcher searcher = engine.acquireSearcher(source, scope);
         assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader())
@@ -1459,7 +1454,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getRecoverySource().expectEmptyRetentionLeases() == false || getRetentionLeases().leases().isEmpty()
             : "expected empty set of retention leases with recovery source [" + recoveryState.getRecoverySource()
             + "] but got " + getRetentionLeases();
-        trimUnsafeCommits();
         synchronized (mutex) {
             verifyNotClosed();
             assert currentEngineReference.get() == null : "engine is running";
@@ -1478,15 +1472,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert recoveryState.getStage() == RecoveryState.Stage.TRANSLOG : "TRANSLOG stage expected but was: " + recoveryState.getStage();
     }
 
-    private void trimUnsafeCommits() throws IOException {
-        assert currentEngineReference.get() == null || currentEngineReference.get() instanceof ReadOnlyEngine : "a write engine is running";
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath(), translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogConfig.getTranslogPath(), translogUUID);
-        assertMaxUnsafeAutoIdInCommit();
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, indexSettings.getIndexVersionCreated());
-    }
-
     private boolean assertSequenceNumbersInCommit() throws IOException {
         final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
@@ -1494,11 +1479,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert userData.containsKey(Engine.HISTORY_UUID_KEY) : "commit point doesn't contains a history uuid";
         assert userData.get(Engine.HISTORY_UUID_KEY).equals(getHistoryUUID()) : "commit point history uuid ["
             + userData.get(Engine.HISTORY_UUID_KEY) + "] is different than engine [" + getHistoryUUID() + "]";
-        return true;
-    }
-
-    private boolean assertMaxUnsafeAutoIdInCommit() throws IOException {
-        final Map<String, String> userData = SegmentInfos.readLatestCommit(store.directory()).getUserData();
         assert userData.containsKey(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID) :
             "opening index which was created post 5.5.0 but " + Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID
                 + " is not found in commit";
@@ -1588,7 +1568,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert assertReplicationTarget();
             } else {
                 assert origin == Engine.Operation.Origin.LOCAL_RESET;
-                assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
+                assert getActiveOperationsCount() == OPERATIONS_BLOCKED
+                    : "locally resetting without blocking operations, active operations are [" + getActiveOperations() + "]";
             }
             if (writeAllowedStates.contains(state) == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard state is one of " +
@@ -2708,9 +2689,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary term update. Since indexShardOperationPermits doesn't guarantee that async submissions are executed
         // in the order submitted, combining both operations ensure that the term is updated before the operation is
         // executed. It also has the side effect of acquiring all the permits one time instead of two.
-        final ActionListener<Releasable> operationListener = new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
+        final ActionListener<Releasable> operationListener = ActionListener.delegateFailure(onPermitAcquired,
+            (delegatedListener, releasable) -> {
                 if (opPrimaryTerm < getOperationPrimaryTerm()) {
                     releasable.close();
                     final String message = String.format(
@@ -2719,7 +2699,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         shardId,
                         opPrimaryTerm,
                         getOperationPrimaryTerm());
-                    onPermitAcquired.onFailure(new IllegalStateException(message));
+                    delegatedListener.onFailure(new IllegalStateException(message));
                 } else {
                     assert assertReplicationTarget();
                     try {
@@ -2727,18 +2707,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfUpdatesOrDeletes);
                     } catch (Exception e) {
                         releasable.close();
-                        onPermitAcquired.onFailure(e);
+                        delegatedListener.onFailure(e);
                         return;
                     }
-                    onPermitAcquired.onResponse(releasable);
+                    delegatedListener.onResponse(releasable);
                 }
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                onPermitAcquired.onFailure(e);
-            }
-        };
+            });
 
         if (requirePrimaryTermUpdate(opPrimaryTerm, allowCombineOperationWithPrimaryTermUpdate)) {
             synchronized (mutex) {
@@ -2782,8 +2756,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return (opPrimaryTerm > pendingPrimaryTerm) || (allPermits && opPrimaryTerm > getOperationPrimaryTerm());
     }
 
+    public static final int OPERATIONS_BLOCKED = -1;
+
+    /**
+     * Obtain the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} if all permits are held (even if there are
+     * outstanding operations in flight).
+     *
+     * @return the active operation count, or {@link IndexShard#OPERATIONS_BLOCKED} when all permits are held.
+     */
     public int getActiveOperationsCount() {
-        // refCount is incremented on successful acquire and decremented on close
         return indexShardOperationPermits.getActiveOperationsCount();
     }
 
@@ -3017,9 +2998,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *                 <code>true</code> if the listener was registered to wait for a refresh.
      */
     public final void awaitShardSearchActive(Consumer<Boolean> listener) {
-        if (isSearchIdle()) {
-            markSearcherAccessed(); // move the shard into non-search idle
-        }
+        markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
             addRefreshListener(location, (b) -> {
@@ -3111,7 +3090,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
-        assert getActiveOperationsCount() == 0 : "Ongoing writes [" + getActiveOperations() + "]";
+        assert getActiveOperationsCount() == OPERATIONS_BLOCKED
+            : "resetting engine without blocking operations; active operations are [" + getActiveOperations() + ']';
         sync(); // persist the global checkpoint to disk
         final SeqNoStats seqNoStats = seqNoStats();
         final TranslogStats translogStats = translogStats();
@@ -3127,8 +3107,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine newEngine = null;
         try {
             final long globalCheckpoint = getGlobalCheckpoint();
-            trimUnsafeCommits();
             synchronized (mutex) {
+                assert currentEngineReference.get() instanceof ReadOnlyEngine : "another write engine is running";
                 verifyNotClosed();
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
@@ -3182,7 +3162,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * which is at least the value of the max_seq_no_of_updates marker on the primary after that operation was executed on the primary.
      *
      * @see #acquireReplicaOperationPermit(long, long, long, ActionListener, String, Object)
-     * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, ActionListener)
+     * @see RecoveryTarget#indexTranslogOperations(List, int, long, long, RetentionLeases, long, ActionListener)
      */
     public void advanceMaxSeqNoOfUpdatesOrDeletes(long seqNo) {
         assert seqNo != UNASSIGNED_SEQ_NO

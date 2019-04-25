@@ -11,6 +11,18 @@
           "required": false,
           "description": "The id of the transform for which to get stats. '_all' or '*' implies all transforms"
         }
+      },
+      "params": {
+        "from": {
+          "type": "number",
+          "required": false,
+          "description": "skips a number of transform stats, defaults to 0"
+        },
+        "size": {
+          "type": "number",
+          "required": false,
+          "description": "specifies a max number of transform stats to get, defaults to 100"
+        }
       }
     },
     "body": null

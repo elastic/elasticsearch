@@ -1151,6 +1151,35 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
         });
     }
+
+    public void testGetTimeType() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 2018-03-12 17:20:30.123 UTC
+        Long timeInMillis = 1520875230123L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+
+        doWithQueryAndTimezone("SELECT CAST(test_date AS TIME) as time FROM test", timeZoneId1, results -> {
+            results.next();
+
+            java.sql.Date expectedDate = new java.sql.Date(0L);
+            assertEquals(expectedDate, results.getDate("time"));
+            assertEquals(expectedDate, results.getObject("time", java.sql.Date.class));
+
+            java.sql.Time expectedTime = asTime(timeInMillis, ZoneId.of("Etc/GMT-10"));
+            assertEquals(expectedTime, results.getTime("time"));
+            assertEquals(expectedTime, results.getObject("time", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(expectedTime.getTime());
+            assertEquals(expectedTimestamp, results.getTimestamp("time"));
+            assertEquals(expectedTimestamp, results.getObject("time", java.sql.Timestamp.class));
+        });
+    }
+
     public void testValidGetObjectCalls() throws Exception {
         createIndex("test");
         updateMappingForNumericValuesTests("test");

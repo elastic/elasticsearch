@@ -132,31 +132,41 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     public CandidateSet drawCandidates(CandidateSet set) throws IOException {
         Candidate original = set.originalTerm;
         BytesRef term = preFilter(original.term, spare, byteSpare);
-        if (suggestMode != SuggestMode.SUGGEST_ALWAYS) {
-            /**
-             * We use the {@link TermStats#docFreq} to compute the frequency threshold
-             * because that's what {@link DirectSpellChecker#suggestSimilar} expects
-             * when filtering terms.
-             */
-            int threshold = thresholdTermFrequency(original.termStats.docFreq);
-            if (threshold == Integer.MAX_VALUE) {
-                // the threshold is the max possible frequency so we can skip the search
-                return set;
+        float origThreshold = spellchecker.getThresholdFrequency();
+        try {
+            if (suggestMode != SuggestMode.SUGGEST_ALWAYS) {
+                /**
+                 * We use the {@link TermStats#docFreq} to compute the frequency threshold
+                 * because that's what {@link DirectSpellChecker#suggestSimilar} expects
+                 * when filtering terms.
+                 */
+                int threshold = thresholdTermFrequency(original.termStats.docFreq);
+                if (threshold == Integer.MAX_VALUE) {
+                    // the threshold is the max possible frequency so we can skip the search
+                    return set;
+                }
+                // don't override the threshold if the provided min_doc_freq is greater
+                // than the original term frequency.
+                if (spellchecker.getThresholdFrequency() < threshold) {
+                    spellchecker.setThresholdFrequency(threshold);
+                }
             }
-            spellchecker.setThresholdFrequency(threshold);
-        }
 
-        SuggestWord[] suggestSimilar = spellchecker.suggestSimilar(new Term(field, term), numCandidates, reader, this.suggestMode);
-        List<Candidate> candidates = new ArrayList<>(suggestSimilar.length);
-        for (int i = 0; i < suggestSimilar.length; i++) {
-            SuggestWord suggestWord = suggestSimilar[i];
-            BytesRef candidate = new BytesRef(suggestWord.string);
-            TermStats termStats = internalTermStats(candidate);
-            postFilter(new Candidate(candidate, termStats,
-                suggestWord.score, score(termStats, suggestWord.score, sumTotalTermFreq), false), spare, byteSpare, candidates);
+            SuggestWord[] suggestSimilar = spellchecker.suggestSimilar(new Term(field, term), numCandidates, reader, this.suggestMode);
+            List<Candidate> candidates = new ArrayList<>(suggestSimilar.length);
+            for (int i = 0; i < suggestSimilar.length; i++) {
+                SuggestWord suggestWord = suggestSimilar[i];
+                BytesRef candidate = new BytesRef(suggestWord.string);
+                TermStats termStats = internalTermStats(candidate);
+                postFilter(new Candidate(candidate, termStats,
+                    suggestWord.score, score(termStats, suggestWord.score, sumTotalTermFreq), false), spare, byteSpare, candidates);
+            }
+            set.addCandidates(candidates);
+            return set;
+        } finally {
+            // restore the original value back
+            spellchecker.setThresholdFrequency(origThreshold);
         }
-        set.addCandidates(candidates);
-        return set;
     }
 
     protected BytesRef preFilter(final BytesRef term, final CharsRefBuilder spare, final BytesRefBuilder byteSpare) throws IOException {

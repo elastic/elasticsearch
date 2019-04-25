@@ -16,14 +16,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -77,20 +75,13 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.AbstractExecutorService;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -458,7 +449,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
                                     try {
                                         createProcessAndSetRunning(processContext, job, params, closeHandler);
-                                        processContext.getAutodetectCommunicator().init(params.modelSnapshot());
+                                        processContext.getAutodetectCommunicator().restoreState(params.modelSnapshot());
                                         setJobState(jobTask, JobState.OPENED);
                                     } catch (Exception e1) {
                                         // No need to log here as the persistent task framework will log it
@@ -499,7 +490,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private void createProcessAndSetRunning(ProcessContext processContext,
                                             Job job,
                                             AutodetectParams params,
-                                            BiConsumer<Exception, Boolean> handler) {
+                                            BiConsumer<Exception, Boolean> handler) throws IOException {
         // At this point we lock the process context until the process has been started.
         // The reason behind this is to ensure closing the job does not happen before
         // the process is started as that can result to the job getting seemingly closed
@@ -507,6 +498,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         processContext.tryLock();
         try {
             AutodetectCommunicator communicator = create(processContext.getJobTask(), job, params, handler);
+            communicator.writeHeader();
             processContext.setRunning(communicator);
         } finally {
             // Now that the process is running and we have updated its state we can unlock.
@@ -639,7 +631,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         processContext.tryLock();
         try {
             if (processContext.setDying() == false) {
-                logger.debug("Cannot close job [{}] as it has already been closed", jobId);
+                logger.debug("Cannot close job [{}] as it has been marked as dying", jobId);
                 return;
             }
 
@@ -790,99 +782,4 @@ public class AutodetectProcessManager implements ClusterStateListener {
         upgradeInProgress = MlMetadata.getMlMetadata(event.state()).isUpgradeMode();
     }
 
-    /*
-     * The autodetect native process can only handle a single operation at a time. In order to guarantee that, all
-     * operations are initially added to a queue and a worker thread from ml autodetect threadpool will process each
-     * operation at a time.
-     */
-    static class AutodetectWorkerExecutorService extends AbstractExecutorService {
-
-        private final ThreadContext contextHolder;
-        private final CountDownLatch awaitTermination = new CountDownLatch(1);
-        private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>(100);
-
-        private volatile boolean running = true;
-
-        @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-        AutodetectWorkerExecutorService(ThreadContext contextHolder) {
-            this.contextHolder = contextHolder;
-        }
-
-        @Override
-        public void shutdown() {
-            running = false;
-        }
-
-        @Override
-        public List<Runnable> shutdownNow() {
-            throw new UnsupportedOperationException("not supported");
-        }
-
-        @Override
-        public boolean isShutdown() {
-            return running == false;
-        }
-
-        @Override
-        public boolean isTerminated() {
-            return awaitTermination.getCount() == 0;
-        }
-
-        @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-            return awaitTermination.await(timeout, unit);
-        }
-
-        @Override
-        public synchronized void execute(Runnable command) {
-            if (isShutdown()) {
-                EsRejectedExecutionException rejected = new EsRejectedExecutionException("autodetect worker service has shutdown", true);
-                if (command instanceof AbstractRunnable) {
-                    ((AbstractRunnable) command).onRejection(rejected);
-                } else {
-                    throw rejected;
-                }
-            }
-
-            boolean added = queue.offer(contextHolder.preserveContext(command));
-            if (added == false) {
-                throw new ElasticsearchStatusException("Unable to submit operation", RestStatus.TOO_MANY_REQUESTS);
-            }
-        }
-
-        void start() {
-            try {
-                while (running) {
-                    Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
-                    if (runnable != null) {
-                        try {
-                            runnable.run();
-                        } catch (Exception e) {
-                            logger.error("error handling job operation", e);
-                        }
-                        EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
-                    }
-                }
-
-                synchronized (this) {
-                    // if shutdown with tasks pending notify the handlers
-                    if (queue.isEmpty() == false) {
-                        List<Runnable> notExecuted = new ArrayList<>();
-                        queue.drainTo(notExecuted);
-
-                        for (Runnable runnable : notExecuted) {
-                            if (runnable instanceof AbstractRunnable) {
-                                ((AbstractRunnable) runnable).onRejection(
-                                    new EsRejectedExecutionException("unable to process as autodetect worker service has shutdown", true));
-                            }
-                        }
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } finally {
-                awaitTermination.countDown();
-            }
-        }
-    }
 }

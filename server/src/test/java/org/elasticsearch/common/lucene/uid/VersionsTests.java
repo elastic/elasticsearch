@@ -205,7 +205,7 @@ public class VersionsTests extends ESTestCase {
         assertEquals(Version.V_6_0_0.luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
-        version = Version.fromString("7.77.1");
+        version = Version.fromString("8.77.1");
         assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
     }
 }

@@ -288,6 +288,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         ActionListener.completeWith(listener, () -> {
             state().getTranslog().totalOperations(totalTranslogOps);
             indexShard().openEngineAndSkipTranslogRecovery();
+            assert indexShard.getGlobalCheckpoint() >= indexShard.seqNoStats().getMaxSeqNo() ||
+                indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_1_0)
+                : "global checkpoint is not initialized [" + indexShard.seqNoStats() + "]";
             return null;
         });
     }
@@ -317,6 +320,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final long maxSeenAutoIdTimestampOnPrimary,
             final long maxSeqNoOfDeletesOrUpdatesOnPrimary,
             final RetentionLeases retentionLeases,
+            final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) {
         ActionListener.completeWith(listener, () -> {
             final RecoveryState.Translog translog = state().getTranslog();
@@ -348,7 +352,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     throw new MapperException("mapping updates are not allowed [" + operation + "]");
                 }
                 if (result.getFailure() != null) {
-                    if (Assertions.ENABLED) {
+                    if (Assertions.ENABLED && result.getFailure() instanceof MapperException == false) {
                         throw new AssertionError("unexpected failure while replicating translog entry", result.getFailure());
                     }
                     ExceptionsHelper.reThrowIfNotNull(result.getFailure());
@@ -382,7 +386,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         // first, we go and move files that were created with the recovery id suffix to
         // the actual names, its ok if we have a corrupted index here, since we have replicas
@@ -392,13 +396,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         store.incRef();
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                store.ensureIndexHasHistoryUUID();
-            }
-            // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
+            assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
+                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_1_0) :
+                "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
             final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
-                indexShard.getPendingPrimaryTerm());
+                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
             store.associateIndexWithNewTranslog(translogUUID);
 
             if (indexShard.getRetentionLeases().leases().isEmpty()) {

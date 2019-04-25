@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -54,7 +55,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
 
-    public static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);
@@ -84,8 +85,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final FetchSourceContext analyzedFields;
     private final ByteSizeValue modelMemoryLimit;
 
-    public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
-                                    @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit) {
+    private DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest, DataFrameAnalysis analysis,
+                                     @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.dest = Objects.requireNonNull(dest);
@@ -156,8 +157,16 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return Objects.hash(id, source, dest, analysis, analyzedFields, getModelMemoryLimit());
     }
 
-    public static String documentId(String id) {
-        return NAME + "-" + id;
+    @Override
+    public String toString() {
+        return new ToStringBuilder(getClass())
+            .add("id", id)
+            .add("source", source)
+            .add("dest", dest)
+            .add("analysis", analysis)
+            .add("analyzedFields", analyzedFields)
+            .add("modelMemoryLimit", modelMemoryLimit)
+            .toString();
     }
 
     public static class Builder {
@@ -169,9 +178,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private FetchSourceContext analyzedFields;
         private ByteSizeValue modelMemoryLimit;
 
-        public Builder() {}
+        private Builder() {}
 
-        public Builder(String id) {
+        private Builder(String id) {
             setId(id);
         }
 
@@ -184,10 +193,6 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
                 this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
             }
             this.modelMemoryLimit = config.modelMemoryLimit;
-        }
-
-        public String getId() {
-            return id;
         }
 
         public Builder setId(String id) {

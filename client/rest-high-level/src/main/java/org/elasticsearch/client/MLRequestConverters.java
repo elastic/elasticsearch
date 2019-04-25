@@ -598,7 +598,15 @@ final class MLRequestConverters {
             .addPathPartAsIs("analytics")
             .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
             .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getRequest.getSize() != null) {
+            params.putParam(PageParams.SIZE.getPreferredName(), getRequest.getSize().toString());
+        }
+        if (getRequest.getFrom() != null) {
+            params.putParam(PageParams.FROM.getPreferredName(), getRequest.getFrom().toString());
+        }
+        return request;
     }
 
     static Request deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest deleteRequest) {

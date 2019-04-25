@@ -27,6 +27,7 @@ import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
@@ -41,6 +42,7 @@ import org.elasticsearch.client.ml.GetBucketsRequest;
 import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetFiltersRequest;
@@ -57,6 +59,8 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequestTests;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
@@ -74,6 +78,7 @@ import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -100,8 +105,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigTests.randomDataFrameAnalyticsConfig;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.core.IsNull.nullValue;
 
 public class MLRequestConvertersTests extends ESTestCase {
@@ -666,6 +674,43 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteCalendarEvent(deleteCalendarEventRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/calendars/" + calendarId + "/events/" + eventId, request.getEndpoint());
+    }
+
+    public void testPutDataFrameAnalytics() throws IOException {
+        PutDataFrameAnalyticsRequest putRequest = new PutDataFrameAnalyticsRequest(randomDataFrameAnalyticsConfig());
+        Request request = MLRequestConverters.putDataFrameAnalytics(putRequest);
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + putRequest.getConfig().getId(), request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DataFrameAnalyticsConfig parsedConfig = DataFrameAnalyticsConfig.fromXContent(parser);
+            assertThat(parsedConfig, equalTo(putRequest.getConfig()));
+        }
+    }
+
+    public void testGetDataFrameAnalytics() throws IOException {
+        String configId1 = randomAlphaOfLength(10);
+        String configId2 = randomAlphaOfLength(10);
+        String configId3 = randomAlphaOfLength(10);
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3);
+        getRequest.setFrom(100);
+        getRequest.setSize(300);
+
+        Request request = MLRequestConverters.getDataFrameAnalytics(getRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3, request.getEndpoint());
+        assertThat(request.getParameters().keySet(), hasSize(2));
+//        assertEquals(new HashMap<>(){put("from", 100), put("size", 300)}, request.getParameters());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+//            GetDataFrameAnalyticsRequest parsedRequest = GetDataFrameAnalyticsRequest
+//            assertThat(parsedRequest, equalTo(getRequest));
+        }
+    }
+
+    public void testDeleteDataFrameAnalytics() {
+        DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.deleteDataFrameAnalytics(deleteRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
     }
 
     public void testPutFilter() throws IOException {

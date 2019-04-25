@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
@@ -53,7 +54,7 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         return from;
     }
 
-    public void setFrom(Integer from) {
+    public void setFrom(@Nullable Integer from) {
         this.from = from;
     }
 
@@ -61,7 +62,7 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         return size;
     }
 
-    public void setSize(Integer size) {
+    public void setSize(@Nullable Integer size) {
         this.size = size;
     }
 
@@ -79,11 +80,13 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
-        return Objects.equals(ids, other.ids);
+        return Objects.equals(ids, other.ids)
+            && Objects.equals(from, other.from)
+            && Objects.equals(size, other.size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids);
+        return Objects.hash(ids, from, size);
     }
 }

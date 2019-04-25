@@ -110,8 +110,6 @@ public class ExecutionService {
     private final Client client;
     private final WatchExecutor executor;
     private final ExecutorService genericExecutor;
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-    private final Lock putUpdateLock = readWriteLock.readLock();
 
     private AtomicReference<CurrentExecutions> currentExecutions = new AtomicReference<>();
     private final AtomicBoolean paused = new AtomicBoolean(false);
@@ -441,7 +439,6 @@ public class ExecutionService {
      */
     private void forcePutHistory(WatchRecord watchRecord) {
         String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
-        putUpdateLock.lock();
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
@@ -467,8 +464,6 @@ public class ExecutionService {
         } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
-        } finally {
-            putUpdateLock.unlock();
         }
     }
 

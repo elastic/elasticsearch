@@ -15,7 +15,7 @@ to determine if a bucket should be retained or filtered out.
 ==== Return
 
 boolean::
-        True if the the bucket should be retained, false if the bucket should be filtered out.
+        True if the bucket should be retained, false if the bucket should be filtered out.
 
 ==== API
 

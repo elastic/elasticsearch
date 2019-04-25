@@ -431,7 +431,7 @@ In Elasticsearch 7.0, each API will support typeless requests,
 and specifying a type will produce a deprecation warning.
 
 NOTE: Typeless APIs work even if the target index contains a custom type.
-For example, if an index has the the custom type name `my_type`, we can add
+For example, if an index has the custom type name `my_type`, we can add
 documents to it using typeless `index` calls, and load documents with typeless
 `get` calls.
 

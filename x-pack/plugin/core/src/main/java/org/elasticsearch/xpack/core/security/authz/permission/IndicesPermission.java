@@ -277,7 +277,7 @@ public final class IndicesPermission {
         private final Set<BytesReference> query;
         // by default certain restricted indices are exempted when granting privileges, as they should generally be hidden for ordinary
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
-        // to be covered by the the "indices"
+        // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
 
         public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,

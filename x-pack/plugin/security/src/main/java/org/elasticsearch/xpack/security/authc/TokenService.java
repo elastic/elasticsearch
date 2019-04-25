@@ -349,7 +349,7 @@ public final class TokenService {
     }
 
     /**
-     * Gets the UserToken with given id by fetching the the corresponding token document
+     * Gets the UserToken with given id by fetching the corresponding token document
      */
     void getUserTokenFromId(String userTokenId, ActionListener<UserToken> listener) {
         if (securityIndex.isAvailable() == false) {

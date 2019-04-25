@@ -179,7 +179,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                         .get();
 
         // verifying the basic auth password is stored encrypted in the index when security
-        // is enabled, when it's not enabled, the the passowrd should be stored in plain text
+        // is enabled, when it's not enabled, the password should be stored in plain text
         GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));

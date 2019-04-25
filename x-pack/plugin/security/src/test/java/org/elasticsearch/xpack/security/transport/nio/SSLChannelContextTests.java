@@ -406,14 +406,19 @@ public class SSLChannelContextTests extends ESTestCase {
 
     private Answer<Integer> getWriteAnswer(int bytesToEncrypt, boolean isApp) {
         return invocationOnMock -> {
-            SSLOutboundBuffer outboundBuffer = (SSLOutboundBuffer) invocationOnMock.getArguments()[0];
+            SSLOutboundBuffer outboundBuffer;
+            if (isApp) {
+                outboundBuffer = (SSLOutboundBuffer) invocationOnMock.getArguments()[1];
+            } else {
+                outboundBuffer = (SSLOutboundBuffer) invocationOnMock.getArguments()[0];
+            }
             ByteBuffer byteBuffer = outboundBuffer.nextWriteBuffer(bytesToEncrypt + 1);
             for (int i = 0; i < bytesToEncrypt; ++i) {
                 byteBuffer.put((byte) i);
             }
             outboundBuffer.incrementEncryptedBytes(bytesToEncrypt);
             if (isApp) {
-                ((FlushOperation) invocationOnMock.getArguments()[1]).incrementIndex(bytesToEncrypt);
+                ((FlushOperation) invocationOnMock.getArguments()[0]).incrementIndex(bytesToEncrypt);
             }
             return bytesToEncrypt;
         };

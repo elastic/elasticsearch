@@ -119,9 +119,6 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (blobExists(blobName) == false) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
         deleteBlobIgnoringIfNotExists(blobName);
     }
 

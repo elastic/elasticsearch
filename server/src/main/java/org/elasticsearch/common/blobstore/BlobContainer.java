@@ -100,7 +100,7 @@ public interface BlobContainer {
 
     /**
      * Deletes the blob with the given name, if the blob exists. If the blob does not exist,
-     * this method throws a NoSuchFileException.
+     * this method may throw a {@link NoSuchFileException} if the underlying implementation supports an existence check before delete.
      *
      * @param   blobName
      *          The name of the blob to delete.
@@ -120,9 +120,7 @@ public interface BlobContainer {
         IOException ioe = null;
         for (String blobName : blobNames) {
             try {
-                deleteBlob(blobName);
-            } catch (NoSuchFileException e) {
-                // ignored
+                deleteBlobIgnoringIfNotExists(blobName);
             } catch (IOException e) {
                 if (ioe == null) {
                     ioe = e;

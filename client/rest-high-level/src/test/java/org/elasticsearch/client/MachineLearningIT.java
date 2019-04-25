@@ -1342,10 +1342,24 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testStartDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "test-source-index";
+        CreateIndexRequest createSourceIndexRequest = new CreateIndexRequest(sourceIndex);
+        createSourceIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createSourceIndexRequest, RequestOptions.DEFAULT);
+
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource("test-source-index"))
+            .setSource(new DataFrameAnalyticsSource(sourceIndex))
             .setDest(new DataFrameAnalyticsDest("test-dest-index"))
             .setAnalysis(new OutlierDetection())
             .build();
@@ -1355,18 +1369,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
         DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
 
-        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
-            new GetDataFrameAnalyticsRequest(configId),
-            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
-        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
-        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
-
         AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
 
-        getDataFrameAnalyticsResponse = execute(
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId),
             machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));

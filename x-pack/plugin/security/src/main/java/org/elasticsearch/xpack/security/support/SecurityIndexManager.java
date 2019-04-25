@@ -73,7 +73,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Manages the lifecycle of a single index, mapping and and data upgrades/migrations.
+ * Manages the lifecycle of a single index, mapping and data upgrades/migrations.
  */
 public class SecurityIndexManager implements ClusterStateListener {
 

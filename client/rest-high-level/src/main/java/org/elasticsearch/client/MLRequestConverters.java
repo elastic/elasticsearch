@@ -600,11 +600,14 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getRequest.getSize() != null) {
-            params.putParam(PageParams.SIZE.getPreferredName(), getRequest.getSize().toString());
-        }
-        if (getRequest.getFrom() != null) {
-            params.putParam(PageParams.FROM.getPreferredName(), getRequest.getFrom().toString());
+        if (getRequest.getPageParams() != null) {
+            PageParams pageParams = getRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
         }
         return request;
     }

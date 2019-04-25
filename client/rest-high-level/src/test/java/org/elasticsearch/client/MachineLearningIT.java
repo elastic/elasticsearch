@@ -1253,8 +1253,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
             new PutDataFrameAnalyticsRequest(config),
-            machineLearningClient::putDataFrameAnalytics,
-            machineLearningClient::putDataFrameAnalyticsAsync);
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
         DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
         assertThat(createdConfig.getId(), equalTo(config.getId()));
         assertThat(createdConfig.getSource().getIndex(), equalTo(config.getSource().getIndex()));
@@ -1277,14 +1276,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
             new PutDataFrameAnalyticsRequest(config),
-            machineLearningClient::putDataFrameAnalytics,
-            machineLearningClient::putDataFrameAnalyticsAsync);
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
         DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId),
-            machineLearningClient::getDataFrameAnalytics,
-            machineLearningClient::getDataFrameAnalyticsAsync);
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
     }
@@ -1305,26 +1302,29 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
             PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
                 new PutDataFrameAnalyticsRequest(config),
-                machineLearningClient::putDataFrameAnalytics,
-                machineLearningClient::putDataFrameAnalyticsAsync);
+                machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
             DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
             createdConfigs.add(createdConfig);
         }
 
         {
             GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
-                new GetDataFrameAnalyticsRequest(configIdPrefix + "*"),
-                machineLearningClient::getDataFrameAnalytics,
-                machineLearningClient::getDataFrameAnalyticsAsync);
+                GetDataFrameAnalyticsRequest.getAllDataFrameAnalyticsRequest(),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
             assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
             assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
         }
-
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "*"),
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
         {
             GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
                 new GetDataFrameAnalyticsRequest(configIdPrefix + "9", configIdPrefix + "1", configIdPrefix + "4"),
-                machineLearningClient::getDataFrameAnalytics,
-                machineLearningClient::getDataFrameAnalyticsAsync);
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
             assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(3));
             assertThat(
                 getDataFrameAnalyticsResponse.getAnalytics(),
@@ -1351,31 +1351,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId + "*"),
-            machineLearningClient::getDataFrameAnalytics,
-            machineLearningClient::getDataFrameAnalyticsAsync);
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
 
         execute(
             new PutDataFrameAnalyticsRequest(config),
-            machineLearningClient::putDataFrameAnalytics,
-            machineLearningClient::putDataFrameAnalyticsAsync);
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
 
         getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId + "*"),
-            machineLearningClient::getDataFrameAnalytics,
-            machineLearningClient::getDataFrameAnalyticsAsync);
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
 
         AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(
             new DeleteDataFrameAnalyticsRequest(configId),
-            machineLearningClient::deleteDataFrameAnalytics,
-            machineLearningClient::deleteDataFrameAnalyticsAsync);
+            machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync);
         assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
 
         getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId + "*"),
-            machineLearningClient::getDataFrameAnalytics,
-            machineLearningClient::getDataFrameAnalyticsAsync);
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
     }
 

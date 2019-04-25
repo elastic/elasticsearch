@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;
@@ -31,8 +32,7 @@ import java.util.Optional;
 public class GetDataFrameAnalyticsRequest implements Validatable {
 
     private final List<String> ids;
-    private Integer from;
-    private Integer size;
+    private PageParams pageParams;
 
     /**
      * Helper method to create a request that will get ALL Data Frame Analytics
@@ -50,20 +50,12 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         return ids;
     }
 
-    public Integer getFrom() {
-        return from;
+    public PageParams getPageParams() {
+        return pageParams;
     }
 
-    public void setFrom(@Nullable Integer from) {
-        this.from = from;
-    }
-
-    public Integer getSize() {
-        return size;
-    }
-
-    public void setSize(@Nullable Integer size) {
-        this.size = size;
+    public void setPageParams(@Nullable PageParams pageParams) {
+        this.pageParams = pageParams;
     }
 
     @Override
@@ -81,12 +73,11 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
 
         GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
         return Objects.equals(ids, other.ids)
-            && Objects.equals(from, other.from)
-            && Objects.equals(size, other.size);
+            && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, from, size);
+        return Objects.hash(ids, pageParams);
     }
 }

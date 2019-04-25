@@ -57,11 +57,11 @@ public class PageParams implements ToXContentObject {
         this.size = size;
     }
 
-    public int getFrom() {
+    public Integer getFrom() {
         return from;
     }
 
-    public int getSize() {
+    public Integer getSize() {
         return size;
     }
 

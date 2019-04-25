@@ -29,7 +29,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
     public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "realm1");
 
-    @SuppressWarnings("unchecked")
     public void testResolve() throws Exception {
         //falling back on the 'memberOf' attribute
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, Settings.EMPTY));
@@ -42,7 +41,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("Philanthropists")));
     }
 
-    @SuppressWarnings("unchecked")
     public void testResolveFromPreloadedAttributes() throws Exception {
         SearchRequest preSearch = new SearchRequest(BRUCE_BANNER_DN, SearchScope.BASE, LdapUtils.OBJECT_CLASS_PRESENCE_FILTER, "memberOf");
         final Collection<Attribute> attributes = ldapConnection.searchForEntry(preSearch).getAttributes();
@@ -57,7 +55,6 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
                 containsString("Philanthropists")));
     }
 
-    @SuppressWarnings("unchecked")
     public void testResolveCustomGroupAttribute() throws Exception {
         Settings settings = Settings.builder()
                 .put("user_group_attribute", "seeAlso")

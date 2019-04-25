@@ -115,7 +115,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertRoleInfo(isRunningAgainstOldCluster());
     }
 
-    @SuppressWarnings("unchecked")
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40178")
     public void testWatcher() throws Exception {
         if (isRunningAgainstOldCluster()) {

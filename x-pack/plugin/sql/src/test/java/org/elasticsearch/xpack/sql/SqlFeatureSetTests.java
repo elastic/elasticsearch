@@ -71,7 +71,6 @@ public class SqlFeatureSetTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(enabled));
     }
 
-    @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
             ActionListener<SqlStatsResponse> listener =

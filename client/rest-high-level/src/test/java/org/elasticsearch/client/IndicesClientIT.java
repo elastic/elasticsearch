@@ -1472,7 +1472,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "or check the breaking changes documentation for removed settings]"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPutTemplateWithTypes() throws Exception {
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()
@@ -1502,7 +1501,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat((Map<String, String>) extractValue("my-template.aliases.{index}-write", templates), hasEntry("search_routing", "xyz"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPutTemplate() throws Exception {
         PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
             .patterns(Arrays.asList("pattern-1", "name-*"))
@@ -1553,7 +1551,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 containsString("Root mapping definition has unsupported parameters:  [my_doc_type"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPutTemplateWithNoTypesUsingTypedApi() throws Exception {
         org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest putTemplateRequest =
             new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest()

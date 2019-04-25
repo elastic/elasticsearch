@@ -93,6 +93,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                             DateTime now = new DateTime(clock.millis(), UTC);
                             Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(),
                                 now, XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
+                            watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
                             String[] actionIds = request.getActionIds();
                             if (actionIds == null || actionIds.length == 0) {

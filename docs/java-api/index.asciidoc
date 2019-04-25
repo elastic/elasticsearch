@@ -1,8 +1,8 @@
-[[java-api]]
 = Java API
 
 include::../Versions.asciidoc[]
 
+[[java-api]]
 [preface]
 == Preface
 This section describes the Java API that Elasticsearch provides. All

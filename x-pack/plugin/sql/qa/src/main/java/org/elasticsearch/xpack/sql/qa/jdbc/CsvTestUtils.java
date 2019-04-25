@@ -155,6 +155,8 @@ public final class CsvTestUtils {
                 return "timestamp";
             case "bt":
                 return "byte";
+            case "sh":
+                return "short";
             default:
                 return type;
         }

@@ -146,12 +146,11 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (value != null) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
-                    // convert % to enumeration
-                    // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
-                    types.addAll(IndexType.VALID);
+                    // treat % as null
+                    // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
                 }
                 // special case for legacy apps (like msquery) that always asks for 'TABLE'
                 // which we manually map to all concrete tables supported

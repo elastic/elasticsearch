@@ -50,7 +50,7 @@ public class Cleanup {
     // todo
     private static final List<String> ELASTICSEARCH_FILES_WINDOWS = Collections.emptyList();
 
-    public static void cleanEverything() {
+    public static void cleanEverything() throws Exception {
         final Shell sh = new Shell();
 
         // kill elasticsearch processes

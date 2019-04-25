@@ -1,6 +1,6 @@
 {
   "xpack.migration.deprecations": {
-    "documentation": "http://www.elastic.co/guide/en/migration/current/migration-api-deprecation.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/6.7/migration-api-deprecation.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/{index}/_xpack/migration/deprecations",

@@ -30,13 +30,17 @@ esplugin {
 integTest.enabled = false
 
 task bwcTest {
-  description = 'runs retention lease backwards compatability tests'
+  description = 'runs retention lease backwards compatibility tests'
   group = 'verification'
 }
 
 for (Version version : bwcVersions.wireCompatible) {
   if (version.before("6.5.0")) {
     // versions before 6.5.0 do not support soft deletes
+    continue
+  }
+  if (version.onOrAfter("6.7.0")) {
+    // we are known to be compatible with these versions
     continue
   }
 

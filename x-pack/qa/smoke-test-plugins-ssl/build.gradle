@@ -1,13 +1,6 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
-
-import javax.net.ssl.HttpsURLConnection
-import javax.net.ssl.KeyManager
-import javax.net.ssl.SSLContext
-import javax.net.ssl.TrustManagerFactory
-import java.nio.charset.StandardCharsets
-import java.security.KeyStore
-import java.security.SecureRandom
+import org.elasticsearch.gradle.http.WaitForHttpResource
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -87,45 +80,12 @@ integTestCluster {
                'bin/elasticsearch-users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    KeyStore keyStore = KeyStore.getInstance("JKS");
-    keyStore.load(clientKeyStore.newInputStream(), 'testclient'.toCharArray());
-    TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-    tmf.init(keyStore);
-    // We don't need a KeyManager as there won't be client auth required so pass an empty array
-    SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-    sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
-    for (int i = 0; i < 10; i++) {
-      // we use custom wait logic here for HTTPS
-      HttpsURLConnection httpURLConnection = null;
-      try {
-        httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
-        httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
-        httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
-        httpURLConnection.setRequestMethod("GET");
-        httpURLConnection.connect();
-        if (httpURLConnection.getResponseCode() == 200) {
-          tmpFile.withWriter StandardCharsets.UTF_8.name(), {
-            it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
-          }
-        }
-      } catch (IOException e) {
-        if (i == 9) {
-          logger.error("final attempt of calling cluster health failed", e)
-        } else {
-          logger.debug("failed to call cluster health", e)
-        }
-      } finally {
-        if (httpURLConnection != null) {
-          httpURLConnection.disconnect();
-        }
-      }
-
-      // did not start, so wait a bit before trying again
-      Thread.sleep(500L);
-    }
-    return tmpFile.exists()
+    WaitForHttpResource http = new WaitForHttpResource("https", node.httpUri(), numNodes)
+    http.setTrustStoreFile(clientKeyStore)
+    http.setTrustStorePassword("testclient")
+    http.setUsername("test_user")
+    http.setPassword("x-pack-test-password")
+    return http.wait(5000)
   }
 }
 

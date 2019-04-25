@@ -33,6 +33,7 @@ import org.elasticsearch.index.store.Store;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalShardSnapshot implements Closeable {
@@ -115,6 +116,12 @@ final class LocalShardSnapshot implements Closeable {
             @Override
             public void close() throws IOException {
                 throw new UnsupportedOperationException("nobody should close this directory wrapper");
+            }
+
+            // temporary override until LUCENE-8735 is integrated
+            @Override
+            public Set<String> getPendingDeletions() throws IOException {
+                return in.getPendingDeletions();
             }
         };
     }

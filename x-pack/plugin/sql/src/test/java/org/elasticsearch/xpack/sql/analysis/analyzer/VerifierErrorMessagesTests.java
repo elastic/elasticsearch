@@ -535,10 +535,16 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INSERT('text', 1, 2, 3)"));
     }
 
-    public void testInvalidTypeForRegexMatch() {
+    public void testInvalidTypeForLikeMatch() {
         assertEquals("1:26: [text LIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text LIKE 'foo'"));
+    }
+    
+    public void testInvalidTypeForRLikeMatch() {
+        assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
+                "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+            error("SELECT * FROM test WHERE text RLIKE 'foo'"));
     }
     
     public void testAllowCorrectFieldsInIncompatibleMappings() {

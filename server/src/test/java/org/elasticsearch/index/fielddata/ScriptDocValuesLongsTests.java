@@ -65,6 +65,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             int d = between(0, values.length - 1);
             longs.setNextDocId(d);
             assertEquals(values[d].length > 0 ? values[d][0] : 0, longs.getValue());
+            assertEquals(values[d].length > 0 ? values[d][0] : 0, (long) longs.get(0));
             assertEquals(values[d].length, longs.size());
             assertEquals(values[d].length, longs.getValues().size());
             for (int i = 0; i < values[d].length; i++) {

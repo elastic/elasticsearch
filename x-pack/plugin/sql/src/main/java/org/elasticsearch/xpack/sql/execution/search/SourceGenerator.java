@@ -80,7 +80,8 @@ public abstract class SourceGenerator {
             if (source.size() == -1) {
                 source.size(sz);
             }
-            if (aggBuilder instanceof CompositeAggregationBuilder) {
+            // limit the composite aggs only for non-local sorting
+            if (aggBuilder instanceof CompositeAggregationBuilder && container.sortingColumns().isEmpty()) {
                 ((CompositeAggregationBuilder) aggBuilder).size(sz);
             }
         }

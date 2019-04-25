@@ -127,7 +127,6 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         return monitoringUsage.get().getExporters().isEmpty() == false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/31940")
     public void testHTTPExporterWithSSL() throws Exception {
         // Ensures that the exporter is actually on
         assertBusy(() -> assertThat("[_http] exporter is not defined", getMonitoringUsageExportersDefined(), is(true)));

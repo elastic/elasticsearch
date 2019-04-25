@@ -44,7 +44,7 @@ GET /my_index/_rank_eval
       "mean_reciprocal_rank": { ... } <3>
    }
 }
-------------------------------
+-----------------------------
 // NOTCONSOLE
 
 <1> a set of typical search requests, together with their provided ratings
@@ -77,7 +77,7 @@ The request section contains several search requests typical to your application
             ]
         }
     ]
-------------------------------
+-----------------------------
 // NOTCONSOLE
 
 <1> the search requests id, used to group result details later 

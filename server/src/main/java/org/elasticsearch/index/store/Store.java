@@ -95,6 +95,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -733,6 +734,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public String toString() {
             return "store(" + in.toString() + ")";
+        }
+
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            // FilterDirectory.getPendingDeletions does not delegate, working around it here.
+            // to be removed once fixed in FilterDirectory.
+            return unwrap(this).getPendingDeletions();
         }
     }
 

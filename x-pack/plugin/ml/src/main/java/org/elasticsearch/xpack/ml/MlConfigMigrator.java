@@ -247,10 +247,14 @@ public class MlConfigMigrator {
                         currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE), currentState.nodes());
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                        .putCustom(MlMetadata.TYPE, removed.mlMetadata)
-                        .putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks)
-                        .build());
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
+                    .putCustom(MlMetadata.TYPE, removed.mlMetadata);
+
+                // If there are no tasks in the cluster state metadata to begin with, this could be null.
+                if (updatedTasks != null) {
+                    metaDataBuilder = metaDataBuilder.putCustom(PersistentTasksCustomMetaData.TYPE, updatedTasks);
+                }
+                newState.metaData(metaDataBuilder.build());
                 return newState.build();
             }
 

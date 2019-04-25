@@ -186,19 +186,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return this.in;
         }
 
-        public long getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return 0L;
-            }
-            return values[0];
+        public long getValue() {          
+            return get(0);
         }
 
         @Deprecated
@@ -223,6 +212,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Long get(int index) {
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return 0L;
+            }
             return values[index];
         }
 
@@ -266,17 +266,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * in.
          */
         public JodaCompatibleZonedDateTime getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return EPOCH;
-            }
             return get(0);
         }
 
@@ -299,7 +288,18 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public JodaCompatibleZonedDateTime get(int index) {   
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return EPOCH;
+            }
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -382,8 +382,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return this.in;
         }
 
-        public double getValue() {
-            if (count == 0) {
+        public double getValue() {      
+            return get(0);
+        }
+
+        @Override
+        public Double get(int index) {
+             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
@@ -394,11 +399,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return 0d;
             }
-            return values[0];
-        }
-
-        @Override
-        public Double get(int index) {
             return values[index];
         }
 
@@ -457,18 +457,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public GeoPoint getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return null;
-            }
-            return values[0];
+            return get(0);
         }
 
         public double getLat() {
@@ -499,6 +488,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return null;
+            }
             final GeoPoint point = values[index];
             return new GeoPoint(point.lat(), point.lon());
         }
@@ -585,6 +585,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public boolean getValue() {
+            return get(0);
+        }
+
+        @Override
+        public Boolean get(int index) {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -596,11 +601,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return false;
             }
-            return values[0];
-        }
-
-        @Override
-        public Boolean get(int index) {
             return values[index];
         }
 
@@ -681,10 +681,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public String get(int index) {
-            return values[index].get().utf8ToString();
-        }
-
-        public String getValue() {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -696,6 +692,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return null;
             }
+            return values[index].get().utf8ToString();
+        }
+
+        public String getValue() {
             return get(0);
         }
     }
@@ -714,15 +714,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public BytesRef get(int index) {
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
-            return values[index].toBytesRef();
-        }
-
-        public BytesRef getValue() {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -734,6 +725,15 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return new BytesRef();
             }
+            /**
+             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+             * returned value and the same instance might be used to
+             * return values from multiple documents.
+             **/
+            return values[index].toBytesRef();
+        }
+
+        public BytesRef getValue() {
             return get(0);
         }
     }

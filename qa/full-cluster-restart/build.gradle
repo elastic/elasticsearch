@@ -107,3 +107,16 @@ task bwcTestSnapshots {
 }
 
 check.dependsOn(bwcTestSnapshots)
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

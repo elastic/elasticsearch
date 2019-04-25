@@ -1,6 +1,6 @@
 {
   "xpack.security.get_user_privileges": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-user-privileges.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/6.7/security-api-get-privileges.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/user/_privileges",

@@ -175,9 +175,12 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute() {
-        return new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        return getFieldAttribute("a");
     }
 
+    private static FieldAttribute getFieldAttribute(String name) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", DataType.INTEGER, emptyMap(), true));
+    }
 
     public void testPruneSubqueryAliases() {
         ShowTables s = new ShowTables(EMPTY, null, null);
@@ -478,6 +481,7 @@ public class OptimizerTests extends ESTestCase {
                         randomListOfNulls())));
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     private List<Expression> randomListOfNulls() {
@@ -491,6 +495,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     public void testSimplifyIfNullNulls() {
@@ -504,11 +509,13 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
 
         e = new SimplifyConditional().rule(new IfNull(EMPTY, ONE, Literal.NULL));
         assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
 
     public void testFoldNullNotAppliedOnNullIf() {
@@ -536,6 +543,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
 
     public void testSimplifyLeastNulls() {
@@ -557,6 +565,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(2, e.children().size());
         assertEquals(ONE, e.children().get(0));
         assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
     
     public void testConcatFoldingIsNotNull() {
@@ -1125,6 +1134,23 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(or, exp);
     }
 
+    // (a = 1 AND b = 3 AND c = 4) OR (a = 2 AND b = 3 AND c = 4) -> (b = 3 AND c = 4) AND (a = 1 OR a = 2)
+    public void testBooleanSimplificationCommonExpressionSubstraction() {
+        FieldAttribute fa = getFieldAttribute("a");
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+
+        Expression a1 = new Equals(EMPTY, fa, ONE);
+        Expression a2 = new Equals(EMPTY, fa, TWO);
+        And common = new And(EMPTY, new Equals(EMPTY, fb, THREE), new Equals(EMPTY, fc, FOUR));
+        And left = new And(EMPTY, a1, common);
+        And right = new And(EMPTY, a2, common);
+        Or or = new Or(EMPTY, left, right);
+
+        Expression exp = new BooleanSimplification().rule(or);
+        assertEquals(new And(EMPTY, common, new Or(EMPTY, a1, a2)), exp);
+    }
+
     // (0 < a <= 1) OR (0 < a < 2) -> 0 < a < 2
     public void testRangesOverlappingNoLowerBoundary() {
         FieldAttribute fa = getFieldAttribute();
@@ -1269,7 +1295,7 @@ public class OptimizerTests extends ESTestCase {
         Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondField, OrderDirection.ASC, Order.NullsPosition.LAST);
         
-        OrderBy orderByPlan = new OrderBy(EMPTY, 
+        OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondField, firstField), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
@@ -1301,7 +1327,7 @@ public class OptimizerTests extends ESTestCase {
         Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondOrderBy = new Order(EMPTY, secondAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
         
-        OrderBy orderByPlan = new OrderBy(EMPTY, 
+        OrderBy orderByPlan = new OrderBy(EMPTY,
                 new Aggregate(EMPTY, FROM(), Arrays.asList(secondAlias, firstAlias), Arrays.asList(secondAlias, firstAlias)),
                 Arrays.asList(firstOrderBy, secondOrderBy));
         LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);

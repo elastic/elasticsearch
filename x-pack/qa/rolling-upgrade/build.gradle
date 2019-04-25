@@ -88,17 +88,17 @@ subprojects {
 
   apply plugin: 'elasticsearch.standalone-test'
 
-  // Use resources from the rolling-upgrade project in subdirectories
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
   }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/system_key'
@@ -272,7 +272,8 @@ subprojects {
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
           'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster'
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }

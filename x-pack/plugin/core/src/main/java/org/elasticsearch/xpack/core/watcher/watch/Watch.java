@@ -40,6 +40,7 @@ public class Watch implements ToXContentObject {
 
     private final long sourceSeqNo;
     private final long sourcePrimaryTerm;
+    private transient long version;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, ExecutableCondition condition, @Nullable ExecutableTransform transform,
                  @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
@@ -105,6 +106,14 @@ public class Watch implements ToXContentObject {
      ***/
     public long getSourcePrimaryTerm() {
         return sourcePrimaryTerm;
+    }
+
+    public long version() {
+        return version;
+    }
+
+    public void version(long version) {
+        this.version = version;
     }
 
     /**

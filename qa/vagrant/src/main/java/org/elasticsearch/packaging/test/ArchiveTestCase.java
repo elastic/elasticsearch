@@ -20,8 +20,12 @@
 package org.elasticsearch.packaging.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
+import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
@@ -29,20 +33,18 @@ import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Installation;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
-import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
+import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -53,6 +55,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -76,7 +79,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -86,12 +89,12 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws Exception {
         installation = installArchive(distribution());
         verifyArchiveInstallation(installation, distribution());
     }
 
-    public void test20PluginsListWithNoPlugins() {
+    public void test20PluginsListWithNoPlugins() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -101,7 +104,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30AbortWhenJavaMissing() {
+    public void test30AbortWhenJavaMissing() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -143,7 +146,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test40CreateKeystoreManually() {
+    public void test40CreateKeystoreManually() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -176,7 +179,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test50StartAndStop() throws IOException {
+    public void test50StartAndStop() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         // cleanup from previous test
@@ -192,8 +195,63 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
 
         Archives.stopElasticsearch(installation);
     }
+    public void test51JavaHomeWithSpecialCharacters() throws Exception {
+        assumeThat(installation, is(notNullValue()));
 
-    public void test60AutoCreateKeystore() {
+        Platforms.onWindows(() -> {
+            final Shell sh = new Shell();
+            try {
+                // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
+                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:JAVA_HOME");
+
+                sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
+
+                //verify ES can start, stop and run plugin list
+                Archives.runElasticsearch(installation, sh);
+
+                Archives.stopElasticsearch(installation);
+
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode, equalTo(0));
+
+            } finally {
+                //clean up sym link
+                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
+            }
+        });
+
+        Platforms.onLinux(() -> {
+            final Shell sh = new Shell();
+            // Create temporary directory with a space and link to java binary.
+            // Use it as java_home
+            String nameWithSpace = RandomStrings.randomAsciiAlphanumOfLength(getRandom(), 10) + "java home";
+            String test_java_home = FileUtils.mkdir(Paths.get("/home",ARCHIVE_OWNER, nameWithSpace)).toAbsolutePath().toString();
+            try {
+                final String systemJavaHome = sh.run("echo $JAVA_HOME").stdout.trim();
+                final String java = systemJavaHome + "/bin/java";
+
+                sh.run("mkdir -p \"" + test_java_home + "/bin\"");
+                sh.run("ln -s \"" + java + "\" \"" + test_java_home + "/bin/java\"");
+                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + test_java_home + "\"");
+
+                sh.getEnv().put("JAVA_HOME", test_java_home);
+
+                //verify ES can start, stop and run plugin list
+                Archives.runElasticsearch(installation, sh);
+
+                Archives.stopElasticsearch(installation);
+
+                String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
+                Result result = sh.run(pluginListCommand);
+                assertThat(result.exitCode, equalTo(0));
+            } finally {
+                FileUtils.rm(Paths.get("\"" + test_java_home + "\""));
+            }
+        });
+    }
+
+    public void test60AutoCreateKeystore() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
@@ -212,7 +270,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         });
     }
 
-    public void test70CustomPathConfAndJvmOptions() throws IOException {
+    public void test70CustomPathConfAndJvmOptions() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Path tempConf = getTempDir().resolve("esconf-alternate");
@@ -261,7 +319,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test80RelativePathConf() throws IOException {
+    public void test80RelativePathConf() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Path temp = getTempDir().resolve("esconf-alternate");
@@ -304,7 +362,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test90SecurityCliPackaging() {
+    public void test90SecurityCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -328,7 +386,7 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
-    public void test100RepairIndexCliPackaging() {
+    public void test100RepairIndexCliPackaging() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Installation.Executables bin = installation.executables();
@@ -344,5 +402,4 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
             Platforms.onWindows(action);
         }
     }
-
 }

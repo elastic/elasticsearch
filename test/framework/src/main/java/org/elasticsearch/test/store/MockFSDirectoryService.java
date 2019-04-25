@@ -54,6 +54,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.Set;
 
 public class MockFSDirectoryService extends FsDirectoryService {
 
@@ -186,6 +187,12 @@ public class MockFSDirectoryService extends FsDirectoryService {
             if (crash) {
                 super.crash();
             }
+        }
+
+        // temporary override until LUCENE-8735 is integrated
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            return in.getPendingDeletions();
         }
     }
 

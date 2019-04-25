@@ -4,8 +4,8 @@ services:
     command: --copy-service --loglevel debug
     image: "osixia/openldap:1.2.3"
     ports:
-      - "30389:389"
-      - "60636:636"
+      - "389"
+      - "636"
     environment:
       LDAP_ADMIN_PASSWORD: "NickFuryHeartsES"
       LDAP_DOMAIN: "oldap.test.elasticsearch.com"
@@ -31,7 +31,7 @@ services:
       - JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret
       - JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
     ports:
-      - "4443:4443"
+      - "4443"
     links:
       - openldap:openldap
     volumes:

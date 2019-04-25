@@ -73,6 +73,7 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                             DateTime now = new DateTime(clock.millis(), UTC);
                             Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
                                     XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
+                            watch.version(getRequest.version());
                             watch.toXContent(builder, WatcherParams.builder()
                                     .hideSecrets(true)
                                     .includeStatus(false)

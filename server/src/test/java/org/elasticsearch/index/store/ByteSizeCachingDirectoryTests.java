@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Set;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class ByteSizeCachingDirectoryTests extends ESTestCase {
@@ -44,6 +45,12 @@ public class ByteSizeCachingDirectoryTests extends ESTestCase {
         public long fileLength(String name) throws IOException {
             numFileLengthCalls++;
             return super.fileLength(name);
+        }
+
+        // temporary override until LUCENE-8735 is integrated
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            return in.getPendingDeletions();
         }
     }
 

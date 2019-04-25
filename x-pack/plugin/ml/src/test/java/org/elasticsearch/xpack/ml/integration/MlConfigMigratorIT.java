@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -48,10 +49,12 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -149,9 +152,13 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
                 .routingTable(routingTable.build())
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
-
+        List<MetaData.Custom> customs = new ArrayList<>();
         doAnswer(invocation -> {
                 ClusterStateUpdateTask listener = (ClusterStateUpdateTask) invocation.getArguments()[1];
+                ClusterState result = listener.execute(clusterState);
+                for (ObjectCursor<MetaData.Custom> value : result.metaData().customs().values()){
+                    customs.add(value.value);
+                }
                 listener.clusterStateProcessed("source", mock(ClusterState.class), mock(ClusterState.class));
                 return null;
         }).when(clusterService).submitStateUpdateTask(eq("remove-migrated-ml-configs"), any());
@@ -165,6 +172,9 @@ public class MlConfigMigratorIT extends MlSingleNodeTestCase {
         blockingCall(actionListener -> mlConfigMigrator.migrateConfigs(clusterState, actionListener),
                 responseHolder, exceptionHolder);
 
+        // Verify that we have custom values in the new cluster state and that none of them is null
+        assertThat(customs.size(), greaterThan(0));
+        assertThat(customs.stream().anyMatch(Objects::isNull), is(false));
         assertNull(exceptionHolder.get());
         assertTrue(responseHolder.get());
         assertSnapshot(mlMetadata.build());

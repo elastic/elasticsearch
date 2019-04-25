@@ -41,11 +41,16 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
         private Set<String> expandedIds;
@@ -57,10 +62,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
-        }
-
-        private Request() {
-            this(null, false, false, null);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -75,10 +76,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public String getId() {
             return id;
-        }
-
-        public void setId(String id) {
-            this.id = id;
         }
 
         public boolean waitForCompletion() {
@@ -158,15 +155,11 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean stopped;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+        private final boolean stopped;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            stopped = in.readBoolean();
         }
 
         public Response(boolean stopped) {
@@ -176,12 +169,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public boolean isStopped() {
             return stopped;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            stopped = in.readBoolean();
         }
 
         @Override

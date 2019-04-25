@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
+import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
@@ -29,19 +30,17 @@ import java.util.ArrayList;
  * the buffer passed as an argument. Otherwise, it will be consumed internally and advance the SSL/TLS close
  * or handshake process.
  *
- * Producing writes for a channel is more complicated. If there is existing data in the outbound write buffer
- * as indicated by {@link #hasFlushPending()}, that data must be written to the channel before more outbound
- * data can be produced. If no flushes are pending, {@link #needsNonApplicationWrite()} can be called to
- * determine if this driver needs to produce more data to advance the handshake or close process. If that
- * method returns true, {@link #nonApplicationWrite()} should be called (and the data produced then flushed
- * to the channel) until no further non-application writes are needed.
+ * Producing writes for a channel is more complicated. The method {@link #needsNonApplicationWrite()} can be
+ * called to determine if this driver needs to produce more data to advance the handshake or close process.
+ * If that method returns true, {@link #nonApplicationWrite(SSLOutboundBuffer)} should be called (and the
+ * data produced then flushed to the channel) until no further non-application writes are needed.
  *
  * If no non-application writes are needed, {@link #readyForApplicationWrites()} can be called to determine
  * if the driver is ready to consume application data. (Note: It is possible that
  * {@link #readyForApplicationWrites()} and {@link #needsNonApplicationWrite()} can both return false if the
  * driver is waiting on non-application data from the peer.) If the driver indicates it is ready for
- * application writes, {@link #applicationWrite(ByteBuffer[])} can be called. This method will encrypt
- * application data and place it in the write buffer for flushing to a channel.
+ * application writes, {@link #write(FlushOperation, SSLOutboundBuffer)} can be called. This method will
+ * encrypt flush operation application data and place it in the outbound buffer for flushing to a channel.
  *
  * If you are ready to close the channel {@link #initiateClose()} should be called. After that is called, the
  * driver will start producing non-application writes related to notifying the peer connection that this
@@ -50,23 +49,23 @@ import java.util.ArrayList;
  */
 public class SSLDriver implements AutoCloseable {
 
-    private static final ByteBuffer[] EMPTY_BUFFER_ARRAY = new ByteBuffer[0];
+    private static final ByteBuffer[] EMPTY_BUFFERS = {ByteBuffer.allocate(0)};
+    private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;
     private final boolean isClientMode;
     // This should only be accessed by the network thread associated with this channel, so nothing needs to
     // be volatile.
     private Mode currentMode = new HandshakeMode();
-    private ByteBuffer networkWriteBuffer;
     private ByteBuffer networkReadBuffer;
+    private int packetSize;
 
     public SSLDriver(SSLEngine engine, boolean isClientMode) {
         this.engine = engine;
         this.isClientMode = isClientMode;
         SSLSession session = engine.getSession();
-        this.networkReadBuffer = ByteBuffer.allocate(session.getPacketBufferSize());
-        this.networkWriteBuffer = ByteBuffer.allocate(session.getPacketBufferSize());
-        this.networkWriteBuffer.position(this.networkWriteBuffer.limit());
+        packetSize = session.getPacketBufferSize();
+        this.networkReadBuffer = ByteBuffer.allocate(packetSize);
     }
 
     public void init() throws SSLException {
@@ -100,16 +99,8 @@ public class SSLDriver implements AutoCloseable {
         return engine;
     }
 
-    public boolean hasFlushPending() {
-        return networkWriteBuffer.hasRemaining();
-    }
-
     public boolean isHandshaking() {
         return currentMode.isHandshake();
-    }
-
-    public ByteBuffer getNetworkWriteBuffer() {
-        return networkWriteBuffer;
     }
 
     public ByteBuffer getNetworkReadBuffer() {
@@ -134,15 +125,14 @@ public class SSLDriver implements AutoCloseable {
         return currentMode.needsNonApplicationWrite();
     }
 
-    public int applicationWrite(ByteBuffer[] buffers) throws SSLException {
-        assert readyForApplicationWrites() : "Should not be called if driver is not ready for application writes";
-        return currentMode.write(buffers);
+    public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
+        return currentMode.write(applicationBytes, outboundBuffer);
     }
 
-    public void nonApplicationWrite() throws SSLException {
+    public void nonApplicationWrite(SSLOutboundBuffer outboundBuffer) throws SSLException {
         assert currentMode.isApplication() == false : "Should not be called if driver is in application mode";
         if (currentMode.isApplication() == false) {
-            currentMode.write(EMPTY_BUFFER_ARRAY);
+            currentMode.write(EMPTY_FLUSH_OPERATION, outboundBuffer);
         } else {
             throw new AssertionError("Attempted to non-application write from invalid mode: " + currentMode.modeName());
         }
@@ -205,45 +195,36 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
-    private SSLEngineResult wrap(ByteBuffer[] buffers) throws SSLException {
-        assert hasFlushPending() == false : "Should never called with pending writes";
+    private SSLEngineResult wrap(SSLOutboundBuffer outboundBuffer) throws SSLException {
+        return wrap(outboundBuffer, EMPTY_FLUSH_OPERATION);
+    }
 
-        networkWriteBuffer.clear();
+    private SSLEngineResult wrap(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
+        ByteBuffer[] buffers = applicationBytes.getBuffersToWrite(engine.getSession().getApplicationBufferSize());
         while (true) {
             SSLEngineResult result;
+            ByteBuffer networkBuffer = outboundBuffer.nextWriteBuffer(packetSize);
             try {
-                if (buffers.length == 1) {
-                    result = engine.wrap(buffers[0], networkWriteBuffer);
-                } else {
-                    result = engine.wrap(buffers, networkWriteBuffer);
-                }
+                result = engine.wrap(buffers, networkBuffer);
             } catch (SSLException e) {
-                networkWriteBuffer.position(networkWriteBuffer.limit());
+                outboundBuffer.incrementEncryptedBytes(0);
                 throw e;
             }
 
+            outboundBuffer.incrementEncryptedBytes(result.bytesProduced());
+            applicationBytes.incrementIndex(result.bytesConsumed());
             switch (result.getStatus()) {
                 case OK:
-                    networkWriteBuffer.flip();
                     return result;
                 case BUFFER_UNDERFLOW:
                     throw new IllegalStateException("Should not receive BUFFER_UNDERFLOW on WRAP");
                 case BUFFER_OVERFLOW:
-                    // There is not enough space in the network buffer for an entire SSL packet. Expand the
-                    // buffer if it's smaller than the current session packet size. Otherwise return and wait
-                    // for existing data to be flushed.
-                    int currentCapacity = networkWriteBuffer.capacity();
-                    ensureNetworkWriteBufferSize();
-                    if (currentCapacity == networkWriteBuffer.capacity()) {
-                        return result;
-                    }
+                    packetSize = engine.getSession().getPacketBufferSize();
+                    // There is not enough space in the network buffer for an entire SSL packet. We will
+                    // allocate a buffer with the correct packet size the next time through the loop.
                     break;
                 case CLOSED:
-                    if (result.bytesProduced() > 0) {
-                        networkWriteBuffer.flip();
-                    } else {
-                        assert false : "WRAP during close processing should produce close message.";
-                    }
+                    assert result.bytesProduced() > 0 : "WRAP during close processing should produce close message.";
                     return result;
                 default:
                     throw new IllegalStateException("Unexpected WRAP result: " + result.getStatus());
@@ -265,23 +246,12 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
-    private void ensureNetworkWriteBufferSize() {
-        networkWriteBuffer = ensureNetBufferSize(networkWriteBuffer);
-    }
-
     private void ensureNetworkReadBufferSize() {
-        networkReadBuffer = ensureNetBufferSize(networkReadBuffer);
-    }
-
-    private ByteBuffer ensureNetBufferSize(ByteBuffer current) {
-        int networkPacketSize = engine.getSession().getPacketBufferSize();
-        if (current.capacity() < networkPacketSize) {
-            ByteBuffer newBuffer = ByteBuffer.allocate(networkPacketSize);
-            current.flip();
-            newBuffer.put(current);
-            return newBuffer;
-        } else {
-            return current;
+        packetSize = engine.getSession().getPacketBufferSize();
+        if (networkReadBuffer.capacity() < packetSize) {
+            ByteBuffer newBuffer = ByteBuffer.allocate(packetSize);
+            networkReadBuffer.flip();
+            newBuffer.put(networkReadBuffer);
         }
     }
 
@@ -306,7 +276,7 @@ public class SSLDriver implements AutoCloseable {
 
         void read(InboundChannelBuffer buffer) throws SSLException;
 
-        int write(ByteBuffer[] buffers) throws SSLException;
+        int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException;
 
         boolean needsNonApplicationWrite();
 
@@ -329,7 +299,7 @@ public class SSLDriver implements AutoCloseable {
             if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_UNWRAP &&
                 handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_WRAP) {
                 try {
-                    handshake();
+                    handshake(null);
                 } catch (SSLException e) {
                     closingInternal();
                     throw e;
@@ -337,7 +307,7 @@ public class SSLDriver implements AutoCloseable {
             }
         }
 
-        private void handshake() throws SSLException {
+        private void handshake(SSLOutboundBuffer outboundBuffer) throws SSLException {
             boolean continueHandshaking = true;
             while (continueHandshaking) {
                 switch (handshakeStatus) {
@@ -346,11 +316,13 @@ public class SSLDriver implements AutoCloseable {
                         continueHandshaking = false;
                         break;
                     case NEED_WRAP:
-                        if (hasFlushPending() == false) {
-                            handshakeStatus = wrap(EMPTY_BUFFER_ARRAY).getHandshakeStatus();
-                        }
-                        // If we need NEED_TASK we should run the tasks immediately
-                        if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_TASK) {
+                        if (outboundBuffer != null) {
+                            handshakeStatus = wrap(outboundBuffer).getHandshakeStatus();
+                            // If we need NEED_TASK we should run the tasks immediately
+                            if (handshakeStatus != SSLEngineResult.HandshakeStatus.NEED_TASK) {
+                                continueHandshaking = false;
+                            }
+                        } else {
                             continueHandshaking = false;
                         }
                         break;
@@ -379,7 +351,7 @@ public class SSLDriver implements AutoCloseable {
                 try {
                     SSLEngineResult result = unwrap(buffer);
                     handshakeStatus = result.getHandshakeStatus();
-                    handshake();
+                    handshake(null);
                     // If we are done handshaking we should exit the handshake read
                     continueUnwrap = result.bytesConsumed() > 0 && currentMode.isHandshake();
                 } catch (SSLException e) {
@@ -390,9 +362,9 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(ByteBuffer[] buffers) throws SSLException {
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
             try {
-                handshake();
+                handshake(outboundBuffer);
             } catch (SSLException e) {
                 closingInternal();
                 throw e;
@@ -445,8 +417,7 @@ public class SSLDriver implements AutoCloseable {
                     String message = "Expected to be in handshaking/closed mode. Instead in application mode.";
                     throw new AssertionError(message);
                 }
-            } else if (hasFlushPending() == false) {
-                // We only acknowledge that we are done handshaking if there are no bytes that need to be written
+            } else {
                 if (currentMode.isHandshake()) {
                     currentMode = new ApplicationMode();
                 } else {
@@ -473,10 +444,17 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(ByteBuffer[] buffers) throws SSLException {
-            SSLEngineResult result = wrap(buffers);
-            maybeRenegotiation(result.getHandshakeStatus());
-            return result.bytesConsumed();
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
+            boolean continueWrap = true;
+            int totalBytesProduced = 0;
+            while (continueWrap && applicationBytes.isFullyFlushed() == false) {
+                SSLEngineResult result = wrap(outboundBuffer, applicationBytes);
+                int bytesProduced = result.bytesProduced();
+                totalBytesProduced += bytesProduced;
+                boolean renegotiationRequested = maybeRenegotiation(result.getHandshakeStatus());
+                continueWrap = bytesProduced > 0 && renegotiationRequested == false;
+            }
+            return totalBytesProduced;
         }
 
         private boolean maybeRenegotiation(SSLEngineResult.HandshakeStatus newStatus) throws SSLException {
@@ -560,18 +538,19 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(ByteBuffer[] buffers) throws SSLException {
-            if (hasFlushPending() == false && engine.isOutboundDone()) {
-                needToSendClose = false;
-                // Close inbound if it is still open and we have decided not to wait for response.
-                if (needToReceiveClose == false && engine.isInboundDone() == false) {
-                    closeInboundAndSwallowPeerDidNotCloseException();
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
+            int bytesProduced = 0;
+            if (engine.isOutboundDone() == false) {
+                bytesProduced += wrap(outboundBuffer).bytesProduced();
+                if (engine.isOutboundDone()) {
+                    needToSendClose = false;
+                    // Close inbound if it is still open and we have decided not to wait for response.
+                    if (needToReceiveClose == false && engine.isInboundDone() == false) {
+                        closeInboundAndSwallowPeerDidNotCloseException();
+                    }
                 }
-            } else {
-                wrap(EMPTY_BUFFER_ARRAY);
-                assert hasFlushPending() : "Should have produced close message";
             }
-            return 0;
+            return bytesProduced;
         }
 
         @Override

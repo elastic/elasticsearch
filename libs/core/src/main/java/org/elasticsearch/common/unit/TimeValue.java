@@ -342,10 +342,6 @@ public class TimeValue implements Comparable<TimeValue> {
         return ns / NSEC_PER_MSEC;
     }
 
-    public static long msecToNSec(long ms) {
-        return ms * NSEC_PER_MSEC;
-    }
-
     @Override
     public int compareTo(TimeValue timeValue) {
         double thisValue = ((double) duration) * timeUnit.toNanos(1);

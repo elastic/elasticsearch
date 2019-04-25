@@ -227,7 +227,7 @@ public class ThreadPool implements Scheduler, Closeable {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInMillis() {
-        return cachedTimeThread.relativeTimeInMillis();
+        return TimeValue.nsecToMSec(cachedTimeThread.relativeTimeInNanos());
     }
 
     /**
@@ -237,7 +237,7 @@ public class ThreadPool implements Scheduler, Closeable {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInNanos() {
-        return TimeValue.msecToNSec(cachedTimeThread.relativeTimeInMillis());
+        return cachedTimeThread.relativeTimeInNanos();
     }
 
     /**
@@ -500,30 +500,29 @@ public class ThreadPool implements Scheduler, Closeable {
 
         final long interval;
         volatile boolean running = true;
-        volatile long relativeMillis;
+        volatile long relativeNanos;
         volatile long absoluteMillis;
 
         CachedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
-            this.relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+            this.relativeNanos = System.nanoTime();
             this.absoluteMillis = System.currentTimeMillis();
             setDaemon(true);
         }
 
         /**
-         * Return the current time used for relative calculations. This is
-         * {@link System#nanoTime()} truncated to milliseconds.
+         * Return the current time used for relative calculations. This is {@link System#nanoTime()}.
          * <p>
          * If {@link ThreadPool#ESTIMATED_TIME_INTERVAL_SETTING} is set to 0
          * then the cache is disabled and the method calls {@link System#nanoTime()}
          * whenever called. Typically used for testing.
          */
-        long relativeTimeInMillis() {
+        long relativeTimeInNanos() {
             if (0 < interval) {
-                return relativeMillis;
+                return relativeNanos;
             }
-            return TimeValue.nsecToMSec(System.nanoTime());
+            return System.nanoTime();
         }
 
         /**
@@ -544,7 +543,7 @@ public class ThreadPool implements Scheduler, Closeable {
         @Override
         public void run() {
             while (running && 0 < interval) {
-                relativeMillis = TimeValue.nsecToMSec(System.nanoTime());
+                relativeNanos = System.nanoTime();
                 absoluteMillis = System.currentTimeMillis();
                 try {
                     Thread.sleep(interval);

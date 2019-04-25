@@ -26,6 +26,9 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportPutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,7 +60,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         return Arrays.asList(
-            new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class)
+            new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
+            new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class)
         );
     }
 
@@ -70,7 +74,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         return Arrays.asList(
-            new RestDeleteEnrichPolicyAction(settings, restController)
+            new RestDeleteEnrichPolicyAction(settings, restController),
+            new RestPutEnrichPolicyAction(settings, restController)
         );
     }
 

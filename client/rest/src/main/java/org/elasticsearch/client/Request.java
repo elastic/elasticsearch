@@ -74,9 +74,10 @@ public final class Request {
      */
     public void addParameter(String name, String value) {
         Objects.requireNonNull(name, "url parameter name cannot be null");
-        String oldValue = parameters.putIfAbsent(name, value);
-        if (oldValue != null) {
-            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + oldValue + "]");
+        if (parameters.containsKey(name)) {
+            throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
+        } else {
+            parameters.put(name, value);
         }
     }
 

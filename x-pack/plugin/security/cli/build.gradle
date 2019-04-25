@@ -11,9 +11,6 @@ dependencies {
     compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
     compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
     testImplementation 'com.google.jimfs:jimfs:1.1'
-    testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
-    testCompile 'org.elasticsearch:securemock:1.2'
     testCompile "org.elasticsearch.test:framework:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 }

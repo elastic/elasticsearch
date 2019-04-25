@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -48,10 +50,15 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MultiSearchRequestTests extends ESTestCase {
+
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(MultiSearchRequestTests.class));
+
     public void testSimpleAdd() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/simple-msearch1.json");
         assertThat(request.requests().size(),
@@ -180,6 +187,28 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
+    public void testEmptyFirstLine1() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line1.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed " +
+            "in the next major version");
+    }
+
+    public void testEmptyFirstLine2() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-empty-first-line2.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+        assertWarnings("support for empty first line before any action metadata in msearch API is deprecated and will be removed " +
+            "in the next major version");
+    }
+
     public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
@@ -262,7 +291,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, null, xContentRegistry(), true, deprecationLogger);
             assertEquals(originalRequest, parsedRequest);
         }
     }

@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,13 +41,14 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
+    public static final ParseField DESCRIPTION = new ParseField("description");
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
 
     private final String id;
     private final SourceConfig source;
     private final DestConfig dest;
-
+    private final String description;
     // headers store the user context from the creating user, which allows us to run the transform as this user
     // the header only contains name, groups and other context but no authorization keys
     private Map<String, String> headers;
@@ -81,7 +82,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     Map<String, String> headers = (Map<String, String>) args[4];
 
                     PivotConfig pivotConfig = (PivotConfig) args[5];
-                    return new DataFrameTransformConfig(id, source, dest, headers, pivotConfig);
+                    String description = (String)args[6];
+                    return new DataFrameTransformConfig(id, source, dest, headers, pivotConfig, description);
                 });
 
         parser.declareString(optionalConstructorArg(), DataFrameField.ID);
@@ -91,6 +93,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
+        parser.declareString(optionalConstructorArg(), DESCRIPTION);
 
         return parser;
     }
@@ -103,12 +106,14 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                                     final SourceConfig source,
                                     final DestConfig dest,
                                     final Map<String, String> headers,
-                                    final PivotConfig pivotConfig) {
+                                    final PivotConfig pivotConfig,
+                                    final String description) {
         this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
         this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.SOURCE.getPreferredName());
         this.dest = ExceptionsHelper.requireNonNull(dest, DataFrameField.DESTINATION.getPreferredName());
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
         this.pivotConfig = pivotConfig;
+        this.description = description;
 
         // at least one function must be defined
         if (this.pivotConfig == null) {
@@ -122,6 +127,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         dest = new DestConfig(in);
         setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
         pivotConfig = in.readOptionalWriteable(PivotConfig::new);
+        description = in.readOptionalString();
     }
 
     public String getId() {
@@ -148,6 +154,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return pivotConfig;
     }
 
+    @Nullable
+    public String getDescription() {
+        return description;
+    }
+
     public boolean isValid() {
         if (pivotConfig != null && pivotConfig.isValid() == false) {
             return false;
@@ -163,6 +174,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         dest.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         out.writeOptionalWriteable(pivotConfig);
+        out.writeOptionalString(description);
     }
 
     @Override
@@ -180,7 +192,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         if (headers.isEmpty() == false && params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
-
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.endObject();
         return builder;
     }
@@ -201,12 +215,13 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                 && Objects.equals(this.source, that.source)
                 && Objects.equals(this.dest, that.dest)
                 && Objects.equals(this.headers, that.headers)
-                && Objects.equals(this.pivotConfig, that.pivotConfig);
+                && Objects.equals(this.pivotConfig, that.pivotConfig)
+                && Objects.equals(this.description, that.description);
     }
 
     @Override
     public int hashCode(){
-        return Objects.hash(id, source, dest, headers, pivotConfig);
+        return Objects.hash(id, source, dest, headers, pivotConfig, description);
     }
 
     @Override

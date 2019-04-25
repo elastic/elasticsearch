@@ -41,21 +41,23 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), null,
-                PivotConfigTests.randomPivotConfig());
+                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), randomHeaders(),
-                PivotConfigTests.randomPivotConfig());
+                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
             return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(),
-                    randomDestConfig(), randomHeaders(), PivotConfigTests.randomPivotConfig());
+                    randomDestConfig(), randomHeaders(), PivotConfigTests.randomPivotConfig(),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
         } // else
         return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(),
-                randomDestConfig(), randomHeaders(), PivotConfigTests.randomInvalidPivotConfig());
+                randomDestConfig(), randomHeaders(), PivotConfigTests.randomInvalidPivotConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
     }
 
     @Before

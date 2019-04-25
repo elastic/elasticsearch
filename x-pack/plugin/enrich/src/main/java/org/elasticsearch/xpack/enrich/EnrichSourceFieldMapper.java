@@ -292,12 +292,11 @@ public final class EnrichSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        builder.startObject(contentType());
         if (includeDefaults || enabled != DEFAULT_ENABLED) {
+            builder.startObject(contentType());
             builder.field("enabled", enabled);
+            builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 

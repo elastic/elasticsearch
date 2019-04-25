@@ -15,6 +15,7 @@ Previous versions of Elasticsearch defaulted to creating five shards per index.
 Starting with 7.0.0, the default is now one shard per index.
 
 [float]
+[[_literal_literal_is_no_longer_allowed_in_index_name]]
 ==== `:` is no longer allowed in index name
 
 Due to cross-cluster search using `:` to separate a cluster and index name,

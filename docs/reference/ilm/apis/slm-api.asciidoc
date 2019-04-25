@@ -177,7 +177,7 @@ To take an immediate snapshot using a policy, use the following
 PUT /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:we can't easily handle snapshots from docs tests]
 
 This API will immediately return with the generated snapshot name
 
@@ -187,7 +187,7 @@ This API will immediately return with the generated snapshot name
   "snapshot_name": "daily-snap-2019.04.24-gwrqoo2xtea3q57vvg0uea"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"snapshot_name": "daily-snap-2019.04.24-gwrqoo2xtea3q57vvg0uea"/"snapshot_name": $body.snapshot_name/]
+// TESTRESPONSE[skip:we can't handle snapshots from docs tests]
 
 The snapshot will be taken in the background, you can use the
 <<modules-snapshots,snapshot APIs>> to monitor the status of the snapshot.
@@ -200,7 +200,7 @@ snapshot using the get snapshot lifecycle policy API:
 GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:we already tested get policy above, the last_failure may not be present though]
 
 Which, in this case shows an error because the index did not exist:
 
@@ -265,7 +265,7 @@ Another snapshot can immediately be executed to ensure the new policy works:
 PUT /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:we can't handle snapshots in docs tests]
 
 [source,js]
 --------------------------------------------------
@@ -273,7 +273,7 @@ PUT /_slm/policy/daily-snapshots/_execute
   "snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a"/"snapshot_name": $body.snapshot_name/]
+// TESTRESPONSE[skip:we can't handle snapshots in docs tests]
 
 Now retriving the policy shows that the policy has successfully been executed:
 
@@ -283,7 +283,7 @@ Now retriving the policy shows that the policy has successfully been executed:
 GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:we already tested this above and the output may not be available yet]
 
 Which now includes the successful snapshot information:
 

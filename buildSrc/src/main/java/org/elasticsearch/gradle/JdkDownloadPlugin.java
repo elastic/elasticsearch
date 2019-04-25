@@ -61,14 +61,9 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         project.afterEvaluate(p -> {
             for (Jdk jdk : jdksContainer) {
+                jdk.finalizeValues();
                 String version = jdk.getVersion();
-                if (version == null) {
-                    throw new IllegalArgumentException("version not specified for jdk " + jdk.getName());
-                }
                 String platform = jdk.getPlatform();
-                if (platform == null) {
-                    throw new IllegalArgumentException("platform not specified for jdk " + jdk.getName());
-                }
 
                 // depend on the jdk directory "artifact" from the root project
                 DependencyHandler dependencies = project.getDependencies();
@@ -79,8 +74,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
                 // ensure a root level jdk download task exists
                 setupRootJdkDownload(project.getRootProject(), platform, version);
-
-                jdk.finalizeValues();
             }
         });
     }
@@ -152,7 +145,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             fileGetter = () -> rootProject.tarTree(rootProject.getResources().gzip(jdkArchiveGetter.get()));
         }
         String extractDir = rootProject.getBuildDir().toPath().resolve("jdks/openjdk-" + jdkVersion + "_" + platform).toString();
-        TaskProvider extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
+        TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
             copyTask.doFirst(t -> rootProject.delete(extractDir));
             copyTask.into(extractDir);
             copyTask.from(fileGetter, removeRootDir);

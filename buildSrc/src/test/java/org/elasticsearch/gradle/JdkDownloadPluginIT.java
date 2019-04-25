@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,11 +37,13 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.head;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
     private static final String FAKE_JDK_VERSION = "1.0.2+99";
     private static final Pattern JDK_HOME_LOGLINE = Pattern.compile("JDK HOME: (.*)");
+    private static final Pattern NUM_CONFIGS_LOGLINE = Pattern.compile("NUM CONFIGS: (.*)");
 
     public void testLinuxExtraction() throws IOException {
         assertExtraction("getLinuxJdk", "linux", "bin/java");
@@ -54,7 +57,25 @@ public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         assertExtraction("getWindowsJdk", "windows", "bin/java");
     }
 
+    public void testCrossProjectReuse() throws IOException {
+        runBuild("numConfigurations", "linux", result -> {
+            Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
+            assertTrue("could not find num configs in output: " + result.getOutput(), matcher.find());
+            assertThat(Integer.parseInt(matcher.group(1)), equalTo(6)); // 3 import configs, 3 export configs
+        });
+    }
+
     public void assertExtraction(String taskname, String platform, String javaBin) throws IOException {
+        runBuild(taskname, platform, result -> {
+            Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
+            assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
+            String jdkHome = matcher.group(1);
+            Path javaPath = Paths.get(jdkHome, javaBin);
+            assertTrue(javaPath.toString(), Files.exists(javaPath));
+        });
+    }
+
+    private void runBuild(String taskname, String platform, Consumer<BuildResult> assertions) throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
@@ -70,18 +91,14 @@ public class JdkDownloadPluginIT extends GradleIntegrationTestCase {
             wireMock.start();
 
             GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir("jdk-download"))
-                .withArguments(":subproj:" + taskname,
+                .withArguments(taskname,
                     "-Dlocal.repo.path=" + getLocalTestRepoPath(),
                     "-Dtests.jdk_version=" + FAKE_JDK_VERSION,
                     "-Dtests.jdk_repo=" + wireMock.baseUrl())
                 .withPluginClasspath();
 
             BuildResult result = runner.build();
-            Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
-            assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
-            String jdkHome = matcher.group(1);
-            Path javaPath = Paths.get(jdkHome, javaBin);
-            assertTrue(javaPath.toString(), Files.exists(javaPath));
+            assertions.accept(result);
         } catch (Exception e) {
             // for debugging
             System.err.println("missed requests: " + wireMock.findUnmatchedRequests().getRequests());

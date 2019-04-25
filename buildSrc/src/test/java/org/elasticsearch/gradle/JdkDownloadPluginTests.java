@@ -19,11 +19,9 @@
 
 package org.elasticsearch.gradle;
 
-import groovy.lang.Closure;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.BeforeClass;
 
@@ -37,63 +35,39 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
          rootProject = ProjectBuilder.builder().build();
     }
 
-    public void testNullVersion() {
-        createProject().getTasks().create("example", task -> {
-            assertUsesJdkError(task, null, "linux", "version must be specified to usesJdk");
-        });
+    public void testMissingVersion() {
+        assertJdkError(createProject(), "testjdk", null, "linux", "version not specified for jdk [testjdk]");
     }
 
-    public void testNullPlatform() {
-        createProject().getTasks().create("example", task -> {
-            assertUsesJdkError(task, "11.0.2+33", null, "platform must be specified to usesJdk");
-        });
+    public void testMissingPlatform() {
+        assertJdkError(createProject(), "testjdk", "11.0.2+33", null, "platform not specified for jdk [testjdk]");
     }
 
     public void testUnknownPlatform() {
-        createProject().getTasks().create("example", task -> {
-            assertUsesJdkError(task, "11.0.2+33", "unknown", "platform must be one of [linux, windows, darwin]");
-        });
-    }
-
-    public void testJdkAlreadySet() {
-        createProject().getTasks().create("example", task -> {
-            usesJdk(task, "11.0.2+33", "linux");
-            assertUsesJdkError(task, "11.0.2+33", "linux", "jdk version already set for task");
-        });
+        assertJdkError(createProject(), "testjdk", "11.0.2+33", "unknown",
+            "unknown platform [unknown] for jdk [testjdk], must be one of [linux, windows, darwin]");
     }
 
     public void testBadVersionFormat() {
-        createProject().getTasks().create("example", task -> {
-            assertUsesJdkError(task, "badversion", "linux", "Malformed jdk version [badversion]");
-        });
+        assertJdkError(createProject(), "testjdk", "badversion", "linux", "malformed version [badversion] for jdk [testjdk]");
     }
 
-    public void testReuseAcrossTasks() {
-        Project project = createProject();
-        project.getTasks().create("example1", task -> usesJdk(task, "11.0.2+33", "linux"));
-        int numTasks = rootProject.getTasks().size();
-        project.getTasks().create("example2", task -> usesJdk(task, "11.0.2+33", "linux"));
-        assertThat(rootProject.getTasks().size(), equalTo(numTasks));
-    }
-
-    public void testReuseAcrossProjects() {
-        createProject().getTasks().create("example", task -> usesJdk(task, "11.0.2+33", "linux"));
-        int numTasks = rootProject.getTasks().size();
-        createProject().getTasks().create("example", task -> usesJdk(task, "11.0.2+33", "linux"));
-        assertThat(rootProject.getTasks().size(), equalTo(numTasks));
-    }
-
-    private void assertUsesJdkError(Task task, String version, String platform, String message) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> usesJdk(task, version, platform));
+    private void assertJdkError(Project project, String name, String version, String platform, String message) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createJdk(project, name, version, platform));
         assertThat(e.getMessage(), equalTo(message));
     }
 
-    private void usesJdk(Task task, String version, String platform) {
-        ExtraPropertiesExtension extraProperties = task.getExtensions().findByType(ExtraPropertiesExtension.class);
-        assertTrue(extraProperties.has("usesJdk"));
+    private void createJdk(Project project, String name, String version, String platform) {
         @SuppressWarnings("unchecked")
-        Closure<Void> usesJdkClosure = (Closure<Void>)extraProperties.get("usesJdk");
-        usesJdkClosure.call(version, platform);
+        NamedDomainObjectContainer<Jdk> jdks = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        jdks.create(name, jdk -> {
+            if (version != null) {
+                jdk.setVersion(version);
+            }
+            if (platform != null) {
+                jdk.setPlatform(platform);
+            }
+        }).finalizeValues();
     }
 
     private Project createProject() {

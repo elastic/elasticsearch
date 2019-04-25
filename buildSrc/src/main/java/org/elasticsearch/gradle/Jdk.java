@@ -60,7 +60,7 @@ public class Jdk implements Buildable {
 
     public void setVersion(String version) {
         if (VERSION_PATTERN.matcher(version).matches() == false) {
-            throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
+            throw new IllegalArgumentException("malformed version [" + version + "] for jdk [" + name + "]");
         }
         this.version.set(version);
     }
@@ -71,7 +71,7 @@ public class Jdk implements Buildable {
 
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
-            throw new IllegalArgumentException("unknown platform [" + platform + "], must be one of " + ALLOWED_PLATFORMS);
+            throw new IllegalArgumentException("unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
         }
         this.platform.set(platform);
     }
@@ -101,6 +101,12 @@ public class Jdk implements Buildable {
 
     // internal, make this jdks configuration unmodifiable
     void finalizeValues() {
+        if (version.isPresent() == false) {
+            throw new IllegalArgumentException("version not specified for jdk [" + name + "]");
+        }
+        if (platform.isPresent() == false) {
+            throw new IllegalArgumentException("platform not specified for jdk [" + name + "]");
+        }
         version.finalizeValue();
         platform.finalizeValue();
     }

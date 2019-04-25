@@ -56,6 +56,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     private static final String DEFAULT_TIMEZONE = "UTC";
     private static final String FIELD = "field";
+    private static final String TYPE_NAME = "interval";
 
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
@@ -74,6 +75,8 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
                 return new CalendarInterval((String) a[0], calendarInterval, (DateHistogramInterval) a[4], (String) a[5]);
             } else if (calendarInterval == null && fixedInterval != null) {
                 return new FixedInterval((String) a[0], fixedInterval, (DateHistogramInterval) a[4], (String) a[5]);
+            } else if (calendarInterval != null && fixedInterval != null) {
+                throw new IllegalArgumentException("Cannot set both [fixed_interval] and [calendar_interval] at the same time");
             } else {
                 throw new IllegalArgumentException("An interval is required.  Use [fixed_interval] or [calendar_interval].");
             }
@@ -101,6 +104,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * For calendar-aware rollups, use {@link CalendarInterval}
      */
     public static class FixedInterval extends DateHistogramGroupConfig {
+        private static final String TYPE_NAME = "fixed_interval";
         public FixedInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null, null);
         }
@@ -108,11 +112,16 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         public FixedInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
             // validate fixed time
-            TimeValue fixedInterval = TimeValue.parseTimeValue(interval.toString(), NAME + ".FixedInterval");
+            TimeValue.parseTimeValue(interval.toString(), NAME + ".FixedInterval");
         }
 
         FixedInterval(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public String getIntervalTypeName() {
+            return TYPE_NAME;
         }
     }
 
@@ -125,9 +134,9 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * For fixed time rollups, use {@link FixedInterval}
      */
     public static class CalendarInterval extends DateHistogramGroupConfig {
+        private static final String TYPE_NAME = "calendar_interval";
         public CalendarInterval(String field, DateHistogramInterval interval) {
             this(field, interval, null, null);
-
         }
 
         public CalendarInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
@@ -141,9 +150,19 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         CalendarInterval(StreamInput in) throws IOException {
             super(in);
         }
+
+        @Override
+        public String getIntervalTypeName() {
+            return TYPE_NAME;
+        }
     }
 
-    static DateHistogramGroupConfig fromUnknownTimeUnit(String field, DateHistogramInterval interval,
+    /**
+     * This helper can be used to "up-convert" a legacy job date histo config stored with plain "interval" into
+     * one of the new Fixed or Calendar intervals.  It follows the old behavior where the interval is first
+     * parsed with the calendar logic, and if that fails, it is assumed to be a fixed interval
+     */
+    private static DateHistogramGroupConfig fromUnknownTimeUnit(String field, DateHistogramInterval interval,
                                                                 DateHistogramInterval delay, String timeZone) {
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) != null) {
             return new CalendarInterval(field, interval, delay, timeZone);
@@ -242,13 +261,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            if (this.getClass().equals(CalendarInterval.class)) {
-                builder.field(CALENDAR_INTERVAL, interval.toString());
-            } else if (this.getClass().equals(FixedInterval.class)) {
-                builder.field(FIXED_INTERVAL, interval.toString());
-            } else {
-                builder.field(INTERVAL, interval.toString());
-            }
+            builder.field(getIntervalTypeName(), interval.toString());
             builder.field(FIELD, field);
             if (delay != null) {
                 builder.field(DELAY, delay.toString());
@@ -291,6 +304,10 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      */
     public Rounding createRounding() {
         return createRounding(interval.toString(), timeZone);
+    }
+
+    public String getIntervalTypeName() {
+        return TYPE_NAME;
     }
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,

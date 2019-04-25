@@ -107,6 +107,8 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
                 return new CalendarInterval((String) a[0], calendarInterval, (DateHistogramInterval) a[4], (String) a[5]);
             } else if (calendarInterval == null && fixedInterval != null) {
                 return new FixedInterval((String) a[0], fixedInterval, (DateHistogramInterval) a[4], (String) a[5]);
+            } else if (calendarInterval != null && fixedInterval != null) {
+                throw new IllegalArgumentException("Cannot set both [fixed_interval] and [calendar_interval] at the same time");
             } else {
                 throw new IllegalArgumentException("An interval is required.  Use [fixed_interval] or [calendar_interval].");
             }
@@ -141,7 +143,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         public FixedInterval(String field, DateHistogramInterval interval, DateHistogramInterval delay, String timeZone) {
             super(field, interval, delay, timeZone);
             // validate fixed time
-            TimeValue fixedInterval = TimeValue.parseTimeValue(interval.toString(), NAME + ".FixedInterval");
+            TimeValue.parseTimeValue(interval.toString(), NAME + ".FixedInterval");
         }
     }
 

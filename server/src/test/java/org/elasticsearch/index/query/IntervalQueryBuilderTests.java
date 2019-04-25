@@ -49,7 +49,18 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
+        while (true) {
+            try {
+                IntervalQueryBuilder builder = new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
+                builder.doToQuery(createShardContext());
+                return builder;
+            }
+            catch (IOException | IllegalArgumentException e) {
+                // In some cases createRandomSource() can build an interval source that ends
+                // up with too many clauses, in which case we try again
+                assertEquals("Too many disjunctions to expand", e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -382,12 +393,5 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, q);
 
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41402")
-    public void testMustRewrite() throws IOException {
-        super.testMustRewrite();
-    }
-
 
 }

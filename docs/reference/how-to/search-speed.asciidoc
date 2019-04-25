@@ -419,6 +419,7 @@ indexes 2-shingles and is automatically leveraged by query parsers to run phrase
 queries that don't have a slop. If your use-case involves running lots of phrase
 queries, this can speed up queries significantly.
 
+[[faster-prefix-queries]]
 === Faster prefix queries with `index_prefixes`
 
 The <<text,`text`>> field has an <<index-phrases,`index_prefixes`>> option that

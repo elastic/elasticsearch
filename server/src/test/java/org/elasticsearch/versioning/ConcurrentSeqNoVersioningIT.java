@@ -64,7 +64,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 
 
 /**
@@ -75,8 +74,12 @@ import static org.hamcrest.Matchers.instanceOf;
  * <ul>
  *     <li>acknowledged CAS writes are guaranteed to have taken place between invocation and response and cannot be lost. It is
  *     guaranteed that the previous value had the specified primaryTerm and seqNo</li>
- *     <li>CAS writes resulting in a VersionConflictEngineException might or might not have taken place. If they have taken place, then it
- *     must have been between invocation and response. Such writes are not necessarily fully replicated and can be lost. There is no
+ *     <li>CAS writes resulting in a VersionConflictEngineException might or might not have taken place or may take place in the future
+ *     provided the primaryTerm and seqNo still matches. The reason we cannot assume it will not take place after receiving the failure
+ *     is that a request can fork into two because of retries on disconnect, and now race against itself. The retry might complete (and do a
+ *     dirty or stale read) before the forked off request gets to execute, and that one might still subsequently succeed.
+ *
+ *     Such writes are not necessarily fully replicated and can be lost. There is no
  *     guarantee that the previous value did not have the specified primaryTerm and seqNo</li>
  *     <li>CAS writes with other exceptions might or might not have taken place. If they have taken place, then after invocation but not
  *     necessarily before response. Such writes are not necessarily fully replicated and can be lost.
@@ -99,18 +102,20 @@ import static org.hamcrest.Matchers.instanceOf;
  *     </ul>
  *     </li>
  *     <li>A CAS can fail on stale reads. A CAS failure is only checked on the supposedly primary node. However, the primary might not be
- *     the newest primary (could be isolated or just not have been told yet). So a CAS check is suspect to dirty reads (like any read) and
- *     can thus fail due to reading stale data. Notice that a CAS success is fully replicated and thus guaranteed to not suffer from
- *     stale reads.
+ *     the newest primary (could be isolated or just not have been told yet). So a CAS check is suspect to stale reads (like any
+ *     read) and can thus fail due to reading stale data. Notice that a CAS success is fully replicated and thus guaranteed to not
+ *     suffer from stale (or dirty) reads.
  *     </li>
- *     <li>A CAS can fail on a dirty write, i.e., a non-replicated write that ends up being discarded.</li>
+ *     <li>A CAS can fail on a dirty read, i.e., a non-replicated write that ends up being discarded.</li>
  *     <li>For any other failure, we do not know if the write will succeed after the failure. However, we do know that if we
  *     subsequently get back a CAS success with seqNo s, any previous failures with ifSeqNo &lt; s will not be able to succeed (but could
  *     produce dirty writes on a stale primary).
- *     .</li>
+ *     </li>
+ *     <li>A CAS failure or any other failure can eventually succeed after receiving the failure response due to reroute and retries,
+ *     see above.</li>
  *     <li>A CAS failure throws a VersionConflictEngineException which does not directly contain the current seqno/primary-term to use for
  *     the next request. It is contained in the message (and we parse it out in the test), but notice that the numbers given here could be
- *     dirty, i.e., belong to a write that ends up being discarded.</li>
+ *     stale or dirty, i.e., come from a stale primary or belong to a write that ends up being discarded.</li>
  *
  * </ul>
  *
@@ -223,17 +228,22 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                         final Partition partition = partitions.get(keyIndex);
 
                         final int seqNoChangePct = random.nextInt(100);
-                        final boolean futureSeqNo = seqNoChangePct < 10;
-                        Version version = partition.latestKnownVersion();
-                        if (futureSeqNo) {
+
+                        // we use either the latest observed or the latest successful version, to increase chance of getting successful
+                        // CAS'es and races. If we were to use only the latest successful version, any CAS fail on own write would mean that
+                        // all future CAS'es would fail unless we guess the seqno/term below. On the other hand, using latest observed
+                        // version exclusively we risk a single CAS fail on a dirty read to cause the same. Doing both randomly and adding
+                        // variance to seqno/term should ensure we progress fine in most runs.
+                        Version version = random.nextBoolean() ? partition.latestObservedVersion() : partition.latestSuccessfulVersion();
+
+                        if (seqNoChangePct < 10) {
                             version = version.nextSeqNo(random.nextInt(4) + 1);
                         } else if (seqNoChangePct < 15) {
                             version = version.previousSeqNo(random.nextInt(4) + 1);
                         }
 
                         final int termChangePct = random.nextInt(100);
-                        final boolean futureTerm = termChangePct < 5;
-                        if (futureTerm) {
+                        if (termChangePct < 5) {
                             version = version.nextTerm();
                         } else if (termChangePct < 10) {
                             version = version.previousTerm();
@@ -245,8 +255,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             .setIfSeqNo(version.seqNo);
                         Consumer<HistoryOutput> historyResponse = partition.invoke(version);
                         try {
-                            // we should be able to remove timeout or fail hard on timeouts if we fix network disruptions to be
-                            // realistic, i.e., not silently throw data out.
+                            // we should be able to remove timeout or fail hard on timeouts
                             IndexResponse indexResponse = client().index(indexRequest).actionGet(timeout, TimeUnit.SECONDS);
                             IndexResponseHistoryOutput historyOutput = new IndexResponseHistoryOutput(indexResponse);
                             historyResponse.accept(historyOutput);
@@ -255,11 +264,21 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
                             assertThat(historyOutput.outputVersion, greaterThan(version));
                             assertThat(historyOutput.outputVersion.seqNo, greaterThan(version.seqNo));
                         } catch (VersionConflictEngineException e) {
-                            historyResponse.accept(new CASFailureHistoryOutput(e));
+                            // if we supplied an input version <= latest successful version, we can safely assume that any failed
+                            // operation will no longer be able to complete after the next successful write and we can therefore terminate
+                            // the operation wrt. linearizability.
+                            // todo: collect the failed responses and terminate when CAS with higher output version is successful, since
+                            // this is the guarantee we offer.
+                            if (version.compareTo(partition.latestSuccessfulVersion()) <= 0) {
+                                historyResponse.accept(new CASFailureHistoryOutput(e));
+                            }
                         } catch (RuntimeException e) {
-                            // if we used a future seqNo or term, we cannot know if it will overwrite a future update when failing with
-                            // unknown error, so have to assume a timeout instead wrt. linearizability.
-                            if (futureSeqNo == false && futureTerm == false) {
+                            // if we supplied an input version <= to latest successful version, we can safely assume that any failed
+                            // operation will no longer be able to complete after the next successful write and we can therefore terminate
+                            // the operation wrt. linearizability.
+                            // todo: collect the failed responses and terminate when CAS with higher output version is successful, since
+                            // this is the guarantee we offer.
+                            if (version.compareTo(partition.latestSuccessfulVersion()) <= 0) {
                                 historyResponse.accept(new FailureHistoryOutput());
                             }
                             logger.info(
@@ -389,18 +408,26 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     private class Partition {
         private final String id;
-        private final AtomicVersion lastKnownVersion;
+        private final AtomicVersion latestSuccessfulVersion;
+        private final AtomicVersion latestObservedVersion;
         private final Version initialVersion;
         private final LinearizabilityChecker.History history = new LinearizabilityChecker.History();
 
         private Partition(String id, Version initialVersion) {
             this.id = id;
-            this.lastKnownVersion = new AtomicVersion(initialVersion);
+            this.latestSuccessfulVersion = new AtomicVersion(initialVersion);
+            this.latestObservedVersion = new AtomicVersion(initialVersion);
             this.initialVersion = initialVersion;
         }
 
-        public Version latestKnownVersion() {
-            return lastKnownVersion.get();
+        // latest version that was observed, possibly dirty read of a write that does not survive
+        public Version latestObservedVersion() {
+            return latestObservedVersion.get();
+        }
+
+        // latest version for which we got a successful response on a write.
+        public Version latestSuccessfulVersion() {
+            return latestSuccessfulVersion.get();
         }
 
         public Consumer<HistoryOutput> invoke(Version version) {
@@ -412,24 +439,17 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         private void consumeOutput(HistoryOutput output, int eventId) {
             history.respond(eventId, output);
             logger.debug("response partition ({}) event ({}) output ({})", id, eventId, output);
-            // we try to use the highest seen version for the next request. We could think that this could lead to one dirty read that
-            // causes us to stick to errors for the rest of the run. But if we have a dirty read/CAS failure, it must be on an old primary
-            // and the new primary will have a larger primaryTerm and a subsequent CAS failure will ensure we notice the new primaryTerm
-            // and seqNo
-            lastKnownVersion.consume(output.getVersion());
+            latestObservedVersion.consume(output.getVersion());
+            if (output instanceof IndexResponseHistoryOutput) {
+                latestSuccessfulVersion.consume(output.getVersion());
+            }
         }
 
         public boolean isLinearizable() {
             logger.info("--> Linearizability checking history of size: {} for key: {} and initialVersion: {}: {}", history.size(),
                 id, initialVersion, history);
-            return isLinearizable(new CASSequentialSpec(initialVersion))
-                 & isLinearizable(new CASSimpleSequentialSpec(initialVersion));
-        }
-
-        private boolean isLinearizable(LinearizabilityChecker.SequentialSpec spec) {
-            boolean linearizable =
-                new LinearizabilityChecker().isLinearizable(spec, history,
-                    missingResponseGenerator());
+            LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
+            boolean linearizable = new LinearizabilityChecker().isLinearizable(spec, history, missingResponseGenerator());
             // implicitly test that we can serialize all histories.
             String serializedHistory = base64Serialize(history);
             if (linearizable == false) {
@@ -446,25 +466,25 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     }
 
-    private static class CASSimpleSequentialSpec implements LinearizabilityChecker.SequentialSpec {
+    private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
         private final Version initialVersion;
 
-        private CASSimpleSequentialSpec(Version initialVersion) {
+        private CASSequentialSpec(Version initialVersion) {
             this.initialVersion = initialVersion;
         }
 
         @Override
         public Object initialState() {
-            return new SimpleState(initialVersion, false);
+            return casSuccess(initialVersion);
         }
 
         @Override
         public Optional<Object> nextState(Object currentState, Object input, Object output) {
-            SimpleState state = (SimpleState) currentState;
+            State state = (State) currentState;
             if (output instanceof IndexResponseHistoryOutput) {
                 if (input.equals(state.safeVersion) ||
                     (state.lastFailed && ((Version) input).compareTo(state.safeVersion) > 0)) {
-                    return Optional.of(new SimpleState(((IndexResponseHistoryOutput) output).getVersion(), false));
+                    return Optional.of(casSuccess(((IndexResponseHistoryOutput) output).getVersion()));
                 } else {
                     return Optional.empty();
                 }
@@ -474,24 +494,24 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    private static final class SimpleState {
+    private static final class State {
         private final Version safeVersion;
         private final boolean lastFailed;
 
-        private SimpleState(Version safeVersion, boolean lastFailed) {
+        private State(Version safeVersion, boolean lastFailed) {
             this.safeVersion = safeVersion;
             this.lastFailed = lastFailed;
         }
 
-        public SimpleState failed() {
-            return lastFailed ? this : new SimpleState(safeVersion, true);
+        public State failed() {
+            return lastFailed ? this : casFail(safeVersion);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            SimpleState that = (SimpleState) o;
+            State that = (State) o;
             return lastFailed == that.lastFailed &&
                 safeVersion.equals(that.safeVersion);
         }
@@ -500,300 +520,28 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public int hashCode() {
             return Objects.hash(safeVersion, lastFailed);
         }
-    }
-
-    private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
-
-        private final Version initialVersion;
-
-        private CASSequentialSpec(Version initialVersion) {
-            this.initialVersion = initialVersion;
-        }
-
-        @Override
-        public Object initialState() {
-            return new SuccessState(initialVersion);
-        }
-
-        @Override
-        public Optional<Object> nextState(Object currentState, Object input, Object output) {
-            return ((HistoryOutput) output).nextState((State) currentState, (Version) input).map(i -> i); // Optional<?> to Optional<Object>
-        }
-    }
-
-    /**
-     * State and its implementations model the state of the partition (key) for the linearizability checker.
-     *
-     * We go a step deeper than just modelling successes, since we can then do more validations.
-     */
-    private interface State {
-
-        Optional<State> casSuccess(Version inputVersion, Version outputVersion);
-
-        // We can get CAS failures in following situations:
-        // 1. Real: a concurrent or previous write updated this.
-        // 2. Fail on our own write: the write to a replica was already done, but not responded to primary (or multiple replicas). The
-        // replica is promoted to primary. The write on the original primary is bubbled up to Reroute phase and retried. The retry will
-        // fail on its own update on the new primary.
-        // 3. Fail after other fail: another write CAS failed, but did do the write anyway (not dirty). We then CAS fail only due to
-        // that write.
-        // 4. Fail on dirty write: the primary we talk to is no longer the real primary. CAS failures would thus occur against dirty
-        // writes (but those must still be concurrent with us, we do guarantee to only respond sucessfully to non-dirty writes) or
-        // stale date
-        Optional<State> casFail(Version inputVersion, Version outputVersion);
-
-        Optional<State> fail();
-    }
-
-    /**
-     * SuccessState is the "good" state after we have had a successful CAS. Here we *know* the version of the document (knownVersion) and
-     * we can make stronger assertions on input/output versions.
-     */
-    private static class SuccessState implements State {
-        /**
-         * We know this version is the version of the document.
-         */
-        private final Version knownVersion;
-
-        private SuccessState(Version successOutputVersion) {
-            this.knownVersion = successOutputVersion;
-        }
-
-        @Override
-        public Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (knownVersion.equals(inputVersion)) {
-                return Optional.of(new SuccessState(outputVersion));
-            } else {
-                return Optional.empty();
-            }
-        }
-
-        public Optional<State> casFail(Version inputVersion, Version outputVersion) {
-            if (inputVersion.equals(knownVersion) == false && knownVersion.equals(outputVersion)) {
-                return Optional.of(this); // since version is unchanged, we know CAS did not write anything and thus state is unchanged.
-            }
-
-            if (outputVersion.primaryTerm < knownVersion.primaryTerm) {
-                // A stale read against an old primary, but we know then that the safe state did not change, i.e., this write should be
-                // ignored. It cannot have made surviving interim writes, since if so, the final primaryTerm should be greater than or
-                // equal to knownVersion.primaryTerm
-                // So the last successful write is still the right representation for the state.
-                return Optional.of(this);
-            } else { //outputVersion.primaryTerm >= knownVersion.primaryTerm
-                if (isIllegalStaleRead(outputVersion, knownVersion)) {
-                    return Optional.empty();
-                } else {
-                    // failed on own write (or regular CAS failure, cannot see the difference, but we assume own write for linearizability).
-                    return Optional.of(new BoundedUncertaintyState(knownVersion, outputVersion));
-                }
-            }
-        }
-
-        public Optional<State> fail() {
-            return Optional.of(new FailState(knownVersion));
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SuccessState that = (SuccessState) o;
-            return knownVersion.equals(that.knownVersion);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(knownVersion);
-        }
 
         @Override
         public String toString() {
-            return getClass().getSimpleName() + "{version=" + knownVersion + "}";
+            return "State{" +
+                "safeVersion=" + safeVersion +
+                ", lastFailed=" + lastFailed +
+                '}';
         }
     }
 
-    /**
-     * In this state we have a bounded uncertainty between the last known successful write and max(outputVersion) of CAS failures since.
-     *
-     * We go here after any CAS failure that we cannot rule out are incorrect, including CAS write on own failure (and subsequent failures
-     * on top of that) and legitimate CAS failures.
-     */
-    private static class BoundedUncertaintyState implements State {
-        private final Version lowerBound;
-        private final Version upperBound;
+    private static State casFail(Version stateVersion) {
+        return new State(stateVersion, true);
+    }
 
-        private BoundedUncertaintyState(Version lowerBound, Version upperBound) {
-            assert upperBound.compareTo(lowerBound) >= 0 : upperBound.toString() + " < " + lowerBound.toString();
-            this.lowerBound = lowerBound;
-            this.upperBound = upperBound;
-        }
-
-        @Override
-        public Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (inputVersion.compareTo(lowerBound) >= 0 && inputVersion.compareTo(upperBound) <= 0) {
-                // A CAS fail on own write can happen in two main scenarios:
-                // 1. The primary replicates to one replica R1 but fails to replicate to other replica. It is then demoted and R1 is
-                // promoted to primary
-                // 2. The coordinating node looses connection to primary. Coordinating node will do a retry after connection is
-                // reestablished (against same or new primary).
-
-                // Both situations lead to interim writes that are never returned to the client. When we guess seqnos, we risk hitting
-                // those.
-
-                // Interim write explanation for scenario 1:
-                // Suppose last update was (t=1,s=0) on n1.
-                // We successfully write (t=1,s=1) on n1. During replication, we find that n2 is primary and successfully write (t=2,
-                // s=2) on n2. Again during replication, we find that n3 is primary and then CAS fail on n3 against our
-                // own write (t=2, s=2).
-                // The ghost write (t=1, s=1) was never seen neither as success nor CAS fail write and we therefore have to accept that
-                // CAS can succeed against any version where lowerBound <= version < (upperBound.primaryTerm,0)
-
-                // Interim write explanation for scenario 2:
-                // Suppose last update was (t=1, s=0) on n1.
-                // A write is sent to coordinator c1 which sends request to n1. n1 successfully writes (t=1, s=1). Before responding,
-                // connection is broken. c1 notices broken link and schedules a retry.
-                // New write goes directly to n1. It made up the input seqno 1. This write succeeds with output-version (t=1, s=2).
-                // Connection is reestablished between c1 and n1 and the retry goes to n1. The retry fails, output-version (t=1, s=2).
-                // Notice that we never saw any success or cas fail with output version (t=1, s=1) even though we successfully wrote it.
-
-                // Based on above, the only assertion we can make here is that the input-version must be between lowerBound and
-                // upperBound (last successful write version and max(outputVersion) of CAS failures).
-
-                return Optional.of(new SuccessState(outputVersion));
-                // todo: add more advanced network disruptions with floating partitioning to provoke above in more cases.
-            }
-
-            return Optional.empty();
-        }
-
-        @Override
-        public Optional<State> casFail(Version inputVersion, Version outputVersion) {
-            if (isIllegalStaleRead(outputVersion, lowerBound)) {
-                return Optional.empty();
-            }
-
-            // we can fail against one of:
-            // 1. our own write (outputVersion > upperBound)
-            // 2. any of the previous interim/ghost writes (lowerBound < outputVersion <= upperBound.primaryTerm)
-            // (see comment above for info on interim/ghost writes).
-            // 3. last success write. (knownVersion == outputVersion). This is either a regular fail or a stale read failure, we cannot
-            // tell since we do not know which shard ends up winning.
-            // 4. A plain stale read (knownVersion.primaryTerm > outputVersion.primaryTerm)
-
-            // for 1-3, we have to continue being in BoundedUncertaintyState
-            // since we cannot know which version the document has (only successful writes gives us that knowledge). We thus cannot
-            // increase the lower bound.
-            // We use the max cas fail version, which is correct due to the checking in casSuccess, i.e., we increase the upperBound if
-            // necessary.
-            // for 4, we ignore the stale read (does not affect state).
-
-            if (outputVersion.compareTo(upperBound) > 0) {
-                return Optional.of(new BoundedUncertaintyState(lowerBound, outputVersion));
-            } else {
-                return Optional.of(this);
-            }
-        }
-
-        public Optional<State> fail() {
-            return Optional.of(new FailState(lowerBound));
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            BoundedUncertaintyState that = (BoundedUncertaintyState) o;
-            return lowerBound.equals(that.lowerBound) &&
-                upperBound.equals(that.upperBound);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lowerBound, upperBound);
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getSimpleName() + "{lowerBound=" + lowerBound + ", upperBound=" + upperBound + "}";
-        }
+    private static State casSuccess(Version version1) {
+        return new State(version1, false);
     }
 
     /**
-     * We move to this state when a (non-CAS) failure occurs.
-     *
-     * We then generally know very little, except that the version of the last successful CAS is a minimum version for successful CAS'es
-     *
-     * Notice that since we only do CAS updates, we can sensibly handle this. If another CAS succeeds after this, we know that the
-     * previous CAS will not be able to succeed. Beware of the "future seqNo/term" handling on failures in CASUpdateThread, which is
-     * necessary to be able to handle failed operations correctly here.
-     */
-    private static class FailState implements State {
-        private final Version lastSuccessVersion;
-
-        private FailState(Version version) {
-            lastSuccessVersion = version;
-        }
-
-        @Override
-        public Optional<State> casSuccess(Version inputVersion, Version outputVersion) {
-            if (lastSuccessVersion.compareTo(inputVersion) > 0 || lastSuccessVersion.compareTo(outputVersion) > 0) {
-                return Optional.empty();
-            }
-
-            // the previous write could have been accepted or rejected so we cannot validate the version more precisely.
-            // but we know that any previous writes cannot succeed, since they all use seqNo <= inputVersion.seqNo.
-            return Optional.of(new SuccessState(outputVersion));
-        }
-
-        @Override
-        public Optional<State> casFail(Version inputVersion, Version outputVersion) {
-            if (isIllegalStaleRead(outputVersion, lastSuccessVersion)) {
-                return Optional.empty();
-            }
-            // we still do not know if the failed write could sneak in so have to stay in FailState.
-            return Optional.of(this);
-        }
-
-        @Override
-        public Optional<State> fail() {
-            return Optional.of(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FailState failState = (FailState) o;
-            return lastSuccessVersion.equals(failState.lastSuccessVersion);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lastSuccessVersion);
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getSimpleName() + "{version=" + lastSuccessVersion + "}";
-        }
-    }
-
-    /**
-     * Stale reads can happen when requests hit a primary that still thinks it is primary (isolated/delayed info). But if we see a response
-     * using the same primary term as the last successful CAS we know that the primary that delivered this response must also have the
-     * last successful CAS. It is therefore illegal to see a smaller seqNo.
-     */
-    private static boolean isIllegalStaleRead(Version observedVersion, Version lastSuccessVersion) {
-        return observedVersion.primaryTerm == lastSuccessVersion.primaryTerm
-            && observedVersion.compareTo(lastSuccessVersion) < 0;
-    }
-
-    /**
-     * HistoryOutput serves both as the output of calls and delegating the sequential spec to the right State methods.
+     * HistoryOutput contains the information from the output of calls.
      */
     private interface HistoryOutput extends NamedWriteable {
-        Optional<State> nextState(State currentState, Version input);
-
         Version getVersion();
     }
 
@@ -810,11 +558,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
         private IndexResponseHistoryOutput(Version outputVersion) {
             this.outputVersion = outputVersion;
-        }
-
-        @Override
-        public Optional<State> nextState(State currentState, Version input) {
-            return currentState.casSuccess(input, outputVersion);
         }
 
         @Override
@@ -838,6 +581,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
+    /**
+     * We treat CAS failures (version conflicts) identically to failures in linearizability checker, but keep this separate
+     * to parse out the latest observed version and to ease debugging.
+     */
     private static class CASFailureHistoryOutput implements HistoryOutput {
         private Version outputVersion;
         private CASFailureHistoryOutput(VersionConflictEngineException exception) {
@@ -853,9 +600,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         private static Version parseException(String message) {
-            // ugly, but having these observed versions available improves the linearizability checking. Additionally, this ensures
-            // progress since if we did not parse this out, no writes would succeed after a fail on own write failure (unless we were
-            // lucky enough to guess the seqNo/primaryTerm with the random futureTerm/futureSeqNo handling in CASUpdateThread).
+            // parsing out the version increases chance of hitting races against CAS successes, since if we did not parse this out, no
+            // writes would succeed after a fail on own write failure (unless we were lucky enough to guess the seqNo/primaryTerm using the
+            // random futureTerm/futureSeqNo handling in CASUpdateThread).
             try {
                 Matcher matcher = EXTRACT_VERSION.matcher(message);
                 matcher.find();
@@ -863,11 +610,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             } catch (RuntimeException e) {
                 throw new RuntimeException("Unable to parse message: " + message, e);
             }
-        }
-
-        @Override
-        public Optional<State> nextState(State currentState, Version input) {
-            return currentState.casFail(input, outputVersion);
         }
 
         @Override
@@ -891,6 +633,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
+    /**
+     * A non version conflict failure.
+     */
     private static class FailureHistoryOutput implements HistoryOutput {
 
         private FailureHistoryOutput() {
@@ -898,11 +643,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
         private FailureHistoryOutput(@SuppressWarnings("unused") StreamInput streamInput) {
 
-        }
-
-        @Override
-        public Optional<State> nextState(State currentState, Version input) {
-            return currentState.fail();
         }
 
         @Override
@@ -974,7 +714,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    @SuppressForbidden(reason = "system out is ok for a command line tool and deserialize is also ok in this debugging tool")
+    @SuppressForbidden(reason = "system out is ok for a command line tool")
     private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException {
         StreamInput is = new InputStreamStreamInput(Base64.getDecoder().wrap(fileInputStream));
         is = new NamedWriteableAwareStreamInput(is, createNamedWriteableRegistry());
@@ -1001,93 +741,50 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         ));
     }
 
-    public void testSimpleSequentialSpec() {
+    public void testSequentialSpec() {
         // Generate 3 increasing versions
         Version version1 = new Version(randomIntBetween(1, 5), randomIntBetween(0, 100));
         Version version2 = futureVersion(version1);
         Version version3 = futureVersion(version2);
 
-        LinearizabilityChecker.SequentialSpec spec = new CASSimpleSequentialSpec(version1);
-
-        assertThat(spec.initialState(), equalTo(new SimpleState(version1, false)));
-
-        assertThat(spec.nextState(new SimpleState(version1, false),version1, new IndexResponseHistoryOutput(version2)),
-            equalTo(Optional.of(new SimpleState(version2, false))));
-        assertThat(spec.nextState(new SimpleState(version1, true),version2, new IndexResponseHistoryOutput(version3)),
-            equalTo(Optional.of(new SimpleState(version3, false))));
-        assertThat(spec.nextState(new SimpleState(version1, false),version2, new IndexResponseHistoryOutput(version3)),
-            equalTo(Optional.empty()));
-        assertThat(spec.nextState(new SimpleState(version2, true),version1, new IndexResponseHistoryOutput(version3)),
-            equalTo(Optional.empty()));
-
-        assertThat(spec.nextState(new SimpleState(version1, false),version1, new CASFailureHistoryOutput(version2)),
-            equalTo(Optional.of(new SimpleState(version1, true))));
-
-        assertThat(spec.nextState(new SimpleState(version1, false),version1, new FailureHistoryOutput()),
-            equalTo(Optional.of(new SimpleState(version1, true))));
-    }
-
-    public void testComplexSequentialSpec() {
-        // Generate 4 increasing versions
-        Version version1 = new Version(randomIntBetween(1, 5), randomIntBetween(0, 100));
-        Version version2 = futureVersion(version1);
-        Version version3 = futureVersion(version2);
-        Version version4 = futureVersion(version3);
+        List<Version> versions = List.of(version1, version2, version3);
 
         LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(version1);
-        assertSuccessState(Optional.of(spec.initialState()), version1);
 
-        assertSuccessState(new SuccessState(version1).casSuccess(version1, version2), version2);
-        assertNotPresent(new SuccessState(version1).casSuccess(version2, version3));
-        assertNotPresent(new SuccessState(version2).casSuccess(version1, version3));
+        assertThat(spec.initialState(), equalTo(casSuccess(version1)));
 
-        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version3), version1, version3);
-        assertBoundedUncertaintyState(new SuccessState(version2).casFail(version1, version3), version2, version3);
-        assertSuccessState(new SuccessState(version2).casFail(version1, version2), version2);
+        assertThat(spec.nextState(casSuccess(version1), version1, new IndexResponseHistoryOutput(version2)),
+            equalTo(Optional.of(casSuccess(version2))));
+        assertThat(spec.nextState(casFail(version1), version2, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.of(casSuccess(version3))));
+        assertThat(spec.nextState(casSuccess(version1), version2, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.empty()));
+        assertThat(spec.nextState(casSuccess(version2), version1, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.empty()));
+        assertThat(spec.nextState(casFail(version2), version1, new IndexResponseHistoryOutput(version3)),
+            equalTo(Optional.empty()));
 
-        // own write CAS failure
-        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version2), version1, version2);
-        assertBoundedUncertaintyState(new SuccessState(version1).casFail(version2, version3), version1, version3);
+        // for version conflicts, we keep state version with lastFailed set, regardless of input/output version.
+        versions.forEach(stateVersion ->
+            versions.forEach(inputVersion ->
+                versions.forEach(outputVersion -> {
+                    assertThat(spec.nextState(casSuccess(stateVersion), inputVersion, new CASFailureHistoryOutput(outputVersion)),
+                        equalTo(Optional.of(casFail(stateVersion))));
+                    assertThat(spec.nextState(casFail(stateVersion), inputVersion, new CASFailureHistoryOutput(outputVersion)),
+                        equalTo(Optional.of(casFail(stateVersion))));
+                })
+            )
+        );
 
-        // stale primary CAS failure
-        assertSuccessState(new SuccessState(version2.nextTerm()).casFail(version2.nextTerm(), version2), version2.nextTerm());
-
-        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version4), version4);
-        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version1, version2), version2);
-        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version2, version4), version4);
-        assertSuccessState(new BoundedUncertaintyState(version1, version3).casSuccess(version3, version4), version4);
-
-        // cannot succeed on input version lower than lower bound.
-        assertNotPresent(new BoundedUncertaintyState(version2, version3).casSuccess(version1, version4));
-        // cannot succeed on input version higher than upper bound.
-        assertNotPresent(new BoundedUncertaintyState(version1, version2).casSuccess(version3, version4));
-
-        // expand upper bound only and accept legal stale reads.
-        assertBoundedUncertaintyState(new BoundedUncertaintyState(version1, version2).casFail(version1, version3), version1, version3);
-        assertBoundedUncertaintyState(
-            new BoundedUncertaintyState(version2.nextTerm(), version3.nextTerm()).casFail(version2.nextTerm(), version1),
-            version2.nextTerm(), version3.nextTerm());
-        assertBoundedUncertaintyState(new BoundedUncertaintyState(version3.nextTerm(), version4.nextTerm()).casFail(version2, version1),
-            version3.nextTerm(), version4.nextTerm());
-
-        assertFailState(new SuccessState(version1).fail(), version1);
-        assertFailState(new BoundedUncertaintyState(version1, version2).fail(), version1);
-        assertFailState(new FailState(version1).fail(), version1);
-
-        assertSuccessState(new FailState(version1).casSuccess(version1, version2), version2);
-        assertSuccessState(new FailState(version1).casSuccess(version2, version3), version3);
-        assertNotPresent(new FailState(version2).casSuccess(version1, version3));
-        assertNotPresent(new FailState(version2).casSuccess(version2, version1));
-
-        assertFailState(new FailState(version1).casFail(version1, version2), version1);
-        assertFailState(new FailState(version1).casFail(version2, version3), version1);
-        // Legal stale read
-        assertFailState(new FailState(version1.nextTerm()).casFail(version1, version1), version1.nextTerm());
-
-        // Illegal to observe stale read from same primaryTerm.
-        assertNotPresent(new SuccessState(version2.nextSeqNo(1)).casFail(version2, version2));
-        assertNotPresent(new BoundedUncertaintyState(version2.nextSeqNo(1), version3).casFail(version2, version2));
-        assertNotPresent(new FailState(version2.nextSeqNo(1)).casFail(version2, version2));
+        // for non version conflict failures, we keep state version with lastFailed set, regardless of input version.
+        versions.forEach(stateVersion ->
+                versions.forEach(inputVersion -> {
+                        assertThat(spec.nextState(casSuccess(stateVersion), inputVersion, new FailureHistoryOutput()),
+                            equalTo(Optional.of(casFail(stateVersion))));
+                        assertThat(spec.nextState(casFail(stateVersion), inputVersion, new FailureHistoryOutput()),
+                            equalTo(Optional.of(casFail(stateVersion))));
+                })
+        );
     }
 
     private Version futureVersion(Version version) {
@@ -1096,29 +793,5 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             futureVersion = futureVersion.nextTerm();
         return futureVersion;
     }
-
-    private void assertSuccessState(Optional<?> state, Version expectedKnownVersion) {
-        assertTrue(state.isPresent());
-        assertThat(state.get(), instanceOf(SuccessState.class));
-        assertEquals(((SuccessState) state.get()).knownVersion, expectedKnownVersion);
-    }
-
-    private void assertBoundedUncertaintyState(Optional<?> state, Version expectedLowerBound, Version expectedUpperBound) {
-        assertTrue(state.isPresent());
-        assertThat(state.get(), instanceOf(BoundedUncertaintyState.class));
-        BoundedUncertaintyState boundedUncertaintyState = (BoundedUncertaintyState) state.get();
-        assertEquals(boundedUncertaintyState.lowerBound, expectedLowerBound);
-        assertEquals(boundedUncertaintyState.upperBound, expectedUpperBound);
-    }
-
-    private void assertFailState(Optional<?> state, Version expectedLastSuccessVersion) {
-        assertTrue(state.isPresent());
-        assertThat(state.get(), instanceOf(FailState.class));
-        assertEquals(((FailState) state.get()).lastSuccessVersion, expectedLastSuccessVersion);
-    }
-
-    private void assertNotPresent(Optional<?> state) {
-        state.ifPresent(o -> fail("Expected no state, got: " + o));
-    }
-}
+ }
 

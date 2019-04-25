@@ -53,19 +53,21 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String CONTENT_LENGTH = "content-length";
     static final String SET_COOKIE = "set-cookie";
 
+    private final HttpChannel httpChannel;
     private final HttpRequest httpRequest;
     private final BigArrays bigArrays;
     private final HttpHandlingSettings settings;
+    private final CorsHandler corsHandler;
     private final ThreadContext threadContext;
-    private final HttpChannel httpChannel;
 
     DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext) {
+                       HttpHandlingSettings settings, CorsHandler corsHandler, ThreadContext threadContext) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
         this.bigArrays = bigArrays;
         this.settings = settings;
+        this.corsHandler = corsHandler;
         this.threadContext = threadContext;
     }
 
@@ -83,8 +85,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             httpResponse = httpRequest.createResponse(restResponse.status(), restResponse.content());
         }
 
-        // TODO: Ideally we should move the setting of Cors headers into :server
-        // NioCorsHandler.setCorsResponseHeaders(nettyRequest, resp, corsConfig);
+        corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
         String opaque = request.header(X_OPAQUE_ID);
         if (opaque != null) {

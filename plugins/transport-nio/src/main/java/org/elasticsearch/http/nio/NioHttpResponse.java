@@ -26,6 +26,8 @@ import org.elasticsearch.http.HttpPipelinedMessage;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.List;
+
 public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
@@ -40,6 +42,11 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResp
     @Override
     public void addHeader(String name, String value) {
         headers().add(name, value);
+    }
+
+    @Override
+    public List<String> getAllHeaders(String name) {
+        return headers().getAll(name);
     }
 
     @Override

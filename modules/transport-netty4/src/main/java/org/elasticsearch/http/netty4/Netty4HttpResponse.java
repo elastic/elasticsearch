@@ -27,6 +27,8 @@ import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
+import java.util.List;
+
 public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpResponse, HttpPipelinedMessage {
 
     private final int sequence;
@@ -41,6 +43,11 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
     @Override
     public void addHeader(String name, String value) {
         headers().add(name, value);
+    }
+
+    @Override
+    public List<String> getAllHeaders(String name) {
+        return headers().getAll(name);
     }
 
     @Override

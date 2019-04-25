@@ -259,41 +259,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    static CorsHandler.Config buildCorsConfig(Settings settings) {
-        if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return CorsHandler.Config.disabled();
-        }
-        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
-        final CorsHandler.Config.Builder builder;
-        if (Strings.isNullOrEmpty(origin)) {
-            builder = CorsHandler.Config.Builder.forOrigins();
-        } else if (origin.equals(CorsHandler.ANY_ORIGIN)) {
-            builder = CorsHandler.Config.Builder.forAnyOrigin();
-        } else {
-            try {
-                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-                if (p == null) {
-                    builder = CorsHandler.Config.Builder.forOrigins(RestUtils.corsSettingAsArray(origin));
-                } else {
-                    builder = CorsHandler.Config.Builder.forPattern(p);
-                }
-            } catch (PatternSyntaxException e) {
-                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
-            }
-        }
-        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
-            builder.allowCredentials();
-        }
-        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
-        RestRequest.Method[] methods = Arrays.stream(strMethods)
-            .map(RestRequest.Method::valueOf)
-            .toArray(RestRequest.Method[]::new);
-        return builder.allowedRequestMethods(methods)
-            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
-            .build();
-    }
-
     protected void onException(HttpChannel channel, Exception e) {
         if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
@@ -338,6 +303,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+
         handleIncomingRequest(httpRequest, httpChannel, null);
     }
 
@@ -400,11 +366,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestChannel innerChannel;
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
-                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, null, threadContext);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
-                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, null, threadContext);
             }
             channel = innerChannel;
         }

@@ -111,6 +111,11 @@ public class FakeRestRequest extends RestRequest {
                 public boolean containsHeader(String name) {
                     return headers.containsKey(name);
                 }
+
+                @Override
+                public List<String> getAllHeaders(String name) {
+                    return Collections.singletonList(headers.get(name));
+                }
             };
         }
     }

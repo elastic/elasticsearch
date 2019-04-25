@@ -36,29 +36,50 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 
 public class CorsHandler {
 
     static final String ANY_ORIGIN = "*";
-    private static final String ORIGIN = "origin";
-    private static final String HOST = "host";
-    private static final String VARY = "vary";
+    private static final String DATE = "date";
+    static final String ORIGIN = "origin";
+    static final String VARY = "vary";
     private static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
-    private static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
-    private static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
+    private static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
+    private static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
+    private static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
+    static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
+    static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
+    private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private static final Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
     private final Config config;
 
@@ -78,7 +99,7 @@ public class CorsHandler {
             // If there is no origin, this is not a CORS request.
             // TODO: Only getting first
             final String origin = request.getHeaders().get(ORIGIN).get(0);
-            if (Strings.isNullOrEmpty(origin) == false && validOrigin(request, origin) == false) {
+            if (Strings.isNullOrEmpty(origin) == false && validOrigin(origin) == false) {
                 return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
             }
         }
@@ -87,30 +108,16 @@ public class CorsHandler {
     }
 
     public void setCorsResponseHeaders(HttpRequest request, HttpResponse resp) {
-        if (config.isCorsSupportEnabled() == false) {
-            return;
-        }
-        String originHeader = request.getHeaders().get(ORIGIN).get(0);
-        // If there is no origin, this is not a CORS request.
-        if (Strings.isNullOrEmpty(originHeader) == false) {
-            final String originHeaderVal;
-            if (config.isAnyOriginSupported()) {
-                originHeaderVal = ANY_ORIGIN;
-            } else if (config.isOriginAllowed(originHeader) || isSameOrigin(originHeader, request.getHeaders().get(HOST).get(0))) {
-                originHeaderVal = originHeader;
-            } else {
-                originHeaderVal = null;
-            }
-            if (originHeaderVal != null) {
-                resp.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, originHeaderVal);
-            }
+        if (config.isCorsSupportEnabled()) {
+            String originHeader = request.getHeaders().get(ORIGIN).get(0);
+            setOrigin(resp, originHeader);
             if (config.isCredentialsAllowed()) {
                 resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
             }
         }
     }
 
-    private boolean validOrigin(HttpRequest request, String origin) {
+    private boolean validOrigin(String origin) {
         if (config.isAnyOriginSupported()) {
             return true;
         }
@@ -119,13 +126,6 @@ public class CorsHandler {
             // Not a CORS request so we cannot validate it. It may be a non CORS request.
             return true;
         }
-
-        // if the origin is the same as the host of the request, then allow
-        // TODO: I think we want to remove this.
-        if (isSameOrigin(origin, request.getHeaders().get(HOST).get(0))) {
-            return true;
-        }
-
         return config.isOriginAllowed(origin);
     }
 
@@ -133,21 +133,23 @@ public class CorsHandler {
         final String origin = request.getHeaders().get(ORIGIN).get(0);
         if (Strings.isNullOrEmpty(origin) == false) {
             HttpResponse response = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
-            setOrigin(request, response, origin);
-//            setAllowMethods(response);
-//            setAllowHeaders(response);
-//            setAllowCredentials(response);
-//            setMaxAge(response);
-            // TODO: Builder automatically adds some headers
-//            setPreflightHeaders(response);
+            setOrigin(response, origin);
+            setAllowMethods(response);
+            setAllowHeaders(response);
+            setAllowCredentials(response);
+            setMaxAge(response);
+            response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
+            dateTimeFormatter.format(Instant.now());
+            response.addHeader(DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
             return response;
         } else {
             return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
         }
     }
 
-    private void setOrigin(final HttpRequest request, final HttpResponse response, final String origin) {
-        if (!Strings.isNullOrEmpty(origin)) {
+    private void setOrigin(final HttpResponse response, final String origin) {
+        // If there is no origin, this is not a CORS request.
+        if (Strings.isNullOrEmpty(origin) == false) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
@@ -158,31 +160,32 @@ public class CorsHandler {
             }
             if (config.isOriginAllowed(origin)) {
                 response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-                response.addHeader(VARY, ORIGIN);;
+                response.addHeader(VARY, ORIGIN);
             }
         }
     }
 
-//    private void setAllowMethods(final HttpResponse response) {
-//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, config.allowedRequestMethods().stream()
-//            .map(m -> m.name().trim())
-//            .collect(Collectors.toList()));
-//    }
-//
-//    private void setAllowHeaders(final HttpResponse response) {
-//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, config.allowedRequestHeaders());
-//    }
-//
-//    private void setAllowCredentials(final HttpResponse response) {
-//        if (config.isCredentialsAllowed()
-//            && !response.headers().get(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN).equals(ANY_ORIGIN)) {
-//            response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
-//        }
-//    }
-//
-//    private void setMaxAge(final HttpResponse response) {
-//        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE, config.maxAge());
-//    }
+    private void setAllowMethods(final HttpResponse response) {
+        for (RestRequest.Method method : config.allowedRequestMethods) {
+            response.addHeader(ACCESS_CONTROL_ALLOW_METHODS, method.name().trim());
+        }
+    }
+
+    private void setAllowHeaders(final HttpResponse response) {
+        for (String header : config.allowedRequestHeaders) {
+            response.addHeader(ACCESS_CONTROL_ALLOW_HEADERS, header);
+        }
+    }
+
+    private void setAllowCredentials(final HttpResponse response) {
+        if (config.isCredentialsAllowed()) {
+            response.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+        }
+    }
+
+    private void setMaxAge(final HttpResponse response) {
+        response.addHeader(ACCESS_CONTROL_MAX_AGE, Long.toString(config.maxAge));
+    }
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         Map<String, List<String>> headers = request.getHeaders();
@@ -210,6 +213,7 @@ public class CorsHandler {
         private final boolean credentialsAllowed;
         private final Set<RestRequest.Method> allowedRequestMethods;
         private final Set<String> allowedRequestHeaders;
+        private final long maxAge;
 
         public Config(Builder builder) {
             this.enabled = builder.enabled;
@@ -217,9 +221,10 @@ public class CorsHandler {
             pattern = builder.pattern;
             anyOrigin = builder.anyOrigin;
             this.credentialsAllowed = builder.allowCredentials;
-            // TODO: Broken Currently
+            // TODO: We do not short circuit on these
             this.allowedRequestMethods = Collections.unmodifiableSet(builder.requestMethods);
             this.allowedRequestHeaders = Collections.unmodifiableSet(builder.requestHeaders);
+            this.maxAge = builder.maxAge;
         }
 
         public static Config disabled() {
@@ -249,7 +254,7 @@ public class CorsHandler {
             return credentialsAllowed;
         }
 
-        public static class Builder {
+        private static class Builder {
 
             private boolean enabled = true;
             private Optional<Set<String>> origins;
@@ -315,5 +320,47 @@ public class CorsHandler {
                 return new Config(this);
             }
         }
+    }
+
+    public static CorsHandler disabled() {
+        Config.Builder builder = new Config.Builder();
+        builder.enabled = false;
+        return new CorsHandler(new Config(builder));
+    }
+
+    public static CorsHandler fromSettings(Settings settings) {
+        if (SETTING_CORS_ENABLED.get(settings) == false) {
+            return new CorsHandler(CorsHandler.Config.disabled());
+        }
+        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
+        final CorsHandler.Config.Builder builder;
+        if (Strings.isNullOrEmpty(origin)) {
+            builder = CorsHandler.Config.Builder.forOrigins();
+        } else if (origin.equals(CorsHandler.ANY_ORIGIN)) {
+            builder = CorsHandler.Config.Builder.forAnyOrigin();
+        } else {
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = CorsHandler.Config.Builder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = CorsHandler.Config.Builder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
+            }
+        }
+        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
+            builder.allowCredentials();
+        }
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        RestRequest.Method[] methods = Arrays.stream(strMethods)
+            .map(RestRequest.Method::valueOf)
+            .toArray(RestRequest.Method[]::new);
+        Config config = builder.allowedRequestMethods(methods)
+            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .build();
+        return new CorsHandler(config);
     }
 }

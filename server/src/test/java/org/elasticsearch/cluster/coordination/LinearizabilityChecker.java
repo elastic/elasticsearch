@@ -149,17 +149,6 @@ public class LinearizabilityChecker {
         }
 
         /**
-         * Appends a new invocation event to the history
-         *
-         * @param input the input value associated with the invocation event
-         * @return a future object that should receive the response once/if it is available.
-         */
-        public Consumer<Object> invoke2(Object input) {
-            final int id = invoke(input);
-            return output -> respond(id, output);
-        }
-
-        /**
          * Appends a new response event to the history
          *
          * @param id the id of the corresponding invocation event

@@ -60,33 +60,33 @@ public class DateIntervalWrapperTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.NONE.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.NONE));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.FIXED.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in), equalTo(DateIntervalWrapper.IntervalTypeEnum.FIXED));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.CALENDAR.fromStream(in),
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
                     equalTo(DateIntervalWrapper.IntervalTypeEnum.CALENDAR));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL.fromStream(in),
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
                     equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_INTERVAL));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO.fromStream(in),
+                assertThat(DateIntervalWrapper.IntervalTypeEnum.fromStream(in),
                     equalTo(DateIntervalWrapper.IntervalTypeEnum.LEGACY_DATE_HISTO));
             }
         }

@@ -1446,6 +1446,23 @@ public class DateHistogramIT extends ESIntegTestCase {
             ((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
         assertThat(((ZonedDateTime) buckets.get(3).getKey()).toInstant().toEpochMilli() -
             ((ZonedDateTime) buckets.get(2).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+
+        response = client().prepareSearch("idx")
+            .setQuery(new MatchNoneQueryBuilder())
+            .addAggregation(dateHistogram("histo").field("date").timeZone(ZoneId.of("Europe/Oslo"))
+                .dateHistogramInterval(DateHistogramInterval.HOUR).minDocCount(0).extendedBounds(
+                    new ExtendedBounds("2015-10-25T02:00:00.000+02:00", "2015-10-25T04:00:00.000+01:00")))
+            .get();
+
+        histo = response.getAggregations().get("histo");
+        buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+        assertThat(((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(0).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+        assertThat(((ZonedDateTime) buckets.get(2).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(1).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
+        assertThat(((ZonedDateTime) buckets.get(3).getKey()).toInstant().toEpochMilli() -
+            ((ZonedDateTime) buckets.get(2).getKey()).toInstant().toEpochMilli(), equalTo(3600000L));
     }
 
     /**

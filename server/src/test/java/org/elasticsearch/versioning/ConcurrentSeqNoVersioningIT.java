@@ -116,9 +116,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *     <li>A CAS failure throws a VersionConflictEngineException which does not directly contain the current seqno/primary-term to use for
  *     the next request. It is contained in the message (and we parse it out in the test), but notice that the numbers given here could be
  *     stale or dirty, i.e., come from a stale primary or belong to a write that ends up being discarded.</li>
- *
  * </ul>
- *
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
     transportClientRatio = 0)
@@ -353,7 +351,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             if (termCompare != 0)
                 return termCompare;
             return Long.compare(seqNo, other.seqNo);
-
         }
 
         @Override
@@ -463,7 +460,6 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         public void assertLinearizable() {
             assertTrue("Must be linearizable", isLinearizable());
         }
-
     }
 
     private static class CASSequentialSpec implements LinearizabilityChecker.SequentialSpec {
@@ -639,10 +635,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     private static class FailureHistoryOutput implements HistoryOutput {
 
         private FailureHistoryOutput() {
-
         }
-        private FailureHistoryOutput(@SuppressWarnings("unused") StreamInput streamInput) {
 
+        private FailureHistoryOutput(@SuppressWarnings("unused") StreamInput streamInput) {
         }
 
         @Override

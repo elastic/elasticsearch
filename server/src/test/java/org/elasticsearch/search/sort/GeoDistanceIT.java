@@ -23,11 +23,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -380,7 +380,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                 .startObject("pin").field("type", "geo_point");
         mapping.endObject().endObject().endObject().endObject();
 
-        XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", GeoHashUtils.stringEncode(lon, lat)).endObject();
+        XContentBuilder source = JsonXContent.contentBuilder().startObject().field("pin", Geohash.stringEncode(lon, lat)).endObject();
 
         assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).get();
